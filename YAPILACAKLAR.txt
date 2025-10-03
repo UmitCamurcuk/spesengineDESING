@@ -1,0 +1,1296 @@
+================================================================================
+SPES ENGINE UI - KAPSAMLI İYİLEŞTİRME VE GELIŞTIRME PLANI
+CDP • MDM • ERP SİSTEMİ
+================================================================================
+
+Son Güncelleme: 3 Ekim 2025
+Versiyon: 1.0
+
+================================================================================
+İÇİNDEKİLER
+================================================================================
+
+1. PROJE GENELİ
+2. KRİTİK ÖNCELIK - HEMEN YAPILACAKLAR
+3. ORTA ÖNCELİK - KISA VADELİ
+4. DÜŞÜK ÖNCELİK - UZUN VADELİ
+5. ATTRIBUTE SYSTEM - ÖZEL GEREKSİNİMLER
+6. DARK THEME ENTEGRASYONU
+7. DETAYLI UYGULAMA ADIMLARI
+
+================================================================================
+1. PROJE GENELİ
+================================================================================
+
+Proje Adı: SpesEngine UI
+Proje Tipi: CDP (Customer Data Platform) • MDM (Master Data Management) • ERP
+Teknoloji Stack:
+  - React 18.3.1 + TypeScript 5.5.3
+  - Vite 5.4.2
+  - TailwindCSS 3.4.1
+  - React Router DOM 7.9.1
+  - Lucide React (Icons)
+
+Mevcut Durum:
+  ✅ İyi klasör yapısı
+  ✅ Modern teknoloji stack
+  ✅ TypeScript kullanımı
+  ✅ UI component library (17 component)
+  ✅ Çeviri sistemi (TR/EN)
+  
+  ❌ Theme sistemi kullanılmıyor
+  ❌ API layer yok
+  ❌ Custom hooks yok
+  ❌ Test coverage yok
+  ❌ Authentication zayıf
+  ❌ Attribute render sistemi eksik
+
+================================================================================
+2. KRİTİK ÖNCELIK - HEMEN YAPILACAKLAR (1. HAFTA)
+================================================================================
+
+2.1. THEME SİSTEMİ ENTEGRASYONU (Dark + Light Mode)
+────────────────────────────────────────────────────────────────────────────
+Süre: 2 gün
+Öncelik: 🔴 YÜKSEK
+
+DETAYLAR:
+  □ ThemeContext ve ThemeProvider oluştur
+  □ CSS Variables tanımla (light ve dark mode için)
+  □ Tailwind config'i theme ile entegre et
+  □ Tüm hardcoded renkleri theme'den al
+  □ Theme toggle button ekle (Header'da)
+  □ Theme seçimini localStorage'a kaydet
+  □ System preference detection (prefers-color-scheme)
+  
+Dosyalar:
+  - /src/contexts/ThemeContext.tsx (YENİ)
+  - /src/theme/index.ts (GÜNCELLE)
+  - /src/theme/dark.ts (YENİ)
+  - /src/theme/light.ts (YENİ)
+  - /src/index.css (GÜNCELLE - CSS Variables)
+  - tailwind.config.js (GÜNCELLE)
+  - /src/components/layout/Header.tsx (GÜNCELLE - theme toggle)
+
+Theme Renk Paleti:
+  Light Mode:
+    - Background: #ffffff, #f9fafb, #f3f4f6
+    - Text: #111827, #4b5563, #6b7280
+    - Primary: #2196f3 (blue)
+    - Border: #e5e7eb, #d1d5db
+    
+  Dark Mode:
+    - Background: #0f172a, #1e293b, #334155
+    - Text: #f1f5f9, #cbd5e1, #94a3b8
+    - Primary: #3b82f6 (lighter blue)
+    - Border: #334155, #475569
+
+
+2.2. API LAYER OLUŞTURMA
+────────────────────────────────────────────────────────────────────────────
+Süre: 2 gün
+Öncelik: 🔴 YÜKSEK
+
+DETAYLAR:
+  □ Axios kurulumu ve konfigürasyonu
+  □ API client oluştur (base URL, timeout, headers)
+  □ Request interceptor (auth token ekleme)
+  □ Response interceptor (error handling, token refresh)
+  □ API endpoint constants tanımla
+  □ Her modül için service katmanı oluştur
+  □ Generic API types tanımla (ApiResponse, ApiError, etc.)
+  □ Mock API server setup (development için)
+  
+Yeni Klasör Yapısı:
+  /src/api/
+    /client/
+      - axios.ts (axios instance)
+      - interceptors.ts (request/response interceptors)
+    /services/
+      - items.service.ts
+      - itemTypes.service.ts
+      - categories.service.ts
+      - families.service.ts
+      - attributes.service.ts
+      - attributeGroups.service.ts
+      - users.service.ts
+      - roles.service.ts
+      - permissions.service.ts
+      - localizations.service.ts
+      - auth.service.ts
+    /types/
+      - api.types.ts (ApiResponse, ApiError, PaginatedResponse, etc.)
+    - endpoints.ts (tüm API URL'leri)
+
+Paket Eklemeleri:
+  npm install axios
+  npm install -D msw (Mock Service Worker - API mocking için)
+
+Örnek Yapı:
+  ```typescript
+  // api/client/axios.ts
+  import axios from 'axios';
+  
+  export const apiClient = axios.create({
+    baseURL: import.meta.env.VITE_API_BASE_URL,
+    timeout: 30000,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+  
+  // api/services/items.service.ts
+  import { apiClient } from '../client/axios';
+  import { Item } from '@/types';
+  
+  export const itemsService = {
+    getAll: (params?: any) => apiClient.get<Item[]>('/items', { params }),
+    getById: (id: string) => apiClient.get<Item>(`/items/${id}`),
+    create: (data: Partial<Item>) => apiClient.post<Item>('/items', data),
+    update: (id: string, data: Partial<Item>) => 
+      apiClient.put<Item>(`/items/${id}`, data),
+    delete: (id: string) => apiClient.delete(`/items/${id}`),
+  };
+  ```
+
+
+2.3. AUTHENTICATION SİSTEMİ İYİLEŞTİRMESİ
+────────────────────────────────────────────────────────────────────────────
+Süre: 1.5 gün
+Öncelik: 🔴 YÜKSEK
+
+DETAYLAR:
+  □ AuthContext oluştur (user, token, permissions)
+  □ Login/Logout/Register API entegrasyonu
+  □ JWT token management (access + refresh token)
+  □ Token'ı localStorage/sessionStorage'a kaydet
+  □ Automatic token refresh
+  □ Protected Route component
+  □ Role-based access control (RBAC)
+  □ Permission-based rendering
+  □ Session timeout handling
+  □ "Remember me" functionality
+  
+Dosyalar:
+  - /src/contexts/AuthContext.tsx (YENİ)
+  - /src/components/auth/ProtectedRoute.tsx (YENİ)
+  - /src/components/auth/PermissionGate.tsx (YENİ)
+  - /src/hooks/useAuth.ts (YENİ)
+  - /src/hooks/usePermission.ts (YENİ)
+  - /src/api/services/auth.service.ts (YENİ)
+  - /src/pages/auth/Login.tsx (GÜNCELLE)
+  - /src/App.tsx (GÜNCELLE - AuthProvider)
+
+AuthContext Interface:
+  ```typescript
+  interface AuthContextType {
+    user: User | null;
+    token: string | null;
+    refreshToken: string | null;
+    isAuthenticated: boolean;
+    isLoading: boolean;
+    login: (credentials: LoginCredentials) => Promise<void>;
+    logout: () => void;
+    refreshAccessToken: () => Promise<void>;
+    hasPermission: (permission: string) => boolean;
+    hasRole: (role: string) => boolean;
+    updateUser: (user: Partial<User>) => void;
+  }
+  ```
+
+
+2.4. ERROR BOUNDARY VE ERROR HANDLING
+────────────────────────────────────────────────────────────────────────────
+Süre: 0.5 gün
+Öncelik: 🔴 YÜKSEK
+
+DETAYLAR:
+  □ Global Error Boundary component
+  □ Error fallback UI
+  □ Error logging service
+  □ Toast notifications için error handling
+  □ API error normalization
+  □ User-friendly error messages
+  
+Dosyalar:
+  - /src/components/ErrorBoundary.tsx (YENİ)
+  - /src/components/ErrorFallback.tsx (YENİ)
+  - /src/utils/errorHandler.ts (YENİ)
+  - /src/utils/logger.ts (YENİ)
+  - /src/App.tsx (GÜNCELLE - ErrorBoundary wrapper)
+
+Error Types:
+  - ValidationError
+  - AuthenticationError
+  - AuthorizationError
+  - NetworkError
+  - ServerError
+  - NotFoundError
+
+
+2.5. ENVIRONMENT YÖNETİMİ
+────────────────────────────────────────────────────────────────────────────
+Süre: 0.5 gün
+Öncelik: 🔴 YÜKSEK
+
+DETAYLAR:
+  □ .env dosyaları oluştur
+  □ Environment variables tanımla
+  □ Type-safe env variables (vite-env.d.ts)
+  □ .env.example oluştur
+  
+Dosyalar:
+  - .env.development (YENİ)
+  - .env.production (YENİ)
+  - .env.example (YENİ)
+  - /src/vite-env.d.ts (GÜNCELLE)
+  - /src/config/env.ts (YENİ - type-safe env wrapper)
+
+Environment Variables:
+  ```
+  # API
+  VITE_API_BASE_URL=http://localhost:3000/api
+  VITE_API_TIMEOUT=30000
+  
+  # App
+  VITE_APP_NAME=SpesEngine
+  VITE_APP_VERSION=1.0.0
+  
+  # Auth
+  VITE_AUTH_TOKEN_KEY=spes_auth_token
+  VITE_AUTH_REFRESH_TOKEN_KEY=spes_refresh_token
+  
+  # Features
+  VITE_ENABLE_MOCK_API=true
+  VITE_ENABLE_DARK_MODE=true
+  
+  # Logging
+  VITE_LOG_LEVEL=debug
+  ```
+
+================================================================================
+3. ORTA ÖNCELİK - KISA VADELİ (2-3. HAFTA)
+================================================================================
+
+3.1. CUSTOM HOOKS LİBRARY
+────────────────────────────────────────────────────────────────────────────
+Süre: 3 gün
+Öncelik: 🟡 ORTA
+
+DETAYLAR:
+  □ useApi - Generic API hook
+  □ usePagination - Pagination logic
+  □ useDebounce - Debounced values
+  □ useLocalStorage - localStorage wrapper
+  □ useSessionStorage - sessionStorage wrapper
+  □ useMediaQuery - Responsive breakpoints
+  □ useToggle - Boolean state management
+  □ useForm - Form state management
+  □ useAsync - Async operation handling
+  □ useClickOutside - Detect outside clicks
+  □ useKeyPress - Keyboard event handling
+  □ useWindowSize - Window dimensions
+  □ useIntersectionObserver - Lazy loading
+  
+Dosyalar:
+  /src/hooks/
+    - useApi.ts
+    - usePagination.ts
+    - useDebounce.ts
+    - useLocalStorage.ts
+    - useSessionStorage.ts
+    - useMediaQuery.ts
+    - useToggle.ts
+    - useForm.ts
+    - useAsync.ts
+    - useClickOutside.ts
+    - useKeyPress.ts
+    - useWindowSize.ts
+    - useIntersectionObserver.ts
+    - index.ts (barrel export)
+
+
+3.2. FORM MANAGEMENT SİSTEMİ
+────────────────────────────────────────────────────────────────────────────
+Süre: 2 gün
+Öncelik: 🟡 ORTA
+
+DETAYLAR:
+  □ React Hook Form kurulumu
+  □ Zod validation schema'ları
+  □ Form components (wrapper)
+  □ Form field components
+  □ Form error handling
+  □ Form submission handling
+  □ Reusable form templates
+  
+Paket Eklemeleri:
+  npm install react-hook-form zod @hookform/resolvers
+
+Dosyalar:
+  /src/components/forms/
+    - Form.tsx (wrapper component)
+    - FormField.tsx
+    - FormError.tsx
+    - FormLabel.tsx
+  /src/schemas/
+    - login.schema.ts
+    - user.schema.ts
+    - item.schema.ts
+    - attribute.schema.ts
+    - (diğer validation schemas)
+
+Örnek Kullanım:
+  ```typescript
+  import { useForm } from 'react-hook-form';
+  import { zodResolver } from '@hookform/resolvers/zod';
+  import { loginSchema } from '@/schemas/login.schema';
+  
+  const { register, handleSubmit, formState: { errors } } = useForm({
+    resolver: zodResolver(loginSchema)
+  });
+  ```
+
+
+3.3. STATE MANAGEMENT
+────────────────────────────────────────────────────────────────────────────
+Süre: 2 gün
+Öncelik: 🟡 ORTA
+
+DETAYLAR:
+  □ Zustand/Redux Toolkit karar ver
+  □ Global stores oluştur
+  □ Store structure tanımla
+  □ Persist middleware (localStorage)
+  □ DevTools entegrasyonu
+  
+Önerilen: Zustand (daha lightweight)
+
+Paket Eklemeleri:
+  npm install zustand
+
+Dosyalar:
+  /src/stores/
+    - authStore.ts (user, token, permissions)
+    - uiStore.ts (theme, sidebar open/close, etc.)
+    - itemsStore.ts (items cache)
+    - filtersStore.ts (global filters)
+    - index.ts (barrel export)
+
+Alternatif: React Query (Server State için)
+  npm install @tanstack/react-query
+
+
+3.4. TESTING SETUP
+────────────────────────────────────────────────────────────────────────────
+Süre: 3 gün
+Öncelik: 🟡 ORTA
+
+DETAYLAR:
+  □ Vitest kurulumu ve konfigürasyonu
+  □ Testing Library setup
+  □ Test utilities oluştur
+  □ Mock data helpers
+  □ Component test examples
+  □ Hook test examples
+  □ API test examples (MSW)
+  □ Coverage report setup
+  
+Paket Eklemeleri:
+  npm install -D vitest @vitest/ui
+  npm install -D @testing-library/react @testing-library/jest-dom
+  npm install -D @testing-library/user-event
+  npm install -D happy-dom (ya da jsdom)
+  npm install -D msw
+
+Dosyalar:
+  - vitest.config.ts (YENİ)
+  - /src/test/
+    - setup.ts
+    - utils.tsx (render with providers)
+    - mocks/
+      - handlers.ts (MSW handlers)
+      - server.ts (MSW server)
+    - fixtures/ (mock data)
+
+Script Eklemeleri (package.json):
+  ```json
+  "scripts": {
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage"
+  }
+  ```
+
+Örnek Test:
+  ```typescript
+  // Button.test.tsx
+  import { render, screen } from '@/test/utils';
+  import { Button } from './Button';
+  
+  describe('Button', () => {
+    it('renders with correct text', () => {
+      render(<Button>Click me</Button>);
+      expect(screen.getByText('Click me')).toBeInTheDocument();
+    });
+    
+    it('calls onClick when clicked', async () => {
+      const handleClick = vi.fn();
+      render(<Button onClick={handleClick}>Click me</Button>);
+      await userEvent.click(screen.getByText('Click me'));
+      expect(handleClick).toHaveBeenCalledOnce();
+    });
+  });
+  ```
+
+
+3.5. CONSTANTS VE CONFIGS
+────────────────────────────────────────────────────────────────────────────
+Süre: 1 gün
+Öncelik: 🟡 ORTA
+
+DETAYLAR:
+  □ Route constants
+  □ API endpoint constants
+  □ Permission constants
+  □ Status constants
+  □ Config files
+  
+Dosyalar:
+  /src/constants/
+    - routes.ts
+    - permissions.ts
+    - statuses.ts
+    - attributeTypes.ts
+    - apiEndpoints.ts
+  /src/config/
+    - app.config.ts
+    - theme.config.ts
+    - table.config.ts
+
+================================================================================
+4. DÜŞÜK ÖNCELİK - UZUN VADELİ (4-6. HAFTA)
+================================================================================
+
+4.1. PERFORMANCE OPTİMİZASYONU
+────────────────────────────────────────────────────────────────────────────
+Süre: 3 gün
+Öncelik: 🟢 DÜŞÜK
+
+DETAYLAR:
+  □ React.memo kullanımı (kritik componentler)
+  □ useMemo ve useCallback optimizasyonları
+  □ Code splitting (lazy loading)
+  □ Route-based code splitting
+  □ Component-level code splitting
+  □ Virtual scrolling (büyük listeler için)
+  □ Image optimization
+  □ Bundle size analizi
+  
+Paket Eklemeleri:
+  npm install react-window (virtual scrolling için)
+  npm install -D rollup-plugin-visualizer (bundle analizi)
+
+Dosyalar:
+  - vite.config.ts (GÜNCELLE - code splitting config)
+  - /src/components/VirtualList.tsx (YENİ)
+
+
+4.2. ACCESSIBILITY (A11Y)
+────────────────────────────────────────────────────────────────────────────
+Süre: 3 gün
+Öncelik: 🟢 DÜŞÜK
+
+DETAYLAR:
+  □ ARIA labels ekle
+  □ Keyboard navigation
+  □ Focus management
+  □ Screen reader support
+  □ Skip to content link
+  □ Semantic HTML kullanımı
+  □ Color contrast check
+  □ Focus indicators
+  
+Paket Eklemeleri:
+  npm install -D @axe-core/react (a11y testing)
+  npm install react-focus-lock (focus trap)
+
+Tüm UI componentlerde:
+  - role attributes
+  - aria-label, aria-labelledby
+  - aria-describedby
+  - aria-expanded, aria-pressed
+  - tabIndex yönetimi
+  - keyboard event handlers
+
+
+4.3. LOGGING VE MONİTORİNG
+────────────────────────────────────────────────────────────────────────────
+Süre: 2 gün
+Öncelik: 🟢 DÜŞÜK
+
+DETAYLAR:
+  □ Logger service oluştur
+  □ Error tracking (Sentry entegrasyonu - opsiyonel)
+  □ Analytics (Google Analytics - opsiyonel)
+  □ Performance monitoring
+  □ User activity tracking
+  
+Paket Eklemeleri (opsiyonel):
+  npm install @sentry/react @sentry/tracing
+
+Dosyalar:
+  /src/services/
+    - logger.service.ts
+    - analytics.service.ts (opsiyonel)
+    - monitoring.service.ts (opsiyonel)
+
+
+4.4. DOCUMENTATION
+────────────────────────────────────────────────────────────────────────────
+Süre: Sürekli
+Öncelik: 🟢 DÜŞÜK
+
+DETAYLAR:
+  □ Storybook kurulumu
+  □ Component documentation
+  □ API documentation
+  □ JSDoc comments
+  □ README güncelleme
+  □ CONTRIBUTING.md
+  □ CHANGELOG.md
+  
+Paket Eklemeleri:
+  npm install -D @storybook/react @storybook/vite
+  npm install -D @storybook/addon-essentials
+  npm install -D @storybook/addon-a11y
+
+Dosyalar:
+  - .storybook/
+    - main.ts
+    - preview.ts
+  - /src/components/**/*.stories.tsx
+  - README.md (GÜNCELLE)
+  - CONTRIBUTING.md (YENİ)
+  - CHANGELOG.md (YENİ)
+
+
+4.5. UTILITY FUNCTIONS
+────────────────────────────────────────────────────────────────────────────
+Süre: 2 gün
+Öncelik: 🟢 DÜŞÜK
+
+DETAYLAR:
+  □ Date formatters (date-fns kullan)
+  □ Number formatters
+  □ Currency formatters
+  □ String utilities
+  □ Array utilities
+  □ Object utilities
+  □ Validation helpers
+  
+Paket Eklemeleri:
+  npm install date-fns
+
+Dosyalar:
+  /src/utils/
+    - cn.ts (✓ var)
+    - date.ts (YENİ)
+    - number.ts (YENİ)
+    - currency.ts (YENİ)
+    - string.ts (YENİ)
+    - array.ts (YENİ)
+    - object.ts (YENİ)
+    - validation.ts (YENİ)
+
+================================================================================
+5. ATTRIBUTE SYSTEM - ÖZEL GEREKSİNİMLER
+================================================================================
+
+5.1. ATTRIBUTE TYPE SİSTEMİ
+────────────────────────────────────────────────────────────────────────────
+
+CDP/MDM/ERP sisteminde attribute'lar sistemin temelidir.
+Her attribute bir type'a sahiptir ve her type için 3 farklı component gerekir:
+
+A) CREATE/EDIT COMPONENT - Input/Form elementi
+B) DISPLAY COMPONENT - Detay sayfasında gösterim
+C) TABLE COLUMN COMPONENT - Tablo hücresinde gösterim
+
+
+5.2. MEVCUT ATTRIBUTE TYPES (src/types/index.ts'den)
+────────────────────────────────────────────────────────────────────────────
+
+enum AttributeType {
+  // Basic Types
+  TEXT = 'text',
+  NUMBER = 'number',
+  BOOLEAN = 'boolean',
+  DATE = 'date',
+  DATETIME = 'datetime',
+  TIME = 'time',
+  
+  // Enum / Selectable Values
+  SELECT = 'select',
+  MULTISELECT = 'multiselect',
+  
+  // File / Media Types
+  FILE = 'file',
+  IMAGE = 'image',
+  ATTACHMENT = 'attachment',
+  
+  // Composite / Advanced Types
+  OBJECT = 'object',
+  ARRAY = 'array',
+  JSON = 'json',
+  FORMULA = 'formula',
+  EXPRESSION = 'expression',
+  TABLE = 'table',           ← ÖNEMLİ: Özel durum!
+  
+  // UI / Visual Component Types
+  COLOR = 'color',
+  RICH_TEXT = 'rich_text',
+  RATING = 'rating',
+  BARCODE = 'barcode',
+  QR = 'qr',
+  
+  // Special Types
+  READONLY = 'readonly',
+}
+
+
+5.3. HER ATTRIBUTE TYPE İÇİN GEREKLİ COMPONENTLER
+────────────────────────────────────────────────────────────────────────────
+
+Klasör Yapısı:
+/src/components/attributes/
+  /renderers/              ← CREATE/EDIT components
+    - TextRenderer.tsx
+    - NumberRenderer.tsx
+    - BooleanRenderer.tsx
+    - DateRenderer.tsx
+    - SelectRenderer.tsx
+    - TableRenderer.tsx
+    - ... (her type için)
+    
+  /displays/               ← DISPLAY components
+    - TextDisplay.tsx
+    - NumberDisplay.tsx
+    - BooleanDisplay.tsx
+    - DateDisplay.tsx
+    - SelectDisplay.tsx
+    - TableDisplay.tsx     ← Özel: Tablo gösterimi
+    - ... (her type için)
+    
+  /columns/                ← TABLE COLUMN components
+    - TextColumn.tsx
+    - NumberColumn.tsx
+    - BooleanColumn.tsx
+    - DateColumn.tsx
+    - SelectColumn.tsx
+    - TableColumn.tsx      ← Özel: "X satır" gösterimi + modal
+    - ... (her type için)
+    
+  - AttributeRenderer.tsx  ← Factory pattern (mevcut, GÜNCELLE)
+  - AttributeDisplay.tsx   ← YENİ: Display factory
+  - AttributeColumn.tsx    ← YENİ: Column factory
+
+
+5.4. ÖZEL DURUM: TABLE TYPE ATTRIBUTE
+────────────────────────────────────────────────────────────────────────────
+
+TABLE type özel bir durumdur çünkü içinde başka attributeler barındırır.
+
+Örnek TABLE attribute:
+{
+  id: 'attr-pricing-table',
+  name: 'Pricing Table',
+  type: 'table',
+  schema: {
+    columns: [
+      { name: 'quantity', type: 'number', label: 'Quantity' },
+      { name: 'price', type: 'number', label: 'Unit Price' },
+      { name: 'discount', type: 'number', label: 'Discount %' },
+      { name: 'total', type: 'formula', formula: 'quantity * price * (1 - discount/100)' }
+    ]
+  },
+  value: [
+    { quantity: 10, price: 100, discount: 5, total: 950 },
+    { quantity: 20, price: 95, discount: 10, total: 1710 },
+  ]
+}
+
+A) CREATE/EDIT COMPONENT (TableRenderer.tsx):
+   - Excel benzeri tablo interface
+   - Satır ekle/sil butonları
+   - Her sütun kendi type'ına göre input (number input, select, etc.)
+   - Validation (min/max değerler)
+   - Formula calculation (eğer formula column varsa)
+
+B) DISPLAY COMPONENT (TableDisplay.tsx):
+   - Tam tablo gösterimi (tüm satır ve sütunlar)
+   - Read-only mode
+   - Pagination (çok satır varsa)
+   - Export to Excel butonu (opsiyonel)
+
+C) TABLE COLUMN COMPONENT (TableColumn.tsx):
+   - "X satır" gösterimi (örn: "5 satır")
+   - Tıklanabilir (onClick handler)
+   - Modal/Popup açılır
+   - Modal içinde tam tablo gösterimi (TableDisplay component kullan)
+   - Modal'da close butonu
+
+Örnek TableColumn Kullanımı:
+```tsx
+// DataTable içinde
+<TableColumn 
+  value={[
+    { quantity: 10, price: 100 },
+    { quantity: 20, price: 95 }
+  ]}
+  schema={{
+    columns: [
+      { name: 'quantity', type: 'number', label: 'Quantity' },
+      { name: 'price', type: 'number', label: 'Price' }
+    ]
+  }}
+/>
+
+// Render:
+// [5 satır] (clickable)
+// onClick → Modal açılır → Full table gösterilir
+```
+
+
+5.5. DİĞER ÖZEL TYPE'LAR
+────────────────────────────────────────────────────────────────────────────
+
+FORMULA Type:
+  - CREATE: Readonly (formula expression göster)
+  - DISPLAY: Calculated değer
+  - COLUMN: Calculated değer
+
+RICH_TEXT Type:
+  - CREATE: Rich text editor (Quill, Tiptap, etc.)
+  - DISPLAY: HTML render
+  - COLUMN: Plain text preview (ilk 50 karakter)
+
+IMAGE Type:
+  - CREATE: Image upload + preview
+  - DISPLAY: Full image
+  - COLUMN: Thumbnail
+
+FILE/ATTACHMENT Type:
+  - CREATE: File upload
+  - DISPLAY: Download link + file info
+  - COLUMN: File icon + name
+
+BARCODE/QR Type:
+  - CREATE: Input + preview
+  - DISPLAY: Rendered barcode/QR
+  - COLUMN: Mini barcode/QR
+
+
+5.6. ATTRIBUTE RENDERER FACTORY (GÜNCELLE)
+────────────────────────────────────────────────────────────────────────────
+
+Mevcut AttributeRenderer.tsx dosyası var. Bu dosya şu şekilde güncellenmeli:
+
+```tsx
+// AttributeRenderer.tsx
+import { AttributeType } from '@/types';
+import { TextRenderer } from './renderers/TextRenderer';
+import { NumberRenderer } from './renderers/NumberRenderer';
+import { TableRenderer } from './renderers/TableRenderer';
+// ... import all renderers
+
+interface AttributeRendererProps {
+  attribute: Attribute;
+  value: any;
+  onChange: (value: any) => void;
+  error?: string;
+  disabled?: boolean;
+}
+
+export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
+  attribute,
+  value,
+  onChange,
+  error,
+  disabled
+}) => {
+  switch (attribute.type) {
+    case AttributeType.TEXT:
+      return <TextRenderer {...props} />;
+    case AttributeType.NUMBER:
+      return <NumberRenderer {...props} />;
+    case AttributeType.TABLE:
+      return <TableRenderer {...props} />;
+    // ... all other types
+    default:
+      return <div>Unsupported type: {attribute.type}</div>;
+  }
+};
+```
+
+
+5.7. UYGULAMA SIRASI
+────────────────────────────────────────────────────────────────────────────
+
+1. Önce temel type'lar (TEXT, NUMBER, BOOLEAN, DATE)
+2. Sonra select type'lar (SELECT, MULTISELECT)
+3. Sonra file type'lar (FILE, IMAGE, ATTACHMENT)
+4. Sonra UI type'lar (COLOR, RATING)
+5. En son kompleks type'lar (TABLE, RICH_TEXT, FORMULA)
+
+Her type için:
+  Step 1: Renderer component (CREATE/EDIT)
+  Step 2: Display component
+  Step 3: Column component
+  Step 4: Test et
+  Step 5: Bir sonraki type'a geç
+
+Paket Gereksinimleri:
+  npm install react-quill (rich text editor)
+  npm install react-barcode (barcode generation)
+  npm install qrcode.react (QR code generation)
+  npm install react-color (color picker)
+  npm install react-rating (rating component)
+
+================================================================================
+6. DARK THEME ENTEGRASYONU - DETAYLI
+================================================================================
+
+6.1. THEME CONTEXT YAPISI
+────────────────────────────────────────────────────────────────────────────
+
+```typescript
+// contexts/ThemeContext.tsx
+
+export type ThemeMode = 'light' | 'dark' | 'system';
+
+interface ThemeContextType {
+  mode: ThemeMode;
+  effectiveTheme: 'light' | 'dark'; // computed (system mode için)
+  setMode: (mode: ThemeMode) => void;
+  toggleTheme: () => void;
+}
+
+export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [mode, setModeState] = useState<ThemeMode>('system');
+  const systemTheme = useMediaQuery('(prefers-color-scheme: dark)') ? 'dark' : 'light';
+  const effectiveTheme = mode === 'system' ? systemTheme : mode;
+  
+  // Apply theme to document
+  useEffect(() => {
+    document.documentElement.classList.remove('light', 'dark');
+    document.documentElement.classList.add(effectiveTheme);
+    document.documentElement.setAttribute('data-theme', effectiveTheme);
+  }, [effectiveTheme]);
+  
+  // Persist to localStorage
+  const setMode = (newMode: ThemeMode) => {
+    setModeState(newMode);
+    localStorage.setItem('theme-mode', newMode);
+  };
+  
+  // ...
+};
+```
+
+
+6.2. CSS VARIABLES YAPISI
+────────────────────────────────────────────────────────────────────────────
+
+```css
+/* index.css */
+
+:root {
+  /* Light mode (default) */
+  --color-background: 255 255 255;        /* #ffffff */
+  --color-foreground: 17 24 39;           /* #111827 */
+  --color-card: 249 250 251;              /* #f9fafb */
+  --color-border: 229 231 235;            /* #e5e7eb */
+  
+  --color-primary: 33 150 243;            /* #2196f3 */
+  --color-primary-hover: 25 118 210;      /* #1976d2 */
+  
+  --color-muted: 107 114 128;             /* #6b7280 */
+  --color-muted-foreground: 156 163 175;  /* #9ca3af */
+  
+  --color-success: 76 175 80;             /* #4caf50 */
+  --color-warning: 255 193 7;             /* #ffc107 */
+  --color-error: 244 67 54;               /* #f44336 */
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 2px 4px 0 rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 4px 8px 0 rgb(0 0 0 / 0.12);
+}
+
+[data-theme='dark'] {
+  /* Dark mode overrides */
+  --color-background: 15 23 42;           /* #0f172a */
+  --color-foreground: 241 245 249;        /* #f1f5f9 */
+  --color-card: 30 41 59;                 /* #1e293b */
+  --color-border: 51 65 85;               /* #334155 */
+  
+  --color-primary: 59 130 246;            /* #3b82f6 (lighter) */
+  --color-primary-hover: 96 165 250;      /* #60a5fa */
+  
+  --color-muted: 148 163 184;             /* #94a3b8 */
+  --color-muted-foreground: 203 213 225;  /* #cbd5e1 */
+  
+  /* Shadows in dark mode */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --shadow-md: 0 2px 4px 0 rgb(0 0 0 / 0.4);
+  --shadow-lg: 0 4px 8px 0 rgb(0 0 0 / 0.5);
+}
+```
+
+
+6.3. TAILWIND CONFIG GÜNCELLEMESİ
+────────────────────────────────────────────────────────────────────────────
+
+```javascript
+// tailwind.config.js
+
+export default {
+  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+  darkMode: 'class', // Enable dark mode via class
+  theme: {
+    extend: {
+      colors: {
+        background: 'rgb(var(--color-background) / <alpha-value>)',
+        foreground: 'rgb(var(--color-foreground) / <alpha-value>)',
+        card: 'rgb(var(--color-card) / <alpha-value>)',
+        border: 'rgb(var(--color-border) / <alpha-value>)',
+        
+        primary: {
+          DEFAULT: 'rgb(var(--color-primary) / <alpha-value>)',
+          hover: 'rgb(var(--color-primary-hover) / <alpha-value>)',
+        },
+        
+        muted: {
+          DEFAULT: 'rgb(var(--color-muted) / <alpha-value>)',
+          foreground: 'rgb(var(--color-muted-foreground) / <alpha-value>)',
+        },
+        
+        success: 'rgb(var(--color-success) / <alpha-value>)',
+        warning: 'rgb(var(--color-warning) / <alpha-value>)',
+        error: 'rgb(var(--color-error) / <alpha-value>)',
+      },
+      boxShadow: {
+        sm: 'var(--shadow-sm)',
+        md: 'var(--shadow-md)',
+        lg: 'var(--shadow-lg)',
+      }
+    }
+  }
+}
+```
+
+
+6.4. COMPONENT GÜNCELLEMELERİ
+────────────────────────────────────────────────────────────────────────────
+
+Tüm hardcoded renkler theme variables'a çevrilecek:
+
+ÖNCE:
+```tsx
+className="bg-blue-600 text-white hover:bg-blue-700"
+```
+
+SONRA:
+```tsx
+className="bg-primary text-white hover:bg-primary-hover"
+```
+
+ÖNCE:
+```tsx
+className="bg-white border border-gray-200 text-gray-900"
+```
+
+SONRA:
+```tsx
+className="bg-background border border-border text-foreground"
+```
+
+
+6.5. THEME TOGGLE COMPONENT
+────────────────────────────────────────────────────────────────────────────
+
+```tsx
+// components/ThemeToggle.tsx
+
+export const ThemeToggle: React.FC = () => {
+  const { mode, setMode } = useTheme();
+  
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger>
+        <Button variant="ghost" size="sm">
+          {mode === 'light' && <Sun />}
+          {mode === 'dark' && <Moon />}
+          {mode === 'system' && <Monitor />}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent>
+        <DropdownMenuItem onClick={() => setMode('light')}>
+          <Sun className="mr-2" />
+          Light
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setMode('dark')}>
+          <Moon className="mr-2" />
+          Dark
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setMode('system')}>
+          <Monitor className="mr-2" />
+          System
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
+```
+
+
+6.6. THEME DOSYA YAPILANDIRMASI
+────────────────────────────────────────────────────────────────────────────
+
+/src/theme/
+  - index.ts (theme export - mevcut, GÜNCELLE)
+  - colors.ts (YENİ - color definitions)
+  - dark.ts (YENİ - dark theme overrides)
+  - light.ts (YENİ - light theme defaults)
+  - tokens.ts (YENİ - design tokens)
+
+================================================================================
+7. DETAYLI UYGULAMA ADIMLARI
+================================================================================
+
+HAFTA 1: KRİTİK ÖNCELIK
+────────────────────────────────────────────────────────────────────────────
+
+GÜN 1-2: THEME SİSTEMİ
+  □ ThemeContext oluştur
+  □ CSS Variables tanımla (light + dark)
+  □ Tailwind config güncelle
+  □ ThemeToggle component
+  □ useTheme hook
+  □ App.tsx'e ThemeProvider ekle
+  □ Test: Theme değişimi çalışıyor mu?
+  
+GÜN 3-4: API LAYER
+  □ Axios kurulumu
+  □ API client oluştur
+  □ Interceptors ekle
+  □ Endpoint constants
+  □ Service layer (en az 3 servis: auth, items, users)
+  □ API types tanımla
+  □ Test: API call çalışıyor mu?
+  
+GÜN 5: AUTHENTICATION
+  □ AuthContext oluştur
+  □ AuthProvider
+  □ ProtectedRoute component
+  □ useAuth hook
+  □ Login API entegrasyonu
+  □ Token management
+  □ Test: Login/logout çalışıyor mu?
+  
+GÜN 6: ERROR HANDLING + ENV
+  □ ErrorBoundary component
+  □ Error utilities
+  □ .env dosyaları
+  □ env.ts config
+  □ Test: Error handling çalışıyor mu?
+  
+GÜN 7: HARDCODED RENKLERİ TEMİZLE
+  □ Tüm componentleri tara
+  □ bg-blue-* → bg-primary
+  □ bg-gray-* → bg-muted/background/card
+  □ text-gray-* → text-foreground/muted
+  □ border-gray-* → border-border
+  □ Test: Hem light hem dark mode'da UI düzgün mü?
+
+
+HAFTA 2-3: ORTA ÖNCELİK
+────────────────────────────────────────────────────────────────────────────
+
+GÜN 8-10: CUSTOM HOOKS
+  □ useApi
+  □ usePagination
+  □ useDebounce
+  □ useLocalStorage
+  □ useForm
+  □ useAsync
+  □ Test her hook için
+
+GÜN 11-12: FORM MANAGEMENT
+  □ React Hook Form + Zod kurulum
+  □ Form wrapper components
+  □ Validation schemas
+  □ 2-3 form'u güncelle
+  □ Test: Form validation çalışıyor mu?
+
+GÜN 13-14: STATE MANAGEMENT
+  □ Zustand kurulum
+  □ authStore
+  □ uiStore
+  □ Mevcut state'leri migrate et
+  □ Test: Store çalışıyor mu?
+
+GÜN 15-17: TESTING
+  □ Vitest + Testing Library kurulum
+  □ Test utilities
+  □ 10+ component test
+  □ 5+ hook test
+  □ Coverage report
+
+GÜN 18-19: CONSTANTS + CONFIGS
+  □ Constants klasörü
+  □ Config dosyaları
+  □ Route constants
+  □ Permission constants
+
+
+HAFTA 4-6: DÜŞÜK ÖNCELİK + ATTRIBUTE SYSTEM
+────────────────────────────────────────────────────────────────────────────
+
+GÜN 20-22: ATTRIBUTE RENDERERS (Temel)
+  □ TextRenderer + Display + Column
+  □ NumberRenderer + Display + Column
+  □ BooleanRenderer + Display + Column
+  □ DateRenderer + Display + Column
+  □ Test
+
+GÜN 23-25: ATTRIBUTE RENDERERS (Select)
+  □ SelectRenderer + Display + Column
+  □ MultiSelectRenderer + Display + Column
+  □ Test
+
+GÜN 26-28: ATTRIBUTE RENDERERS (File)
+  □ FileRenderer + Display + Column
+  □ ImageRenderer + Display + Column
+  □ AttachmentRenderer + Display + Column
+  □ Test
+
+GÜN 29-31: ATTRIBUTE RENDERERS (UI)
+  □ ColorRenderer + Display + Column
+  □ RatingRenderer + Display + Column
+  □ RichTextRenderer + Display + Column
+  □ Test
+
+GÜN 32-35: ATTRIBUTE RENDERERS (Kompleks)
+  □ TableRenderer + Display + Column (ÖNEMLİ!)
+  □ FormulaRenderer + Display + Column
+  □ BarcodeRenderer + Display + Column
+  □ QRRenderer + Display + Column
+  □ Test
+
+GÜN 36-38: ATTRIBUTE FACTORY GÜNCELLEME
+  □ AttributeRenderer güncelle
+  □ AttributeDisplay oluştur
+  □ AttributeColumn oluştur
+  □ Tüm attribute type'ları test et
+  □ Integration test
+
+GÜN 39-42: PERFORMANCE + A11Y + DOCS
+  □ Performance optimization
+  □ Accessibility improvements
+  □ Storybook setup
+  □ Documentation
+
+================================================================================
+8. KRİTİK NOTLAR VE HATIRLATMALAR
+================================================================================
+
+⚠️ UNUTMA:
+  1. Her değişiklikte dark mode'u test et
+  2. TypeScript hatalarını hemen düzelt
+  3. Linter hatalarını ignore etme
+  4. Her major feature'dan sonra commit at
+  5. Breaking change yapacaksan önce bildir
+  6. Test yazmayı atlama
+  7. Console error/warning'leri temizle
+  8. Mobile responsive kontrolü yap
+  9. Browser compatibility kontrol et
+  10. Performance regression yapma
+
+⚠️ TABLE ATTRIBUTE İÇİN ÖZEL:
+  1. TableColumn component mutlaka modal kullanmalı
+  2. Modal içinde TableDisplay component'i render et
+  3. "X satır" gösterimi tıklanabilir olmalı
+  4. Formula column'lar otomatik hesaplanmalı
+  5. Validation rules uygulanmalı
+  6. Add/Remove row fonksiyonları olmalı
+
+⚠️ THEME SİSTEMİ İÇİN:
+  1. Hiçbir hardcoded renk kalmamalı
+  2. Tüm componentler theme-aware olmalı
+  3. System preference detection çalışmalı
+  4. Theme geçişi smooth olmalı (transition)
+  5. localStorage sync çalışmalı
+
+⚠️ API LAYER İÇİN:
+  1. Tüm API calls error handling'e sahip olmalı
+  2. Loading states yönetilmeli
+  3. Token refresh otomatik olmalı
+  4. Request cancellation implement edilmeli
+  5. Retry logic olmalı (opsiyonel)
+
+================================================================================
+9. BAŞARI KRİTERLERİ
+================================================================================
+
+Proje tamamlandığında:
+
+✅ Theme Sistemi:
+   - Light mode çalışıyor
+   - Dark mode çalışıyor
+   - System mode çalışıyor
+   - Tüm componentler theme-aware
+   - Theme geçişi smooth
+   
+✅ API Layer:
+   - Tüm servisler çalışıyor
+   - Error handling global
+   - Token management çalışıyor
+   - Mock API da çalışıyor
+   
+✅ Authentication:
+   - Login/logout çalışıyor
+   - Token persist ediliyor
+   - Protected routes çalışıyor
+   - Permission system çalışıyor
+   
+✅ Attribute System:
+   - Tüm 20+ type render ediliyor
+   - Create/Edit çalışıyor
+   - Display çalışıyor
+   - Table column çalışıyor
+   - TABLE type özel durum çalışıyor
+   
+✅ Testing:
+   - 100+ test yazılmış
+   - Coverage > 70%
+   - CI/CD pipeline çalışıyor
+   
+✅ Performance:
+   - Lighthouse score > 90
+   - First paint < 1.5s
+   - TTI < 3.5s
+   
+✅ Accessibility:
+   - axe-core violations = 0
+   - Keyboard navigation çalışıyor
+   - Screen reader uyumlu
+
+================================================================================
+SON GÜNCELLEME: 3 Ekim 2025
+TOPLAM TAHMİNİ SÜRE: 6-8 Hafta (1-2 developer)
+PRİORİTY: 🔴 Yüksek → 🟡 Orta → 🟢 Düşük
+================================================================================
+
+

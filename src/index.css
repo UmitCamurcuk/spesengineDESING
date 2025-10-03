@@ -1,0 +1,214 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* CSS Variables for Theme System */
+  :root {
+    /* Light Theme (Default) */
+    --background: 255 255 255;
+    --foreground: 17 24 39;
+    --card: 249 250 251;
+    --card-hover: 243 244 246;
+    --popover: 255 255 255;
+    
+    --border: 229 231 235;
+    --border-hover: 209 213 219;
+    --input: 229 231 235;
+    --ring: 59 130 246;
+    
+    --primary: 33 150 243;
+    --primary-hover: 30 136 229;
+    --primary-active: 25 118 210;
+    --primary-foreground: 255 255 255;
+    
+    --secondary: 107 114 128;
+    --secondary-hover: 75 85 99;
+    --secondary-active: 55 65 81;
+    --secondary-foreground: 255 255 255;
+    
+    --muted: 243 244 246;
+    --muted-hover: 229 231 235;
+    --muted-foreground: 107 114 128;
+    
+    --accent: 255 152 0;
+    --accent-hover: 251 140 0;
+    --accent-active: 245 124 0;
+    --accent-foreground: 255 255 255;
+    
+    --success: 76 175 80;
+    --success-hover: 67 160 71;
+    --success-foreground: 255 255 255;
+    --success-background: 232 245 233;
+    
+    --warning: 255 193 7;
+    --warning-hover: 255 179 0;
+    --warning-foreground: 55 65 81;
+    --warning-background: 255 248 225;
+    
+    --error: 244 67 54;
+    --error-hover: 229 57 53;
+    --error-foreground: 255 255 255;
+    --error-background: 255 235 238;
+    
+    --info: 3 169 244;
+    --info-hover: 2 136 209;
+    --info-foreground: 255 255 255;
+    --info-background: 225 245 254;
+    
+    --sidebar: 255 255 255;
+    --sidebar-foreground: 55 65 81;
+    --sidebar-border: 229 231 235;
+    --sidebar-active: 239 246 255;
+    --sidebar-active-foreground: 30 64 175;
+  }
+
+  /* Dark Theme - Slate Variant (Default Dark) */
+  .dark.dark-slate {
+    --background: 15 23 42;
+    --foreground: 241 245 249;
+    --card: 30 41 59;
+    --card-hover: 51 65 85;
+    --popover: 30 41 59;
+    
+    --border: 51 65 85;
+    --border-hover: 71 85 105;
+    --input: 51 65 85;
+    --ring: 96 165 250;
+    
+    --primary: 59 130 246;
+    --primary-hover: 96 165 250;
+    --primary-active: 147 197 253;
+    --primary-foreground: 15 23 42;
+    
+    --secondary: 148 163 184;
+    --secondary-hover: 203 213 225;
+    --secondary-active: 226 232 240;
+    --secondary-foreground: 15 23 42;
+    
+    --muted: 51 65 85;
+    --muted-hover: 71 85 105;
+    --muted-foreground: 203 213 225;
+    
+    --accent: 251 146 60;
+    --accent-hover: 253 186 116;
+    --accent-active: 254 215 170;
+    --accent-foreground: 15 23 42;
+    
+    --success: 74 222 128;
+    --success-hover: 134 239 172;
+    --success-foreground: 15 23 42;
+    --success-background: 20 83 45;
+    
+    --warning: 250 204 21;
+    --warning-hover: 253 224 71;
+    --warning-foreground: 15 23 42;
+    --warning-background: 66 32 6;
+    
+    --error: 248 113 113;
+    --error-hover: 252 165 165;
+    --error-foreground: 15 23 42;
+    --error-background: 69 10 10;
+    
+    --info: 56 189 248;
+    --info-hover: 125 211 252;
+    --info-foreground: 15 23 42;
+    --info-background: 8 47 73;
+    
+    --sidebar: 30 41 59;
+    --sidebar-foreground: 226 232 240;
+    --sidebar-border: 51 65 85;
+    --sidebar-active: 51 65 85;
+    --sidebar-active-foreground: 147 197 253;
+  }
+
+  /* Dark Theme - Navy Variant */
+  .dark.dark-navy {
+    --background: 7 18 43;
+    --foreground: 241 245 249;
+    --card: 17 33 66;
+    --card-hover: 28 48 89;
+    --popover: 17 33 66;
+    
+    --border: 37 58 102;
+    --border-hover: 48 73 128;
+    --input: 37 58 102;
+    --ring: 96 165 250;
+    
+    --sidebar: 17 33 66;
+    --sidebar-foreground: 226 232 240;
+    --sidebar-border: 37 58 102;
+    --sidebar-active: 37 58 102;
+    --sidebar-active-foreground: 147 197 253;
+  }
+
+  /* Dark Theme - True Black Variant (OLED) */
+  .dark.dark-true-black {
+    --background: 0 0 0;
+    --foreground: 250 250 250;
+    --card: 23 23 23;
+    --card-hover: 38 38 38;
+    --popover: 23 23 23;
+    
+    --border: 38 38 38;
+    --border-hover: 64 64 64;
+    --input: 38 38 38;
+    --ring: 96 165 250;
+    
+    --sidebar: 23 23 23;
+    --sidebar-foreground: 245 245 245;
+    --sidebar-border: 38 38 38;
+    --sidebar-active: 38 38 38;
+    --sidebar-active-foreground: 147 197 253;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: 'kern' 1, 'liga' 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  h1 {
+    @apply text-2xl font-semibold tracking-tight;
+  }
+
+  h2 {
+    @apply text-xl font-semibold tracking-tight;
+  }
+
+  h3 {
+    @apply text-lg font-semibold;
+  }
+
+  h4 {
+    @apply text-base font-semibold;
+  }
+
+  h5, h6 {
+    @apply text-sm font-semibold;
+  }
+
+  p {
+    @apply text-sm leading-relaxed;
+  }
+
+  input, textarea, select {
+    @apply text-sm;
+  }
+
+  button {
+    @apply text-sm font-medium;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
