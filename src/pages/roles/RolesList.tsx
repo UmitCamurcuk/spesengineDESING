@@ -58,7 +58,7 @@ export const RolesList: React.FC = () => {
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <div className="text-sm font-semibold text-gray-900">{value}</div>
+              <div className="text-sm font-semibold text-foreground">{value}</div>
               {role.isSystem && (
                 <Badge variant="secondary" size="sm">System</Badge>
               )}
@@ -75,7 +75,7 @@ export const RolesList: React.FC = () => {
             </div>
             <div className="flex-1">
               <div className="flex items-center space-x-2">
-                <div className="text-sm font-semibold text-gray-900">{role.name}</div>
+                <div className="text-sm font-semibold text-foreground">{role.name}</div>
                 {role.isSystem && (
                   <Badge variant="secondary" size="sm">System</Badge>
                 )}

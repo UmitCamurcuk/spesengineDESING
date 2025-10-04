@@ -144,7 +144,7 @@ export const PermissionGroupsCreate: React.FC = () => {
                           className={`p-3 border-2 rounded-lg transition-all duration-200 text-left ${
                             isSelected
                               ? 'border-green-500 bg-green-50'
-                              : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                              : 'border-border hover:border-border-hover hover:bg-muted'
                           }`}
                         >
                           <div className="flex items-center justify-between">

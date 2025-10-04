@@ -122,7 +122,7 @@ export const UsersCreate: React.FC = () => {
                     className={`p-4 border-2 rounded-xl transition-all duration-200 text-left ${
                       formData.role === role.value
                         ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                        : 'border-border hover:border-border-hover hover:bg-muted'
                     }`}
                   >
                     <Shield className={`h-6 w-6 mb-2 ${

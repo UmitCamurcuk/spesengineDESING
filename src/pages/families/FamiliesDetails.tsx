@@ -166,7 +166,7 @@ export const FamiliesDetails: React.FC = () => {
               {mockItems.map(item => (
                 <div
                   key={item.id}
-                  className="flex items-center justify-between p-4 hover:bg-gray-50 rounded-lg transition-colors cursor-pointer"
+                  className="flex items-center justify-between p-4 hover:bg-muted rounded-lg transition-colors cursor-pointer"
                   onClick={() => navigate(`/items/${item.id}`)}
                 >
                   <div className="flex items-center space-x-3">

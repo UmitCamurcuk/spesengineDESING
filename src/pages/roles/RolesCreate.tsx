@@ -139,7 +139,7 @@ export const RolesCreate: React.FC = () => {
                       className={`p-4 border-2 rounded-xl transition-all duration-200 text-left ${
                         isSelected
                           ? 'border-purple-500 bg-purple-50'
-                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                          : 'border-border hover:border-border-hover hover:bg-muted'
                       }`}
                     >
                       <div className="flex items-center space-x-3">
@@ -170,7 +170,7 @@ export const RolesCreate: React.FC = () => {
                       className={`p-4 border-2 rounded-xl transition-all duration-200 text-left ${
                         isSelected
                           ? 'border-green-500 bg-green-50'
-                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                          : 'border-border hover:border-border-hover hover:bg-muted'
                       }`}
                     >
                       <div className="flex items-center space-x-3">

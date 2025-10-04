@@ -54,7 +54,7 @@ export const ItemTypesList: React.FC = () => {
             <Database className="h-5 w-5 text-white" />
           </div>
           <div>
-            <div className="text-sm font-semibold text-gray-900">{value}</div>
+            <div className="text-sm font-semibold text-foreground">{value}</div>
             <div className="text-xs text-gray-500">ID: {itemType.id}</div>
           </div>
         </div>
@@ -66,7 +66,7 @@ export const ItemTypesList: React.FC = () => {
               <Database className="h-5 w-5 text-white" />
             </div>
             <div className="flex-1">
-              <div className="text-sm font-semibold text-gray-900">{itemType.name}</div>
+              <div className="text-sm font-semibold text-foreground">{itemType.name}</div>
               <div className="text-xs text-gray-500">ID: {itemType.id}</div>
             </div>
           </div>

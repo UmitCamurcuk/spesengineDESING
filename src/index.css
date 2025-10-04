@@ -160,6 +160,10 @@
     --input: 38 38 38;
     --ring: 96 165 250;
     
+    --muted: 38 38 38;
+    --muted-hover: 64 64 64;
+    --muted-foreground: 163 163 163;
+    
     --sidebar: 23 23 23;
     --sidebar-foreground: 245 245 245;
     --sidebar-border: 38 38 38;

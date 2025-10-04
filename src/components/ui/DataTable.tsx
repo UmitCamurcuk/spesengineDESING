@@ -318,7 +318,7 @@ export function DataTable<T extends Record<string, any>>({
                   key={column.key as string}
                   className={cn(
                     'px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide',
-                    column.sortable && 'cursor-pointer hover:bg-muted-hover select-none transition-colors duration-150',
+                    column.sortable && 'cursor-pointer hover:bg-muted select-none transition-colors duration-150',
                     column.width,
                     column.align === 'center' && 'text-center',
                     column.align === 'right' && 'text-right'

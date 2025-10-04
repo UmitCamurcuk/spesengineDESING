@@ -288,7 +288,7 @@ export const AttributesList: React.FC = () => {
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <div className="text-sm font-semibold text-gray-900">{value}</div>
+              <div className="text-sm font-semibold text-foreground">{value}</div>
               {attribute.required && (
                 <Badge variant="error" size="sm">{t('attributes.required')}</Badge>
               )}
@@ -305,7 +305,7 @@ export const AttributesList: React.FC = () => {
             </div>
             <div className="flex-1">
               <div className="flex items-center space-x-2">
-                <div className="text-sm font-semibold text-gray-900">{attribute.name}</div>
+                <div className="text-sm font-semibold text-foreground">{attribute.name}</div>
                 {attribute.required && (
                   <Badge variant="error" size="sm">Required</Badge>
                 )}

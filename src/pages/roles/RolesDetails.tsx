@@ -64,14 +64,14 @@ export const RolesDetails: React.FC = () => {
                   <Shield className="h-6 w-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">{role.name}</h3>
-                  <p className="text-sm text-gray-500">ID: {role.id}</p>
+                  <h3 className="text-lg font-semibold text-foreground">{role.name}</h3>
+                  <p className="text-sm text-muted-foreground">ID: {role.id}</p>
                 </div>
               </div>
               
               <div className="space-y-3">
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Type</label>
+                  <label className="text-sm font-medium text-foreground">Type</label>
                   <div className="mt-1">
                     <Badge variant={role.isSystem ? 'secondary' : 'primary'}>
                       {role.isSystem ? 'System Role' : 'Custom Role'}
@@ -80,31 +80,31 @@ export const RolesDetails: React.FC = () => {
                 </div>
                 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Permission Groups</label>
-                  <div className="flex items-center text-sm text-gray-900 mt-1">
-                    <Users className="h-4 w-4 mr-2 text-gray-400" />
+                  <label className="text-sm font-medium text-foreground">Permission Groups</label>
+                  <div className="flex items-center text-sm text-foreground mt-1">
+                    <Users className="h-4 w-4 mr-2 text-muted-foreground" />
                     {role.permissionGroups.length} groups
                   </div>
                 </div>
                 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Direct Permissions</label>
-                  <div className="flex items-center text-sm text-gray-900 mt-1">
-                    <Key className="h-4 w-4 mr-2 text-gray-400" />
+                  <label className="text-sm font-medium text-foreground">Direct Permissions</label>
+                  <div className="flex items-center text-sm text-foreground mt-1">
+                    <Key className="h-4 w-4 mr-2 text-muted-foreground" />
                     {role.permissions.length} permissions
                   </div>
                 </div>
                 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Created</label>
-                  <p className="text-sm text-gray-900 mt-1">
+                  <label className="text-sm font-medium text-foreground">Created</label>
+                  <p className="text-sm text-foreground mt-1">
                     {new Date(role.createdAt).toLocaleDateString()}
                   </p>
                 </div>
                 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Last Updated</label>
-                  <p className="text-sm text-gray-900 mt-1">
+                  <label className="text-sm font-medium text-foreground">Last Updated</label>
+                  <p className="text-sm text-foreground mt-1">
                     {new Date(role.updatedAt).toLocaleDateString()}
                   </p>
                 </div>
@@ -176,8 +176,8 @@ export const RolesDetails: React.FC = () => {
                   <div className="flex items-center space-x-3">
                     <Users className="h-6 w-6 text-purple-600" />
                     <div>
-                      <h4 className="text-sm font-medium text-gray-900">{group.name}</h4>
-                      <p className="text-xs text-gray-500">{group.permissions} permissions</p>
+                      <h4 className="text-sm font-medium text-foreground">{group.name}</h4>
+                      <p className="text-xs text-muted-foreground">{group.permissions} permissions</p>
                     </div>
                   </div>
                 </div>
@@ -200,7 +200,7 @@ export const RolesDetails: React.FC = () => {
                   <div className="flex items-center space-x-3">
                     <Key className="h-5 w-5 text-green-600" />
                     <div>
-                      <h4 className="text-sm font-medium text-gray-900">{permission.name}</h4>
+                      <h4 className="text-sm font-medium text-foreground">{permission.name}</h4>
                       <div className="flex items-center space-x-2 mt-1">
                         <Badge variant="primary" size="sm">{permission.resource}</Badge>
                         <Badge variant="secondary" size="sm">{permission.action}</Badge>
@@ -229,8 +229,8 @@ export const RolesDetails: React.FC = () => {
                     <Users className="h-4 w-4 text-white" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-medium text-gray-900">{user.name}</h4>
-                    <p className="text-xs text-gray-500">{user.email}</p>
+                    <h4 className="text-sm font-medium text-foreground">{user.name}</h4>
+                    <p className="text-xs text-muted-foreground">{user.email}</p>
                   </div>
                 </div>
               ))}

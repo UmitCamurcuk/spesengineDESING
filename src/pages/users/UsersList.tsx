@@ -66,7 +66,7 @@ export const UsersList: React.FC = () => {
             <Users className="h-5 w-5 text-white" />
           </div>
           <div>
-            <div className="text-sm font-semibold text-gray-900">{value}</div>
+            <div className="text-sm font-semibold text-foreground">{value}</div>
             <div className="flex items-center text-xs text-gray-500">
               <Mail className="h-3 w-3 mr-1" />
               {user.email}
@@ -81,7 +81,7 @@ export const UsersList: React.FC = () => {
               <Users className="h-5 w-5 text-white" />
             </div>
             <div className="flex-1">
-              <div className="text-sm font-semibold text-gray-900">{user.name}</div>
+              <div className="text-sm font-semibold text-foreground">{user.name}</div>
               <div className="flex items-center text-xs text-gray-500">
                 <Mail className="h-3 w-3 mr-1" />
                 {user.email}

@@ -99,7 +99,7 @@ export const AssociationsList: React.FC = () => {
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <div className="text-sm font-semibold text-gray-900">{value}</div>
+              <div className="text-sm font-semibold text-foreground">{value}</div>
               {association.isRequired && (
                 <Badge variant="error" size="sm">Required</Badge>
               )}
@@ -116,7 +116,7 @@ export const AssociationsList: React.FC = () => {
             </div>
             <div className="flex-1">
               <div className="flex items-center space-x-2">
-                <div className="text-sm font-semibold text-gray-900">{association.name}</div>
+                <div className="text-sm font-semibold text-foreground">{association.name}</div>
                 {association.isRequired && (
                   <Badge variant="error" size="sm">Required</Badge>
                 )}

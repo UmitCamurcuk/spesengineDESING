@@ -121,7 +121,7 @@ export const TreeSelect: React.FC<TreeSelectProps> = ({
       <div key={node.id}>
         <div
           className={cn(
-            'flex items-center space-x-2 px-3 py-2.5 hover:bg-gray-50 cursor-pointer transition-colors duration-200 rounded-lg mx-1',
+            'flex items-center space-x-2 px-3 py-2.5 hover:bg-muted cursor-pointer transition-colors duration-200 rounded-lg mx-1',
             isSelected && 'bg-blue-50 text-blue-700',
             node.disabled && 'opacity-50 cursor-not-allowed',
             level > 0 && 'ml-4'
@@ -135,7 +135,7 @@ export const TreeSelect: React.FC<TreeSelectProps> = ({
                 e.stopPropagation();
                 toggleExpanded(node.id);
               }}
-              className="p-0.5 hover:bg-gray-200 rounded transition-colors"
+              className="p-0.5 hover:bg-muted rounded transition-colors"
             >
               {isExpanded ? (
                 <ChevronDown className="h-4 w-4 text-gray-500" />
@@ -233,7 +233,7 @@ export const TreeSelect: React.FC<TreeSelectProps> = ({
                   {searchTerm && (
                     <button
                       onClick={() => setSearchTerm('')}
-                      className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-100 rounded"
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 hover:bg-muted rounded"
                     >
                       <X className="h-3 w-3 text-gray-400" />
                     </button>

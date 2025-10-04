@@ -71,14 +71,14 @@ export function Table<T extends Record<string, any>>({
     <div className={cn('bg-card shadow-sm rounded-xl border border-border overflow-hidden', className)}>
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-border">
-          <thead className="bg-muted/50">
+          <thead className="bg-muted">
             <tr>
               {columns.map((column) => (
                 <th
                   key={column.key as string}
                   className={cn(
-                    'px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider',
-                    column.sortable && 'cursor-pointer hover:bg-muted/50 select-none transition-colors duration-200',
+                    'px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider',
+                    column.sortable && 'cursor-pointer hover:bg-muted select-none transition-colors duration-200',
                     column.width,
                     column.align === 'center' && 'text-center',
                     column.align === 'right' && 'text-right'
@@ -98,7 +98,7 @@ export function Table<T extends Record<string, any>>({
                             'h-3 w-3 transition-colors duration-200',
                             sortKey === column.key && sortDirection === 'asc'
                               ? 'text-blue-600'
-                              : 'text-gray-400'
+                              : 'text-muted-foreground'
                           )}
                         />
                         <ChevronDown
@@ -106,7 +106,7 @@ export function Table<T extends Record<string, any>>({
                             'h-3 w-3 -mt-1 transition-colors duration-200',
                             sortKey === column.key && sortDirection === 'desc'
                               ? 'text-blue-600'
-                              : 'text-gray-400'
+                              : 'text-muted-foreground'
                           )}
                         />
                       </div>
@@ -120,12 +120,12 @@ export function Table<T extends Record<string, any>>({
             {data.length === 0 ? (
               <tr>
                 <td colSpan={columns.length} className="px-6 py-16 text-center">
-                  <div className="text-gray-500">
+                  <div className="text-muted-foreground">
                     <div className="w-12 h-12 mx-auto mb-4 bg-muted rounded-full flex items-center justify-center">
-                      <Package className="h-6 w-6 text-gray-400" />
+                      <Package className="h-6 w-6 text-muted-foreground" />
                     </div>
-                    <p className="text-sm font-medium">No data found</p>
-                    <p className="text-xs text-gray-400 mt-1">Get started by creating your first item</p>
+                    <p className="text-sm font-medium text-foreground">No data found</p>
+                    <p className="text-xs text-muted-foreground mt-1">Get started by creating your first item</p>
                   </div>
                 </td>
               </tr>
@@ -134,7 +134,7 @@ export function Table<T extends Record<string, any>>({
                 <tr
                   key={index}
                   className={cn(
-                    'hover:bg-muted/50 transition-colors duration-200',
+                    'hover:bg-muted transition-colors duration-200',
                     onRowClick && 'cursor-pointer'
                   )}
                   onClick={() => onRowClick?.(item)}

@@ -60,14 +60,14 @@ export const UsersDetails: React.FC = () => {
                   <Users className="h-6 w-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">{user.name}</h3>
-                  <p className="text-sm text-gray-500">ID: {user.id}</p>
+                  <h3 className="text-lg font-semibold text-foreground">{user.name}</h3>
+                  <p className="text-sm text-muted-foreground">ID: {user.id}</p>
                 </div>
               </div>
               
               <div className="space-y-3">
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Status</label>
+                  <label className="text-sm font-medium text-foreground">Status</label>
                   <div className="mt-1">
                     <Badge
                       variant={
@@ -81,7 +81,7 @@ export const UsersDetails: React.FC = () => {
                 </div>
                 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Role</label>
+                  <label className="text-sm font-medium text-foreground">Role</label>
                   <div className="mt-1">
                     <Badge 
                       variant={
@@ -96,23 +96,23 @@ export const UsersDetails: React.FC = () => {
                 </div>
                 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Last Login</label>
-                  <div className="flex items-center text-sm text-gray-900 mt-1">
-                    <Calendar className="h-4 w-4 mr-2 text-gray-400" />
+                  <label className="text-sm font-medium text-foreground">Last Login</label>
+                  <div className="flex items-center text-sm text-foreground mt-1">
+                    <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
                     {user.lastLogin ? new Date(user.lastLogin).toLocaleString() : 'Never'}
                   </div>
                 </div>
                 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Created</label>
-                  <p className="text-sm text-gray-900 mt-1">
+                  <label className="text-sm font-medium text-foreground">Created</label>
+                  <p className="text-sm text-foreground mt-1">
                     {new Date(user.createdAt).toLocaleDateString()}
                   </p>
                 </div>
                 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Last Updated</label>
-                  <p className="text-sm text-gray-900 mt-1">
+                  <label className="text-sm font-medium text-foreground">Last Updated</label>
+                  <p className="text-sm text-foreground mt-1">
                     {new Date(user.updatedAt).toLocaleDateString()}
                   </p>
                 </div>
@@ -202,10 +202,10 @@ export const UsersDetails: React.FC = () => {
                 { action: 'Created item', time: '2 days ago', icon: Users },
               ].map((activity, index) => (
                 <div key={index} className="flex items-center space-x-3 p-3 bg-muted rounded-lg">
-                  <activity.icon className="h-4 w-4 text-gray-400" />
+                  <activity.icon className="h-4 w-4 text-muted-foreground" />
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">{activity.action}</p>
-                    <p className="text-xs text-gray-500">{activity.time}</p>
+                    <p className="text-sm font-medium text-foreground">{activity.action}</p>
+                    <p className="text-xs text-muted-foreground">{activity.time}</p>
                   </div>
                 </div>
               ))}

@@ -83,7 +83,7 @@ export const LocalizationsList: React.FC = () => {
             <Globe className="h-5 w-5 text-white" />
           </div>
           <div>
-            <div className="text-sm font-semibold text-gray-900 font-mono">{value}</div>
+            <div className="text-sm font-semibold text-foreground font-mono">{value}</div>
             <div className="text-xs text-gray-500">ID: {localization.id}</div>
           </div>
         </div>
@@ -95,7 +95,7 @@ export const LocalizationsList: React.FC = () => {
               <Globe className="h-5 w-5 text-white" />
             </div>
             <div className="flex-1">
-              <div className="text-sm font-semibold text-gray-900 font-mono">{localization.key}</div>
+              <div className="text-sm font-semibold text-foreground font-mono">{localization.key}</div>
               <div className="text-xs text-gray-500">ID: {localization.id}</div>
             </div>
           </div>
@@ -121,7 +121,7 @@ export const LocalizationsList: React.FC = () => {
           
           <div>
             <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">English Translation</div>
-            <div className="text-sm text-gray-900 italic">"{localization.translations.en}"</div>
+            <div className="text-sm text-foreground italic">"{localization.translations.en}"</div>
           </div>
         </div>
       ),
@@ -156,7 +156,7 @@ export const LocalizationsList: React.FC = () => {
       key: 'translations.en',
       title: 'English Text',
       render: (_: any, localization: Localization) => (
-        <span className="text-sm text-gray-900 italic">"{localization.translations.en}"</span>
+        <span className="text-sm text-foreground italic">"{localization.translations.en}"</span>
       ),
     },
     {
