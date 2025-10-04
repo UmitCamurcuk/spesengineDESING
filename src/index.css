@@ -192,6 +192,45 @@
     --input: 37 58 102;
     --ring: 96 165 250;
     
+    --primary: 59 130 246;
+    --primary-hover: 96 165 250;
+    --primary-active: 147 197 253;
+    --primary-foreground: 7 18 43;
+    
+    --secondary: 148 163 184;
+    --secondary-hover: 203 213 225;
+    --secondary-active: 226 232 240;
+    --secondary-foreground: 7 18 43;
+    
+    --muted: 37 58 102;
+    --muted-hover: 48 73 128;
+    --muted-foreground: 203 213 225;
+    
+    --accent: 251 146 60;
+    --accent-hover: 253 186 116;
+    --accent-active: 254 215 170;
+    --accent-foreground: 7 18 43;
+    
+    --success: 74 222 128;
+    --success-hover: 134 239 172;
+    --success-foreground: 7 18 43;
+    --success-background: 20 83 45;
+    
+    --warning: 250 204 21;
+    --warning-hover: 253 224 71;
+    --warning-foreground: 7 18 43;
+    --warning-background: 66 32 6;
+    
+    --error: 248 113 113;
+    --error-hover: 252 165 165;
+    --error-foreground: 7 18 43;
+    --error-background: 69 10 10;
+    
+    --info: 56 189 248;
+    --info-hover: 125 211 252;
+    --info-foreground: 7 18 43;
+    --info-background: 8 47 73;
+    
     --sidebar: 17 33 66;
     --sidebar-foreground: 226 232 240;
     --sidebar-border: 37 58 102;
@@ -212,9 +251,44 @@
     --input: 38 38 38;
     --ring: 96 165 250;
     
+    --primary: 59 130 246;
+    --primary-hover: 96 165 250;
+    --primary-active: 147 197 253;
+    --primary-foreground: 0 0 0;
+    
+    --secondary: 148 163 184;
+    --secondary-hover: 203 213 225;
+    --secondary-active: 226 232 240;
+    --secondary-foreground: 0 0 0;
+    
     --muted: 38 38 38;
     --muted-hover: 64 64 64;
     --muted-foreground: 163 163 163;
+    
+    --accent: 251 146 60;
+    --accent-hover: 253 186 116;
+    --accent-active: 254 215 170;
+    --accent-foreground: 0 0 0;
+    
+    --success: 74 222 128;
+    --success-hover: 134 239 172;
+    --success-foreground: 0 0 0;
+    --success-background: 20 83 45;
+    
+    --warning: 250 204 21;
+    --warning-hover: 253 224 71;
+    --warning-foreground: 0 0 0;
+    --warning-background: 66 32 6;
+    
+    --error: 248 113 113;
+    --error-hover: 252 165 165;
+    --error-foreground: 0 0 0;
+    --error-background: 69 10 10;
+    
+    --info: 56 189 248;
+    --info-hover: 125 211 252;
+    --info-foreground: 0 0 0;
+    --info-background: 8 47 73;
     
     --sidebar: 23 23 23;
     --sidebar-foreground: 245 245 245;
