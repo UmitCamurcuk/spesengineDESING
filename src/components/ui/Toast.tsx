@@ -82,7 +82,7 @@ export const Toast: React.FC<ToastProps> = ({
       <button
         onClick={onClose}
         className={cn(
-          'flex-shrink-0 p-1 rounded-md hover:bg-black/5 transition-colors',
+          'flex-shrink-0 p-1 rounded-md hover:bg-muted transition-colors',
           config.iconColor
         )}
       >

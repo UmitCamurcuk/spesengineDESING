@@ -48,38 +48,38 @@ export const AttributeGroupSelector: React.FC<AttributeGroupSelectorProps> = ({
               className={cn(
                 'p-4 border-2 rounded-xl transition-all duration-200 text-left relative',
                 isSelected
-                  ? 'border-blue-500 bg-blue-50 shadow-sm'
-                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                  ? 'border-primary bg-primary/10 shadow-sm'
+                  : 'border-border hover:border-border hover:bg-muted'
               )}
             >
               <div className="flex items-start space-x-3">
                 <div className={cn(
                   'p-2 rounded-lg transition-colors',
-                  isSelected ? 'bg-blue-100' : 'bg-gray-100'
+                  isSelected ? 'bg-primary/20' : 'bg-muted'
                 )}>
                   <Tags className={cn(
                     'h-4 w-4',
-                    isSelected ? 'text-blue-600' : 'text-gray-600'
+                    isSelected ? 'text-primary' : 'text-muted-foreground'
                   )} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h4 className="text-sm font-medium text-gray-900 truncate">
+                  <h4 className="text-sm font-medium text-foreground truncate">
                     {group.name}
                   </h4>
                   {group.description && (
-                    <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
                       {group.description}
                     </p>
                   )}
                   {group.attributeCount !== undefined && (
-                    <p className="text-xs text-gray-400 mt-1">
+                    <p className="text-xs text-muted-foreground mt-1">
                       {group.attributeCount} attributes
                     </p>
                   )}
                 </div>
                 {isSelected && (
                   <div className="absolute top-2 right-2">
-                    <div className="w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center">
+                    <div className="w-5 h-5 bg-primary rounded-full flex items-center justify-center">
                       <Check className="h-3 w-3 text-white" />
                     </div>
                   </div>
@@ -91,8 +91,8 @@ export const AttributeGroupSelector: React.FC<AttributeGroupSelectorProps> = ({
       </div>
 
       {selectedGroups.length > 0 && (
-        <div className="border-t border-gray-200 pt-4">
-          <h4 className="text-sm font-medium text-gray-700 mb-2">
+        <div className="border-t border-border pt-4">
+          <h4 className="text-sm font-medium text-foreground mb-2">
             Selected Groups ({selectedGroups.length})
           </h4>
           <div className="flex flex-wrap gap-2">
@@ -101,12 +101,12 @@ export const AttributeGroupSelector: React.FC<AttributeGroupSelectorProps> = ({
               return group ? (
                 <div
                   key={groupId}
-                  className="inline-flex items-center space-x-1 bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs"
+                  className="inline-flex items-center space-x-1 bg-primary/20 text-primary px-2 py-1 rounded-full text-xs"
                 >
                   <span>{group.name}</span>
                   <button
                     onClick={() => handleGroupToggle(groupId)}
-                    className="hover:bg-blue-200 rounded-full p-0.5"
+                    className="hover:bg-primary/30 rounded-full p-0.5"
                   >
                     <Check className="h-3 w-3 rotate-45" />
                   </button>

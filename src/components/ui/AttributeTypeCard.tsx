@@ -219,8 +219,8 @@ export const AttributeTypeCard: React.FC<AttributeTypeCardProps> = ({
       className={cn(
         'p-6 border-2 rounded-xl transition-all duration-200 text-left w-full hover:shadow-md',
         selected
-          ? 'border-blue-500 bg-blue-50 shadow-sm'
-          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+          ? 'border-primary bg-primary/10 shadow-sm'
+          : 'border-border hover:border-border hover:bg-muted'
       )}
     >
       <div className="flex flex-col items-center text-center space-y-3">
@@ -228,8 +228,8 @@ export const AttributeTypeCard: React.FC<AttributeTypeCardProps> = ({
           <Icon className="h-6 w-6 text-white" />
         </div>
         <div>
-          <h3 className="text-sm font-semibold text-gray-900">{info.name}</h3>
-          <p className="text-xs text-gray-500 mt-1 leading-relaxed">{info.description}</p>
+          <h3 className="text-sm font-semibold text-foreground">{info.name}</h3>
+          <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{info.description}</p>
         </div>
       </div>
     </button>

@@ -199,9 +199,9 @@ export const AttributesCreate: React.FC = () => {
                       id="required"
                       checked={formData.required}
                       onChange={(e) => setFormData(prev => ({ ...prev, required: e.target.checked }))}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      className="rounded border-border text-primary focus:ring-primary"
                     />
-                    <label htmlFor="required" className="text-sm font-medium text-gray-700">
+                    <label htmlFor="required" className="text-sm font-medium text-foreground">
                       This attribute is required
                     </label>
                   </div>
@@ -253,15 +253,15 @@ export const AttributesCreate: React.FC = () => {
                             ...prev,
                             validation: { ...prev.validation, [field.key]: e.target.checked }
                           }))}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          className="rounded border-border text-primary focus:ring-primary"
                         />
-                        <label htmlFor={field.key} className="text-sm font-medium text-gray-700">
+                        <label htmlFor={field.key} className="text-sm font-medium text-foreground">
                           {field.label}
                         </label>
                       </div>
                     ) : field.type === 'select' ? (
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-foreground mb-1">
                           {field.label}
                         </label>
                         <select
@@ -270,7 +270,7 @@ export const AttributesCreate: React.FC = () => {
                             ...prev,
                             validation: { ...prev.validation, [field.key]: e.target.value }
                           }))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                         >
                           <option value="">Select {field.label}</option>
                           {field.options?.map(option => (
@@ -280,7 +280,7 @@ export const AttributesCreate: React.FC = () => {
                       </div>
                     ) : field.type === 'textarea' ? (
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-foreground mb-1">
                           {field.label}
                         </label>
                         <textarea
@@ -291,7 +291,7 @@ export const AttributesCreate: React.FC = () => {
                           }))}
                           placeholder={field.placeholder}
                           rows={4}
-                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                         />
                       </div>
                     ) : (
@@ -311,8 +311,8 @@ export const AttributesCreate: React.FC = () => {
               </div>
             ) : (
               <div className="text-center py-8">
-                <FileText className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                <p className="text-sm text-gray-500">No validation rules available for this attribute type</p>
+                <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground">No validation rules available for this attribute type</p>
               </div>
             )}
           </Card>
@@ -343,24 +343,24 @@ export const AttributesCreate: React.FC = () => {
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">Basic Information</h4>
+                  <h4 className="text-sm font-medium text-foreground mb-2">Basic Information</h4>
                   <div className="space-y-2">
-                    <p><span className="text-gray-500">Name:</span> {formData.name}</p>
-                    <p><span className="text-gray-500">Type:</span> {formData.type}</p>
-                    <p><span className="text-gray-500">Required:</span> {formData.required ? 'Yes' : 'No'}</p>
+                    <p><span className="text-muted-foreground">Name:</span> {formData.name}</p>
+                    <p><span className="text-muted-foreground">Type:</span> {formData.type}</p>
+                    <p><span className="text-muted-foreground">Required:</span> {formData.required ? 'Yes' : 'No'}</p>
                     {formData.description && (
-                      <p><span className="text-gray-500">Description:</span> {formData.description}</p>
+                      <p><span className="text-muted-foreground">Description:</span> {formData.description}</p>
                     )}
                   </div>
                 </div>
                 
                 <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">Attribute Groups</h4>
+                  <h4 className="text-sm font-medium text-foreground mb-2">Attribute Groups</h4>
                   <div className="space-y-1">
                     {formData.attributeGroups.map(groupId => {
                       const group = mockAttributeGroups.find(g => g.id === groupId);
                       return group ? (
-                        <p key={groupId} className="text-sm text-gray-600">• {group.name}</p>
+                        <p key={groupId} className="text-sm text-muted-foreground">• {group.name}</p>
                       ) : null;
                     })}
                   </div>
@@ -368,15 +368,15 @@ export const AttributesCreate: React.FC = () => {
               </div>
               
               {Object.keys(formData.validation).length > 0 && (
-                <div className="border-t border-gray-200 pt-6">
-                  <h4 className="text-sm font-medium text-gray-700 mb-4">Validation Rules</h4>
+                <div className="border-t border-border pt-6">
+                  <h4 className="text-sm font-medium text-foreground mb-4">Validation Rules</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {Object.entries(formData.validation).map(([key, value]) => (
-                      <div key={key} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                        <span className="text-sm font-medium text-gray-700 capitalize">
+                      <div key={key} className="flex justify-between items-center p-3 bg-muted rounded-lg">
+                        <span className="text-sm font-medium text-foreground capitalize">
                           {key.replace(/([A-Z])/g, ' $1').trim()}
                         </span>
-                        <span className="text-sm text-gray-600">
+                        <span className="text-sm text-muted-foreground">
                           {typeof value === 'boolean' ? (value ? 'Yes' : 'No') : String(value)}
                         </span>
                       </div>
@@ -385,9 +385,9 @@ export const AttributesCreate: React.FC = () => {
                 </div>
               )}
 
-              <div className="border-t border-gray-200 pt-6">
-                <h4 className="text-sm font-medium text-gray-700 mb-4">Preview</h4>
-                <div className="p-6 border-2 border-dashed border-gray-200 rounded-lg bg-gray-50">
+              <div className="border-t border-border pt-6">
+                <h4 className="text-sm font-medium text-foreground mb-4">Preview</h4>
+                <div className="p-6 border-2 border-dashed border-border rounded-lg bg-muted">
                   <AttributeRenderer
                     attribute={{
                       id: 'preview',
@@ -417,47 +417,52 @@ export const AttributesCreate: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 flex flex-col" style={{ height: '-webkit-fill-available' }}>
       {/* Stepper */}
       <Card padding="lg">
         <Stepper steps={steps} currentStep={currentStep} />
       </Card>
 
-      {/* Step Content */}
-      {renderStepContent()}
-
-      {/* Navigation */}
-      <div className="flex justify-between">
-        <Button
-          variant="outline"
-          onClick={handleBack}
-          disabled={currentStep === 0}
-          leftIcon={<ArrowLeft className="h-4 w-4" />}
-        >
-          Back
-        </Button>
-        
-        <div className="flex space-x-3">
-          {currentStep === steps.length - 1 ? (
-            <Button
-              onClick={handleSubmit}
-              loading={loading}
-              disabled={!canProceed()}
-              leftIcon={<Check className="h-4 w-4" />}
-            >
-              Create Attribute
-            </Button>
-          ) : (
-            <Button
-              onClick={handleNext}
-              disabled={!canProceed()}
-              rightIcon={<ArrowRight className="h-4 w-4" />}
-            >
-              Continue
-            </Button>
-          )}
+      {/* Main Content Card */}
+      <Card className="flex-1 flex flex-col">
+        {/* Step Content */}
+        <div className="flex-1 overflow-hidden">
+          {renderStepContent()}
         </div>
-      </div>
+
+        {/* Navigation */}
+        <div className="flex justify-between pt-6 border-t border-border flex-shrink-0">
+          <Button
+            variant="outline"
+            onClick={handleBack}
+            disabled={currentStep === 0}
+            leftIcon={<ArrowLeft className="h-4 w-4" />}
+          >
+            Back
+          </Button>
+          
+          <div className="flex space-x-3">
+            {currentStep === steps.length - 1 ? (
+              <Button
+                onClick={handleSubmit}
+                loading={loading}
+                disabled={!canProceed()}
+                leftIcon={<Check className="h-4 w-4" />}
+              >
+                Create Attribute
+              </Button>
+            ) : (
+              <Button
+                onClick={handleNext}
+                disabled={!canProceed()}
+                rightIcon={<ArrowRight className="h-4 w-4" />}
+              >
+                Continue
+              </Button>
+            )}
+          </div>
+        </div>
+      </Card>
     </div>
   );
 };
