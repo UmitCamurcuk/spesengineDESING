@@ -15,11 +15,11 @@ import {
   Code,
   Calculator,
   Zap,
-  Grid3X3,
+  LayoutGrid,
   Palette,
   FileText,
   Star,
-  Barcode,
+  Scan,
   QrCode,
   Eye
 } from 'lucide-react';
@@ -148,7 +148,7 @@ const getAttributeTypeInfo = (type: AttributeType) => {
       };
     case AttributeType.TABLE:
       return {
-        icon: Grid3X3,
+        icon: LayoutGrid,
         name: 'Table',
         description: 'Structured table data with rows and columns',
         color: 'from-slate-500 to-slate-600'
@@ -176,7 +176,7 @@ const getAttributeTypeInfo = (type: AttributeType) => {
       };
     case AttributeType.BARCODE:
       return {
-        icon: Barcode,
+        icon: Scan,
         name: 'Barcode',
         description: 'Barcode scanner and generator',
         color: 'from-gray-600 to-gray-700'
