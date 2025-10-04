@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, FileText, Package } from 'lucide-react';
+import { Plus, FileText, Package, Type, ToggleLeft, Calendar, Image, Paperclip, Code, List, CheckSquare, Table, Palette, Calculator, Braces, BarChart3, Clock, Calendar as CalendarIcon, Star, Hash as HashIcon } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable, UserInfo } from '../../components/ui/DataTable';
 import { Button } from '../../components/ui/Button';
@@ -195,7 +195,7 @@ const mockAttributes: Attribute[] = [
   {
     id: 'attr-21',
     name: 'QR Code',
-    type: AttributeType.QR_CODE,
+    type: AttributeType.TEXT,
     required: false,
     description: 'Product QR code',
     createdAt: '2024-01-21T02:00:00Z',
@@ -213,7 +213,7 @@ const mockAttributes: Attribute[] = [
   {
     id: 'attr-23',
     name: 'Geolocation',
-    type: AttributeType.GEOLOCATION,
+    type: AttributeType.JSON,
     required: false,
     description: 'Product location coordinates',
     createdAt: '2024-01-23T04:30:00Z',
@@ -255,20 +255,97 @@ const attributeGroupAssignments: Record<string, string[]> = {
   'attr-5': ['group-1', 'group-3'],
 };
 
-const getAttributeTypeColor = (type: AttributeType) => {
+
+// Icon mapping for attribute types
+const getAttributeTypeIcon = (type: AttributeType, name?: string) => {
+  // Special case for rating attributes
+  if (name && name.toLowerCase().includes('rating')) {
+    return Star;
+  }
+  
   switch (type) {
     case AttributeType.TEXT:
-      return 'primary';
+      return Type;
     case AttributeType.NUMBER:
-      return 'secondary';
+      return HashIcon;
     case AttributeType.BOOLEAN:
-      return 'success';
+      return ToggleLeft;
+    case AttributeType.DATE:
+      return Calendar;
+    case AttributeType.IMAGE:
+      return Image;
+    case AttributeType.ATTACHMENT:
+      return Paperclip;
+    case AttributeType.JSON:
+      return Code;
+    case AttributeType.ARRAY:
+      return List;
     case AttributeType.SELECT:
-      return 'warning';
+      return CheckSquare;
     case AttributeType.RICH_TEXT:
-      return 'error';
+      return FileText;
+    case AttributeType.TABLE:
+      return Table;
+    case AttributeType.COLOR:
+      return Palette;
+    case AttributeType.FORMULA:
+      return Calculator;
+    case AttributeType.OBJECT:
+      return Braces;
+    case AttributeType.BARCODE:
+      return BarChart3;
+    case AttributeType.TIME:
+      return Clock;
+    case AttributeType.DATETIME:
+      return CalendarIcon;
+    case AttributeType.EXPRESSION:
+      return Code;
     default:
-      return 'default';
+      return Type;
+  }
+};
+
+// Get attribute type display name
+const getAttributeTypeName = (type: AttributeType, t: (key: string) => string) => {
+  switch (type) {
+    case AttributeType.TEXT:
+      return t('attributes.types.text');
+    case AttributeType.NUMBER:
+      return t('attributes.types.number');
+    case AttributeType.BOOLEAN:
+      return t('attributes.types.boolean');
+    case AttributeType.DATE:
+      return t('attributes.types.date');
+    case AttributeType.IMAGE:
+      return t('attributes.types.image');
+    case AttributeType.ATTACHMENT:
+      return t('attributes.types.attachment');
+    case AttributeType.JSON:
+      return t('attributes.types.json');
+    case AttributeType.ARRAY:
+      return t('attributes.types.array');
+    case AttributeType.SELECT:
+      return t('attributes.types.select');
+    case AttributeType.RICH_TEXT:
+      return t('attributes.types.rich_text');
+    case AttributeType.TABLE:
+      return t('attributes.types.table');
+    case AttributeType.COLOR:
+      return t('attributes.types.color');
+    case AttributeType.FORMULA:
+      return t('attributes.types.formula');
+    case AttributeType.OBJECT:
+      return t('attributes.types.object');
+    case AttributeType.BARCODE:
+      return t('attributes.types.barcode');
+    case AttributeType.TIME:
+      return t('attributes.types.time');
+    case AttributeType.DATETIME:
+      return t('attributes.types.datetime');
+    case AttributeType.EXPRESSION:
+      return t('attributes.types.expression');
+    default:
+      return type;
   }
 };
 
@@ -281,11 +358,17 @@ export const AttributesList: React.FC = () => {
       key: 'name',
       title: t('attributes.name'),
       sortable: true,
-      render: (value: string, attribute: Attribute) => (
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-sm">
-            <FileText className="h-5 w-5 text-white" />
-          </div>
+      render: (value: string, attribute: Attribute) => {
+        const IconComponent = getAttributeTypeIcon(attribute.type, attribute.name);
+        const typeName = getAttributeTypeName(attribute.type, t);
+        return (
+          <div className="flex items-center space-x-3">
+            <div className="flex flex-col items-center">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-sm">
+                <IconComponent className="h-5 w-5 text-white" />
+              </div>
+              <span className="text-xs text-muted-foreground mt-1">{typeName}</span>
+            </div>
           <div>
             <div className="flex items-center space-x-2">
               <div className="text-sm font-semibold text-foreground">{value}</div>
@@ -296,13 +379,20 @@ export const AttributesList: React.FC = () => {
             <div className="text-xs text-gray-500">ID: {attribute.id}</div>
           </div>
         </div>
-      ),
-      mobileRender: (attribute: Attribute) => (
-        <div className="space-y-3">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-sm">
-              <FileText className="h-5 w-5 text-white" />
-            </div>
+        );
+      },
+      mobileRender: (attribute: Attribute) => {
+        const IconComponent = getAttributeTypeIcon(attribute.type, attribute.name);
+        const typeName = getAttributeTypeName(attribute.type, t);
+        return (
+          <div className="space-y-3">
+            <div className="flex items-center space-x-3">
+              <div className="flex flex-col items-center">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-sm">
+                  <IconComponent className="h-5 w-5 text-white" />
+                </div>
+                <span className="text-xs text-muted-foreground mt-1">{typeName}</span>
+              </div>
             <div className="flex-1">
               <div className="flex items-center space-x-2">
                 <div className="text-sm font-semibold text-foreground">{attribute.name}</div>
@@ -314,28 +404,20 @@ export const AttributesList: React.FC = () => {
             </div>
           </div>
           
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Type</div>
-              <Badge variant={getAttributeTypeColor(attribute.type)} size="sm">
-                {attribute.type}
-              </Badge>
-            </div>
-            <div>
-              <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Groups</div>
-              <div className="flex flex-wrap gap-1">
-                {(attributeGroupAssignments[attribute.id] || []).slice(0, 2).map(groupId => {
-                  const group = mockAttributeGroups.find(g => g.id === groupId);
-                  return group ? (
-                    <Badge key={groupId} variant="outline" size="sm">
-                      {group.name}
-                    </Badge>
-                  ) : null;
-                })}
-                {(attributeGroupAssignments[attribute.id] || []).length > 2 && (
-                  <span className="text-xs text-gray-400">+{(attributeGroupAssignments[attribute.id] || []).length - 2}</span>
-                )}
-              </div>
+          <div>
+            <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Groups</div>
+            <div className="flex flex-wrap gap-1">
+              {(attributeGroupAssignments[attribute.id] || []).slice(0, 3).map(groupId => {
+                const group = mockAttributeGroups.find(g => g.id === groupId);
+                return group ? (
+                  <Badge key={groupId} variant="secondary" size="sm">
+                    {group.name}
+                  </Badge>
+                ) : null;
+              })}
+              {(attributeGroupAssignments[attribute.id] || []).length > 3 && (
+                <span className="text-xs text-gray-400">+{(attributeGroupAssignments[attribute.id] || []).length - 3}</span>
+              )}
             </div>
           </div>
           
@@ -344,17 +426,8 @@ export const AttributesList: React.FC = () => {
             <div className="text-sm text-gray-600">{attribute.description}</div>
           </div>
         </div>
-      ),
-    },
-    {
-      key: 'type',
-      title: t('attributes.type'),
-      sortable: true,
-      render: (value: AttributeType) => (
-        <Badge variant={getAttributeTypeColor(value)} size="sm">
-          {value}
-        </Badge>
-      ),
+        );
+      },
     },
     {
       key: 'groups',
@@ -366,7 +439,7 @@ export const AttributesList: React.FC = () => {
             {groups.slice(0, 2).map(groupId => {
               const group = mockAttributeGroups.find(g => g.id === groupId);
               return group ? (
-                <Badge key={groupId} variant="outline" size="sm">
+                <Badge key={groupId} variant="secondary" size="sm">
                   {group.name}
                 </Badge>
               ) : null;
@@ -392,7 +465,7 @@ export const AttributesList: React.FC = () => {
         value ? (
           <div className="flex flex-wrap gap-1">
             {value.slice(0, 2).map((option, index) => (
-              <Badge key={index} variant="outline" size="sm">
+              <Badge key={index} variant="secondary" size="sm">
                 {option}
               </Badge>
             ))}
