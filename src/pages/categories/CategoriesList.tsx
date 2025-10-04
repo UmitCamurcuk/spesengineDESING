@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, FolderTree, ChevronRight } from 'lucide-react';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable, UserInfo } from '../../components/ui/DataTable';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -204,23 +205,38 @@ export const CategoriesList: React.FC = () => {
   ];
 
   return (
-    <DataTable
-      data={mockCategories}
-      columns={columns}
-      searchPlaceholder="Search categories..."
-      filters={filters}
-      onRowClick={(category) => navigate(`/categories/${category.id}`)}
-      emptyState={{
-        icon: <FolderTree className="h-12 w-12" />,
-        title: 'No categories found',
-        description: 'Get started by creating your first category',
-        action: (
+    <div className="h-full flex flex-col">
+      <PageHeader
+        title="Categories"
+        subtitle="Organize your data with hierarchical categories"
+        action={
           <Button onClick={() => navigate('/categories/create')}>
             <Plus className="h-4 w-4 mr-2" />
             Create Category
           </Button>
-        )
-      }}
-    />
+        }
+      />
+      
+      <div className="flex-1 mt-6">
+        <DataTable
+          data={mockCategories}
+          columns={columns}
+          searchPlaceholder="Search categories..."
+          filters={filters}
+          onRowClick={(category) => navigate(`/categories/${category.id}`)}
+          emptyState={{
+            icon: <FolderTree className="h-12 w-12" />,
+            title: 'No categories found',
+            description: 'Get started by creating your first category',
+            action: (
+              <Button onClick={() => navigate('/categories/create')}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Category
+              </Button>
+            )
+          }}
+        />
+      </div>
+    </div>
   );
 };

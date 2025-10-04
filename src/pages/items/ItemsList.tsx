@@ -202,25 +202,38 @@ export const ItemsList: React.FC = () => {
   ];
 
   return (
-    <div>
-      <DataTable
-        data={mockItems}
-        columns={columns}
-        searchPlaceholder={t('items.search_placeholder')}
-        filters={filters}
-        onRowClick={(item) => navigate(`/items/${item.id}`)}
-        emptyState={{
-          icon: <Package className="h-12 w-12" />,
-          title: t('items.no_items'),
-          description: t('items.create_new_item'),
-          action: (
-            <Button onClick={() => navigate('/items/create')}>
-              <Plus className="h-4 w-4 mr-2" />
-              {t('items.create_title')}
-            </Button>
-          )
-        }}
+    <div className="h-full flex flex-col">
+      <PageHeader
+        title={t('items.title')}
+        subtitle={t('items.subtitle')}
+        action={
+          <Button onClick={() => navigate('/items/create')}>
+            <Plus className="h-4 w-4 mr-2" />
+            {t('items.create_title')}
+          </Button>
+        }
       />
+      
+      <div className="flex-1 mt-6">
+        <DataTable
+          data={mockItems}
+          columns={columns}
+          searchPlaceholder={t('items.search_placeholder')}
+          filters={filters}
+          onRowClick={(item) => navigate(`/items/${item.id}`)}
+          emptyState={{
+            icon: <Package className="h-12 w-12" />,
+            title: t('items.no_items'),
+            description: t('items.create_new_item'),
+            action: (
+              <Button onClick={() => navigate('/items/create')}>
+                <Plus className="h-4 w-4 mr-2" />
+                {t('items.create_title')}
+              </Button>
+            )
+          }}
+        />
+      </div>
     </div>
   );
 };

@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Key, Shield } from 'lucide-react';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable, UserInfo } from '../../components/ui/DataTable';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -167,23 +168,38 @@ export const PermissionsList: React.FC = () => {
   ];
 
   return (
-    <DataTable
-        data={mockPermissions}
-        columns={columns}
-        searchPlaceholder="Search permissions..."
-        filters={filters}
-        onRowClick={(permission) => navigate(`/permissions/${permission.id}`)}
-        emptyState={{
-          icon: <Key className="h-12 w-12" />,
-          title: 'No permissions found',
-          description: 'Get started by creating your first permission',
-          action: (
-            <Button onClick={() => navigate('/permissions/create')}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Permission
-            </Button>
-          )
-        }}
-  />
+    <div className="h-full flex flex-col">
+      <PageHeader
+        title="Permissions"
+        subtitle="Manage granular access permissions"
+        action={
+          <Button onClick={() => navigate('/permissions/create')}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create Permission
+          </Button>
+        }
+      />
+      
+      <div className="flex-1 mt-6">
+        <DataTable
+          data={mockPermissions}
+          columns={columns}
+          searchPlaceholder="Search permissions..."
+          filters={filters}
+          onRowClick={(permission) => navigate(`/permissions/${permission.id}`)}
+          emptyState={{
+            icon: <Key className="h-12 w-12" />,
+            title: 'No permissions found',
+            description: 'Get started by creating your first permission',
+            action: (
+              <Button onClick={() => navigate('/permissions/create')}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Permission
+              </Button>
+            )
+          }}
+        />
+      </div>
+    </div>
   );
 };

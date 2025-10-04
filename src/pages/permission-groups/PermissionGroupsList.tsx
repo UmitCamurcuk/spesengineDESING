@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, ShieldCheck, Key, Users } from 'lucide-react';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable, UserInfo } from '../../components/ui/DataTable';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -133,22 +134,37 @@ export const PermissionGroupsList: React.FC = () => {
   ];
 
   return (
-    <DataTable
-        data={mockPermissionGroups}
-        columns={columns}
-        searchPlaceholder="Search permission groups..."
-        onRowClick={(group) => navigate(`/permission-groups/${group.id}`)}
-        emptyState={{
-          icon: <ShieldCheck className="h-12 w-12" />,
-          title: 'No permission groups found',
-          description: 'Get started by creating your first permission group',
-          action: (
-            <Button onClick={() => navigate('/permission-groups/create')}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Permission Group
-            </Button>
-          )
-        }}
+    <div className="h-full flex flex-col">
+      <PageHeader
+        title="Permission Groups"
+        subtitle="Manage user permissions and access control"
+        action={
+          <Button onClick={() => navigate('/permission-groups/create')}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create Permission Group
+          </Button>
+        }
       />
+      
+      <div className="flex-1 mt-6">
+        <DataTable
+          data={mockPermissionGroups}
+          columns={columns}
+          searchPlaceholder="Search permission groups..."
+          onRowClick={(group) => navigate(`/permission-groups/${group.id}`)}
+          emptyState={{
+            icon: <ShieldCheck className="h-12 w-12" />,
+            title: 'No permission groups found',
+            description: 'Get started by creating your first permission group',
+            action: (
+              <Button onClick={() => navigate('/permission-groups/create')}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Permission Group
+              </Button>
+            )
+          }}
+        />
+      </div>
+    </div>
   );
 };

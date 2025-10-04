@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Layers, ChevronRight } from 'lucide-react';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable, UserInfo } from '../../components/ui/DataTable';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -198,23 +199,38 @@ export const FamiliesList: React.FC = () => {
   ];
 
   return (
-    <DataTable
-      data={mockFamilies}
-      columns={columns}
-      searchPlaceholder="Search families..."
-      filters={filters}
-      onRowClick={(family) => navigate(`/families/${family.id}`)}
-      emptyState={{
-        icon: <Layers className="h-12 w-12" />,
-        title: 'No families found',
-        description: 'Get started by creating your first family',
-        action: (
+    <div className="h-full flex flex-col">
+      <PageHeader
+        title="Families"
+        subtitle="Group related items into families"
+        action={
           <Button onClick={() => navigate('/families/create')}>
             <Plus className="h-4 w-4 mr-2" />
             Create Family
           </Button>
-        )
-      }}
-    />
+        }
+      />
+      
+      <div className="flex-1 mt-6">
+        <DataTable
+          data={mockFamilies}
+          columns={columns}
+          searchPlaceholder="Search families..."
+          filters={filters}
+          onRowClick={(family) => navigate(`/families/${family.id}`)}
+          emptyState={{
+            icon: <Layers className="h-12 w-12" />,
+            title: 'No families found',
+            description: 'Get started by creating your first family',
+            action: (
+              <Button onClick={() => navigate('/families/create')}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Family
+              </Button>
+            )
+          }}
+        />
+      </div>
+    </div>
   );
 };

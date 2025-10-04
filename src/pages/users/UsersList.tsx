@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Users, Shield, Mail, Calendar } from 'lucide-react';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable, UserInfo } from '../../components/ui/DataTable';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -201,23 +202,38 @@ export const UsersList: React.FC = () => {
   ];
 
   return (
-    <DataTable
-        data={mockUsers}
-        columns={columns}
-        searchPlaceholder="Search users..."
-        filters={filters}
-        onRowClick={(user) => navigate(`/users/${user.id}`)}
-        emptyState={{
-          icon: <Users className="h-12 w-12" />,
-          title: 'No users found',
-          description: 'Get started by inviting your first user',
-          action: (
-            <Button onClick={() => navigate('/users/create')}>
-              <Plus className="h-4 w-4 mr-2" />
-              Invite User
-            </Button>
-          )
-        }}
+    <div className="h-full flex flex-col">
+      <PageHeader
+        title="Users"
+        subtitle="Manage user accounts and permissions"
+        action={
+          <Button onClick={() => navigate('/users/create')}>
+            <Plus className="h-4 w-4 mr-2" />
+            Invite User
+          </Button>
+        }
       />
+      
+      <div className="flex-1 mt-6">
+        <DataTable
+          data={mockUsers}
+          columns={columns}
+          searchPlaceholder="Search users..."
+          filters={filters}
+          onRowClick={(user) => navigate(`/users/${user.id}`)}
+          emptyState={{
+            icon: <Users className="h-12 w-12" />,
+            title: 'No users found',
+            description: 'Get started by inviting your first user',
+            action: (
+              <Button onClick={() => navigate('/users/create')}>
+                <Plus className="h-4 w-4 mr-2" />
+                Invite User
+              </Button>
+            )
+          }}
+        />
+      </div>
+    </div>
   );
 };

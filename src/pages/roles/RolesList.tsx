@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Shield, Users, Key } from 'lucide-react';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable, UserInfo } from '../../components/ui/DataTable';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -164,23 +165,38 @@ export const RolesList: React.FC = () => {
   ];
 
   return (
-    <DataTable
-        data={mockRoles}
-        columns={columns}
-        searchPlaceholder="Search roles..."
-        filters={filters}
-        onRowClick={(role) => navigate(`/roles/${role.id}`)}
-        emptyState={{
-          icon: <Shield className="h-12 w-12" />,
-          title: 'No roles found',
-          description: 'Get started by creating your first role',
-          action: (
-            <Button onClick={() => navigate('/roles/create')}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Role
-            </Button>
-          )
-        }}
-    />
+    <div className="h-full flex flex-col">
+      <PageHeader
+        title="Roles"
+        subtitle="Define user roles and their capabilities"
+        action={
+          <Button onClick={() => navigate('/roles/create')}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create Role
+          </Button>
+        }
+      />
+      
+      <div className="flex-1 mt-6">
+        <DataTable
+          data={mockRoles}
+          columns={columns}
+          searchPlaceholder="Search roles..."
+          filters={filters}
+          onRowClick={(role) => navigate(`/roles/${role.id}`)}
+          emptyState={{
+            icon: <Shield className="h-12 w-12" />,
+            title: 'No roles found',
+            description: 'Get started by creating your first role',
+            action: (
+              <Button onClick={() => navigate('/roles/create')}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Role
+              </Button>
+            )
+          }}
+        />
+      </div>
+    </div>
   );
 };

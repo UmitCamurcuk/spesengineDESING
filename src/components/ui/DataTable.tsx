@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Search, Filter, User, Calendar } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { Button } from './Button';
@@ -48,6 +48,7 @@ interface PaginationProps {
   onPageChange: (page: number) => void;
   pageSize: number;
   totalItems: number;
+  onPageSizeChange?: (size: number) => void;
 }
 
 const Pagination: React.FC<PaginationProps> = ({
@@ -55,15 +56,35 @@ const Pagination: React.FC<PaginationProps> = ({
   totalPages,
   onPageChange,
   pageSize,
-  totalItems
+  totalItems,
+  onPageSizeChange
 }) => {
   const startItem = (currentPage - 1) * pageSize + 1;
   const endItem = Math.min(currentPage * pageSize, totalItems);
 
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-border">
-      <div className="text-xs text-muted-foreground">
-        Showing {startItem} to {endItem} of {totalItems} results
+      <div className="flex items-center gap-4">
+        <div className="text-xs text-muted-foreground">
+          Showing {startItem} to {endItem} of {totalItems} results
+        </div>
+        {onPageSizeChange && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Show:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => onPageSizeChange(parseInt(e.target.value))}
+              className="text-xs border border-input rounded px-2 py-1 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+            <span className="text-xs text-muted-foreground">per page</span>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center space-x-2">
@@ -146,7 +167,7 @@ export function DataTable<T extends Record<string, any>>({
   filters = [],
   onRowClick,
   className,
-  pageSize = 20,
+  pageSize = 10,
   showPagination = true,
   emptyState
 }: DataTableProps<T>) {
@@ -155,6 +176,7 @@ export function DataTable<T extends Record<string, any>>({
   const [sortKey, setSortKey] = useState<string>('');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [currentPage, setCurrentPage] = useState(1);
+  const [currentPageSize, setCurrentPageSize] = useState(pageSize);
 
   const handleSort = (column: Column<T>) => {
     if (!column.sortable) return;
@@ -164,6 +186,16 @@ export function DataTable<T extends Record<string, any>>({
     setSortKey(key);
     setSortDirection(direction);
   };
+
+  const handlePageSizeChange = (newPageSize: number) => {
+    setCurrentPageSize(newPageSize);
+    setCurrentPage(1); // Reset to first page when changing page size
+  };
+
+  // Reset to first page when page size changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [currentPageSize]);
 
   const filteredData = data.filter(item => {
     if (searchTerm) {
@@ -196,9 +228,9 @@ export function DataTable<T extends Record<string, any>>({
     return 0;
   });
 
-  const totalPages = Math.ceil(sortedData.length / pageSize);
+  const totalPages = Math.ceil(sortedData.length / currentPageSize);
   const paginatedData = showPagination
-    ? sortedData.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+    ? sortedData.slice((currentPage - 1) * currentPageSize, currentPage * currentPageSize)
     : sortedData;
 
   if (loading) {
@@ -424,14 +456,17 @@ export function DataTable<T extends Record<string, any>>({
         )}
       </div>
 
-      {showPagination && totalPages > 1 && (
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
-          pageSize={pageSize}
-          totalItems={sortedData.length}
-        />
+      {showPagination && (
+        <div className="flex-shrink-0">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            pageSize={currentPageSize}
+            totalItems={sortedData.length}
+            onPageSizeChange={handlePageSizeChange}
+          />
+        </div>
       )}
     </div>
   );

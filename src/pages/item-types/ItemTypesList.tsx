@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Database } from 'lucide-react';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable, UserInfo } from '../../components/ui/DataTable';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -149,23 +150,38 @@ export const ItemTypesList: React.FC = () => {
   ];
 
   return (
-    <DataTable
-      data={mockItemTypes}
-      columns={columns}
-      searchPlaceholder="Search item types..."
-      filters={filters}
-      onRowClick={(itemType) => navigate(`/item-types/${itemType.id}`)}
-      emptyState={{
-        icon: <Database className="h-12 w-12" />,
-        title: 'No item types found',
-        description: 'Get started by creating your first item type',
-        action: (
+    <div className="h-full flex flex-col">
+      <PageHeader
+        title="Item Types"
+        subtitle="Define data structures and schemas for your items"
+        action={
           <Button onClick={() => navigate('/item-types/create')}>
             <Plus className="h-4 w-4 mr-2" />
             Create Item Type
           </Button>
-        )
-      }}
-    />
+        }
+      />
+      
+      <div className="flex-1 mt-6">
+        <DataTable
+          data={mockItemTypes}
+          columns={columns}
+          searchPlaceholder="Search item types..."
+          filters={filters}
+          onRowClick={(itemType) => navigate(`/item-types/${itemType.id}`)}
+          emptyState={{
+            icon: <Database className="h-12 w-12" />,
+            title: 'No item types found',
+            description: 'Get started by creating your first item type',
+            action: (
+              <Button onClick={() => navigate('/item-types/create')}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Item Type
+              </Button>
+            )
+          }}
+        />
+      </div>
+    </div>
   );
 };

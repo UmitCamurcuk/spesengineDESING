@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Tags } from 'lucide-react';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable, UserInfo } from '../../components/ui/DataTable';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -148,23 +149,38 @@ export const AttributeGroupsList: React.FC = () => {
   ];
 
   return (
-    <DataTable
-      data={mockAttributeGroups}
-      columns={columns}
-      searchPlaceholder="Search attribute groups..."
-      filters={filters}
-      onRowClick={(group) => navigate(`/attribute-groups/${group.id}`)}
-      emptyState={{
-        icon: <Tags className="h-12 w-12" />,
-        title: 'No attribute groups found',
-        description: 'Get started by creating your first attribute group',
-        action: (
+    <div className="h-full flex flex-col">
+      <PageHeader
+        title="Attribute Groups"
+        subtitle="Organize attributes into logical groups"
+        action={
           <Button onClick={() => navigate('/attribute-groups/create')}>
             <Plus className="h-4 w-4 mr-2" />
             Create Attribute Group
           </Button>
-        )
-      }}
-    />
+        }
+      />
+      
+      <div className="flex-1 mt-6">
+        <DataTable
+          data={mockAttributeGroups}
+          columns={columns}
+          searchPlaceholder="Search attribute groups..."
+          filters={filters}
+          onRowClick={(group) => navigate(`/attribute-groups/${group.id}`)}
+          emptyState={{
+            icon: <Tags className="h-12 w-12" />,
+            title: 'No attribute groups found',
+            description: 'Get started by creating your first attribute group',
+            action: (
+              <Button onClick={() => navigate('/attribute-groups/create')}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Attribute Group
+              </Button>
+            )
+          }}
+        />
+      </div>
+    </div>
   );
 };

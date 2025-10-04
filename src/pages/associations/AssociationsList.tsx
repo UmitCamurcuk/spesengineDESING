@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Zap, Database, ArrowRight } from 'lucide-react';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable, UserInfo } from '../../components/ui/DataTable';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -242,23 +243,38 @@ export const AssociationsList: React.FC = () => {
   ];
 
   return (
-    <DataTable
-      data={mockAssociations}
-      columns={columns}
-      searchPlaceholder="Search associations..."
-      filters={filters}
-      onRowClick={(association) => navigate(`/associations/${association.id}`)}
-      emptyState={{
-        icon: <Zap className="h-12 w-12" />,
-        title: 'No associations found',
-        description: 'Get started by creating your first association',
-        action: (
+    <div className="h-full flex flex-col">
+      <PageHeader
+        title="Associations"
+        subtitle="Define relationships between different entities"
+        action={
           <Button onClick={() => navigate('/associations/create')}>
             <Plus className="h-4 w-4 mr-2" />
             Create Association
           </Button>
-        )
-      }}
-    />
+        }
+      />
+      
+      <div className="flex-1 mt-6">
+        <DataTable
+          data={mockAssociations}
+          columns={columns}
+          searchPlaceholder="Search associations..."
+          filters={filters}
+          onRowClick={(association) => navigate(`/associations/${association.id}`)}
+          emptyState={{
+            icon: <Zap className="h-12 w-12" />,
+            title: 'No associations found',
+            description: 'Get started by creating your first association',
+            action: (
+              <Button onClick={() => navigate('/associations/create')}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Association
+              </Button>
+            )
+          }}
+        />
+      </div>
+    </div>
   );
 };

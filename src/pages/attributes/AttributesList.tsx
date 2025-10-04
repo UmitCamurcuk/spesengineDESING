@@ -55,6 +55,187 @@ const mockAttributes: Attribute[] = [
     createdAt: '2024-01-05T08:45:00Z',
     updatedAt: '2024-01-23T12:15:00Z',
   },
+  {
+    id: 'attr-6',
+    name: 'SKU',
+    type: AttributeType.TEXT,
+    required: true,
+    description: 'Stock Keeping Unit identifier',
+    createdAt: '2024-01-06T10:30:00Z',
+    updatedAt: '2024-01-24T09:20:00Z',
+  },
+  {
+    id: 'attr-7',
+    name: 'Weight',
+    type: AttributeType.NUMBER,
+    required: false,
+    description: 'Product weight in grams',
+    createdAt: '2024-01-07T11:15:00Z',
+    updatedAt: '2024-01-25T14:45:00Z',
+  },
+  {
+    id: 'attr-8',
+    name: 'Color',
+    type: AttributeType.SELECT,
+    required: false,
+    options: ['red', 'blue', 'green', 'yellow', 'black', 'white'],
+    description: 'Available product colors',
+    createdAt: '2024-01-08T13:20:00Z',
+    updatedAt: '2024-01-26T16:30:00Z',
+  },
+  {
+    id: 'attr-9',
+    name: 'In Stock',
+    type: AttributeType.BOOLEAN,
+    required: true,
+    description: 'Whether the product is currently in stock',
+    createdAt: '2024-01-09T14:45:00Z',
+    updatedAt: '2024-01-27T11:15:00Z',
+  },
+  {
+    id: 'attr-10',
+    name: 'Launch Date',
+    type: AttributeType.DATE,
+    required: false,
+    description: 'Product launch date',
+    createdAt: '2024-01-10T15:30:00Z',
+    updatedAt: '2024-01-28T13:20:00Z',
+  },
+  {
+    id: 'attr-11',
+    name: 'Tags',
+    type: AttributeType.ARRAY,
+    required: false,
+    description: 'Product tags for categorization',
+    createdAt: '2024-01-11T16:15:00Z',
+    updatedAt: '2024-01-29T10:45:00Z',
+  },
+  {
+    id: 'attr-12',
+    name: 'Specifications',
+    type: AttributeType.JSON,
+    required: false,
+    description: 'Technical specifications as JSON',
+    createdAt: '2024-01-12T17:00:00Z',
+    updatedAt: '2024-01-30T15:30:00Z',
+  },
+  {
+    id: 'attr-13',
+    name: 'Image Gallery',
+    type: AttributeType.IMAGE,
+    required: false,
+    description: 'Product image gallery',
+    createdAt: '2024-01-13T18:30:00Z',
+    updatedAt: '2024-01-31T12:15:00Z',
+  },
+  {
+    id: 'attr-14',
+    name: 'Manual',
+    type: AttributeType.ATTACHMENT,
+    required: false,
+    description: 'Product manual PDF',
+    createdAt: '2024-01-14T19:45:00Z',
+    updatedAt: '2024-02-01T14:20:00Z',
+  },
+  {
+    id: 'attr-15',
+    name: 'Rating',
+    type: AttributeType.NUMBER,
+    required: false,
+    description: 'Product rating from 1-5',
+    createdAt: '2024-01-15T20:15:00Z',
+    updatedAt: '2024-02-02T16:45:00Z',
+  },
+  {
+    id: 'attr-16',
+    name: 'Reviews',
+    type: AttributeType.TABLE,
+    required: false,
+    description: 'Customer reviews table',
+    createdAt: '2024-01-16T21:30:00Z',
+    updatedAt: '2024-02-03T18:10:00Z',
+  },
+  {
+    id: 'attr-17',
+    name: 'Brand Color',
+    type: AttributeType.COLOR,
+    required: false,
+    description: 'Brand primary color',
+    createdAt: '2024-01-17T22:00:00Z',
+    updatedAt: '2024-02-04T19:25:00Z',
+  },
+  {
+    id: 'attr-18',
+    name: 'Formula',
+    type: AttributeType.FORMULA,
+    required: false,
+    description: 'Calculated field based on other attributes',
+    createdAt: '2024-01-18T23:15:00Z',
+    updatedAt: '2024-02-05T20:40:00Z',
+  },
+  {
+    id: 'attr-19',
+    name: 'Expression',
+    type: AttributeType.EXPRESSION,
+    required: false,
+    description: 'Dynamic expression evaluation',
+    createdAt: '2024-01-19T00:30:00Z',
+    updatedAt: '2024-02-06T21:55:00Z',
+  },
+  {
+    id: 'attr-20',
+    name: 'Object',
+    type: AttributeType.OBJECT,
+    required: false,
+    description: 'Complex nested object structure',
+    createdAt: '2024-01-20T01:45:00Z',
+    updatedAt: '2024-02-07T22:10:00Z',
+  },
+  {
+    id: 'attr-21',
+    name: 'QR Code',
+    type: AttributeType.QR_CODE,
+    required: false,
+    description: 'Product QR code',
+    createdAt: '2024-01-21T02:00:00Z',
+    updatedAt: '2024-02-08T23:25:00Z',
+  },
+  {
+    id: 'attr-22',
+    name: 'Barcode',
+    type: AttributeType.BARCODE,
+    required: false,
+    description: 'Product barcode',
+    createdAt: '2024-01-22T03:15:00Z',
+    updatedAt: '2024-02-09T00:40:00Z',
+  },
+  {
+    id: 'attr-23',
+    name: 'Geolocation',
+    type: AttributeType.GEOLOCATION,
+    required: false,
+    description: 'Product location coordinates',
+    createdAt: '2024-01-23T04:30:00Z',
+    updatedAt: '2024-02-10T01:55:00Z',
+  },
+  {
+    id: 'attr-24',
+    name: 'Time',
+    type: AttributeType.TIME,
+    required: false,
+    description: 'Product availability time',
+    createdAt: '2024-01-24T05:45:00Z',
+    updatedAt: '2024-02-11T03:10:00Z',
+  },
+  {
+    id: 'attr-25',
+    name: 'DateTime',
+    type: AttributeType.DATETIME,
+    required: false,
+    description: 'Product creation datetime',
+    createdAt: '2024-01-25T06:00:00Z',
+    updatedAt: '2024-02-12T04:25:00Z',
+  },
 ];
 
 const mockAttributeGroups = [
@@ -258,25 +439,38 @@ export const AttributesList: React.FC = () => {
   ];
 
   return (
-    <div>
-      <DataTable
-        data={mockAttributes}
-        columns={columns}
-        searchPlaceholder="Search attributes..."
-        filters={filters}
-        onRowClick={(attribute) => navigate(`/attributes/${attribute.id}`)}
-        emptyState={{
-          icon: <Package className="h-12 w-12" />,
-          title: 'No attributes found',
-          description: 'Get started by creating your first attribute',
-          action: (
-            <Button onClick={() => navigate('/attributes/create')}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Attribute
-            </Button>
-          )
-        }}
+    <div className="h-full flex flex-col">
+      <PageHeader
+        title="Attributes"
+        subtitle="Manage your data attributes and their properties"
+        action={
+          <Button onClick={() => navigate('/attributes/create')}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create Attribute
+          </Button>
+        }
       />
+      
+      <div className="flex-1 mt-6">
+        <DataTable
+          data={mockAttributes}
+          columns={columns}
+          searchPlaceholder="Search attributes..."
+          filters={filters}
+          onRowClick={(attribute) => navigate(`/attributes/${attribute.id}`)}
+          emptyState={{
+            icon: <Package className="h-12 w-12" />,
+            title: 'No attributes found',
+            description: 'Get started by creating your first attribute',
+            action: (
+              <Button onClick={() => navigate('/attributes/create')}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Attribute
+              </Button>
+            )
+          }}
+        />
+      </div>
     </div>
   );
 };
