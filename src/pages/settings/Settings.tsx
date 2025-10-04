@@ -1,9 +1,16 @@
 import React, { useState } from 'react';
-import { Save, Settings as SettingsIcon, Globe, Shield, Bell, Palette, AlertCircle, CheckCircle, Info, XCircle } from 'lucide-react';
+import { Save, Shield, AlertCircle, CheckCircle, Info, XCircle, Eye } from 'lucide-react';
 import { Card, CardHeader } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
+import { Badge } from '../../components/ui/Badge';
+import { Modal } from '../../components/ui/Modal';
+import { Checkbox } from '../../components/ui/Checkbox';
+import { Radio } from '../../components/ui/Radio';
+import { Textarea } from '../../components/ui/Textarea';
+import { FileInput } from '../../components/ui/FileInput';
+import { DatePicker } from '../../components/ui/DatePicker';
 import { useToast } from '../../contexts/ToastContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -40,6 +47,7 @@ export const Settings: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [changeDialogOpen, setChangeDialogOpen] = useState(false);
+  const [uiDemoOpen, setUiDemoOpen] = useState(false);
   const { showToast } = useToast();
   const { t, language, setLanguage } = useLanguage();
   const { mode, darkVariant, setMode, setDarkVariant, effectiveTheme } = useTheme();
@@ -94,7 +102,7 @@ export const Settings: React.FC = () => {
 
     if (settings.companyName !== originalSettings.companyName) {
       changes.push({
-        field: 'Company Name',
+        field: t('settings.company_name'),
         oldValue: originalSettings.companyName,
         newValue: settings.companyName
       });
@@ -102,7 +110,7 @@ export const Settings: React.FC = () => {
 
     if (settings.language !== originalSettings.language) {
       changes.push({
-        field: 'Language',
+        field: t('settings.language'),
         oldValue: languageOptions.find(o => o.value === originalSettings.language)?.label,
         newValue: languageOptions.find(o => o.value === settings.language)?.label
       });
@@ -110,9 +118,9 @@ export const Settings: React.FC = () => {
 
     if (settings.theme !== originalSettings.theme) {
       changes.push({
-        field: 'Theme',
-        oldValue: themeOptions.find(o => o.value === originalSettings.theme)?.label,
-        newValue: themeOptions.find(o => o.value === settings.theme)?.label
+        field: t('settings.theme_settings'),
+        oldValue: themeModeOptions.find(o => o.value === originalSettings.theme)?.label,
+        newValue: themeModeOptions.find(o => o.value === settings.theme)?.label
       });
     }
 
@@ -125,37 +133,37 @@ export const Settings: React.FC = () => {
         {/* General Settings */}
         <Card>
           <CardHeader 
-            title="General Settings" 
-            subtitle="Basic system configuration"
+            title={t('settings.general_settings')} 
+            subtitle={t('settings.basic_system_configuration')}
           />
           <div className="space-y-4">
             <Input
-              label="Company Name"
+              label={t('settings.company_name')}
               value={settings.companyName}
               onChange={(e) => setSettings(prev => ({ ...prev, companyName: e.target.value }))}
-              placeholder="Enter company name"
+              placeholder={t('settings.enter_company_name')}
             />
             
             <Select
               label={t('settings.language')}
               value={settings.language}
               onChange={(e) => {
-                setSettings(prev => ({ ...prev, language: e.target.value }));
-                setLanguage(e.target.value as 'tr' | 'en');
+                const newLanguage = e.target.value as 'tr' | 'en';
+                setSettings(prev => ({ ...prev, language: newLanguage }));
+                setLanguage(newLanguage);
               }}
               options={languageOptions}
-              leftIcon={<Globe className="h-4 w-4" />}
             />
             
             <Select
-              label="Timezone"
+              label={t('settings.timezone')}
               value={settings.timezone}
               onChange={(e) => setSettings(prev => ({ ...prev, timezone: e.target.value }))}
               options={timezoneOptions}
             />
             
             <Input
-              label="Date Format"
+              label={t('settings.date_format')}
               value={settings.dateFormat}
               onChange={(e) => setSettings(prev => ({ ...prev, dateFormat: e.target.value }))}
               placeholder="MM/DD/YYYY"
@@ -166,8 +174,8 @@ export const Settings: React.FC = () => {
         {/* Appearance */}
         <Card>
           <CardHeader 
-            title={t('settings.appearance')} 
-            subtitle="Customize the look and feel"
+            title={t('settings.appearance_settings')} 
+            subtitle={t('settings.theme_settings')}
           />
           <div className="space-y-4">
             <Select
@@ -175,14 +183,13 @@ export const Settings: React.FC = () => {
               value={mode}
               onChange={(e) => setMode(e.target.value as 'light' | 'dark' | 'system')}
               options={themeModeOptions}
-              leftIcon={<Palette className="h-4 w-4" />}
             />
             
             {/* Dark Variant Selection (show only when dark mode is active) */}
             {effectiveTheme === 'dark' && (
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">
-                  Dark Theme Variant
+                  {t('settings.dark_variant')}
                 </label>
                 <Select
                   value={darkVariant}
@@ -190,7 +197,7 @@ export const Settings: React.FC = () => {
                   options={darkVariantOptions}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Choose the dark theme variant that best suits your preferences
+                  {t('settings.dark_variant_description')}
                 </p>
               </div>
             )}
@@ -204,7 +211,7 @@ export const Settings: React.FC = () => {
                 className="rounded border-input text-primary focus:ring-ring"
               />
               <label htmlFor="compactMode" className="text-sm font-medium text-foreground">
-                Enable compact mode
+                {t('settings.compact_mode')}
               </label>
             </div>
           </div>
@@ -213,8 +220,8 @@ export const Settings: React.FC = () => {
         {/* Notifications */}
         <Card>
           <CardHeader 
-            title="Notifications" 
-            subtitle="Manage notification preferences"
+            title={t('settings.notifications')} 
+            subtitle={t('settings.notification_settings')}
           />
           <div className="space-y-4">
             <div className="flex items-center space-x-2">
@@ -226,7 +233,7 @@ export const Settings: React.FC = () => {
                 className="rounded border-input text-primary focus:ring-ring"
               />
               <label htmlFor="emailNotifications" className="text-sm font-medium text-foreground">
-                Email notifications
+                {t('settings.email_notifications_label')}
               </label>
             </div>
             
@@ -239,7 +246,7 @@ export const Settings: React.FC = () => {
                 className="rounded border-input text-primary focus:ring-ring"
               />
               <label htmlFor="pushNotifications" className="text-sm font-medium text-foreground">
-                Push notifications
+                {t('settings.push_notifications_label')}
               </label>
             </div>
             
@@ -252,7 +259,7 @@ export const Settings: React.FC = () => {
                 className="rounded border-input text-primary focus:ring-ring"
               />
               <label htmlFor="weeklyReports" className="text-sm font-medium text-foreground">
-                Weekly reports
+                {t('settings.weekly_reports_label')}
               </label>
             </div>
           </div>
@@ -261,8 +268,8 @@ export const Settings: React.FC = () => {
         {/* Security */}
         <Card>
           <CardHeader 
-            title="Security" 
-            subtitle="Security and authentication settings"
+            title={t('settings.security')} 
+            subtitle={t('settings.security_settings_title')}
           />
           <div className="space-y-4">
             <Input
@@ -375,28 +382,152 @@ export const Settings: React.FC = () => {
               </Button>
             </div>
           </div>
+
+          {/* UI Components Demo */}
+          <div>
+            <h3 className="text-sm font-semibold text-foreground mb-3">{t('settings.ui_components_demo')}</h3>
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={<Eye className="h-4 w-4" />}
+              onClick={() => setUiDemoOpen(true)}
+            >
+              {t('settings.view_ui_components')}
+            </Button>
+          </div>
         </div>
       </Card>
 
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog
-        isOpen={deleteDialogOpen}
+        open={deleteDialogOpen}
         onClose={() => setDeleteDialogOpen(false)}
         onConfirm={handleDeleteConfirm}
-        title="Delete Item"
-        message="Are you sure you want to delete this item? This action cannot be undone."
+        title={t('settings.delete_confirmation')}
+        description={t('settings.delete_confirmation_description')}
         type="danger"
-        confirmText="Delete"
+        confirmText={t('common.delete')}
       />
 
       {/* Change Confirmation Dialog */}
       <ChangeConfirmDialog
-        isOpen={changeDialogOpen}
+        open={changeDialogOpen}
         onClose={() => setChangeDialogOpen(false)}
         onConfirm={handleSaveWithComment}
-        title="Save Changes"
+        title={t('settings.save_changes')}
         changes={getChanges()}
       />
+
+      {/* UI Components Demo Modal */}
+      <Modal
+        isOpen={uiDemoOpen}
+        onClose={() => setUiDemoOpen(false)}
+        title={t('settings.ui_components_demo')}
+        size="xl"
+      >
+        <div className="space-y-6">
+          {/* Buttons */}
+          <div>
+            <h3 className="text-lg font-semibold mb-4">{t('settings.buttons')}</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Button variant="primary">{t('settings.primary')}</Button>
+              <Button variant="secondary">{t('settings.secondary')}</Button>
+              <Button variant="outline">{t('settings.outline')}</Button>
+              <Button variant="ghost">{t('settings.ghost')}</Button>
+              <Button variant="outline" className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground">{t('settings.destructive')}</Button>
+              <Button size="sm">{t('settings.small')}</Button>
+              <Button size="lg">{t('settings.large')}</Button>
+              <Button loading>{t('settings.loading')}</Button>
+            </div>
+          </div>
+
+          {/* Inputs */}
+          <div>
+            <h3 className="text-lg font-semibold mb-4">{t('settings.inputs')}</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input label={t('settings.text_input')} placeholder="Enter text..." />
+              <Input label={t('settings.email_input')} type="email" placeholder="Enter email..." />
+              <Input label={t('settings.password_input')} type="password" placeholder="Enter password..." />
+              <Input label={t('settings.number_input')} type="number" placeholder="Enter number..." />
+              <Textarea label={t('settings.textarea')} placeholder="Enter long text..." />
+              <FileInput label={t('settings.file_input')} accept="image/*" />
+            </div>
+          </div>
+
+          {/* Form Controls */}
+          <div>
+            <h3 className="text-lg font-semibold mb-4">{t('settings.form_controls')}</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <Checkbox label={t('settings.checkbox_option_1')} />
+                <Checkbox label={t('settings.checkbox_option_2')} defaultChecked />
+                <Checkbox label={t('settings.disabled_checkbox')} disabled />
+              </div>
+              <div className="space-y-3">
+                <Radio name="radio-group" label={t('settings.radio_option_1')} options={[]} />
+                <Radio name="radio-group" label={t('settings.radio_option_2')} defaultChecked options={[]} />
+                <Radio name="radio-group" label={t('settings.disabled_radio')} disabled options={[]} />
+              </div>
+            </div>
+          </div>
+
+          {/* Selects */}
+          <div>
+            <h3 className="text-lg font-semibold mb-4">{t('settings.selects')}</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Select
+                label={t('settings.single_select')}
+                placeholder={t('settings.choose_option')}
+                options={[
+                  { value: 'option1', label: t('settings.option_1') },
+                  { value: 'option2', label: t('settings.option_2') },
+                  { value: 'option3', label: t('settings.option_3') },
+                ]}
+              />
+              <DatePicker label={t('settings.date_picker')} />
+            </div>
+          </div>
+
+          {/* Badges */}
+          <div>
+            <h3 className="text-lg font-semibold mb-4">{t('settings.badges')}</h3>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="default">{t('settings.default')}</Badge>
+              <Badge variant="success">{t('settings.success')}</Badge>
+              <Badge variant="error">{t('settings.error')}</Badge>
+              <Badge variant="warning">{t('settings.warning')}</Badge>
+              <Badge variant="default">{t('settings.info')}</Badge>
+              <Badge size="sm">{t('settings.small')}</Badge>
+              <Badge size="lg">{t('settings.large')}</Badge>
+            </div>
+          </div>
+
+          {/* Cards */}
+          <div>
+            <h3 className="text-lg font-semibold mb-4">{t('settings.cards')}</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card>
+                <CardHeader>
+                  <h4 className="font-semibold">{t('settings.default_card')}</h4>
+                  <p className="text-sm text-muted-foreground">{t('settings.this_is_default_card')}</p>
+                </CardHeader>
+                <div className="p-4">
+                  <p>{t('settings.card_content_goes_here')}</p>
+                </div>
+              </Card>
+              <Card variant="outlined">
+                <CardHeader>
+                  <h4 className="font-semibold">{t('settings.outline_card')}</h4>
+                  <p className="text-sm text-muted-foreground">{t('settings.this_is_outline_card')}</p>
+                </CardHeader>
+                <div className="p-4">
+                  <p>{t('settings.card_content_goes_here')}</p>
+                </div>
+              </Card>
+            </div>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

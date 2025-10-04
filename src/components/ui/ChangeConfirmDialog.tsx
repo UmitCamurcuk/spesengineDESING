@@ -4,6 +4,7 @@ import { cn } from '../../utils/cn';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Badge } from './Badge';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface Change {
   field: string;
@@ -30,6 +31,7 @@ export const ChangeConfirmDialog: React.FC<ChangeConfirmDialogProps> = ({
   loading = false,
   entityName = 'item',
 }) => {
+  const { t } = useLanguage();
   const [comment, setComment] = useState('');
   const [error, setError] = useState('');
 
@@ -37,12 +39,12 @@ export const ChangeConfirmDialog: React.FC<ChangeConfirmDialogProps> = ({
 
   const handleConfirm = () => {
     if (!comment.trim()) {
-      setError('Comment is required to save changes');
+      setError(t('settings.comment_required'));
       return;
     }
 
     if (comment.trim().length < 3) {
-      setError('Comment must be at least 3 characters');
+      setError(t('settings.comment_min_length'));
       return;
     }
 
@@ -57,7 +59,7 @@ export const ChangeConfirmDialog: React.FC<ChangeConfirmDialogProps> = ({
 
   const formatValue = (value: string | number | boolean) => {
     if (typeof value === 'boolean') {
-      return value ? 'Yes' : 'No';
+      return value ? t('common.yes') : t('common.no');
     }
     if (value === '' || value === null || value === undefined) {
       return '—';
@@ -83,7 +85,7 @@ export const ChangeConfirmDialog: React.FC<ChangeConfirmDialogProps> = ({
           <div className="flex-1 min-w-0">
             <h3 className="text-base font-semibold text-foreground">{title}</h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Review and comment on your changes to {entityName}
+              {t('settings.review_changes_description', { entityName })}
             </p>
           </div>
           <button
@@ -101,10 +103,10 @@ export const ChangeConfirmDialog: React.FC<ChangeConfirmDialogProps> = ({
           <div>
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-sm font-semibold text-foreground">
-                Changes Summary
+                {t('settings.changes_summary')}
               </h4>
               <Badge variant="secondary" size="sm">
-                {changes.length} {changes.length === 1 ? 'change' : 'changes'}
+                {changes.length} {changes.length === 1 ? t('settings.change') : t('settings.changes')}
               </Badge>
             </div>
 
@@ -145,12 +147,12 @@ export const ChangeConfirmDialog: React.FC<ChangeConfirmDialogProps> = ({
           <div>
             <div className="flex items-center gap-2 mb-2">
               <h4 className="text-sm font-semibold text-foreground">
-                Change Comment
+                {t('settings.change_comment')}
               </h4>
-              <Badge variant="error" size="sm">Required</Badge>
+              <Badge variant="error" size="sm">{t('settings.required')}</Badge>
             </div>
             <p className="text-xs text-muted-foreground mb-3">
-              Describe the reason for these changes. This will be saved in the change history.
+              {t('settings.comment_description')}
             </p>
             <textarea
               value={comment}
@@ -158,7 +160,7 @@ export const ChangeConfirmDialog: React.FC<ChangeConfirmDialogProps> = ({
                 setComment(e.target.value);
                 setError('');
               }}
-              placeholder="e.g., Updated product price based on market research, Fixed typo in description, etc."
+              placeholder={t('settings.comment_placeholder')}
               rows={4}
               className={cn(
                 'w-full px-3 py-2 text-sm bg-background text-foreground border rounded-md focus:outline-none focus:ring-2 focus:ring-offset-0 resize-none',
@@ -181,11 +183,10 @@ export const ChangeConfirmDialog: React.FC<ChangeConfirmDialogProps> = ({
             <AlertCircle className="h-4 w-4 text-info flex-shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="text-xs text-foreground font-medium">
-                Why is a comment required?
+                {t('settings.why_comment_required')}
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Comments help track the history of changes and provide context for future reference.
-                This ensures transparency and accountability in your data management.
+                {t('settings.comment_help_text')}
               </p>
             </div>
           </div>
@@ -198,7 +199,7 @@ export const ChangeConfirmDialog: React.FC<ChangeConfirmDialogProps> = ({
             onClick={handleClose}
             disabled={loading}
           >
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button
             variant="primary"
@@ -206,7 +207,7 @@ export const ChangeConfirmDialog: React.FC<ChangeConfirmDialogProps> = ({
             loading={loading}
             disabled={!comment.trim() || loading}
           >
-            Save Changes
+            {t('settings.save_changes')}
           </Button>
         </div>
       </div>
