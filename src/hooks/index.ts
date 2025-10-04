@@ -3,6 +3,9 @@ export * from './useApi';
 export * from './usePagination';
 export * from './useDebounce';
 export * from './useLocalStorage';
+export * from './useMemoizedCallback';
+export * from './useVirtualization';
+export * from './useAccessibility';
 
 // Re-export commonly used hooks for convenience
 export {
