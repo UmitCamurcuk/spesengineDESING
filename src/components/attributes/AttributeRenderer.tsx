@@ -38,7 +38,7 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
     switch (attribute.type) {
       case AttributeType.TEXT:
         return isViewMode ? (
-          <div className="text-sm text-gray-900">{value || '—'}</div>
+          <div className="text-sm text-foreground">{value || '—'}</div>
         ) : (
           <Input
             value={value || ''}
@@ -49,7 +49,7 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
 
       case AttributeType.NUMBER:
         return isViewMode ? (
-          <div className="text-sm text-gray-900">{value || '—'}</div>
+          <div className="text-sm text-foreground">{value || '—'}</div>
         ) : (
           <Input
             type="number"
@@ -72,9 +72,9 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
                 name={attribute.id}
                 checked={value === true}
                 onChange={() => onChange?.(true)}
-                className="text-indigo-600 focus:ring-indigo-500"
+                className="text-primary focus:ring-primary"
               />
-              <span className="ml-2 text-sm text-gray-700">Yes</span>
+              <span className="ml-2 text-sm text-foreground">Yes</span>
             </label>
             <label className="flex items-center">
               <input
@@ -82,17 +82,17 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
                 name={attribute.id}
                 checked={value === false}
                 onChange={() => onChange?.(false)}
-                className="text-indigo-600 focus:ring-indigo-500"
+                className="text-primary focus:ring-primary"
               />
-              <span className="ml-2 text-sm text-gray-700">No</span>
+              <span className="ml-2 text-sm text-foreground">No</span>
             </label>
           </div>
         );
 
       case AttributeType.DATE:
         return isViewMode ? (
-          <div className="flex items-center text-sm text-gray-900">
-            <Calendar className="h-4 w-4 mr-2 text-gray-400" />
+          <div className="flex items-center text-sm text-foreground">
+            <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
             {value ? new Date(value).toLocaleDateString() : '—'}
           </div>
         ) : (
@@ -106,8 +106,8 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
 
       case AttributeType.DATETIME:
         return isViewMode ? (
-          <div className="flex items-center text-sm text-gray-900">
-            <Calendar className="h-4 w-4 mr-2 text-gray-400" />
+          <div className="flex items-center text-sm text-foreground">
+            <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
             {value ? new Date(value).toLocaleString() : '—'}
           </div>
         ) : (
@@ -121,8 +121,8 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
 
       case AttributeType.TIME:
         return isViewMode ? (
-          <div className="flex items-center text-sm text-gray-900">
-            <Clock className="h-4 w-4 mr-2 text-gray-400" />
+          <div className="flex items-center text-sm text-foreground">
+            <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
             {value || '—'}
           </div>
         ) : (
@@ -157,7 +157,7 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
                 {val}
               </Badge>
             )) : (
-              <span className="text-sm text-gray-500">—</span>
+              <span className="text-sm text-muted-foreground">—</span>
             )}
           </div>
         ) : (
@@ -173,9 +173,9 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
                       : selectedValues.filter(v => v !== option);
                     onChange?.(newValues);
                   }}
-                  className="text-indigo-600 focus:ring-indigo-500 rounded"
+                  className="text-primary focus:ring-primary rounded"
                 />
-                <span className="ml-2 text-sm text-gray-700">{option}</span>
+                <span className="ml-2 text-sm text-foreground">{option}</span>
               </label>
             ))}
           </div>
@@ -185,10 +185,10 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
         return isViewMode ? (
           <div className="flex items-center space-x-2">
             <div
-              className="w-6 h-6 rounded-full border border-gray-300"
+              className="w-6 h-6 rounded-full border border-border"
               style={{ backgroundColor: value || '#ffffff' }}
             />
-            <span className="text-sm text-gray-900">{value || '—'}</span>
+            <span className="text-sm text-foreground">{value || '—'}</span>
           </div>
         ) : (
           <div className="flex items-center space-x-2">
@@ -196,7 +196,7 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
               type="color"
               value={value || '#ffffff'}
               onChange={(e) => onChange?.(e.target.value)}
-              className="h-10 w-16 border border-gray-300 rounded cursor-pointer"
+              className="h-10 w-16 border border-border rounded cursor-pointer"
             />
             <Input
               value={value || ''}
@@ -219,7 +219,7 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
                 }`}
               />
             ))}
-            <span className="text-sm text-gray-600 ml-2">{rating}/5</span>
+            <span className="text-sm text-muted-foreground ml-2">{rating}/5</span>
           </div>
         ) : (
           <div className="flex items-center space-x-1">
@@ -246,11 +246,11 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
         return isViewMode ? (
           value ? (
             <div className="flex items-center space-x-2">
-              <Image className="h-4 w-4 text-gray-400" />
-              <span className="text-sm text-gray-900">Image attached</span>
+              <Image className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-foreground">Image attached</span>
             </div>
           ) : (
-            <span className="text-sm text-gray-500">—</span>
+            <span className="text-sm text-muted-foreground">—</span>
           )
         ) : (
           <Input
@@ -268,11 +268,11 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
         return isViewMode ? (
           value ? (
             <div className="flex items-center space-x-2">
-              <File className="h-4 w-4 text-gray-400" />
-              <span className="text-sm text-gray-900">File attached</span>
+              <File className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-foreground">File attached</span>
             </div>
           ) : (
-            <span className="text-sm text-gray-500">—</span>
+            <span className="text-sm text-muted-foreground">—</span>
           )
         ) : (
           <Input
@@ -286,7 +286,7 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
 
       case AttributeType.RICH_TEXT:
         return isViewMode ? (
-          <div className="text-sm text-gray-900 prose max-w-none">
+          <div className="text-sm text-foreground prose max-w-none">
             {value ? (
               <div dangerouslySetInnerHTML={{ __html: value }} />
             ) : (
@@ -298,15 +298,15 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
             value={value || ''}
             onChange={(e) => onChange?.(e.target.value)}
             rows={4}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
             placeholder={`Enter ${attribute.name.toLowerCase()}`}
           />
         );
 
       case AttributeType.JSON:
         return isViewMode ? (
-          <Card padding="sm" variant="outlined" className="bg-gray-50">
-            <pre className="text-xs text-gray-700 overflow-x-auto">
+          <Card padding="sm" variant="outlined" className="bg-muted">
+            <pre className="text-xs text-foreground overflow-x-auto">
               {value ? JSON.stringify(value, null, 2) : '{}'}
             </pre>
           </Card>
@@ -322,7 +322,7 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
               }
             }}
             rows={6}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono text-sm"
+            className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary font-mono text-sm"
             placeholder="Enter valid JSON"
           />
         );
@@ -330,8 +330,8 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
       case AttributeType.BARCODE:
         return isViewMode ? (
           <div className="flex items-center space-x-2">
-            <BarChart3 className="h-4 w-4 text-gray-400" />
-            <span className="text-sm text-gray-900 font-mono">{value || '—'}</span>
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm text-foreground font-mono">{value || '—'}</span>
           </div>
         ) : (
           <Input
@@ -345,8 +345,8 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
       case AttributeType.QR:
         return isViewMode ? (
           <div className="flex items-center space-x-2">
-            <QrCode className="h-4 w-4 text-gray-400" />
-            <span className="text-sm text-gray-900">{value || '—'}</span>
+            <QrCode className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm text-foreground">{value || '—'}</span>
           </div>
         ) : (
           <Input
@@ -359,7 +359,7 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
 
       case AttributeType.READONLY:
         return (
-          <div className="flex items-center space-x-2 text-sm text-gray-500">
+          <div className="flex items-center space-x-2 text-sm text-muted-foreground">
             <Eye className="h-4 w-4" />
             <span>{value || '—'}</span>
           </div>
@@ -367,7 +367,7 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
 
       default:
         return (
-          <div className="text-sm text-gray-500 italic">
+          <div className="text-sm text-muted-foreground italic">
             Unsupported attribute type: {attribute.type}
           </div>
         );
@@ -377,12 +377,12 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <label className="text-sm font-medium text-gray-700">
+        <label className="text-sm font-medium text-foreground">
           {attribute.name}
           {attribute.required && <span className="text-red-500 ml-1">*</span>}
         </label>
         {attribute.description && (
-          <span className="text-xs text-gray-500">{attribute.description}</span>
+          <span className="text-xs text-muted-foreground">{attribute.description}</span>
         )}
       </div>
       {renderInput()}

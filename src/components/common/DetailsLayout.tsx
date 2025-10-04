@@ -80,9 +80,9 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
               {icon}
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+              <h1 className="text-2xl font-bold text-foreground">{title}</h1>
               {subtitle && (
-                <p className="text-sm text-gray-500 mt-1">{subtitle}</p>
+                <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>
               )}
             </div>
           </div>

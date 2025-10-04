@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { 
   FileText, 
   Tags, 
@@ -52,6 +53,7 @@ const mockAttributeGroups = [
 
 // Details Component
 const AttributeDetailsTab: React.FC<{ editMode: boolean }> = ({ editMode }) => {
+  const { t } = useLanguage();
   const [attribute, setAttribute] = useState(mockAttribute);
   const [selectedGroups, setSelectedGroups] = useState(['group-1', 'group-2']);
 
@@ -73,13 +75,13 @@ const AttributeDetailsTab: React.FC<{ editMode: boolean }> = ({ editMode }) => {
         <div className="lg:col-span-2">
           <Card>
             <CardHeader 
-              title="Basic Information" 
-              subtitle="Core attribute properties and configuration"
+              title={t('attributes.basic_information')} 
+              subtitle={t('attributes.basic_information_subtitle')}
             />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <Input
-                  label="Attribute Name"
+                  label={t('attributes.name')}
                   value={attribute.name}
                   onChange={(e) => setAttribute(prev => ({ ...prev, name: e.target.value }))}
                   disabled={!editMode}
@@ -87,22 +89,22 @@ const AttributeDetailsTab: React.FC<{ editMode: boolean }> = ({ editMode }) => {
               </div>
               
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">
-                  Attribute Type
+                <label className="text-sm font-medium text-foreground mb-2 block">
+                  {t('attributes.type')}
                 </label>
                 <div className="flex items-center space-x-2">
                   <Badge variant={getAttributeTypeColor(attribute.type) as any}>
                     {attribute.type}
                   </Badge>
                   {!editMode && (
-                    <span className="text-sm text-gray-500">Cannot be changed</span>
+                    <span className="text-sm text-muted-foreground">{t('attributes.cannot_be_changed')}</span>
                   )}
                 </div>
               </div>
               
               <div className="md:col-span-2">
                 <Input
-                  label="Description"
+                  label={t('attributes.description')}
                   value={attribute.description || ''}
                   onChange={(e) => setAttribute(prev => ({ ...prev, description: e.target.value }))}
                   disabled={!editMode}
@@ -119,15 +121,15 @@ const AttributeDetailsTab: React.FC<{ editMode: boolean }> = ({ editMode }) => {
                     disabled={!editMode}
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
-                  <label htmlFor="required" className="text-sm font-medium text-gray-700">
-                    This attribute is required
+                  <label htmlFor="required" className="text-sm font-medium text-foreground">
+                    {t('attributes.this_attribute_is_required')}
                   </label>
                 </div>
               </div>
               
               <div>
                 <Input
-                  label="Default Value"
+                  label={t('attributes.default_value')}
                   value={attribute.defaultValue || ''}
                   onChange={(e) => setAttribute(prev => ({ ...prev, defaultValue: e.target.value }))}
                   disabled={!editMode}
@@ -140,25 +142,25 @@ const AttributeDetailsTab: React.FC<{ editMode: boolean }> = ({ editMode }) => {
         {/* Metadata */}
         <div className="lg:col-span-1">
           <Card>
-            <CardHeader title="Metadata" />
+            <CardHeader title={t('attributes.metadata')} />
             <div className="space-y-4">
               <div>
-                <label className="text-sm font-medium text-gray-700">Attribute ID</label>
-                <p className="text-sm text-gray-900 mt-1 font-mono bg-gray-100 px-2 py-1 rounded">
+                <label className="text-sm font-medium text-foreground">{t('attributes.attribute_id')}</label>
+                <p className="text-sm text-foreground mt-1 font-mono bg-muted px-2 py-1 rounded">
                   {attribute.id}
                 </p>
               </div>
               
               <div>
-                <label className="text-sm font-medium text-gray-700">Created</label>
-                <p className="text-sm text-gray-900 mt-1">
+                <label className="text-sm font-medium text-foreground">{t('attributes.created')}</label>
+                <p className="text-sm text-foreground mt-1">
                   {new Date(attribute.createdAt).toLocaleDateString()}
                 </p>
               </div>
               
               <div>
-                <label className="text-sm font-medium text-gray-700">Last Updated</label>
-                <p className="text-sm text-gray-900 mt-1">
+                <label className="text-sm font-medium text-foreground">{t('attributes.last_updated')}</label>
+                <p className="text-sm text-foreground mt-1">
                   {new Date(attribute.updatedAt).toLocaleDateString()}
                 </p>
               </div>
@@ -171,13 +173,13 @@ const AttributeDetailsTab: React.FC<{ editMode: boolean }> = ({ editMode }) => {
       {attribute.options && (
         <Card>
           <CardHeader 
-            title="Available Options" 
-            subtitle="Predefined values for this attribute"
+            title={t('attributes.available_options')} 
+            subtitle={t('attributes.available_options_subtitle')}
           />
           <div className="space-y-4">
             <div className="flex flex-wrap gap-2">
               {attribute.options.map((option, index) => (
-                <div key={index} className="flex items-center space-x-2 bg-gray-100 px-3 py-2 rounded-lg">
+                <div key={index} className="flex items-center space-x-2 bg-muted px-3 py-2 rounded-lg">
                   <Badge variant="outline" size="sm">
                     {option}
                   </Badge>
@@ -199,7 +201,7 @@ const AttributeDetailsTab: React.FC<{ editMode: boolean }> = ({ editMode }) => {
             {editMode && (
               <div className="flex space-x-2">
                 <Input
-                  placeholder="Add new option"
+                  placeholder={t('attributes.add_new_option')}
                   onKeyPress={(e) => {
                     if (e.key === 'Enter') {
                       const value = (e.target as HTMLInputElement).value.trim();
@@ -222,13 +224,13 @@ const AttributeDetailsTab: React.FC<{ editMode: boolean }> = ({ editMode }) => {
       {/* Preview */}
       <Card>
         <CardHeader 
-          title="Attribute Preview" 
-          subtitle="How this attribute will appear in forms"
+          title={t('attributes.attribute_preview')} 
+          subtitle={t('attributes.attribute_preview_subtitle')}
         />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <h4 className="text-sm font-medium text-gray-700 mb-3">Edit Mode</h4>
-            <div className="p-4 border-2 border-dashed border-gray-200 rounded-lg bg-gray-50">
+            <h4 className="text-sm font-medium text-foreground mb-3">{t('attributes.edit_mode')}</h4>
+            <div className="p-4 border-2 border-dashed border-border rounded-lg bg-muted">
               <AttributeRenderer
                 attribute={attribute}
                 value={attribute.defaultValue}
@@ -239,8 +241,8 @@ const AttributeDetailsTab: React.FC<{ editMode: boolean }> = ({ editMode }) => {
           </div>
           
           <div>
-            <h4 className="text-sm font-medium text-gray-700 mb-3">View Mode</h4>
-            <div className="p-4 border-2 border-dashed border-gray-200 rounded-lg bg-gray-50">
+            <h4 className="text-sm font-medium text-foreground mb-3">{t('attributes.view_mode')}</h4>
+            <div className="p-4 border-2 border-dashed border-border rounded-lg bg-muted">
               <AttributeRenderer
                 attribute={attribute}
                 value={attribute.options?.[0] || attribute.defaultValue}
@@ -256,6 +258,7 @@ const AttributeDetailsTab: React.FC<{ editMode: boolean }> = ({ editMode }) => {
 
 // Attribute Groups Component
 const AttributeGroupsTab: React.FC<{ editMode: boolean }> = ({ editMode }) => {
+  const { t } = useLanguage();
   const [selectedGroups, setSelectedGroups] = useState(['group-1', 'group-2']);
 
   const toggleGroup = (groupId: string) => {
@@ -272,11 +275,11 @@ const AttributeGroupsTab: React.FC<{ editMode: boolean }> = ({ editMode }) => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">Attribute Groups</h3>
-          <p className="text-sm text-gray-500">Manage which groups this attribute belongs to</p>
+          <h3 className="text-lg font-semibold text-foreground">{t('attributes.attribute_groups')}</h3>
+          <p className="text-sm text-muted-foreground">{t('attributes.attribute_groups_subtitle')}</p>
         </div>
         <Badge variant="primary" size="sm">
-          {selectedGroups.length} groups selected
+          {selectedGroups.length} {t('attributes.groups_selected')}
         </Badge>
       </div>
 
@@ -290,15 +293,15 @@ const AttributeGroupsTab: React.FC<{ editMode: boolean }> = ({ editMode }) => {
               disabled={!editMode}
               className={`p-4 border-2 rounded-xl transition-all duration-200 text-left ${
                 isSelected
-                  ? 'border-purple-500 bg-purple-50'
-                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                  ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                  : 'border-border hover:border-border hover:bg-muted'
               } ${!editMode && 'cursor-default'}`}
             >
               <div className="flex items-center space-x-3">
                 <Tags className="h-6 w-6 text-purple-600" />
                 <div>
-                  <h4 className="text-sm font-medium text-gray-900">{group.name}</h4>
-                  <p className="text-xs text-gray-500">ID: {group.id}</p>
+                  <h4 className="text-sm font-medium text-foreground">{group.name}</h4>
+                  <p className="text-xs text-muted-foreground">ID: {group.id}</p>
                 </div>
                 {isSelected && (
                   <div className="ml-auto">
@@ -317,6 +320,7 @@ const AttributeGroupsTab: React.FC<{ editMode: boolean }> = ({ editMode }) => {
 };
 
 export const AttributesDetails: React.FC = () => {
+  const { t } = useLanguage();
   const { id } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -331,48 +335,48 @@ export const AttributesDetails: React.FC = () => {
   const tabs: TabConfig[] = [
     {
       id: 'details',
-      label: 'Details',
+      label: t('attributes.details'),
       icon: FileText,
       component: AttributeDetailsTab,
     },
     {
       id: 'attribute-groups',
-      label: 'Attribute Groups',
+      label: t('attributes.attribute_groups'),
       icon: Tags,
       component: AttributeGroupsTab,
       badge: '2',
     },
     {
       id: 'notifications',
-      label: 'Notifications',
+      label: t('attributes.notifications'),
       icon: Bell,
       component: NotificationSettings,
       props: { entityType: 'attribute', entityId: id },
     },
     {
       id: 'statistics',
-      label: 'Statistics',
+      label: t('attributes.statistics'),
       icon: BarChart3,
       component: Statistics,
       props: { entityType: 'attribute', entityId: id },
     },
     {
       id: 'api',
-      label: 'API',
+      label: t('attributes.api'),
       icon: Globe,
       component: APITester,
       props: { entityType: 'attribute', entityId: id },
     },
     {
       id: 'documentation',
-      label: 'Documentation',
+      label: t('attributes.documentation'),
       icon: BookOpen,
       component: Documentation,
       props: { entityType: 'attribute', entityId: id },
     },
     {
       id: 'history',
-      label: 'History',
+      label: t('attributes.history'),
       icon: History,
       component: HistoryTable,
       props: { entityType: 'attribute', entityId: id },
@@ -383,7 +387,7 @@ export const AttributesDetails: React.FC = () => {
   return (
     <DetailsLayout
       title={mockAttribute.name}
-      subtitle={`${mockAttribute.type} attribute • ${mockAttribute.required ? 'Required' : 'Optional'}`}
+      subtitle={`${mockAttribute.type} ${t('attributes.attribute')} • ${mockAttribute.required ? t('attributes.required') : t('attributes.optional')}`}
       icon={<FileText className="h-6 w-6 text-white" />}
       tabs={tabs}
       defaultTab="details"

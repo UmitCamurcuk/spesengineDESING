@@ -376,7 +376,7 @@ export const AttributesList: React.FC = () => {
                 <Badge variant="error" size="sm">{t('attributes.required')}</Badge>
               )}
             </div>
-            <div className="text-xs text-gray-500">ID: {attribute.id}</div>
+            <div className="text-xs text-muted-foreground">ID: {attribute.id}</div>
           </div>
         </div>
         );
@@ -400,12 +400,12 @@ export const AttributesList: React.FC = () => {
                   <Badge variant="error" size="sm">Required</Badge>
                 )}
               </div>
-              <div className="text-xs text-gray-500">ID: {attribute.id}</div>
+              <div className="text-xs text-muted-foreground">ID: {attribute.id}</div>
             </div>
           </div>
           
           <div>
-            <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Groups</div>
+            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Groups</div>
             <div className="flex flex-wrap gap-1">
               {(attributeGroupAssignments[attribute.id] || []).slice(0, 3).map(groupId => {
                 const group = mockAttributeGroups.find(g => g.id === groupId);
@@ -416,7 +416,7 @@ export const AttributesList: React.FC = () => {
                 ) : null;
               })}
               {(attributeGroupAssignments[attribute.id] || []).length > 3 && (
-                <span className="text-xs text-gray-400">+{(attributeGroupAssignments[attribute.id] || []).length - 3}</span>
+                <span className="text-xs text-muted-foreground">+{(attributeGroupAssignments[attribute.id] || []).length - 3}</span>
               )}
             </div>
           </div>

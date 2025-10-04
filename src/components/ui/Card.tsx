@@ -16,7 +16,7 @@ export const Card: React.FC<CardProps> = ({
   const baseClasses = 'bg-card rounded-lg transition-all duration-200';
 
   const variantClasses = {
-    default: 'shadow-sm border border-border hover:bg-card-hover',
+    default: 'shadow-sm border border-border',
     outlined: 'border border-border',
     elevated: 'shadow-md border border-border hover:shadow-lg',
   };
