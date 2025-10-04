@@ -235,19 +235,19 @@ export function DataTable<T extends Record<string, any>>({
 
   if (loading) {
     return (
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <div className="bg-card rounded-lg border border-border overflow-hidden">
         <div className="animate-pulse">
-          <div className="p-4 border-b border-gray-200">
-            <div className="h-9 bg-gray-200 rounded-md w-1/3"></div>
+          <div className="p-4 border-b border-border">
+            <div className="h-9 bg-muted rounded-md w-1/3"></div>
           </div>
-          <div className="divide-y divide-gray-200">
+          <div className="divide-y divide-border">
             {Array.from({ length: 5 }).map((_, index) => (
               <div key={index} className="p-4">
                 <div className="flex items-center space-x-3">
-                  <div className="w-9 h-9 bg-gray-200 rounded-md"></div>
+                  <div className="w-9 h-9 bg-muted rounded-md"></div>
                   <div className="flex-1 space-y-2">
-                    <div className="h-3.5 bg-gray-200 rounded w-1/4"></div>
-                    <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                    <div className="h-3.5 bg-muted rounded w-1/4"></div>
+                    <div className="h-3 bg-muted rounded w-1/2"></div>
                   </div>
                 </div>
               </div>

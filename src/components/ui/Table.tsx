@@ -43,20 +43,20 @@ export function Table<T extends Record<string, any>>({
   if (loading) {
     return (
       <div className="animate-pulse">
-        <div className="bg-white shadow-sm rounded-xl border border-gray-200/60 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200/60 bg-gray-50/50">
+        <div className="bg-card shadow-sm rounded-xl border border-border overflow-hidden">
+          <div className="px-6 py-4 border-b border-border bg-muted/50">
             <div className="grid grid-cols-6 gap-4">
               {Array.from({ length: 6 }).map((_, index) => (
-                <div key={index} className="h-4 bg-gray-200 rounded" />
+                <div key={index} className="h-4 bg-muted rounded" />
               ))}
             </div>
           </div>
-          <div className="divide-y divide-gray-200/60">
+          <div className="divide-y divide-border">
             {Array.from({ length: 8 }).map((_, index) => (
               <div key={index} className="px-6 py-4">
                 <div className="grid grid-cols-6 gap-4">
                   {Array.from({ length: 6 }).map((_, colIndex) => (
-                    <div key={colIndex} className="h-4 bg-gray-200 rounded" />
+                    <div key={colIndex} className="h-4 bg-muted rounded" />
                   ))}
                 </div>
               </div>
@@ -68,17 +68,17 @@ export function Table<T extends Record<string, any>>({
   }
 
   return (
-    <div className={cn('bg-white shadow-sm rounded-xl border border-gray-200/60 overflow-hidden', className)}>
+    <div className={cn('bg-card shadow-sm rounded-xl border border-border overflow-hidden', className)}>
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200/60">
-          <thead className="bg-gray-50/50">
+        <table className="min-w-full divide-y divide-border">
+          <thead className="bg-muted/50">
             <tr>
               {columns.map((column) => (
                 <th
                   key={column.key as string}
                   className={cn(
                     'px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider',
-                    column.sortable && 'cursor-pointer hover:bg-gray-100/50 select-none transition-colors duration-200',
+                    column.sortable && 'cursor-pointer hover:bg-muted/50 select-none transition-colors duration-200',
                     column.width,
                     column.align === 'center' && 'text-center',
                     column.align === 'right' && 'text-right'
@@ -116,12 +116,12 @@ export function Table<T extends Record<string, any>>({
               ))}
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200/60">
+          <tbody className="bg-card divide-y divide-border">
             {data.length === 0 ? (
               <tr>
                 <td colSpan={columns.length} className="px-6 py-16 text-center">
                   <div className="text-gray-500">
-                    <div className="w-12 h-12 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                    <div className="w-12 h-12 mx-auto mb-4 bg-muted rounded-full flex items-center justify-center">
                       <Package className="h-6 w-6 text-gray-400" />
                     </div>
                     <p className="text-sm font-medium">No data found</p>
@@ -134,7 +134,7 @@ export function Table<T extends Record<string, any>>({
                 <tr
                   key={index}
                   className={cn(
-                    'hover:bg-gray-50/50 transition-colors duration-200',
+                    'hover:bg-muted/50 transition-colors duration-200',
                     onRowClick && 'cursor-pointer'
                   )}
                   onClick={() => onRowClick?.(item)}

@@ -201,7 +201,7 @@ export const UsersDetails: React.FC = () => {
                 { action: 'Updated profile', time: '1 day ago', icon: Edit2 },
                 { action: 'Created item', time: '2 days ago', icon: Users },
               ].map((activity, index) => (
-                <div key={index} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                <div key={index} className="flex items-center space-x-3 p-3 bg-muted rounded-lg">
                   <activity.icon className="h-4 w-4 text-gray-400" />
                   <div className="flex-1">
                     <p className="text-sm font-medium text-gray-900">{activity.action}</p>

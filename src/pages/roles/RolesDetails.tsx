@@ -222,7 +222,7 @@ export const RolesDetails: React.FC = () => {
               {mockUsers.map(user => (
                 <div
                   key={user.id}
-                  className="flex items-center space-x-3 p-4 hover:bg-gray-50 rounded-lg transition-colors cursor-pointer"
+                  className="flex items-center space-x-3 p-4 hover:bg-muted rounded-lg transition-colors cursor-pointer"
                   onClick={() => navigate(`/users/${user.id}`)}
                 >
                   <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center">

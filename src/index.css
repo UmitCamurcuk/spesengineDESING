@@ -3,6 +3,11 @@
 @tailwind utilities;
 
 @layer base {
+  /* Global body styles */
+  body {
+    @apply bg-background text-foreground;
+  }
+
   /* CSS Variables for Theme System */
   :root {
     /* Light Theme (Default) */

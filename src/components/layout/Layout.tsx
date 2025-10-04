@@ -20,7 +20,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, header
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-background flex">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div 
