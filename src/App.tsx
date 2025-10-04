@@ -8,6 +8,8 @@ import { Plus, CreditCard as Edit2, Save, X, Check, ArrowRight, ArrowLeft } from
 import { ToastProvider } from './contexts/ToastContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { AuthProvider } from './contexts/AuthContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Items
 import { ItemsList } from './pages/items/ItemsList';
@@ -380,19 +382,23 @@ function App() {
   };
 
   return (
-    <Router>
-      <ThemeProvider>
-        <LanguageProvider>
-          <ToastProvider>
-            {!isAuthenticated ? (
-              <Login onLogin={handleLogin} />
-            ) : (
-              <AppContent user={user} onLogout={handleLogout} />
-            )}
-          </ToastProvider>
-        </LanguageProvider>
-      </ThemeProvider>
-    </Router>
+    <ErrorBoundary>
+      <Router>
+        <ThemeProvider>
+          <LanguageProvider>
+            <AuthProvider>
+              <ToastProvider>
+                {!isAuthenticated ? (
+                  <Login onLogin={handleLogin} />
+                ) : (
+                  <AppContent user={user} onLogout={handleLogout} />
+                )}
+              </ToastProvider>
+            </AuthProvider>
+          </LanguageProvider>
+        </ThemeProvider>
+      </Router>
+    </ErrorBoundary>
   );
 }
 

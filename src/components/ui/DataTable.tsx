@@ -146,7 +146,7 @@ export function DataTable<T extends Record<string, any>>({
   filters = [],
   onRowClick,
   className,
-  pageSize = 10,
+  pageSize = 20,
   showPagination = true,
   emptyState
 }: DataTableProps<T>) {
@@ -227,9 +227,9 @@ export function DataTable<T extends Record<string, any>>({
   }
 
   return (
-    <div className={cn('bg-card rounded-lg border border-border overflow-hidden', className)}>
+    <div className={cn('bg-card rounded-lg border border-border overflow-hidden flex flex-col h-full', className)}>
       {(searchable || filters.length > 0) && (
-        <div className="p-3.5 border-b border-border space-y-3">
+        <div className="p-3.5 border-b border-border space-y-3 flex-shrink-0">
           <div className="flex flex-col sm:flex-row gap-3">
             {searchable && (
               <div className="flex-1">
@@ -277,7 +277,7 @@ export function DataTable<T extends Record<string, any>>({
         </div>
       )}
 
-      <div className="hidden lg:block overflow-x-auto">
+      <div className="hidden lg:block overflow-x-auto flex-1">
         <table className="min-w-full divide-y divide-border">
           <thead className="bg-muted">
             <tr>
