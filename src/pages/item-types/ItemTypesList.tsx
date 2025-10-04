@@ -6,6 +6,7 @@ import { DataTable, UserInfo } from '../../components/ui/DataTable';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { ItemType } from '../../types';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 // Mock data
 const mockItemTypes: ItemType[] = [
@@ -40,6 +41,7 @@ const mockItemTypes: ItemType[] = [
 
 export const ItemTypesList: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   const columns = [
     {
@@ -152,12 +154,12 @@ export const ItemTypesList: React.FC = () => {
   return (
     <div className="h-full flex flex-col">
       <PageHeader
-        title="Item Types"
-        subtitle="Define data structures and schemas for your items"
+        title={t('item_types.title')}
+        subtitle={t('item_types.subtitle')}
         action={
           <Button onClick={() => navigate('/item-types/create')}>
             <Plus className="h-4 w-4 mr-2" />
-            Create Item Type
+            {t('item_types.create_title')}
           </Button>
         }
       />

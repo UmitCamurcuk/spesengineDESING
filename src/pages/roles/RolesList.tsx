@@ -6,6 +6,7 @@ import { DataTable, UserInfo } from '../../components/ui/DataTable';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Role } from '../../types';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 // Mock data
 const mockRoles: Role[] = [
@@ -43,6 +44,7 @@ const mockRoles: Role[] = [
 
 export const RolesList: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   const columns = [
     {
@@ -167,8 +169,8 @@ export const RolesList: React.FC = () => {
   return (
     <div className="h-full flex flex-col">
       <PageHeader
-        title="Roles"
-        subtitle="Define user roles and their capabilities"
+        title={t('roles.title')}
+        subtitle={t('roles.subtitle')}
         action={
           <Button onClick={() => navigate('/roles/create')}>
             <Plus className="h-4 w-4 mr-2" />

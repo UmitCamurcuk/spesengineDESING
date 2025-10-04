@@ -6,6 +6,7 @@ import { DataTable, UserInfo } from '../../components/ui/DataTable';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Category } from '../../types';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 // Mock data
 const mockCategories: Category[] = [
@@ -61,6 +62,7 @@ const mockCategories: Category[] = [
 
 export const CategoriesList: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   const columns = [
     {
@@ -207,12 +209,12 @@ export const CategoriesList: React.FC = () => {
   return (
     <div className="h-full flex flex-col">
       <PageHeader
-        title="Categories"
-        subtitle="Organize your data with hierarchical categories"
+        title={t('categories.title')}
+        subtitle={t('categories.subtitle')}
         action={
           <Button onClick={() => navigate('/categories/create')}>
             <Plus className="h-4 w-4 mr-2" />
-            Create Category
+            {t('categories.create_title')}
           </Button>
         }
       />

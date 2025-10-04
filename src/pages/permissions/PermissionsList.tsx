@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { Plus, Key, Shield } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable, UserInfo } from '../../components/ui/DataTable';
@@ -49,6 +50,7 @@ const mockPermissions: Permission[] = [
 
 export const PermissionsList: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   const columns = [
     {
@@ -170,8 +172,8 @@ export const PermissionsList: React.FC = () => {
   return (
     <div className="h-full flex flex-col">
       <PageHeader
-        title="Permissions"
-        subtitle="Manage granular access permissions"
+        title={t('permissions.title')}
+        subtitle={t('permissions.subtitle')}
         action={
           <Button onClick={() => navigate('/permissions/create')}>
             <Plus className="h-4 w-4 mr-2" />

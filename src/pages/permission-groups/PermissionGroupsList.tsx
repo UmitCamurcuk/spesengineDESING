@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { Plus, ShieldCheck, Key, Users } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable, UserInfo } from '../../components/ui/DataTable';
@@ -45,6 +46,7 @@ const mockPermissionGroups: PermissionGroup[] = [
 
 export const PermissionGroupsList: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   const columns = [
     {
@@ -136,8 +138,8 @@ export const PermissionGroupsList: React.FC = () => {
   return (
     <div className="h-full flex flex-col">
       <PageHeader
-        title="Permission Groups"
-        subtitle="Manage user permissions and access control"
+        title={t('permission_groups.title')}
+        subtitle={t('permission_groups.subtitle')}
         action={
           <Button onClick={() => navigate('/permission-groups/create')}>
             <Plus className="h-4 w-4 mr-2" />

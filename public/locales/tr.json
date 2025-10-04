@@ -119,6 +119,7 @@
   },
   "item_types": {
     "title": "Öğe Türleri",
+    "subtitle": "Öğeleriniz için veri yapıları ve şemalar tanımlayın",
     "create_title": "Yeni Öğe Türü Oluştur",
     "edit_title": "Öğe Türü Düzenle",
     "details_title": "Öğe Türü Detayları",
@@ -136,6 +137,7 @@
   },
   "categories": {
     "title": "Kategoriler",
+    "subtitle": "Hiyerarşik kategorilerle verilerinizi organize edin",
     "create_title": "Yeni Kategori Oluştur",
     "edit_title": "Kategori Düzenle",
     "details_title": "Kategori Detayları",
@@ -155,6 +157,7 @@
   },
   "families": {
     "title": "Aileler",
+    "subtitle": "İlgili öğeleri ailelere gruplandırın",
     "create_title": "Yeni Aile Oluştur",
     "edit_title": "Aile Düzenle",
     "details_title": "Aile Detayları",
@@ -172,6 +175,7 @@
   },
   "attribute_groups": {
     "title": "Özellik Grupları",
+    "subtitle": "Özellikleri mantıksal gruplara organize edin",
     "create_title": "Yeni Özellik Grubu Oluştur",
     "edit_title": "Özellik Grubu Düzenle",
     "details_title": "Özellik Grubu Detayları",
@@ -189,6 +193,7 @@
   },
   "attributes": {
     "title": "Özellikler",
+    "subtitle": "Veri özelliklerinizi ve özelliklerini yönetin",
     "create_title": "Yeni Özellik Oluştur",
     "edit_title": "Özellik Düzenle",
     "details_title": "Özellik Detayları",
@@ -220,6 +225,7 @@
   },
   "users": {
     "title": "Kullanıcılar",
+    "subtitle": "Kullanıcı hesaplarını ve izinleri yönetin",
     "create_title": "Yeni Kullanıcı Oluştur",
     "edit_title": "Kullanıcı Düzenle",
     "details_title": "Kullanıcı Detayları",
@@ -240,6 +246,7 @@
   },
   "roles": {
     "title": "Roller",
+    "subtitle": "Kullanıcı rollerini ve yeteneklerini tanımlayın",
     "create_title": "Yeni Rol Oluştur",
     "edit_title": "Rol Düzenle",
     "details_title": "Rol Detayları",
@@ -258,6 +265,7 @@
   },
   "permissions": {
     "title": "İzinler",
+    "subtitle": "Granüler erişim izinlerini yönetin",
     "create_title": "Yeni İzin Oluştur",
     "edit_title": "İzin Düzenle",
     "details_title": "İzin Detayları",
@@ -278,6 +286,7 @@
   },
   "permission_groups": {
     "title": "İzin Grupları",
+    "subtitle": "Kullanıcı izinlerini ve erişim kontrolünü yönetin",
     "create_title": "Yeni İzin Grubu Oluştur",
     "edit_title": "İzin Grubu Düzenle",
     "details_title": "İzin Grubu Detayları",
@@ -295,6 +304,7 @@
   },
   "localizations": {
     "title": "Yerelleştirmeler",
+    "subtitle": "Çevirileri ve çok dilli içeriği yönetin",
     "create_title": "Yeni Yerelleştirme Oluştur",
     "edit_title": "Yerelleştirme Düzenle",
     "details_title": "Yerelleştirme Detayları",
@@ -315,6 +325,7 @@
   },
   "associations": {
     "title": "İlişkiler",
+    "subtitle": "Farklı varlıklar arasındaki ilişkileri tanımlayın",
     "create_title": "Yeni İlişki Oluştur",
     "edit_title": "İlişki Düzenle",
     "details_title": "İlişki Detayları",

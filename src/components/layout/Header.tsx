@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Bell, Search, User, LogOut, Settings, Menu, ArrowLeft, Home } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface HeaderProps {
   user?: {
@@ -14,49 +15,61 @@ interface HeaderProps {
   actions?: React.ReactNode;
 }
 
-const getPageTitle = (pathname: string) => {
+const getPageTitle = (pathname: string, t: (key: string) => string) => {
   const segments = pathname.split('/').filter(Boolean);
   
-  if (segments.length === 0) return 'Dashboard';
+  if (segments.length === 0) return t('navigation.dashboard');
   
   const pageMap: Record<string, string> = {
-    'dashboard': 'Dashboard',
-    'items': 'Items',
-    'item-types': 'Item Types',
-    'categories': 'Categories',
-    'families': 'Families',
-    'attribute-groups': 'Attribute Groups',
-    'attributes': 'Attributes',
+    'dashboard': t('navigation.dashboard'),
+    'items': t('navigation.items'),
+    'item-types': t('navigation.item_types'),
+    'categories': t('navigation.categories'),
+    'families': t('navigation.families'),
+    'attribute-groups': t('navigation.attribute_groups'),
+    'attributes': t('navigation.attributes'),
+    'users': t('navigation.users'),
+    'roles': t('navigation.roles'),
+    'permissions': t('navigation.permissions'),
+    'permission-groups': t('navigation.permission_groups'),
+    'localizations': t('navigation.localizations'),
+    'associations': t('navigation.associations'),
   };
   
   const basePage = segments[0];
   const action = segments[1];
   
   if (action === 'create') {
-    return `Create ${pageMap[basePage]?.slice(0, -1) || 'Item'}`;
+    return t('common.create') + ' ' + (pageMap[basePage]?.slice(0, -1) || t('navigation.items'));
   }
   
   if (action && action !== 'create') {
-    return `${pageMap[basePage]?.slice(0, -1) || 'Item'} Details`;
+    return (pageMap[basePage]?.slice(0, -1) || t('navigation.items')) + ' ' + t('common.details');
   }
   
-  return pageMap[basePage] || 'Dashboard';
+  return pageMap[basePage] || t('navigation.dashboard');
 };
 
-const getBreadcrumbs = (pathname: string) => {
+const getBreadcrumbs = (pathname: string, t: (key: string) => string) => {
   const segments = pathname.split('/').filter(Boolean);
-  const breadcrumbs = [{ name: 'Home', path: '/dashboard' }];
+  const breadcrumbs = [{ name: t('navigation.dashboard'), path: '/dashboard' }];
   
   if (segments.length === 0) return breadcrumbs;
   
   const pageMap: Record<string, string> = {
-    'dashboard': 'Dashboard',
-    'items': 'Items',
-    'item-types': 'Item Types',
-    'categories': 'Categories',
-    'families': 'Families',
-    'attribute-groups': 'Attribute Groups',
-    'attributes': 'Attributes',
+    'dashboard': t('navigation.dashboard'),
+    'items': t('navigation.items'),
+    'item-types': t('navigation.item_types'),
+    'categories': t('navigation.categories'),
+    'families': t('navigation.families'),
+    'attribute-groups': t('navigation.attribute_groups'),
+    'attributes': t('navigation.attributes'),
+    'users': t('navigation.users'),
+    'roles': t('navigation.roles'),
+    'permissions': t('navigation.permissions'),
+    'permission-groups': t('navigation.permission_groups'),
+    'localizations': t('navigation.localizations'),
+    'associations': t('navigation.associations'),
   };
   
   let currentPath = '';
@@ -65,7 +78,7 @@ const getBreadcrumbs = (pathname: string) => {
     
     if (segment === 'create') {
       breadcrumbs.push({
-        name: 'Create',
+        name: t('common.create'),
         path: currentPath
       });
     } else if (pageMap[segment]) {
@@ -75,7 +88,7 @@ const getBreadcrumbs = (pathname: string) => {
       });
     } else if (index === segments.length - 1 && segments[index - 1] !== 'create') {
       breadcrumbs.push({
-        name: 'Details',
+        name: t('common.details'),
         path: currentPath
       });
     }
@@ -88,13 +101,14 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onMenuClick, act
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const { t } = useLanguage();
   
-  const pageTitle = getPageTitle(location.pathname);
-  const breadcrumbs = getBreadcrumbs(location.pathname);
+  const pageTitle = getPageTitle(location.pathname, t);
+  const breadcrumbs = getBreadcrumbs(location.pathname, t);
   const canGoBack = breadcrumbs.length > 1;
 
   return (
-    <header className="bg-background border-b border-border px-4 sm:px-5 py-2.5">
+    <header className="bg-background border-b border-border px-4 sm:px-5" style={{ paddingTop: '0.4rem', paddingBottom: '0.49rem' }}>
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
           {/* Mobile Menu & Back Button */}
@@ -156,7 +170,7 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onMenuClick, act
             <Search className="h-4 w-4 text-muted-foreground absolute left-3 top-1/2 transform -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Search..."
+              placeholder={t('common.search')}
               className="pl-9 pr-4 py-1.5 text-sm bg-background text-foreground border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring w-72"
             />
           </div>
@@ -190,7 +204,7 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onMenuClick, act
                   className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-muted flex items-center space-x-2"
                 >
                   <Settings className="h-4 w-4" />
-                  <span>Settings</span>
+                  <span>{t('common.settings')}</span>
                 </button>
                 <hr className="my-1 border-border" />
                 <button
@@ -201,7 +215,7 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onMenuClick, act
                   className="w-full text-left px-4 py-2 text-sm text-error hover:bg-error-background flex items-center space-x-2"
                 >
                   <LogOut className="h-4 w-4" />
-                  <span>Sign out</span>
+                  <span>{t('common.logout')}</span>
                 </button>
               </div>
             )}

@@ -119,6 +119,7 @@
   },
   "item_types": {
     "title": "Item Types",
+    "subtitle": "Define data structures and schemas for your items",
     "create_title": "Create New Item Type",
     "edit_title": "Edit Item Type",
     "details_title": "Item Type Details",
@@ -136,6 +137,7 @@
   },
   "categories": {
     "title": "Categories",
+    "subtitle": "Organize your data with hierarchical categories",
     "create_title": "Create New Category",
     "edit_title": "Edit Category",
     "details_title": "Category Details",
@@ -155,6 +157,7 @@
   },
   "families": {
     "title": "Families",
+    "subtitle": "Group related items into families",
     "create_title": "Create New Family",
     "edit_title": "Edit Family",
     "details_title": "Family Details",
@@ -172,6 +175,7 @@
   },
   "attribute_groups": {
     "title": "Attribute Groups",
+    "subtitle": "Organize attributes into logical groups",
     "create_title": "Create New Attribute Group",
     "edit_title": "Edit Attribute Group",
     "details_title": "Attribute Group Details",
@@ -189,6 +193,7 @@
   },
   "attributes": {
     "title": "Attributes",
+    "subtitle": "Manage your data attributes and their properties",
     "create_title": "Create New Attribute",
     "edit_title": "Edit Attribute",
     "details_title": "Attribute Details",
@@ -220,6 +225,7 @@
   },
   "users": {
     "title": "Users",
+    "subtitle": "Manage user accounts and permissions",
     "create_title": "Create New User",
     "edit_title": "Edit User",
     "details_title": "User Details",
@@ -240,6 +246,7 @@
   },
   "roles": {
     "title": "Roles",
+    "subtitle": "Define user roles and their capabilities",
     "create_title": "Create New Role",
     "edit_title": "Edit Role",
     "details_title": "Role Details",
@@ -258,6 +265,7 @@
   },
   "permissions": {
     "title": "Permissions",
+    "subtitle": "Manage granular access permissions",
     "create_title": "Create New Permission",
     "edit_title": "Edit Permission",
     "details_title": "Permission Details",
@@ -278,6 +286,7 @@
   },
   "permission_groups": {
     "title": "Permission Groups",
+    "subtitle": "Manage user permissions and access control",
     "create_title": "Create New Permission Group",
     "edit_title": "Edit Permission Group",
     "details_title": "Permission Group Details",
@@ -295,6 +304,7 @@
   },
   "localizations": {
     "title": "Localizations",
+    "subtitle": "Manage translations and multilingual content",
     "create_title": "Create New Localization",
     "edit_title": "Edit Localization",
     "details_title": "Localization Details",
@@ -315,6 +325,7 @@
   },
   "associations": {
     "title": "Associations",
+    "subtitle": "Define relationships between different entities",
     "create_title": "Create New Association",
     "edit_title": "Edit Association",
     "details_title": "Association Details",

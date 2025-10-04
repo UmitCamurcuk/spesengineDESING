@@ -6,6 +6,7 @@ import { DataTable, UserInfo } from '../../components/ui/DataTable';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { User } from '../../types';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 // Mock data
 const mockUsers: User[] = [
@@ -52,6 +53,7 @@ const mockUsers: User[] = [
 
 export const UsersList: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   const columns = [
     {
@@ -204,12 +206,12 @@ export const UsersList: React.FC = () => {
   return (
     <div className="h-full flex flex-col">
       <PageHeader
-        title="Users"
-        subtitle="Manage user accounts and permissions"
+        title={t('users.title')}
+        subtitle={t('users.subtitle')}
         action={
           <Button onClick={() => navigate('/users/create')}>
             <Plus className="h-4 w-4 mr-2" />
-            Invite User
+            {t('users.create_title')}
           </Button>
         }
       />

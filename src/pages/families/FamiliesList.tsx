@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { Plus, Layers, ChevronRight } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable, UserInfo } from '../../components/ui/DataTable';
@@ -62,6 +63,7 @@ const mockCategories = [
 
 export const FamiliesList: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   const columns = [
     {
@@ -201,8 +203,8 @@ export const FamiliesList: React.FC = () => {
   return (
     <div className="h-full flex flex-col">
       <PageHeader
-        title="Families"
-        subtitle="Group related items into families"
+        title={t('families.title')}
+        subtitle={t('families.subtitle')}
         action={
           <Button onClick={() => navigate('/families/create')}>
             <Plus className="h-4 w-4 mr-2" />

@@ -6,6 +6,7 @@ import { DataTable, UserInfo } from '../../components/ui/DataTable';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Attribute, AttributeType } from '../../types';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 // Mock data
 const mockAttributes: Attribute[] = [
@@ -273,11 +274,12 @@ const getAttributeTypeColor = (type: AttributeType) => {
 
 export const AttributesList: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   const columns = [
     {
       key: 'name',
-      title: 'Attribute',
+      title: t('attributes.name'),
       sortable: true,
       render: (value: string, attribute: Attribute) => (
         <div className="flex items-center space-x-3">
@@ -288,7 +290,7 @@ export const AttributesList: React.FC = () => {
             <div className="flex items-center space-x-2">
               <div className="text-sm font-semibold text-gray-900">{value}</div>
               {attribute.required && (
-                <Badge variant="error" size="sm">Required</Badge>
+                <Badge variant="error" size="sm">{t('attributes.required')}</Badge>
               )}
             </div>
             <div className="text-xs text-gray-500">ID: {attribute.id}</div>
@@ -346,7 +348,7 @@ export const AttributesList: React.FC = () => {
     },
     {
       key: 'type',
-      title: 'Type',
+      title: t('attributes.type'),
       sortable: true,
       render: (value: AttributeType) => (
         <Badge variant={getAttributeTypeColor(value)} size="sm">
@@ -385,7 +387,7 @@ export const AttributesList: React.FC = () => {
     },
     {
       key: 'options',
-      title: 'Options',
+      title: t('attributes.options'),
       render: (value: string[] | undefined) => (
         value ? (
           <div className="flex flex-wrap gap-1">
@@ -405,7 +407,7 @@ export const AttributesList: React.FC = () => {
     },
     {
       key: 'updatedAt',
-      title: 'Last Updated',
+      title: t('attributes.updated_at'),
       sortable: true,
       render: (value: string) => (
         <UserInfo
@@ -420,7 +422,7 @@ export const AttributesList: React.FC = () => {
   const filters = [
     {
       key: 'type',
-      label: 'All Types',
+      label: t('attributes.type'),
       type: 'select' as const,
       options: Object.values(AttributeType).map(type => ({
         value: type,
@@ -429,7 +431,7 @@ export const AttributesList: React.FC = () => {
     },
     {
       key: 'required',
-      label: 'Required',
+      label: t('attributes.required'),
       type: 'select' as const,
       options: [
         { value: 'true', label: 'Required Only' },
@@ -441,12 +443,12 @@ export const AttributesList: React.FC = () => {
   return (
     <div className="h-full flex flex-col">
       <PageHeader
-        title="Attributes"
-        subtitle="Manage your data attributes and their properties"
+        title={t('attributes.title')}
+        subtitle={t('attributes.subtitle')}
         action={
           <Button onClick={() => navigate('/attributes/create')}>
             <Plus className="h-4 w-4 mr-2" />
-            Create Attribute
+            {t('attributes.create_title')}
           </Button>
         }
       />
@@ -455,17 +457,17 @@ export const AttributesList: React.FC = () => {
         <DataTable
           data={mockAttributes}
           columns={columns}
-          searchPlaceholder="Search attributes..."
+          searchPlaceholder={t('attributes.search_placeholder')}
           filters={filters}
           onRowClick={(attribute) => navigate(`/attributes/${attribute.id}`)}
           emptyState={{
             icon: <Package className="h-12 w-12" />,
-            title: 'No attributes found',
-            description: 'Get started by creating your first attribute',
+            title: t('attributes.no_attributes'),
+            description: t('attributes.create_new_attribute'),
             action: (
               <Button onClick={() => navigate('/attributes/create')}>
                 <Plus className="h-4 w-4 mr-2" />
-                Create Attribute
+                {t('attributes.create_title')}
               </Button>
             )
           }}
