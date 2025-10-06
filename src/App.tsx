@@ -74,6 +74,9 @@ import { AssociationsCreate } from './pages/associations/AssociationsCreate';
 // Settings
 import { Settings } from './pages/settings/Settings';
 
+// Profile
+import { Profile } from './pages/Profile';
+
 interface User {
   id: string;
   name: string;
@@ -94,18 +97,6 @@ const getHeaderActions = () => {
   const [editMode, setEditMode] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Listen for edit mode changes from attributes page
-  React.useEffect(() => {
-    const handleEditModeChanged = (event: CustomEvent) => {
-      if (pathname.startsWith('/attributes/')) {
-        setEditMode(event.detail.editMode);
-        setHasChanges(event.detail.hasChanges);
-      }
-    };
-
-    window.addEventListener('editModeChanged', handleEditModeChanged as EventListener);
-    return () => window.removeEventListener('editModeChanged', handleEditModeChanged as EventListener);
-  }, [pathname]);
     
     // List pages - Create buttons
     if (pathname === '/items') {
@@ -288,56 +279,9 @@ const getHeaderActions = () => {
       );
     }
     
-    // Detail pages - Edit buttons
-    if (pathname.match(/\/(items|item-types|categories|families|attribute-groups|attributes|users|permissions|roles|permission-groups|localizations)\/[^\/]+$/) && !pathname.includes('/create')) {
-      // Attributes page with dynamic buttons
-      if (pathname.startsWith('/attributes/')) {
-        if (editMode) {
-          return (
-            <div className="flex items-center space-x-2">
-              {hasChanges && (
-                <Button 
-                  size="sm"
-                  onClick={() => {
-                    const event = new CustomEvent('saveEdit');
-                    window.dispatchEvent(event);
-                  }}
-                >
-                  <Save className="h-4 w-4 mr-2" />
-                  <span className="hidden sm:inline">{t('common.save')}</span>
-                </Button>
-              )}
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => {
-                  const event = new CustomEvent('cancelEdit');
-                  window.dispatchEvent(event);
-                }}
-              >
-                <X className="h-4 w-4 mr-2" />
-                <span className="hidden sm:inline">{t('common.cancel')}</span>
-              </Button>
-            </div>
-          );
-        } else {
-          return (
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => {
-                const event = new CustomEvent('toggleEditMode');
-                window.dispatchEvent(event);
-              }}
-            >
-              <Edit className="h-4 w-4 mr-2" />
-              <span className="hidden sm:inline">{t('common.edit')}</span>
-            </Button>
-          );
-        }
-      }
-      
-      // Other detail pages - default edit button
+    
+    // Detail pages - Edit buttons (excluding attributes and profile)
+    if (pathname.match(/\/(items|item-types|categories|families|attribute-groups|users|permissions|roles|permission-groups|localizations)\/[^\/]+$/) && !pathname.includes('/create')) {
       return (
         <Button variant="outline" size="sm">
           <Edit className="h-4 w-4 mr-2" />
@@ -417,6 +361,9 @@ const getHeaderActions = () => {
         
         {/* Settings Route */}
         <Route path="/settings" element={<Settings />} />
+        
+        {/* Profile Route */}
+        <Route path="/profile" element={<Profile />} />
         
         {/* Catch all route - redirect to dashboard */}
         <Route path="*" element={<Navigate to="/dashboard" replace />} />

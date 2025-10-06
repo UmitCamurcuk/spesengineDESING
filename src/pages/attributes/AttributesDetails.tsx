@@ -358,30 +358,6 @@ export const AttributesDetails: React.FC = () => {
   const [originalAttribute, setOriginalAttribute] = useState(mockAttribute);
   const [currentAttribute, setCurrentAttribute] = useState(mockAttribute);
 
-  // Listen for edit mode toggle from navbar
-  React.useEffect(() => {
-    const handleToggleEditMode = () => {
-      setEditMode(prev => !prev);
-    };
-
-    const handleCancelEdit = () => {
-      handleCancel();
-    };
-
-    const handleSaveEdit = () => {
-      handleSave();
-    };
-
-    window.addEventListener('toggleEditMode', handleToggleEditMode);
-    window.addEventListener('cancelEdit', handleCancelEdit);
-    window.addEventListener('saveEdit', handleSaveEdit);
-    
-    return () => {
-      window.removeEventListener('toggleEditMode', handleToggleEditMode);
-      window.removeEventListener('cancelEdit', handleCancelEdit);
-      window.removeEventListener('saveEdit', handleSaveEdit);
-    };
-  }, []);
 
   // Track changes
   React.useEffect(() => {
@@ -389,13 +365,6 @@ export const AttributesDetails: React.FC = () => {
     setHasChanges(hasChanges);
   }, [originalAttribute, currentAttribute]);
 
-  // Publish edit mode and changes state to global
-  React.useEffect(() => {
-    const event = new CustomEvent('editModeChanged', { 
-      detail: { editMode, hasChanges } 
-    });
-    window.dispatchEvent(event);
-  }, [editMode, hasChanges]);
 
   const handleAttributeChange = (updatedAttribute: Attribute) => {
     setCurrentAttribute(updatedAttribute);
@@ -525,6 +494,10 @@ export const AttributesDetails: React.FC = () => {
         defaultTab="details"
         backUrl="/attributes"
         editMode={editMode}
+        hasChanges={hasChanges}
+        onEdit={() => setEditMode(true)}
+        onSave={handleSave}
+        onCancel={handleCancel}
       />
       
       {/* Change Confirmation Dialog */}

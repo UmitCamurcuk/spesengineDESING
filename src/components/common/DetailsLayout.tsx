@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Edit, Save, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Tabs, TabPanel } from '../ui/Tabs';
 import { TabConfig } from '../../types/common';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface DetailsLayoutProps {
   title: string;
@@ -15,6 +16,10 @@ interface DetailsLayoutProps {
   backUrl?: string;
   headerActions?: React.ReactNode;
   editMode?: boolean;
+  hasChanges?: boolean;
+  onEdit?: () => void;
+  onSave?: () => void;
+  onCancel?: () => void;
 }
 
 export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
@@ -25,9 +30,14 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
   defaultTab,
   backUrl,
   headerActions,
-  editMode = false
+  editMode = false,
+  hasChanges = false,
+  onEdit,
+  onSave,
+  onCancel
 }) => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState(defaultTab || tabs[0]?.id);
 
   const activeTabConfig = tabs.find(tab => tab.id === activeTab);
@@ -71,6 +81,25 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
         </div>
 
         <div className="flex items-center space-x-3">
+          {!editMode ? (
+            <Button onClick={onEdit} size="sm">
+              <Edit className="h-4 w-4 mr-2" />
+              {t('common.edit')}
+            </Button>
+          ) : (
+            <div className="flex items-center space-x-2">
+              {hasChanges && (
+                <Button onClick={onSave} size="sm">
+                  <Save className="h-4 w-4 mr-2" />
+                  {t('common.save')}
+                </Button>
+              )}
+              <Button variant="outline" onClick={onCancel} size="sm">
+                <X className="h-4 w-4 mr-2" />
+                {t('common.cancel')}
+              </Button>
+            </div>
+          )}
           {headerActions}
         </div>
       </div>

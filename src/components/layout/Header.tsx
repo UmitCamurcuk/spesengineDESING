@@ -34,6 +34,7 @@ const getPageTitle = (pathname: string, t: (key: string) => string) => {
     'permission-groups': t('navigation.permission_groups'),
     'localizations': t('navigation.localizations'),
     'associations': t('navigation.associations'),
+    'profile': 'Profil',
   };
   
   const basePage = segments[0];
@@ -70,6 +71,7 @@ const getBreadcrumbs = (pathname: string, t: (key: string) => string) => {
     'permission-groups': t('navigation.permission_groups'),
     'localizations': t('navigation.localizations'),
     'associations': t('navigation.associations'),
+    'profile': 'Profil',
   };
   
   let currentPath = '';

@@ -16,6 +16,7 @@ import {
   Key,
   ShieldCheck,
   Globe,
+  User,
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -200,7 +201,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, isOpen, onClose }) 
       </nav>
 
       {/* Footer */}
-      <div className="p-2.5 border-t border-sidebar-border">
+      <div className="p-2.5 border-t border-sidebar-border space-y-1">
+        <Link
+          to="/profile"
+          onClick={onClose}
+          className={cn(
+            'flex items-center space-x-2.5 px-3 py-2 rounded-md transition-colors duration-150',
+            location.pathname.startsWith('/profile')
+              ? 'bg-sidebar-active text-sidebar-active-foreground'
+              : 'text-sidebar-foreground hover:bg-muted hover:text-foreground'
+          )}
+        >
+          <User className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium">Profil</span>
+        </Link>
         <Link
           to="/settings"
           onClick={onClose}

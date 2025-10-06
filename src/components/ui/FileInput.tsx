@@ -37,6 +37,10 @@ export const FileInput: React.FC<FileInputProps> = ({
   const handleFileChange = (files: FileList | null) => {
     if (!files || files.length === 0) {
       onChange?.(null);
+      // Reset input value
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
       return;
     }
 
@@ -45,6 +49,10 @@ export const FileInput: React.FC<FileInputProps> = ({
       for (let i = 0; i < files.length; i++) {
         if (files[i].size > maxSize) {
           alert(`File ${files[i].name} is too large. Maximum size is ${Math.round(maxSize / 1024 / 1024)}MB`);
+          // Reset input value on error
+          if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+          }
           return;
         }
       }
@@ -83,6 +91,10 @@ export const FileInput: React.FC<FileInputProps> = ({
       onChange?.(newFiles.length > 0 ? newFiles : null);
     } else {
       onChange?.(null);
+    }
+    // Reset input value when removing files
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
