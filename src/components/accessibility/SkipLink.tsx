@@ -26,3 +26,4 @@ export const SkipLink: React.FC<SkipLinkProps> = ({
     </a>
   );
 };
+

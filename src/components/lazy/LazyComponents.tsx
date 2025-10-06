@@ -39,3 +39,4 @@ export const LazyLocalizationsList = lazy(() => import('../../pages/localization
 export const LazyLocalizationsDetails = lazy(() => import('../../pages/localizations/LocalizationsDetails'));
 export const LazyLocalizationsCreate = lazy(() => import('../../pages/localizations/LocalizationsCreate'));
 export const LazySettings = lazy(() => import('../../pages/settings/Settings'));
+

@@ -25,3 +25,4 @@ export const LazyWrapper: React.FC<LazyWrapperProps> = ({
     </Suspense>
   );
 };
+

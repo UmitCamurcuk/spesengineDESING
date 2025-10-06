@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, FileText, ArrowRight, Check } from 'lucide-react';
-import { PageHeader } from '../../components/ui/PageHeader';
+import { ArrowLeft, FileText, ArrowRight, Check } from 'lucide-react';
 import { Card, CardHeader } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -10,14 +9,10 @@ import { AttributeTypeCard } from '../../components/ui/AttributeTypeCard';
 import { AttributeGroupSelector } from '../../components/ui/AttributeGroupSelector';
 import { AttributeRenderer } from '../../components/attributes/AttributeRenderer';
 import { AttributeType } from '../../types';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { useToast } from '../../contexts/ToastContext';
 
-const steps = [
-  { id: 'basic', name: 'Basic Info', description: 'Name and description' },
-  { id: 'type', name: 'Data Type', description: 'Choose attribute type' },
-  { id: 'validation', name: 'Validation', description: 'Set validation rules' },
-  { id: 'groups', name: 'Groups', description: 'Assign to groups' },
-  { id: 'preview', name: 'Preview', description: 'Review and confirm' },
-];
+// Steps will be defined inside component to use translations
 
 // Mock attribute groups
 const mockAttributeGroups = [
@@ -118,8 +113,18 @@ const getValidationFields = (type: AttributeType) => {
 
 export const AttributesCreate: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
+  const { showToast } = useToast();
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
+
+  const steps = [
+    { id: 'basic', name: t('attributes.create.steps.basic_info'), description: t('attributes.create.steps.basic_info_description') },
+    { id: 'type', name: t('attributes.create.steps.data_type'), description: t('attributes.create.steps.data_type_description') },
+    { id: 'validation', name: t('attributes.create.steps.validation'), description: t('attributes.create.steps.validation_description') },
+    { id: 'default', name: t('attributes.create.steps.default_value'), description: t('attributes.create.steps.default_value_description') },
+    { id: 'preview', name: t('attributes.create.steps.preview'), description: t('attributes.create.steps.preview_description') },
+  ];
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -145,21 +150,259 @@ export const AttributesCreate: React.FC = () => {
 
   const handleSubmit = async () => {
     setLoading(true);
-    setTimeout(() => {
+    
+    // Mock validation and save
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      showToast(t('attributes.create.attribute_created_successfully'), 'success');
       navigate('/attributes');
-    }, 2000);
+    } catch (error) {
+      showToast(t('attributes.create.failed_to_create_attribute'), 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderDefaultValueInput = () => {
+    const { type } = formData;
+    
+    switch (type) {
+      case AttributeType.NUMBER:
+        return (
+          <Input
+            label={t('attributes.create.default_value')}
+            type="number"
+            value={formData.defaultValue}
+            onChange={(e) => setFormData(prev => ({ ...prev, defaultValue: e.target.value }))}
+            placeholder="0"
+          />
+        );
+      
+      case AttributeType.BOOLEAN:
+        return (
+          <div>
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              {t('attributes.create.default_value')}
+            </label>
+            <select
+              value={formData.defaultValue}
+              onChange={(e) => setFormData(prev => ({ ...prev, defaultValue: e.target.value }))}
+              className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+            >
+              <option value="">{t('attributes.create.no_default')}</option>
+              <option value="true">{t('common.yes')}</option>
+              <option value="false">{t('common.no')}</option>
+            </select>
+          </div>
+        );
+      
+      case AttributeType.DATE:
+        return (
+          <Input
+            label={t('attributes.create.default_value')}
+            type="date"
+            value={formData.defaultValue}
+            onChange={(e) => setFormData(prev => ({ ...prev, defaultValue: e.target.value }))}
+            placeholder="YYYY-MM-DD"
+          />
+        );
+      
+      case AttributeType.DATETIME:
+        return (
+          <Input
+            label={t('attributes.create.default_value')}
+            type="datetime-local"
+            value={formData.defaultValue}
+            onChange={(e) => setFormData(prev => ({ ...prev, defaultValue: e.target.value }))}
+            placeholder="YYYY-MM-DDTHH:MM"
+          />
+        );
+      
+      case AttributeType.TIME:
+        return (
+          <Input
+            label={t('attributes.create.default_value')}
+            type="time"
+            value={formData.defaultValue}
+            onChange={(e) => setFormData(prev => ({ ...prev, defaultValue: e.target.value }))}
+            placeholder="HH:MM"
+          />
+        );
+      
+      case AttributeType.SELECT:
+      case AttributeType.MULTISELECT:
+        return (
+          <div>
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              {t('attributes.create.default_value')}
+            </label>
+            <div className="p-4 bg-muted rounded-lg border border-border">
+              <p className="text-sm text-muted-foreground">
+                {t('attributes.create.select_options_required')}
+              </p>
+            </div>
+          </div>
+        );
+      
+      case AttributeType.RICH_TEXT:
+        return (
+          <div>
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              {t('attributes.create.default_value')}
+            </label>
+            <textarea
+              value={formData.defaultValue}
+              onChange={(e) => setFormData(prev => ({ ...prev, defaultValue: e.target.value }))}
+              placeholder={t('attributes.create.rich_text_placeholder')}
+              rows={4}
+              className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+            />
+          </div>
+        );
+      
+      case AttributeType.JSON:
+        return (
+          <div>
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              {t('attributes.create.default_value')}
+            </label>
+            <textarea
+              value={formData.defaultValue}
+              onChange={(e) => setFormData(prev => ({ ...prev, defaultValue: e.target.value }))}
+              placeholder={t('attributes.create.json_placeholder')}
+              rows={4}
+              className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary font-mono text-sm"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              {t('attributes.create.json_help')}
+            </p>
+          </div>
+        );
+      
+      case AttributeType.FILE:
+      case AttributeType.IMAGE:
+      case AttributeType.ATTACHMENT:
+        return (
+          <div>
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              {t('attributes.create.default_value')}
+            </label>
+            <div className="p-4 bg-muted rounded-lg border border-border">
+              <p className="text-sm text-muted-foreground">
+                {t('attributes.create.file_default_not_supported')}
+              </p>
+            </div>
+          </div>
+        );
+      
+      case AttributeType.RATING:
+        return (
+          <div>
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              {t('attributes.create.default_value')}
+            </label>
+            <select
+              value={formData.defaultValue}
+              onChange={(e) => setFormData(prev => ({ ...prev, defaultValue: e.target.value }))}
+              className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+            >
+              <option value="">{t('attributes.create.no_default')}</option>
+              <option value="1">1 ⭐</option>
+              <option value="2">2 ⭐⭐</option>
+              <option value="3">3 ⭐⭐⭐</option>
+              <option value="4">4 ⭐⭐⭐⭐</option>
+              <option value="5">5 ⭐⭐⭐⭐⭐</option>
+            </select>
+          </div>
+        );
+      
+      case AttributeType.COLOR:
+        return (
+          <div>
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              {t('attributes.create.default_value')}
+            </label>
+            <div className="flex items-center space-x-3">
+              <input
+                type="color"
+                value={formData.defaultValue || '#000000'}
+                onChange={(e) => setFormData(prev => ({ ...prev, defaultValue: e.target.value }))}
+                className="w-12 h-10 border border-border rounded cursor-pointer"
+              />
+              <Input
+                value={formData.defaultValue}
+                onChange={(e) => setFormData(prev => ({ ...prev, defaultValue: e.target.value }))}
+                placeholder="#000000"
+                className="flex-1"
+              />
+            </div>
+          </div>
+        );
+      
+      case AttributeType.OBJECT:
+      case AttributeType.ARRAY:
+        return (
+          <div>
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              {t('attributes.create.default_value')}
+            </label>
+            <textarea
+              value={formData.defaultValue}
+              onChange={(e) => setFormData(prev => ({ ...prev, defaultValue: e.target.value }))}
+              placeholder={t('attributes.create.json_placeholder')}
+              rows={4}
+              className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary font-mono text-sm"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              {t('attributes.create.json_help')}
+            </p>
+          </div>
+        );
+      
+      case AttributeType.FORMULA:
+      case AttributeType.EXPRESSION:
+        return (
+          <div>
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              {t('attributes.create.formula_expression')}
+            </label>
+            <textarea
+              value={formData.defaultValue}
+              onChange={(e) => setFormData(prev => ({ ...prev, defaultValue: e.target.value }))}
+              placeholder={t('attributes.create.formula_placeholder')}
+              rows={4}
+              className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary font-mono text-sm"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              {t('attributes.create.formula_help')}
+            </p>
+          </div>
+        );
+      
+      default:
+        return (
+          <Input
+            label={t('attributes.create.default_value')}
+            value={formData.defaultValue}
+            onChange={(e) => setFormData(prev => ({ ...prev, defaultValue: e.target.value }))}
+            placeholder={t('attributes.create.default_value_placeholder')}
+          />
+        );
+    }
   };
 
   const canProceed = () => {
     switch (currentStep) {
       case 0:
-        return formData.name.trim() !== '';
+        return formData.name.trim() !== '' && formData.attributeGroups.length > 0;
       case 1:
         return formData.type !== '';
       case 2:
-        return true; // Validation is optional
+        return true; // Default value is optional
       case 3:
-        return formData.attributeGroups.length > 0;
+        return true; // Validation is optional
       default:
         return true;
     }
@@ -171,8 +414,8 @@ export const AttributesCreate: React.FC = () => {
         return (
           <Card>
             <CardHeader 
-              title="Basic Information" 
-              subtitle="Define the fundamental properties of your attribute"
+              title={t('attributes.create.basic_information')} 
+              subtitle={t('attributes.create.basic_information_subtitle')}
             />
             <div className="space-y-6">
               <div className="flex items-start space-x-4">
@@ -181,17 +424,17 @@ export const AttributesCreate: React.FC = () => {
                 </div>
                 <div className="flex-1 space-y-4">
                   <Input
-                    label="Attribute Name"
+                    label={t('attributes.create.attribute_name')}
                     value={formData.name}
                     onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="Enter attribute name"
+                    placeholder={t('attributes.create.attribute_name_placeholder')}
                     required
                   />
                   <Input
-                    label="Description"
+                    label={t('attributes.create.description')}
                     value={formData.description}
                     onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                    placeholder="Describe what this attribute represents"
+                    placeholder={t('attributes.create.description_placeholder')}
                   />
                   <div className="flex items-center space-x-2">
                     <input
@@ -202,10 +445,23 @@ export const AttributesCreate: React.FC = () => {
                       className="rounded border-border text-primary focus:ring-primary"
                     />
                     <label htmlFor="required" className="text-sm font-medium text-foreground">
-                      This attribute is required
+                      {t('attributes.create.this_attribute_is_required')}
                     </label>
                   </div>
                 </div>
+              </div>
+              
+              {/* Attribute Groups Selection */}
+              <div className="mt-6">
+                <h3 className="text-lg font-semibold text-foreground mb-4">{t('attributes.create.attribute_groups')}</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  {t('attributes.create.attribute_groups_subtitle')}
+                </p>
+                <AttributeGroupSelector
+                  groups={mockAttributeGroups}
+                  selectedGroups={formData.attributeGroups}
+                  onSelectionChange={(groups) => setFormData(prev => ({ ...prev, attributeGroups: groups }))}
+                />
               </div>
             </div>
           </Card>
@@ -215,8 +471,8 @@ export const AttributesCreate: React.FC = () => {
         return (
           <Card>
             <CardHeader 
-              title="Choose Data Type" 
-              subtitle="Select the type of data this attribute will store"
+              title={t('attributes.create.choose_data_type')} 
+              subtitle={t('attributes.create.choose_data_type_subtitle')}
             />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {Object.values(AttributeType).map(type => (
@@ -236,8 +492,8 @@ export const AttributesCreate: React.FC = () => {
         return (
           <Card>
             <CardHeader 
-              title="Validation Rules" 
-              subtitle="Configure validation constraints for this attribute"
+              title={t('attributes.create.validation_rules')} 
+              subtitle={t('attributes.create.validation_rules_subtitle')}
             />
             {validationFields.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -273,7 +529,7 @@ export const AttributesCreate: React.FC = () => {
                           className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                         >
                           <option value="">Select {field.label}</option>
-                          {field.options?.map(option => (
+                          {(field as any).options?.map((option: string) => (
                             <option key={option} value={option}>{option}</option>
                           ))}
                         </select>
@@ -312,7 +568,7 @@ export const AttributesCreate: React.FC = () => {
             ) : (
               <div className="text-center py-8">
                 <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                <p className="text-sm text-muted-foreground">No validation rules available for this attribute type</p>
+                <p className="text-sm text-muted-foreground">{t('attributes.create.no_validation_rules')}</p>
               </div>
             )}
           </Card>
@@ -322,14 +578,26 @@ export const AttributesCreate: React.FC = () => {
         return (
           <Card>
             <CardHeader 
-              title="Assign to Attribute Groups" 
-              subtitle="Select which attribute groups this attribute belongs to"
+              title={t('attributes.create.default_value')} 
+              subtitle={t('attributes.create.default_value_subtitle')}
             />
-            <AttributeGroupSelector
-              groups={mockAttributeGroups}
-              selectedGroups={formData.attributeGroups}
-              onSelectionChange={(groups) => setFormData(prev => ({ ...prev, attributeGroups: groups }))}
-            />
+            <div className="space-y-6">
+              <div className="max-w-md">
+                {renderDefaultValueInput()}
+                <p className="text-sm text-muted-foreground mt-2">
+                  {t('attributes.create.default_value_help')}
+                </p>
+              </div>
+              
+              {formData.defaultValue && (
+                <div className="p-4 bg-muted rounded-lg">
+                  <h4 className="text-sm font-medium text-foreground mb-2">{t('attributes.create.preview')}</h4>
+                  <div className="text-sm text-muted-foreground">
+                    {t('attributes.create.default')}: <span className="font-mono bg-background px-2 py-1 rounded">{formData.defaultValue}</span>
+                  </div>
+                </div>
+              )}
+            </div>
           </Card>
         );
 
@@ -337,39 +605,43 @@ export const AttributesCreate: React.FC = () => {
         return (
           <Card>
             <CardHeader 
-              title="Review & Confirm" 
-              subtitle="Please review your attribute details before creating"
+              title={t('attributes.create.review_confirm')} 
+              subtitle={t('attributes.create.review_confirm_subtitle')}
             />
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <h4 className="text-sm font-medium text-foreground mb-2">Basic Information</h4>
+                  <h4 className="text-sm font-medium text-foreground mb-2">{t('attributes.create.basic_information_summary')}</h4>
                   <div className="space-y-2">
-                    <p><span className="text-muted-foreground">Name:</span> {formData.name}</p>
-                    <p><span className="text-muted-foreground">Type:</span> {formData.type}</p>
-                    <p><span className="text-muted-foreground">Required:</span> {formData.required ? 'Yes' : 'No'}</p>
+                    <p><span className="text-muted-foreground">{t('attributes.create.name')}:</span> {formData.name}</p>
+                    <p><span className="text-muted-foreground">{t('attributes.create.type')}:</span> {formData.type}</p>
+                    <p><span className="text-muted-foreground">{t('attributes.create.required')}:</span> {formData.required ? t('common.yes') : t('common.no')}</p>
                     {formData.description && (
-                      <p><span className="text-muted-foreground">Description:</span> {formData.description}</p>
+                      <p><span className="text-muted-foreground">{t('attributes.create.description')}:</span> {formData.description}</p>
                     )}
                   </div>
                 </div>
                 
                 <div>
-                  <h4 className="text-sm font-medium text-foreground mb-2">Attribute Groups</h4>
+                  <h4 className="text-sm font-medium text-foreground mb-2">{t('attributes.create.attribute_groups_summary')}</h4>
                   <div className="space-y-1">
-                    {formData.attributeGroups.map(groupId => {
-                      const group = mockAttributeGroups.find(g => g.id === groupId);
-                      return group ? (
-                        <p key={groupId} className="text-sm text-muted-foreground">• {group.name}</p>
-                      ) : null;
-                    })}
+                    {formData.attributeGroups.length > 0 ? (
+                      formData.attributeGroups.map(groupId => {
+                        const group = mockAttributeGroups.find(g => g.id === groupId);
+                        return group ? (
+                          <p key={groupId} className="text-sm text-muted-foreground">• {group.name}</p>
+                        ) : null;
+                      })
+                    ) : (
+                      <p className="text-sm text-muted-foreground">{t('attributes.create.no_groups_selected')}</p>
+                    )}
                   </div>
                 </div>
               </div>
               
               {Object.keys(formData.validation).length > 0 && (
                 <div className="border-t border-border pt-6">
-                  <h4 className="text-sm font-medium text-foreground mb-4">Validation Rules</h4>
+                  <h4 className="text-sm font-medium text-foreground mb-4">{t('attributes.create.validation_rules_summary')}</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {Object.entries(formData.validation).map(([key, value]) => (
                       <div key={key} className="flex justify-between items-center p-3 bg-muted rounded-lg">
@@ -386,7 +658,89 @@ export const AttributesCreate: React.FC = () => {
               )}
 
               <div className="border-t border-border pt-6">
-                <h4 className="text-sm font-medium text-foreground mb-4">Preview</h4>
+                <h4 className="text-sm font-medium text-foreground mb-4">{t('attributes.create.preview')}</h4>
+                <div className="p-6 border-2 border-dashed border-border rounded-lg bg-muted">
+                  <AttributeRenderer
+                    attribute={{
+                      id: 'preview',
+                      name: formData.name,
+                      type: formData.type as any,
+                      required: formData.required,
+                      description: formData.description,
+                      options: formData.options.length > 0 ? formData.options : undefined,
+                      defaultValue: formData.defaultValue || undefined,
+                      validation: formData.validation,
+                      createdAt: new Date().toISOString(),
+                      updatedAt: new Date().toISOString(),
+                    }}
+                    value={formData.defaultValue}
+                    mode="edit"
+                    onChange={() => {}}
+                  />
+                </div>
+              </div>
+            </div>
+          </Card>
+        );
+
+      default:
+        return (
+          <Card>
+            <CardHeader 
+              title={t('attributes.create.review_confirm')} 
+              subtitle={t('attributes.create.review_confirm_subtitle')}
+            />
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h4 className="text-sm font-medium text-foreground mb-2">{t('attributes.create.basic_information_summary')}</h4>
+                  <div className="space-y-2">
+                    <p><span className="text-muted-foreground">{t('attributes.create.name')}:</span> {formData.name}</p>
+                    <p><span className="text-muted-foreground">{t('attributes.create.type')}:</span> {formData.type}</p>
+                    <p><span className="text-muted-foreground">{t('attributes.create.required')}:</span> {formData.required ? t('common.yes') : t('common.no')}</p>
+                    {formData.description && (
+                      <p><span className="text-muted-foreground">{t('attributes.create.description')}:</span> {formData.description}</p>
+                    )}
+                  </div>
+                </div>
+                
+                <div>
+                  <h4 className="text-sm font-medium text-foreground mb-2">{t('attributes.create.attribute_groups_summary')}</h4>
+                  <div className="space-y-1">
+                    {formData.attributeGroups.length > 0 ? (
+                      formData.attributeGroups.map(groupId => {
+                      const group = mockAttributeGroups.find(g => g.id === groupId);
+                      return group ? (
+                          <p key={groupId} className="text-sm text-muted-foreground">• {group.name}</p>
+                      ) : null;
+                      })
+                    ) : (
+                      <p className="text-sm text-muted-foreground">{t('attributes.create.no_groups_selected')}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              {Object.keys(formData.validation).length > 0 && (
+                <div className="border-t border-border pt-6">
+                  <h4 className="text-sm font-medium text-foreground mb-4">{t('attributes.create.validation_rules_summary')}</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {Object.entries(formData.validation).map(([key, value]) => (
+                      <div key={key} className="flex justify-between items-center p-3 bg-muted rounded-lg">
+                        <span className="text-sm font-medium text-foreground capitalize">
+                          {key.replace(/([A-Z])/g, ' $1').trim()}
+                        </span>
+                        <span className="text-sm text-muted-foreground">
+                          {typeof value === 'boolean' ? (value ? 'Yes' : 'No') : String(value)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="border-t border-border pt-6">
+                <h4 className="text-sm font-medium text-foreground mb-4">{t('attributes.create.preview')}</h4>
                 <div className="p-6 border-2 border-dashed border-border rounded-lg bg-muted">
                   <AttributeRenderer
                     attribute={{
@@ -411,8 +765,6 @@ export const AttributesCreate: React.FC = () => {
           </Card>
         );
 
-      default:
-        return null;
     }
   };
 
@@ -425,43 +777,43 @@ export const AttributesCreate: React.FC = () => {
 
       {/* Main Content Card */}
       <Card className="flex-1 flex flex-col">
-        {/* Step Content */}
+      {/* Step Content */}
         <div className="flex-1 overflow-hidden">
-          {renderStepContent()}
+      {renderStepContent()}
         </div>
 
-        {/* Navigation */}
+      {/* Navigation */}
         <div className="flex justify-between pt-6 border-t border-border flex-shrink-0">
-          <Button
-            variant="outline"
-            onClick={handleBack}
-            disabled={currentStep === 0}
-            leftIcon={<ArrowLeft className="h-4 w-4" />}
-          >
-            Back
-          </Button>
-          
-          <div className="flex space-x-3">
-            {currentStep === steps.length - 1 ? (
-              <Button
-                onClick={handleSubmit}
-                loading={loading}
-                disabled={!canProceed()}
-                leftIcon={<Check className="h-4 w-4" />}
-              >
-                Create Attribute
-              </Button>
-            ) : (
-              <Button
-                onClick={handleNext}
-                disabled={!canProceed()}
-                rightIcon={<ArrowRight className="h-4 w-4" />}
-              >
-                Continue
-              </Button>
-            )}
-          </div>
+        <Button
+          variant="outline"
+          onClick={handleBack}
+          disabled={currentStep === 0}
+          leftIcon={<ArrowLeft className="h-4 w-4" />}
+        >
+          Back
+        </Button>
+        
+        <div className="flex space-x-3">
+          {currentStep === steps.length - 1 ? (
+            <Button
+              onClick={handleSubmit}
+              loading={loading}
+              disabled={!canProceed()}
+              leftIcon={<Check className="h-4 w-4" />}
+            >
+{t('attributes.create.create_attribute')}
+            </Button>
+          ) : (
+            <Button
+              onClick={handleNext}
+              disabled={!canProceed()}
+              rightIcon={<ArrowRight className="h-4 w-4" />}
+            >
+              Continue
+            </Button>
+          )}
         </div>
+      </div>
       </Card>
     </div>
   );

@@ -248,3 +248,4 @@ export const logSecurity = (event: string, data?: any) =>
   logger.security(event, data);
 
 export default logger;
+

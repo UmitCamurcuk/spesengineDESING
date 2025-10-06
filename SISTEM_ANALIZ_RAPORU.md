@@ -749,3 +749,4 @@ SpesEngine projesi **solid bir foundation** üzerine kurulmuş modern bir React 
 **Tarih:** 3 Ekim 2025  
 **Versiyon:** 1.0
 
+

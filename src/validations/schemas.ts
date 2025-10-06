@@ -210,3 +210,4 @@ export type PermissionGroupFormData = z.infer<typeof permissionGroupSchema>;
 export type SearchFormData = z.infer<typeof searchSchema>;
 export type FileUploadFormData = z.infer<typeof fileUploadSchema>;
 export type SettingsFormData = z.infer<typeof settingsSchema>;
+

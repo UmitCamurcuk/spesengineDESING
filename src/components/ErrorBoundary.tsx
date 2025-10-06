@@ -197,3 +197,4 @@ export const withErrorBoundary = <P extends object>(
 };
 
 export default ErrorBoundary;
+

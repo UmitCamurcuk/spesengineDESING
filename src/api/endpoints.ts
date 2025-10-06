@@ -170,3 +170,4 @@ export const buildUrl = (endpoint: string, params?: Record<string, any>): string
   const queryString = params ? buildQueryParams(params) : '';
   return queryString ? `${baseUrl}?${queryString}` : baseUrl;
 };
+

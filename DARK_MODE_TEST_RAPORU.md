@@ -185,3 +185,4 @@ Dark mode implementasyonu **%100 TAMAMLANDI**!
 
 **Proje artık production-ready dark mode'a sahip!** 🎉
 
+

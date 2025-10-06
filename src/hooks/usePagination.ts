@@ -266,3 +266,4 @@ export const usePaginationComponent = (props: PaginationProps) => {
     canGoNext: currentPage < totalPages,
   };
 };
+

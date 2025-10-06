@@ -101,3 +101,4 @@ All components use Tailwind CSS classes and are theme-aware. They automatically 
 ## Accessibility
 
 All components include proper ARIA attributes and keyboard navigation support.
+

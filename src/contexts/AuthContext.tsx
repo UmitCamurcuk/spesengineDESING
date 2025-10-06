@@ -329,3 +329,4 @@ export const withPermission = (permission: string) => <P extends object>(
 };
 
 export default AuthContext;
+

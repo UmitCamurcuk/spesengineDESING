@@ -89,3 +89,4 @@ export const authService = {
     localStorage.removeItem(import.meta.env.VITE_AUTH_REFRESH_TOKEN_KEY || 'spes_refresh_token');
   },
 };
+

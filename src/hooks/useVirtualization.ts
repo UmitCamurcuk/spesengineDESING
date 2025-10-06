@@ -89,3 +89,4 @@ export const useOptimizedSearch = <T>(
     );
   }, [items, debouncedSearchTerm, searchFields]);
 };
+

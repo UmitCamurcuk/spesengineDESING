@@ -127,3 +127,4 @@ export const categoriesService = {
     return response.data;
   },
 };
+

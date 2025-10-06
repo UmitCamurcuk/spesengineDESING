@@ -73,3 +73,4 @@ function MyComponent() {
 ## Performance
 
 All hooks are optimized for performance and include proper cleanup and memoization.
+

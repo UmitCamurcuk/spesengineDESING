@@ -601,3 +601,4 @@ export const usePagination = () => useAppStore((state) => state.pagination);
 export const useSelectedItems = () => useAppStore((state) => state.selectedItems);
 export const useModals = () => useAppStore((state) => state.modals);
 export const useToasts = () => useAppStore((state) => state.toasts);
+

@@ -192,3 +192,4 @@ export interface ApiClientConfig {
 export type ServiceResponse<T> = Promise<ApiResponse<T>>;
 export type ServicePaginatedResponse<T> = Promise<PaginatedResponse<T>>;
 export type ServiceError = ApiError;
+
