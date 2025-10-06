@@ -4,7 +4,7 @@ import { Layout } from './components/layout/Layout';
 import { Login } from './pages/auth/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Button } from './components/ui/Button';
-import { Plus, Edit } from 'lucide-react';
+import { Plus, Edit, Save, X } from 'lucide-react';
 import { ToastProvider } from './contexts/ToastContext';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -88,9 +88,24 @@ const AppContent: React.FC<{
   const location = useLocation();
   const navigate = useNavigate();
   
-  const getHeaderActions = () => {
-    const { t } = useLanguage();
-    const pathname = location.pathname;
+const getHeaderActions = () => {
+  const { t } = useLanguage();
+  const pathname = location.pathname;
+  const [editMode, setEditMode] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+
+  // Listen for edit mode changes from attributes page
+  React.useEffect(() => {
+    const handleEditModeChanged = (event: CustomEvent) => {
+      if (pathname.startsWith('/attributes/')) {
+        setEditMode(event.detail.editMode);
+        setHasChanges(event.detail.hasChanges);
+      }
+    };
+
+    window.addEventListener('editModeChanged', handleEditModeChanged as EventListener);
+    return () => window.removeEventListener('editModeChanged', handleEditModeChanged as EventListener);
+  }, [pathname]);
     
     // List pages - Create buttons
     if (pathname === '/items') {
@@ -275,18 +290,56 @@ const AppContent: React.FC<{
     
     // Detail pages - Edit buttons
     if (pathname.match(/\/(items|item-types|categories|families|attribute-groups|attributes|users|permissions|roles|permission-groups|localizations)\/[^\/]+$/) && !pathname.includes('/create')) {
+      // Attributes page with dynamic buttons
+      if (pathname.startsWith('/attributes/')) {
+        if (editMode) {
+          return (
+            <div className="flex items-center space-x-2">
+              {hasChanges && (
+                <Button 
+                  size="sm"
+                  onClick={() => {
+                    const event = new CustomEvent('saveEdit');
+                    window.dispatchEvent(event);
+                  }}
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  <span className="hidden sm:inline">{t('common.save')}</span>
+                </Button>
+              )}
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  const event = new CustomEvent('cancelEdit');
+                  window.dispatchEvent(event);
+                }}
+              >
+                <X className="h-4 w-4 mr-2" />
+                <span className="hidden sm:inline">{t('common.cancel')}</span>
+              </Button>
+            </div>
+          );
+        } else {
+          return (
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => {
+                const event = new CustomEvent('toggleEditMode');
+                window.dispatchEvent(event);
+              }}
+            >
+              <Edit className="h-4 w-4 mr-2" />
+              <span className="hidden sm:inline">{t('common.edit')}</span>
+            </Button>
+          );
+        }
+      }
+      
+      // Other detail pages - default edit button
       return (
-        <Button 
-          variant="outline" 
-          size="sm"
-          onClick={() => {
-            // Trigger edit mode for attributes page
-            if (pathname.startsWith('/attributes/')) {
-              const event = new CustomEvent('toggleEditMode');
-              window.dispatchEvent(event);
-            }
-          }}
-        >
+        <Button variant="outline" size="sm">
           <Edit className="h-4 w-4 mr-2" />
           <span className="hidden sm:inline">{t('common.edit')}</span>
         </Button>

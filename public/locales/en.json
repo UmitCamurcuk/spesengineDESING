@@ -223,6 +223,7 @@
     "available_options": "Available Options",
     "available_options_subtitle": "Predefined values for this attribute",
     "add_new_option": "Add new option",
+    "press_enter_to_add": "Press Enter to add",
     "attribute_preview": "Attribute Preview",
     "attribute_preview_subtitle": "How this attribute will appear in forms",
     "edit_mode": "Edit Mode",

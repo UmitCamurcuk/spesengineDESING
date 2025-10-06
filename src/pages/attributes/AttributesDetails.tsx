@@ -9,14 +9,12 @@ import {
   Globe, 
   BookOpen, 
   History,
-  X,
-  Save
+  X
 } from 'lucide-react';
 import { DetailsLayout } from '../../components/common/DetailsLayout';
 import { Card, CardHeader } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
-import { Button } from '../../components/ui/Button';
 import { AttributeRenderer } from '../../components/attributes/AttributeRenderer';
 import { HistoryTable } from '../../components/common/HistoryTable';
 import { NotificationSettings } from '../../components/common/NotificationSettings';
@@ -192,12 +190,16 @@ const AttributeDetailsTab: React.FC<{
             subtitle={t('attributes.available_options_subtitle')}
           />
           <div className="space-y-4">
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {attribute.options.map((option, index) => (
-                <div key={index} className="flex items-center space-x-2 bg-muted px-3 py-2 rounded-lg">
-                  <Badge variant="secondary" size="sm">
-                    {option}
-                  </Badge>
+                <div 
+                  key={index} 
+                  className="group relative flex items-center justify-between p-3 bg-muted hover:bg-muted-hover border border-border rounded-lg transition-all duration-200"
+                >
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-primary rounded-full"></div>
+                    <span className="text-sm font-medium text-foreground">{option}</span>
+                  </div>
                   {editMode && (
                     <button
                       onClick={() => {
@@ -205,9 +207,9 @@ const AttributeDetailsTab: React.FC<{
                         const updatedAttribute = { ...attribute, options: newOptions };
                         onAttributeChange(updatedAttribute);
                       }}
-                      className="text-red-500 hover:text-red-700"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-1 rounded-md hover:bg-error/10 text-error hover:text-error-hover"
                     >
-                      <X className="h-3 w-3" />
+                      <X className="h-4 w-4" />
                     </button>
                   )}
                 </div>
@@ -215,23 +217,33 @@ const AttributeDetailsTab: React.FC<{
             </div>
             
             {editMode && (
-              <div className="flex space-x-2">
-                <Input
-                  placeholder={t('attributes.add_new_option')}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      const value = (e.target as HTMLInputElement).value.trim();
-                      if (value && !attribute.options?.includes(value)) {
-                        const updatedAttribute = {
-                          ...attribute,
-                          options: [...(attribute.options || []), value]
-                        };
-                        onAttributeChange(updatedAttribute);
-                        (e.target as HTMLInputElement).value = '';
+              <div className="border-t border-border pt-4">
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-primary/50 rounded-full"></div>
+                  <span className="text-sm font-medium text-muted-foreground">{t('attributes.add_new_option')}</span>
+                </div>
+                <div className="mt-3">
+                  <Input
+                    placeholder={t('attributes.add_new_option')}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        const value = (e.target as HTMLInputElement).value.trim();
+                        if (value && !attribute.options?.includes(value)) {
+                          const updatedAttribute = {
+                            ...attribute,
+                            options: [...(attribute.options || []), value]
+                          };
+                          onAttributeChange(updatedAttribute);
+                          (e.target as HTMLInputElement).value = '';
+                        }
                       }
-                    }
-                  }}
-                />
+                    }}
+                    className="w-full"
+                  />
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {t('attributes.press_enter_to_add')}
+                  </p>
+                </div>
               </div>
             )}
           </div>
@@ -352,8 +364,23 @@ export const AttributesDetails: React.FC = () => {
       setEditMode(prev => !prev);
     };
 
+    const handleCancelEdit = () => {
+      handleCancel();
+    };
+
+    const handleSaveEdit = () => {
+      handleSave();
+    };
+
     window.addEventListener('toggleEditMode', handleToggleEditMode);
-    return () => window.removeEventListener('toggleEditMode', handleToggleEditMode);
+    window.addEventListener('cancelEdit', handleCancelEdit);
+    window.addEventListener('saveEdit', handleSaveEdit);
+    
+    return () => {
+      window.removeEventListener('toggleEditMode', handleToggleEditMode);
+      window.removeEventListener('cancelEdit', handleCancelEdit);
+      window.removeEventListener('saveEdit', handleSaveEdit);
+    };
   }, []);
 
   // Track changes
@@ -361,6 +388,14 @@ export const AttributesDetails: React.FC = () => {
     const hasChanges = JSON.stringify(originalAttribute) !== JSON.stringify(currentAttribute);
     setHasChanges(hasChanges);
   }, [originalAttribute, currentAttribute]);
+
+  // Publish edit mode and changes state to global
+  React.useEffect(() => {
+    const event = new CustomEvent('editModeChanged', { 
+      detail: { editMode, hasChanges } 
+    });
+    window.dispatchEvent(event);
+  }, [editMode, hasChanges]);
 
   const handleAttributeChange = (updatedAttribute: Attribute) => {
     setCurrentAttribute(updatedAttribute);
@@ -375,6 +410,12 @@ export const AttributesDetails: React.FC = () => {
     setChangeDialogOpen(false);
     setEditMode(false);
     setOriginalAttribute(currentAttribute);
+    setHasChanges(false);
+  };
+
+  const handleCancel = () => {
+    setCurrentAttribute(originalAttribute);
+    setEditMode(false);
     setHasChanges(false);
   };
 
@@ -484,14 +525,6 @@ export const AttributesDetails: React.FC = () => {
         defaultTab="details"
         backUrl="/attributes"
         editMode={editMode}
-        headerActions={
-          editMode && hasChanges ? (
-            <Button onClick={handleSave} size="sm">
-              <Save className="h-4 w-4 mr-2" />
-              {t('common.save')}
-            </Button>
-          ) : null
-        }
       />
       
       {/* Change Confirmation Dialog */}
