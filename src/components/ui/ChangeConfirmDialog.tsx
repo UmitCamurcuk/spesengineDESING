@@ -35,6 +35,20 @@ export const ChangeConfirmDialog: React.FC<ChangeConfirmDialogProps> = ({
   const [comment, setComment] = useState('');
   const [error, setError] = useState('');
 
+  // Prevent body scroll when modal is open
+  React.useEffect(() => {
+    if (open) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+
+    // Cleanup on unmount
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [open]);
+
   if (!open) return null;
 
   const handleConfirm = () => {
@@ -123,14 +137,14 @@ export const ChangeConfirmDialog: React.FC<ChangeConfirmDialogProps> = ({
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="flex-1">
-                          <div className="text-xs text-muted-foreground mb-0.5">Old Value</div>
+                          <div className="text-xs text-muted-foreground mb-0.5">{t('settings.old_value')}</div>
                           <div className="text-sm text-foreground font-mono bg-background px-2 py-1 rounded border border-border">
                             {formatValue(change.oldValue)}
                           </div>
                         </div>
                         <div className="flex-shrink-0 text-muted-foreground">→</div>
                         <div className="flex-1">
-                          <div className="text-xs text-muted-foreground mb-0.5">New Value</div>
+                          <div className="text-xs text-muted-foreground mb-0.5">{t('settings.new_value')}</div>
                           <div className="text-sm text-primary font-mono bg-primary/10 px-2 py-1 rounded border border-primary/20">
                             {formatValue(change.newValue)}
                           </div>

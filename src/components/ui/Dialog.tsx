@@ -57,6 +57,20 @@ export const Dialog: React.FC<DialogProps> = ({
   loading = false,
   children,
 }) => {
+  // Prevent body scroll when modal is open
+  React.useEffect(() => {
+    if (open) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+
+    // Cleanup on unmount
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [open]);
+
   if (!open) return null;
 
   const config = dialogConfig[type];

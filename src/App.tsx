@@ -4,9 +4,9 @@ import { Layout } from './components/layout/Layout';
 import { Login } from './pages/auth/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Button } from './components/ui/Button';
-import { Plus, CreditCard as Edit2, Save, X, Check, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Plus, Edit } from 'lucide-react';
 import { ToastProvider } from './contexts/ToastContext';
-import { LanguageProvider } from './contexts/LanguageContext';
+import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -89,6 +89,7 @@ const AppContent: React.FC<{
   const navigate = useNavigate();
   
   const getHeaderActions = () => {
+    const { t } = useLanguage();
     const pathname = location.pathname;
     
     // List pages - Create buttons
@@ -102,7 +103,7 @@ const AppContent: React.FC<{
           }}
         >
           <Plus className="h-4 w-4 mr-2" />
-          <span className="hidden sm:inline">Create Item</span>
+          <span className="hidden sm:inline">{t('items.create_title')}</span>
         </Button>
       );
     }
@@ -117,7 +118,7 @@ const AppContent: React.FC<{
           }}
         >
           <Plus className="h-4 w-4 mr-2" />
-          <span className="hidden sm:inline">Create Type</span>
+          <span className="hidden sm:inline">{t('item_types.create_title')}</span>
         </Button>
       );
     }
@@ -132,7 +133,7 @@ const AppContent: React.FC<{
           }}
         >
           <Plus className="h-4 w-4 mr-2" />
-          <span className="hidden sm:inline">Create Category</span>
+          <span className="hidden sm:inline">{t('categories.create_title')}</span>
         </Button>
       );
     }
@@ -147,7 +148,7 @@ const AppContent: React.FC<{
           }}
         >
           <Plus className="h-4 w-4 mr-2" />
-          <span className="hidden sm:inline">Create Family</span>
+          <span className="hidden sm:inline">{t('families.create_title')}</span>
         </Button>
       );
     }
@@ -162,7 +163,7 @@ const AppContent: React.FC<{
           }}
         >
           <Plus className="h-4 w-4 mr-2" />
-          <span className="hidden sm:inline">Create Group</span>
+          <span className="hidden sm:inline">{t('attribute_groups.create_title')}</span>
         </Button>
       );
     }
@@ -177,7 +178,7 @@ const AppContent: React.FC<{
           }}
         >
           <Plus className="h-4 w-4 mr-2" />
-          <span className="hidden sm:inline">Create Attribute</span>
+          <span className="hidden sm:inline">{t('attributes.create_title')}</span>
         </Button>
       );
     }
@@ -192,7 +193,7 @@ const AppContent: React.FC<{
           }}
         >
           <Plus className="h-4 w-4 mr-2" />
-          <span className="hidden sm:inline">Invite User</span>
+          <span className="hidden sm:inline">{t('users.create_title')}</span>
         </Button>
       );
     }
@@ -207,7 +208,7 @@ const AppContent: React.FC<{
           }}
         >
           <Plus className="h-4 w-4 mr-2" />
-          <span className="hidden sm:inline">Create Permission</span>
+          <span className="hidden sm:inline">{t('permissions.create_title')}</span>
         </Button>
       );
     }
@@ -222,7 +223,7 @@ const AppContent: React.FC<{
           }}
         >
           <Plus className="h-4 w-4 mr-2" />
-          <span className="hidden sm:inline">Create Role</span>
+          <span className="hidden sm:inline">{t('roles.create_title')}</span>
         </Button>
       );
     }
@@ -237,7 +238,7 @@ const AppContent: React.FC<{
           }}
         >
           <Plus className="h-4 w-4 mr-2" />
-          <span className="hidden sm:inline">Create Group</span>
+          <span className="hidden sm:inline">{t('permission_groups.create_title')}</span>
         </Button>
       );
     }
@@ -252,7 +253,7 @@ const AppContent: React.FC<{
           }}
         >
           <Plus className="h-4 w-4 mr-2" />
-          <span className="hidden sm:inline">Create Translation</span>
+          <span className="hidden sm:inline">{t('localizations.create_title')}</span>
         </Button>
       );
     }
@@ -267,7 +268,7 @@ const AppContent: React.FC<{
           }}
         >
           <Plus className="h-4 w-4 mr-2" />
-          <span className="hidden sm:inline">Create Association</span>
+          <span className="hidden sm:inline">{t('associations.create_title')}</span>
         </Button>
       );
     }
@@ -275,9 +276,19 @@ const AppContent: React.FC<{
     // Detail pages - Edit buttons
     if (pathname.match(/\/(items|item-types|categories|families|attribute-groups|attributes|users|permissions|roles|permission-groups|localizations)\/[^\/]+$/) && !pathname.includes('/create')) {
       return (
-        <Button variant="outline" size="sm">
-          <Edit2 className="h-4 w-4 mr-2" />
-          <span className="hidden sm:inline">Edit</span>
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={() => {
+            // Trigger edit mode for attributes page
+            if (pathname.startsWith('/attributes/')) {
+              const event = new CustomEvent('toggleEditMode');
+              window.dispatchEvent(event);
+            }
+          }}
+        >
+          <Edit className="h-4 w-4 mr-2" />
+          <span className="hidden sm:inline">{t('common.edit')}</span>
         </Button>
       );
     }

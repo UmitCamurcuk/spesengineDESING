@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { 
   FileText, 
@@ -9,21 +9,22 @@ import {
   Globe, 
   BookOpen, 
   History,
-  Edit2,
-  Save,
-  X
+  X,
+  Save
 } from 'lucide-react';
 import { DetailsLayout } from '../../components/common/DetailsLayout';
 import { Card, CardHeader } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
-import { Select } from '../../components/ui/Select';
 import { Badge } from '../../components/ui/Badge';
+import { Button } from '../../components/ui/Button';
 import { AttributeRenderer } from '../../components/attributes/AttributeRenderer';
 import { HistoryTable } from '../../components/common/HistoryTable';
 import { NotificationSettings } from '../../components/common/NotificationSettings';
 import { APITester } from '../../components/common/APITester';
 import { Documentation } from '../../components/common/Documentation';
 import { Statistics } from '../../components/common/Statistics';
+import { ChangeConfirmDialog } from '../../components/ui/ChangeConfirmDialog';
+import { useToast } from '../../contexts/ToastContext';
 import { Attribute, AttributeType } from '../../types';
 import { TabConfig } from '../../types/common';
 
@@ -52,10 +53,12 @@ const mockAttributeGroups = [
 ];
 
 // Details Component
-const AttributeDetailsTab: React.FC<{ editMode: boolean }> = ({ editMode }) => {
+const AttributeDetailsTab: React.FC<{ 
+  editMode: boolean; 
+  attribute: Attribute; 
+  onAttributeChange: (attribute: Attribute) => void;
+}> = ({ editMode, attribute, onAttributeChange }) => {
   const { t } = useLanguage();
-  const [attribute, setAttribute] = useState(mockAttribute);
-  const [selectedGroups, setSelectedGroups] = useState(['group-1', 'group-2']);
 
   const getAttributeTypeColor = (type: AttributeType) => {
     switch (type) {
@@ -83,7 +86,10 @@ const AttributeDetailsTab: React.FC<{ editMode: boolean }> = ({ editMode }) => {
                 <Input
                   label={t('attributes.name')}
                   value={attribute.name}
-                  onChange={(e) => setAttribute(prev => ({ ...prev, name: e.target.value }))}
+                  onChange={(e) => {
+                    const updatedAttribute = { ...attribute, name: e.target.value };
+                    onAttributeChange(updatedAttribute);
+                  }}
                   disabled={!editMode}
                 />
               </div>
@@ -106,7 +112,10 @@ const AttributeDetailsTab: React.FC<{ editMode: boolean }> = ({ editMode }) => {
                 <Input
                   label={t('attributes.description')}
                   value={attribute.description || ''}
-                  onChange={(e) => setAttribute(prev => ({ ...prev, description: e.target.value }))}
+                  onChange={(e) => {
+                    const updatedAttribute = { ...attribute, description: e.target.value };
+                    onAttributeChange(updatedAttribute);
+                  }}
                   disabled={!editMode}
                 />
               </div>
@@ -117,7 +126,10 @@ const AttributeDetailsTab: React.FC<{ editMode: boolean }> = ({ editMode }) => {
                     type="checkbox"
                     id="required"
                     checked={attribute.required}
-                    onChange={(e) => setAttribute(prev => ({ ...prev, required: e.target.checked }))}
+                    onChange={(e) => {
+                      const updatedAttribute = { ...attribute, required: e.target.checked };
+                      onAttributeChange(updatedAttribute);
+                    }}
                     disabled={!editMode}
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
@@ -131,7 +143,10 @@ const AttributeDetailsTab: React.FC<{ editMode: boolean }> = ({ editMode }) => {
                 <Input
                   label={t('attributes.default_value')}
                   value={attribute.defaultValue || ''}
-                  onChange={(e) => setAttribute(prev => ({ ...prev, defaultValue: e.target.value }))}
+                  onChange={(e) => {
+                    const updatedAttribute = { ...attribute, defaultValue: e.target.value };
+                    onAttributeChange(updatedAttribute);
+                  }}
                   disabled={!editMode}
                 />
               </div>
@@ -180,14 +195,15 @@ const AttributeDetailsTab: React.FC<{ editMode: boolean }> = ({ editMode }) => {
             <div className="flex flex-wrap gap-2">
               {attribute.options.map((option, index) => (
                 <div key={index} className="flex items-center space-x-2 bg-muted px-3 py-2 rounded-lg">
-                  <Badge variant="outline" size="sm">
+                  <Badge variant="secondary" size="sm">
                     {option}
                   </Badge>
                   {editMode && (
                     <button
                       onClick={() => {
                         const newOptions = attribute.options?.filter((_, i) => i !== index);
-                        setAttribute(prev => ({ ...prev, options: newOptions }));
+                        const updatedAttribute = { ...attribute, options: newOptions };
+                        onAttributeChange(updatedAttribute);
                       }}
                       className="text-red-500 hover:text-red-700"
                     >
@@ -206,10 +222,11 @@ const AttributeDetailsTab: React.FC<{ editMode: boolean }> = ({ editMode }) => {
                     if (e.key === 'Enter') {
                       const value = (e.target as HTMLInputElement).value.trim();
                       if (value && !attribute.options?.includes(value)) {
-                        setAttribute(prev => ({
-                          ...prev,
-                          options: [...(prev.options || []), value]
-                        }));
+                        const updatedAttribute = {
+                          ...attribute,
+                          options: [...(attribute.options || []), value]
+                        };
+                        onAttributeChange(updatedAttribute);
                         (e.target as HTMLInputElement).value = '';
                       }
                     }
@@ -322,15 +339,83 @@ const AttributeGroupsTab: React.FC<{ editMode: boolean }> = ({ editMode }) => {
 export const AttributesDetails: React.FC = () => {
   const { t } = useLanguage();
   const { id } = useParams();
-  const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
+  const { showToast } = useToast();
+  const [editMode, setEditMode] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+  const [changeDialogOpen, setChangeDialogOpen] = useState(false);
+  const [originalAttribute, setOriginalAttribute] = useState(mockAttribute);
+  const [currentAttribute, setCurrentAttribute] = useState(mockAttribute);
 
-  const handleSave = async () => {
-    setLoading(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setLoading(false);
+  // Listen for edit mode toggle from navbar
+  React.useEffect(() => {
+    const handleToggleEditMode = () => {
+      setEditMode(prev => !prev);
+    };
+
+    window.addEventListener('toggleEditMode', handleToggleEditMode);
+    return () => window.removeEventListener('toggleEditMode', handleToggleEditMode);
+  }, []);
+
+  // Track changes
+  React.useEffect(() => {
+    const hasChanges = JSON.stringify(originalAttribute) !== JSON.stringify(currentAttribute);
+    setHasChanges(hasChanges);
+  }, [originalAttribute, currentAttribute]);
+
+  const handleAttributeChange = (updatedAttribute: Attribute) => {
+    setCurrentAttribute(updatedAttribute);
   };
+
+  const handleSave = () => {
+    setChangeDialogOpen(true);
+  };
+
+  const handleSaveWithComment = (comment: string) => {
+    showToast('Attribute saved successfully with comment: ' + comment, 'success');
+    setChangeDialogOpen(false);
+    setEditMode(false);
+    setOriginalAttribute(currentAttribute);
+    setHasChanges(false);
+  };
+
+  const getChanges = () => {
+    const changes: Array<{ field: string; oldValue: any; newValue: any }> = [];
+    
+    if (originalAttribute.name !== currentAttribute.name) {
+      changes.push({
+        field: t('attributes.name'),
+        oldValue: originalAttribute.name,
+        newValue: currentAttribute.name
+      });
+    }
+    
+    if (originalAttribute.description !== currentAttribute.description) {
+      changes.push({
+        field: t('attributes.description'),
+        oldValue: originalAttribute.description || '—',
+        newValue: currentAttribute.description || '—'
+      });
+    }
+    
+    if (originalAttribute.required !== currentAttribute.required) {
+      changes.push({
+        field: t('attributes.required'),
+        oldValue: originalAttribute.required ? t('common.yes') : t('common.no'),
+        newValue: currentAttribute.required ? t('common.yes') : t('common.no')
+      });
+    }
+    
+    if (originalAttribute.defaultValue !== currentAttribute.defaultValue) {
+      changes.push({
+        field: t('attributes.default_value'),
+        oldValue: originalAttribute.defaultValue || '—',
+        newValue: currentAttribute.defaultValue || '—'
+      });
+    }
+    
+    return changes;
+  };
+
 
   const tabs: TabConfig[] = [
     {
@@ -338,6 +423,11 @@ export const AttributesDetails: React.FC = () => {
       label: t('attributes.details'),
       icon: FileText,
       component: AttributeDetailsTab,
+      props: { 
+        editMode, 
+        attribute: currentAttribute, 
+        onAttributeChange: handleAttributeChange 
+      },
     },
     {
       id: 'attribute-groups',
@@ -385,14 +475,34 @@ export const AttributesDetails: React.FC = () => {
   ];
 
   return (
-    <DetailsLayout
-      title={mockAttribute.name}
-      subtitle={`${mockAttribute.type} ${t('attributes.attribute')} • ${mockAttribute.required ? t('attributes.required') : t('attributes.optional')}`}
-      icon={<FileText className="h-6 w-6 text-white" />}
-      tabs={tabs}
-      defaultTab="details"
-      onSave={handleSave}
-      backUrl="/attributes"
-    />
+    <>
+      <DetailsLayout
+        title={currentAttribute.name}
+        subtitle={`${currentAttribute.type} ${t('attributes.attribute')} • ${currentAttribute.required ? t('attributes.required') : t('attributes.optional')}`}
+        icon={<FileText className="h-6 w-6 text-white" />}
+        tabs={tabs}
+        defaultTab="details"
+        backUrl="/attributes"
+        editMode={editMode}
+        headerActions={
+          editMode && hasChanges ? (
+            <Button onClick={handleSave} size="sm">
+              <Save className="h-4 w-4 mr-2" />
+              {t('common.save')}
+            </Button>
+          ) : null
+        }
+      />
+      
+      {/* Change Confirmation Dialog */}
+      <ChangeConfirmDialog
+        open={changeDialogOpen}
+        onClose={() => setChangeDialogOpen(false)}
+        onConfirm={handleSaveWithComment}
+        title={t('attributes.save_changes')}
+        changes={getChanges()}
+        entityName={t('attributes.attribute')}
+      />
+    </>
   );
 };

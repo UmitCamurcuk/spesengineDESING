@@ -4,6 +4,7 @@ import { cn } from '../../utils/cn';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Badge } from './Badge';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface Column<T> {
   key: keyof T | string;
@@ -59,6 +60,7 @@ const Pagination: React.FC<PaginationProps> = ({
   totalItems,
   onPageSizeChange
 }) => {
+  const { t } = useLanguage();
   const startItem = (currentPage - 1) * pageSize + 1;
   const endItem = Math.min(currentPage * pageSize, totalItems);
 
@@ -66,11 +68,11 @@ const Pagination: React.FC<PaginationProps> = ({
     <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-border">
       <div className="flex items-center gap-4">
         <div className="text-xs text-muted-foreground">
-          Showing {startItem} to {endItem} of {totalItems} results
+          {t('pagination.showing')} {startItem} {t('pagination.to')} {endItem} {t('pagination.of')} {totalItems} {t('pagination.results')}
         </div>
         {onPageSizeChange && (
           <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Show:</span>
+            <span className="text-xs text-muted-foreground">{t('pagination.show')}:</span>
             <select
               value={pageSize}
               onChange={(e) => onPageSizeChange(parseInt(e.target.value))}
@@ -82,7 +84,7 @@ const Pagination: React.FC<PaginationProps> = ({
               <option value={50}>50</option>
               <option value={100}>100</option>
             </select>
-            <span className="text-xs text-muted-foreground">per page</span>
+            <span className="text-xs text-muted-foreground">{t('pagination.per_page')}</span>
           </div>
         )}
       </div>
@@ -95,7 +97,7 @@ const Pagination: React.FC<PaginationProps> = ({
           disabled={currentPage === 1}
         >
           <ChevronLeft className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline ml-1">Previous</span>
+          <span className="hidden sm:inline ml-1">{t('pagination.previous')}</span>
         </Button>
 
         <div className="flex items-center space-x-1">
@@ -134,7 +136,7 @@ const Pagination: React.FC<PaginationProps> = ({
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage === totalPages}
         >
-          <span className="hidden sm:inline mr-1">Next</span>
+          <span className="hidden sm:inline mr-1">{t('pagination.next')}</span>
           <ChevronRight className="h-3.5 w-3.5" />
         </Button>
       </div>
@@ -171,6 +173,7 @@ export function DataTable<T extends Record<string, any>>({
   showPagination = true,
   emptyState
 }: DataTableProps<T>) {
+  const { t } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [sortKey, setSortKey] = useState<string>('');
@@ -270,19 +273,20 @@ export function DataTable<T extends Record<string, any>>({
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   leftIcon={<Search className="h-4 w-4" />}
+                  className="h-10"
                 />
               </div>
             )}
 
             {filters.length > 0 && (
-              <div className="flex flex-wrap gap-2.5">
+              <div className="flex flex-wrap gap-3">
                 {filters.map(filter => (
-                  <div key={filter.key} className="min-w-[140px]">
+                  <div key={filter.key} className="flex-shrink-0">
                     {filter.type === 'select' ? (
                       <select
                         value={filterValues[filter.key] || ''}
                         onChange={(e) => setFilterValues(prev => ({ ...prev, [filter.key]: e.target.value }))}
-                        className="w-full px-3 py-1.5 text-sm bg-background text-foreground border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
+                        className="px-3 py-2 pr-10 text-sm bg-background text-foreground border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring min-w-[120px] h-10"
                       >
                         <option value="">{filter.label}</option>
                         {filter.options?.map(option => (
@@ -296,12 +300,14 @@ export function DataTable<T extends Record<string, any>>({
                         placeholder={filter.placeholder || filter.label}
                         value={filterValues[filter.key] || ''}
                         onChange={(e) => setFilterValues(prev => ({ ...prev, [filter.key]: e.target.value }))}
+                        className="min-w-[120px]"
                       />
                     )}
                   </div>
                 ))}
-                <Button variant="outline" size="sm" className="px-2.5">
-                  <Filter className="h-4 w-4" />
+                <Button variant="outline" size="sm" className="px-3 h-10">
+                  <Filter className="h-4 w-4 mr-2" />
+                  {t('ui.filter')}
                 </Button>
               </div>
             )}

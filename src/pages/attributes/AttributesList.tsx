@@ -495,7 +495,7 @@ export const AttributesList: React.FC = () => {
   const filters = [
     {
       key: 'type',
-      label: t('attributes.type'),
+      label: 'Type',
       type: 'select' as const,
       options: Object.values(AttributeType).map(type => ({
         value: type,
@@ -504,7 +504,7 @@ export const AttributesList: React.FC = () => {
     },
     {
       key: 'required',
-      label: t('attributes.required'),
+      label: 'Required',
       type: 'select' as const,
       options: [
         { value: 'true', label: 'Required Only' },
@@ -518,19 +518,13 @@ export const AttributesList: React.FC = () => {
       <PageHeader
         title={t('attributes.title')}
         subtitle={t('attributes.subtitle')}
-        action={
-          <Button onClick={() => navigate('/attributes/create')}>
-            <Plus className="h-4 w-4 mr-2" />
-            {t('attributes.create_title')}
-          </Button>
-        }
       />
       
       <div className="flex-1 mt-6">
         <DataTable
           data={mockAttributes}
           columns={columns}
-          searchPlaceholder={t('attributes.search_placeholder')}
+          searchPlaceholder="Search attributes..."
           filters={filters}
           onRowClick={(attribute) => navigate(`/attributes/${attribute.id}`)}
           emptyState={{

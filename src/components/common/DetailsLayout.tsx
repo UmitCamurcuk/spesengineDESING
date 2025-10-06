@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Edit2, Save, X, ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
@@ -12,10 +12,9 @@ interface DetailsLayoutProps {
   icon: React.ReactNode;
   tabs: TabConfig[];
   defaultTab?: string;
-  onSave?: () => Promise<void>;
-  canEdit?: boolean;
   backUrl?: string;
   headerActions?: React.ReactNode;
+  editMode?: boolean;
 }
 
 export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
@@ -24,29 +23,12 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
   icon,
   tabs,
   defaultTab,
-  onSave,
-  canEdit = true,
   backUrl,
-  headerActions
+  headerActions,
+  editMode = false
 }) => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(defaultTab || tabs[0]?.id);
-  const [editMode, setEditMode] = useState(false);
-  const [loading, setLoading] = useState(false);
-
-  const handleSave = async () => {
-    if (!onSave) return;
-    
-    setLoading(true);
-    try {
-      await onSave();
-      setEditMode(false);
-    } catch (error) {
-      console.error('Save failed:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const activeTabConfig = tabs.find(tab => tab.id === activeTab);
   const ActiveComponent = activeTabConfig?.component;
@@ -90,41 +72,6 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
 
         <div className="flex items-center space-x-3">
           {headerActions}
-          
-          {canEdit && (
-            <>
-              {editMode ? (
-                <div className="flex items-center space-x-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setEditMode(false)}
-                    disabled={loading}
-                  >
-                    <X className="h-4 w-4 mr-2" />
-                    Cancel
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={handleSave}
-                    loading={loading}
-                  >
-                    <Save className="h-4 w-4 mr-2" />
-                    Save Changes
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setEditMode(true)}
-                >
-                  <Edit2 className="h-4 w-4 mr-2" />
-                  Edit
-                </Button>
-              )}
-            </>
-          )}
         </div>
       </div>
 
