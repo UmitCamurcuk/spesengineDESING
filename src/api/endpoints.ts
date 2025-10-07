@@ -18,6 +18,7 @@ export const API_ENDPOINTS = {
     ROLES: (id: string) => `/users/${id}/roles`,
     PERMISSIONS: (id: string) => `/users/${id}/permissions`,
     PROFILE_PHOTO: '/users/profile-photo',
+    ME: '/users/me',
   },
   
   // Role management

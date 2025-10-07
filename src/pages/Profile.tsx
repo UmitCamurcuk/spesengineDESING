@@ -22,8 +22,11 @@ import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { FileInput } from '../components/ui/FileInput';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
+import { ApiError } from '../api/types/api.types';
 
 interface ProfileFormState {
   firstName: string;
@@ -45,8 +48,10 @@ export const Profile: React.FC = () => {
     updateProfile,
     updateProfilePhoto,
     deleteProfilePhoto,
+    changePassword,
     isLoading,
   } = useAuth();
+  const { success: showSuccessToast, error: showErrorToast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -57,6 +62,9 @@ export const Profile: React.FC = () => {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+  const [isPasswordSubmitting, setIsPasswordSubmitting] = useState(false);
+  const [passwordErrors, setPasswordErrors] = useState<{ currentPassword?: string; newPassword?: string; confirmPassword?: string }>({});
   const [formData, setFormData] = useState<ProfileFormState>({
     firstName: authUser?.firstName || '',
     lastName: authUser?.lastName || '',
@@ -244,13 +252,17 @@ export const Profile: React.FC = () => {
       await updateProfilePhoto(selectedFile);
       setShowAvatarModal(false);
       handleFileRemove();
+      showSuccessToast(t('profile.photo_upload_success'));
     } catch (error: any) {
-      setAvatarError(error?.message || t('profile.avatar_upload_failed'));
+      const message = error?.message || t('profile.avatar_upload_failed');
+      setAvatarError(message);
+      showErrorToast(message);
     }
   };
 
   const handleAvatarCancel = () => {
     setShowAvatarModal(false);
+    setShowRemoveConfirm(false);
     handleFileRemove();
   };
 
@@ -260,8 +272,12 @@ export const Profile: React.FC = () => {
       await deleteProfilePhoto();
       handleFileRemove();
       setShowAvatarModal(false);
+      setShowRemoveConfirm(false);
+      showSuccessToast(t('profile.photo_delete_success'));
     } catch (error: any) {
-      setAvatarError(error?.message || t('profile.avatar_delete_failed'));
+      const message = error?.message || t('profile.avatar_delete_failed');
+      setAvatarError(message);
+      showErrorToast(message);
     }
   };
 
@@ -275,28 +291,59 @@ export const Profile: React.FC = () => {
 
   // Password change handlers
   const handlePasswordChange = () => {
+    setPasswordErrors({});
     setShowPasswordModal(true);
   };
 
-  const handlePasswordSubmit = () => {
+  const handlePasswordSubmit = async () => {
+    setPasswordErrors({});
+
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      alert('Yeni şifreler eşleşmiyor!');
+      showErrorToast(t('profile.password_mismatch'));
+      setPasswordErrors((prev) => ({ ...prev, newPassword: t('profile.password_mismatch'), confirmPassword: t('profile.password_mismatch') }));
       return;
     }
     if (passwordData.newPassword.length < 8) {
-      alert('Yeni şifre en az 8 karakter olmalıdır!');
+      showErrorToast(t('profile.password_min_length'));
+      setPasswordErrors((prev) => ({ ...prev, newPassword: t('profile.password_min_length') }));
       return;
     }
-    
-    // Simulate password change
-    console.log('Password changed successfully');
-    setShowPasswordModal(false);
-    setPasswordData({
-      currentPassword: '',
-      newPassword: '',
-      confirmPassword: '',
-    });
-    alert('Şifreniz başarıyla değiştirildi!');
+
+    try {
+      setIsPasswordSubmitting(true);
+      await changePassword({
+        currentPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword,
+        confirmNewPassword: passwordData.confirmPassword,
+      });
+
+      showSuccessToast(t('profile.password_changed'));
+      setPasswordData({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+    } catch (error: any) {
+      const apiError = error as ApiError;
+      const message = apiError?.message || t('profile.password_change_failed');
+      const fieldErrors: { currentPassword?: string; newPassword?: string; confirmPassword?: string } = {};
+
+      (apiError?.fields || []).forEach((field) => {
+        const key = field.path as keyof typeof fieldErrors;
+        if (key === 'currentPassword' || key === 'newPassword' || key === 'confirmPassword') {
+          fieldErrors[key] = field.message;
+        }
+      });
+
+      if (Object.keys(fieldErrors).length > 0) {
+        setPasswordErrors(fieldErrors);
+      }
+
+      showErrorToast(message);
+      // Modal açık kalmalı; state'i değiştirmiyoruz
+    } finally {
+      setIsPasswordSubmitting(false);
+    }
   };
 
   const handlePasswordCancel = () => {
@@ -306,6 +353,7 @@ export const Profile: React.FC = () => {
       newPassword: '',
       confirmPassword: '',
     });
+    setPasswordErrors({});
   };
 
   // 2FA handlers
@@ -680,7 +728,7 @@ export const Profile: React.FC = () => {
             {profileUser.profilePhotoUrl && (
               <Button
                 variant="outline"
-                onClick={handleAvatarDelete}
+                onClick={() => setShowRemoveConfirm(true)}
                 disabled={isLoading}
               >
                 {t('profile.remove_photo')}
@@ -700,6 +748,18 @@ export const Profile: React.FC = () => {
         </div>
       </Modal>
 
+      <ConfirmDialog
+        open={showRemoveConfirm}
+        onClose={() => setShowRemoveConfirm(false)}
+        onConfirm={handleAvatarDelete}
+        title={t('profile.remove_photo_title')}
+        description={t('profile.remove_photo_description')}
+        confirmText={t('profile.remove_photo_confirm')}
+        cancelText={t('common.cancel')}
+        type="danger"
+        loading={isLoading}
+      />
+
       {/* Password Change Modal */}
       <Modal
         isOpen={showPasswordModal}
@@ -713,37 +773,58 @@ export const Profile: React.FC = () => {
               label={t('profile.current_password')}
               type="password"
               value={passwordData.currentPassword}
-              onChange={(e) => setPasswordData(prev => ({
-                ...prev,
-                currentPassword: e.target.value
-              }))}
+              onChange={(e) => {
+                const value = e.target.value;
+                setPasswordData(prev => ({
+                  ...prev,
+                  currentPassword: value,
+                }));
+                if (passwordErrors.currentPassword) {
+                  setPasswordErrors(prev => ({ ...prev, currentPassword: undefined }));
+                }
+              }}
               leftIcon={<Lock className="h-4 w-4" />}
               placeholder={t('profile.current_password')}
+              error={passwordErrors.currentPassword}
             />
             
             <Input
               label={t('profile.new_password')}
               type="password"
               value={passwordData.newPassword}
-              onChange={(e) => setPasswordData(prev => ({
-                ...prev,
-                newPassword: e.target.value
-              }))}
+              onChange={(e) => {
+                const value = e.target.value;
+                setPasswordData(prev => ({
+                  ...prev,
+                  newPassword: value,
+                }));
+                if (passwordErrors.newPassword) {
+                  setPasswordErrors(prev => ({ ...prev, newPassword: undefined }));
+                }
+              }}
               leftIcon={<Lock className="h-4 w-4" />}
               placeholder={t('profile.new_password')}
               helperText={t('profile.password_help')}
+              error={passwordErrors.newPassword}
             />
             
             <Input
               label={t('profile.confirm_password')}
               type="password"
               value={passwordData.confirmPassword}
-              onChange={(e) => setPasswordData(prev => ({
-                ...prev,
-                confirmPassword: e.target.value
-              }))}
+              onChange={(e) => {
+                const value = e.target.value;
+                setPasswordData(prev => ({
+                  ...prev,
+                  confirmPassword: value,
+                }));
+                if (passwordErrors.confirmPassword) {
+                  setPasswordErrors(prev => ({ ...prev, confirmPassword: undefined }));
+                }
+              }}
               leftIcon={<Lock className="h-4 w-4" />}
               placeholder={t('profile.confirm_password')}
+              error={passwordErrors.confirmPassword}
             />
           </div>
 
@@ -753,7 +834,8 @@ export const Profile: React.FC = () => {
             </Button>
             <Button 
               onClick={handlePasswordSubmit}
-              disabled={!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword}
+              disabled={!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword || isPasswordSubmitting}
+              loading={isPasswordSubmitting}
             >
               {t('profile.change_password')}
             </Button>

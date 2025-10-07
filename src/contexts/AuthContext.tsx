@@ -25,7 +25,7 @@ interface AuthContextType {
   changePassword: (data: {
     currentPassword: string;
     newPassword: string;
-    confirmPassword: string;
+    confirmNewPassword: string;
   }) => Promise<void>;
   
   // Utilities
@@ -253,7 +253,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const changePassword = async (data: {
     currentPassword: string;
     newPassword: string;
-    confirmPassword: string;
+    confirmNewPassword: string;
   }) => {
     try {
       setIsProcessing(true);

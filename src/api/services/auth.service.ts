@@ -50,7 +50,7 @@ export const authService = {
   // Update user profile
   updateProfile: async (data: Partial<AuthUser>): Promise<AuthUser> => {
     const response = await apiClient.put<ApiSuccessResponse<AuthUser>>(
-      API_ENDPOINTS.AUTH.PROFILE,
+      API_ENDPOINTS.USERS.ME,
       data
     );
     return response.data.data;
@@ -101,7 +101,7 @@ export const authService = {
   changePassword: async (data: {
     currentPassword: string;
     newPassword: string;
-    confirmPassword: string;
+    confirmNewPassword: string;
   }): Promise<void> => {
     await apiClient.post(API_ENDPOINTS.AUTH.CHANGE_PASSWORD, data);
   },
