@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { 
   User, 
   Mail, 
@@ -23,51 +23,30 @@ import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { FileInput } from '../components/ui/FileInput';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 
-interface UserProfile {
-  id: string;
+interface ProfileFormState {
   firstName: string;
   lastName: string;
   email: string;
-  phone?: string;
-  role: string;
-  department?: string;
-  location?: string;
-  joinDate: string;
-  lastLogin: string;
-  avatar?: string;
-  bio?: string;
-  preferences: {
-    language: string;
-    theme: string;
-    notifications: boolean;
-    emailNotifications: boolean;
-  };
+  phone: string;
+  department: string;
+  location: string;
+  bio: string;
+  notificationsEnabled: boolean;
+  emailNotificationsEnabled: boolean;
 }
 
-const mockUser: UserProfile = {
-  id: '1',
-  firstName: 'Admin',
-  lastName: 'User',
-  email: 'admin@spesengine.com',
-  phone: '+90 555 123 45 67',
-  role: 'System Administrator',
-  department: 'IT Department',
-  location: 'Istanbul, Turkey',
-  joinDate: '2024-01-15',
-  lastLogin: '2024-12-19 14:30',
-  avatar: '',
-  bio: 'Sistem yöneticisi olarak SpesEngine platformunun tüm modüllerini yönetiyorum.',
-  preferences: {
-    language: 'tr',
-    theme: 'light',
-    notifications: true,
-    emailNotifications: true,
-  }
-};
-
 export const Profile: React.FC = () => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const {
+    user: authUser,
+    session,
+    updateProfile,
+    updateProfilePhoto,
+    deleteProfilePhoto,
+    isLoading,
+  } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -75,15 +54,19 @@ export const Profile: React.FC = () => {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [show2FAModal, setShow2FAModal] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [user, setUser] = useState<UserProfile>(mockUser);
-  const [formData, setFormData] = useState({
-    firstName: user.firstName,
-    lastName: user.lastName,
-    email: user.email,
-    phone: user.phone || '',
-    department: user.department || '',
-    location: user.location || '',
-    bio: user.bio || '',
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [formData, setFormData] = useState<ProfileFormState>({
+    firstName: authUser?.firstName || '',
+    lastName: authUser?.lastName || '',
+    email: authUser?.email || '',
+    phone: authUser?.phone || '',
+    department: authUser?.department || '',
+    location: authUser?.location || '',
+    bio: authUser?.about || '',
+    notificationsEnabled: authUser?.notificationsEnabled ?? true,
+    emailNotificationsEnabled: authUser?.emailNotificationsEnabled ?? true,
   });
 
   // Password change form
@@ -101,56 +84,116 @@ export const Profile: React.FC = () => {
 
 
   // Track changes
-  React.useEffect(() => {
-    if (isEditing) {
-      const hasFormChanges = 
-        formData.firstName !== user.firstName ||
-        formData.lastName !== user.lastName ||
-        formData.email !== user.email ||
-        formData.phone !== (user.phone || '') ||
-        formData.department !== (user.department || '') ||
-        formData.location !== (user.location || '') ||
-        formData.bio !== (user.bio || '');
-
-      setHasChanges(hasFormChanges);
+  useEffect(() => {
+    if (!authUser) {
+      setHasChanges(false);
+      return;
     }
-  }, [isEditing, formData, user]);
+
+    const { firstName, lastName, email, phone, department, location, about, notificationsEnabled, emailNotificationsEnabled } = authUser;
+
+    setHasChanges(
+      formData.firstName !== (firstName || '') ||
+      formData.lastName !== (lastName || '') ||
+      formData.email !== (email || '') ||
+      formData.phone !== (phone || '') ||
+      formData.department !== (department || '') ||
+      formData.location !== (location || '') ||
+      formData.bio !== (about || '') ||
+      formData.notificationsEnabled !== (notificationsEnabled ?? true) ||
+      formData.emailNotificationsEnabled !== (emailNotificationsEnabled ?? true)
+    );
+  }, [authUser, formData]);
+
+  useEffect(() => {
+    if (authUser) {
+      setFormData({
+        firstName: authUser.firstName || '',
+        lastName: authUser.lastName || '',
+        email: authUser.email || '',
+        phone: authUser.phone || '',
+        department: authUser.department || '',
+        location: authUser.location || '',
+        bio: authUser.about || '',
+        notificationsEnabled: authUser.notificationsEnabled ?? true,
+        emailNotificationsEnabled: authUser.emailNotificationsEnabled ?? true,
+      });
+    }
+  }, [authUser]);
 
   const handleEdit = () => {
+    if (!authUser) return;
     setIsEditing(true);
     setFormData({
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-      phone: user.phone || '',
-      department: user.department || '',
-      location: user.location || '',
-      bio: user.bio || '',
+      firstName: authUser.firstName || '',
+      lastName: authUser.lastName || '',
+      email: authUser.email || '',
+      phone: authUser.phone || '',
+      department: authUser.department || '',
+      location: authUser.location || '',
+      bio: authUser.about || '',
+      notificationsEnabled: authUser.notificationsEnabled ?? true,
+      emailNotificationsEnabled: authUser.emailNotificationsEnabled ?? true,
     });
   };
 
-  const handleSave = () => {
-    setUser(prev => ({
-      ...prev,
-      ...formData,
-    }));
-    setIsEditing(false);
+  const handleSave = async () => {
+    if (!authUser || !hasChanges) {
+      setIsEditing(false);
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      await updateProfile({
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim() || undefined,
+        department: formData.department.trim() || undefined,
+        location: formData.location.trim() || undefined,
+        about: formData.bio.trim() || undefined,
+        notificationsEnabled: formData.notificationsEnabled,
+        emailNotificationsEnabled: formData.emailNotificationsEnabled,
+      });
+
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Failed to update profile', error);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleCancel = () => {
     setIsEditing(false);
-    setFormData({
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-      phone: user.phone || '',
-      department: user.department || '',
-      location: user.location || '',
-      bio: user.bio || '',
-    });
+    if (authUser) {
+      setFormData({
+        firstName: authUser.firstName || '',
+        lastName: authUser.lastName || '',
+        email: authUser.email || '',
+        phone: authUser.phone || '',
+        department: authUser.department || '',
+        location: authUser.location || '',
+        bio: authUser.about || '',
+        notificationsEnabled: authUser.notificationsEnabled ?? true,
+        emailNotificationsEnabled: authUser.emailNotificationsEnabled ?? true,
+      });
+    }
   };
 
   const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const handleToggleChange = (
+    field: 'notificationsEnabled' | 'emailNotificationsEnabled',
+    value: boolean
+  ) => {
     setFormData(prev => ({
       ...prev,
       [field]: value,
@@ -163,35 +206,72 @@ export const Profile: React.FC = () => {
 
   const handleAvatarClick = () => {
     if (isEditing) {
+      setAvatarError(null);
       setShowAvatarModal(true);
     }
   };
 
   const handleFileSelect = (file: File | null) => {
-    setSelectedFile(file);
+    if (avatarPreview) {
+      URL.revokeObjectURL(avatarPreview);
+    }
+
+    if (file) {
+      setSelectedFile(file);
+      setAvatarPreview(URL.createObjectURL(file));
+      setAvatarError(null);
+    } else {
+      setSelectedFile(null);
+      setAvatarPreview(null);
+    }
   };
 
   const handleFileRemove = () => {
+    if (avatarPreview) {
+      URL.revokeObjectURL(avatarPreview);
+    }
     setSelectedFile(null);
+    setAvatarPreview(null);
   };
 
-  const handleAvatarUpload = () => {
-    if (selectedFile) {
-      // Create preview URL
-      const previewUrl = URL.createObjectURL(selectedFile);
-      setUser(prev => ({
-        ...prev,
-        avatar: previewUrl
-      }));
+  const handleAvatarUpload = async () => {
+    if (!selectedFile) {
+      return;
+    }
+
+    try {
+      setAvatarError(null);
+      await updateProfilePhoto(selectedFile);
       setShowAvatarModal(false);
-      setSelectedFile(null);
+      handleFileRemove();
+    } catch (error: any) {
+      setAvatarError(error?.message || t('profile.avatar_upload_failed'));
     }
   };
 
   const handleAvatarCancel = () => {
     setShowAvatarModal(false);
-    setSelectedFile(null);
+    handleFileRemove();
   };
+
+  const handleAvatarDelete = async () => {
+    try {
+      setAvatarError(null);
+      await deleteProfilePhoto();
+      handleFileRemove();
+      setShowAvatarModal(false);
+    } catch (error: any) {
+      setAvatarError(error?.message || t('profile.avatar_delete_failed'));
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (avatarPreview) {
+        URL.revokeObjectURL(avatarPreview);
+      }
+    };
+  }, [avatarPreview]);
 
   // Password change handlers
   const handlePasswordChange = () => {
@@ -257,6 +337,39 @@ export const Profile: React.FC = () => {
     });
   };
 
+  const profileUser = authUser;
+
+  const fullName = useMemo(() => {
+    if (!profileUser) return '';
+    const combined = `${profileUser.firstName || ''} ${profileUser.lastName || ''}`.trim();
+    return combined || profileUser.email;
+  }, [profileUser]);
+
+  const joinDate = useMemo(() => {
+    if (!session?.iat) return '-';
+    return new Date(session.iat * 1000).toLocaleDateString();
+  }, [session?.iat]);
+
+  const lastLogin = useMemo(() => {
+    if (!session?.iat) return '-';
+    return new Date(session.iat * 1000).toLocaleString();
+  }, [session?.iat]);
+
+  const twoFactorActive = profileUser?.twoFactorEnabled ?? false;
+  const primaryTenant = profileUser?.tenants?.[0];
+  const tenantId = primaryTenant?.tenantId ?? '-';
+  const tenantRoles = primaryTenant?.roles?.length
+    ? primaryTenant.roles.join(', ')
+    : '-';
+
+  if (!profileUser) {
+    return (
+      <div className="flex items-center justify-center min-h-[240px] text-muted-foreground">
+        {isLoading ? t('common.loading') : t('profile.no_data_available')}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
           {/* Profile Header */}
@@ -266,19 +379,19 @@ export const Profile: React.FC = () => {
           <p className="text-muted-foreground">{t('profile.subtitle')}</p>
         </div>
         {!isEditing ? (
-          <Button onClick={handleEdit} size="sm">
+          <Button onClick={handleEdit} size="sm" disabled={isLoading}>
             <Edit className="h-4 w-4 mr-2" />
             {t('common.edit')}
           </Button>
         ) : (
           <div className="flex items-center space-x-2">
             {hasChanges && (
-              <Button onClick={handleSave} size="sm">
+              <Button onClick={handleSave} size="sm" loading={isSaving}>
                 <Save className="h-4 w-4 mr-2" />
                 {t('common.save')}
               </Button>
             )}
-            <Button variant="outline" onClick={handleCancel} size="sm">
+            <Button variant="outline" onClick={handleCancel} size="sm" disabled={isSaving}>
               <X className="h-4 w-4 mr-2" />
               {t('common.cancel')}
             </Button>
@@ -299,14 +412,14 @@ export const Profile: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input
                   label={t('profile.first_name')}
-                  value={isEditing ? formData.firstName : user.firstName}
+                  value={isEditing ? formData.firstName : (profileUser.firstName || '')}
                   onChange={(e) => handleInputChange('firstName', e.target.value)}
                   disabled={!isEditing}
                   leftIcon={<User className="h-4 w-4" />}
                 />
                 <Input
                   label={t('profile.last_name')}
-                  value={isEditing ? formData.lastName : user.lastName}
+                  value={isEditing ? formData.lastName : (profileUser.lastName || '')}
                   onChange={(e) => handleInputChange('lastName', e.target.value)}
                   disabled={!isEditing}
                   leftIcon={<User className="h-4 w-4" />}
@@ -314,28 +427,28 @@ export const Profile: React.FC = () => {
                 <Input
                   label={t('profile.email')}
                   type="email"
-                  value={isEditing ? formData.email : user.email}
+                  value={isEditing ? formData.email : (profileUser.email || '')}
                   onChange={(e) => handleInputChange('email', e.target.value)}
                   disabled={!isEditing}
                   leftIcon={<Mail className="h-4 w-4" />}
                 />
                 <Input
                   label={t('profile.phone')}
-                  value={isEditing ? formData.phone : user.phone || ''}
+                  value={isEditing ? formData.phone : (profileUser.phone || '')}
                   onChange={(e) => handleInputChange('phone', e.target.value)}
                   disabled={!isEditing}
                   leftIcon={<Phone className="h-4 w-4" />}
                 />
                 <Input
                   label={t('profile.department')}
-                  value={isEditing ? formData.department : user.department || ''}
+                  value={isEditing ? formData.department : (profileUser.department || '')}
                   onChange={(e) => handleInputChange('department', e.target.value)}
                   disabled={!isEditing}
                   leftIcon={<Shield className="h-4 w-4" />}
                 />
                 <Input
                   label={t('profile.location')}
-                  value={isEditing ? formData.location : user.location || ''}
+                  value={isEditing ? formData.location : (profileUser.location || '')}
                   onChange={(e) => handleInputChange('location', e.target.value)}
                   disabled={!isEditing}
                   leftIcon={<MapPin className="h-4 w-4" />}
@@ -346,7 +459,7 @@ export const Profile: React.FC = () => {
                   {t('profile.bio')}
                 </label>
                 <textarea
-                  value={isEditing ? formData.bio : user.bio || ''}
+                  value={isEditing ? formData.bio : (profileUser.about || '')}
                   onChange={(e) => handleInputChange('bio', e.target.value)}
                   disabled={!isEditing}
                   rows={3}
@@ -380,19 +493,21 @@ export const Profile: React.FC = () => {
               </div>
               
               <div className="flex items-center justify-between p-4 border border-border rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-success/10 rounded-lg">
-                    <Shield className="h-4 w-4 text-success" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-medium text-foreground">{t('profile.two_factor_auth')}</h4>
-                    <p className="text-xs text-muted-foreground">{t('profile.active')}</p>
-                  </div>
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-success/10 rounded-lg">
+                  <Shield className="h-4 w-4 text-success" />
                 </div>
-                <Button variant="outline" size="sm" onClick={handle2FAManage}>
-                  {t('profile.manage')}
-                </Button>
+                <div>
+                  <h4 className="text-sm font-medium text-foreground">{t('profile.two_factor_auth')}</h4>
+                  <p className="text-xs text-muted-foreground">
+                    {twoFactorActive ? t('profile.active') : t('profile.inactive')}
+                  </p>
+                </div>
               </div>
+              <Button variant="outline" size="sm" onClick={handle2FAManage}>
+                {twoFactorActive ? t('profile.manage') : t('profile.enable')}
+              </Button>
+            </div>
             </div>
           </Card>
         </div>
@@ -409,11 +524,12 @@ export const Profile: React.FC = () => {
                   }`}
                   onClick={handleAvatarClick}
                 >
-                  {user.avatar ? (
+                  {profileUser.profilePhotoUrl ? (
                     <img 
-                      src={user.avatar} 
-                      alt={user.name}
+                      src={profileUser.profilePhotoUrl}
+                      alt={fullName}
                       className="w-20 h-20 rounded-full object-cover"
+                      referrerPolicy="no-referrer"
                     />
                   ) : (
                     <User className="h-8 w-8 text-white" />
@@ -428,8 +544,8 @@ export const Profile: React.FC = () => {
                   </button>
                 )}
               </div>
-              <h3 className="text-lg font-semibold text-foreground">{user.firstName} {user.lastName}</h3>
-              <p className="text-sm text-muted-foreground">{user.role}</p>
+              <h3 className="text-lg font-semibold text-foreground">{fullName}</h3>
+              <p className="text-sm text-muted-foreground">{profileUser.role || t('profile.role_unknown')}</p>
               <Badge variant="success" size="sm" className="mt-2">
                 {t('profile.active')}
               </Badge>
@@ -442,15 +558,25 @@ export const Profile: React.FC = () => {
             <div className="space-y-3">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">{t('profile.membership_date')}</span>
-                <span className="text-foreground">{user.joinDate}</span>
+                <span className="text-foreground">{joinDate}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">{t('profile.last_login')}</span>
-                <span className="text-foreground">{user.lastLogin}</span>
+                <span className="text-foreground">{lastLogin}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">{t('profile.role')}</span>
-                <Badge variant="default" size="sm">{user.role}</Badge>
+                <Badge variant="default" size="sm">{profileUser.role || '-'}</Badge>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">{t('profile.tenant')}</span>
+                <span className="text-foreground uppercase">{tenantId}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">{t('profile.tenant_roles')}</span>
+                <span className="text-foreground text-right max-w-[160px] truncate" title={tenantRoles}>
+                  {tenantRoles}
+                </span>
               </div>
             </div>
           </Card>
@@ -461,6 +587,14 @@ export const Profile: React.FC = () => {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
+                  <Globe className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm text-foreground">{t('profile.language')}</span>
+                </div>
+                <span className="text-sm text-foreground uppercase">{language}</span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
                   <Bell className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm text-foreground">{t('profile.notifications')}</span>
                 </div>
@@ -468,14 +602,9 @@ export const Profile: React.FC = () => {
                   <input
                     type="checkbox"
                     className="sr-only peer"
-                    checked={user.preferences.notifications}
-                    onChange={(e) => setUser(prev => ({
-                      ...prev,
-                      preferences: {
-                        ...prev.preferences,
-                        notifications: e.target.checked
-                      }
-                    }))}
+                    checked={formData.notificationsEnabled}
+                    disabled={!isEditing}
+                    onChange={(e) => handleToggleChange('notificationsEnabled', e.target.checked)}
                   />
                   <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-ring/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                 </label>
@@ -490,14 +619,9 @@ export const Profile: React.FC = () => {
                   <input
                     type="checkbox"
                     className="sr-only peer"
-                    checked={user.preferences.emailNotifications}
-                    onChange={(e) => setUser(prev => ({
-                      ...prev,
-                      preferences: {
-                        ...prev.preferences,
-                        emailNotifications: e.target.checked
-                      }
-                    }))}
+                    checked={formData.emailNotificationsEnabled}
+                    disabled={!isEditing}
+                    onChange={(e) => handleToggleChange('emailNotificationsEnabled', e.target.checked)}
                   />
                   <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-ring/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                 </label>
@@ -517,25 +641,30 @@ export const Profile: React.FC = () => {
         <div className="space-y-4">
           <div className="text-center">
             <div className="w-24 h-24 bg-gradient-to-br from-primary to-primary-hover rounded-full flex items-center justify-center mx-auto mb-4">
-              {selectedFile ? (
+              {avatarPreview || profileUser.profilePhotoUrl ? (
                 <img 
-                  src={URL.createObjectURL(selectedFile)} 
-                  alt="Preview"
+                  src={avatarPreview || profileUser.profilePhotoUrl || ''}
+                  alt={fullName}
                   className="w-24 h-24 rounded-full object-cover"
+                  referrerPolicy="no-referrer"
                 />
               ) : (
                 <User className="h-10 w-10 text-white" />
               )}
             </div>
             <p className="text-sm text-muted-foreground">
-              {selectedFile ? t('profile.photo_preview') : t('profile.photo_placeholder')}
+              {selectedFile
+                ? t('profile.photo_preview')
+                : profileUser.profilePhotoUrl
+                  ? t('profile.photo_current')
+                  : t('profile.photo_placeholder')}
             </p>
           </div>
 
           <FileInput
             key={selectedFile ? 'has-file' : 'no-file'}
             label={t('profile.select_photo')}
-            accept="image/jpeg,image/jpg,image/png,image/webp"
+            accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
             maxSize={5 * 1024 * 1024} // 5MB
             value={selectedFile}
             onChange={handleFileSelect}
@@ -543,13 +672,27 @@ export const Profile: React.FC = () => {
             helperText={t('profile.photo_formats')}
           />
 
+          {avatarError && (
+            <p className="text-sm text-error">{avatarError}</p>
+          )}
+
           <div className="flex justify-end space-x-2 pt-4 border-t border-border">
-            <Button variant="outline" onClick={handleAvatarCancel}>
+            {profileUser.profilePhotoUrl && (
+              <Button
+                variant="outline"
+                onClick={handleAvatarDelete}
+                disabled={isLoading}
+              >
+                {t('profile.remove_photo')}
+              </Button>
+            )}
+            <Button variant="outline" onClick={handleAvatarCancel} disabled={isLoading}>
               {t('profile.cancel')}
             </Button>
             <Button 
               onClick={handleAvatarUpload}
               disabled={!selectedFile}
+              loading={isLoading}
             >
               {t('profile.upload')}
             </Button>

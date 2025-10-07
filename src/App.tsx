@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Layout } from './components/layout/Layout';
 import { Login } from './pages/auth/Login';
@@ -8,7 +8,7 @@ import { Plus, Edit, Save, X } from 'lucide-react';
 import { ToastProvider } from './contexts/ToastContext';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { ThemeProvider } from './contexts/ThemeContext';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Items
@@ -77,20 +77,11 @@ import { Settings } from './pages/settings/Settings';
 // Profile
 import { Profile } from './pages/Profile';
 
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-}
-
-const AppContent: React.FC<{
-  user: User | null;
-  onLogout: () => void;
-}> = ({ user, onLogout }) => {
+const AppContent: React.FC = () => {
+  const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  
+
 const getHeaderActions = () => {
   const { t } = useLanguage();
   const pathname = location.pathname;
@@ -292,9 +283,23 @@ const getHeaderActions = () => {
     
     return null;
   };
-  
+
+  const headerUser = useMemo(() => {
+    if (!user) {
+      return undefined;
+    }
+
+    const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
+
+    return {
+      name: fullName || user.email,
+      email: user.email,
+      avatar: user.profilePhotoUrl,
+    };
+  }, [user]);
+
   return (
-    <Layout user={user || undefined} onLogout={onLogout} headerActions={getHeaderActions()}>
+    <Layout user={headerUser} onLogout={logout} headerActions={getHeaderActions()}>
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<Dashboard />} />
@@ -372,26 +377,28 @@ const getHeaderActions = () => {
   );
 };
 
+const AppRouter: React.FC = () => {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Yükleniyor...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Login />;
+  }
+
+  return <AppContent />;
+};
+
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
-
-  const handleLogin = (credentials: { email: string; password: string }) => {
-    // Mock authentication - accept any credentials for demo
-    setUser({
-      id: '1',
-      name: 'Admin User',
-      email: credentials.email,
-      role: 'admin'
-    });
-    setIsAuthenticated(true);
-  };
-
-  const handleLogout = () => {
-    setUser(null);
-    setIsAuthenticated(false);
-  };
-
   return (
     <ErrorBoundary>
       <Router>
@@ -399,11 +406,7 @@ function App() {
           <LanguageProvider>
             <AuthProvider>
               <ToastProvider>
-                {!isAuthenticated ? (
-                  <Login onLogin={handleLogin} />
-                ) : (
-                  <AppContent user={user} onLogout={handleLogout} />
-                )}
+                <AppRouter />
               </ToastProvider>
             </AuthProvider>
           </LanguageProvider>

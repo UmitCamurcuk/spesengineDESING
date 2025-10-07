@@ -6,6 +6,7 @@ export const API_ENDPOINTS = {
     LOGOUT: '/auth/logout',
     REFRESH: '/auth/refresh',
     PROFILE: '/auth/profile',
+    ME: '/auth/me',
     CHANGE_PASSWORD: '/auth/change-password',
   },
   
@@ -16,6 +17,7 @@ export const API_ENDPOINTS = {
     PROFILE: (id: string) => `/users/${id}/profile`,
     ROLES: (id: string) => `/users/${id}/roles`,
     PERMISSIONS: (id: string) => `/users/${id}/permissions`,
+    PROFILE_PHOTO: '/users/profile-photo',
   },
   
   // Role management
@@ -170,4 +172,3 @@ export const buildUrl = (endpoint: string, params?: Record<string, any>): string
   const queryString = params ? buildQueryParams(params) : '';
   return queryString ? `${baseUrl}?${queryString}` : baseUrl;
 };
-

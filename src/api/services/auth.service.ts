@@ -1,12 +1,15 @@
 import apiClient from '../client/axios';
 import { API_ENDPOINTS } from '../endpoints';
 import {
+  AuthUser,
   LoginRequest,
   LoginResponse,
-  RefreshTokenRequest,
+  MeResponse,
+  MeResponseData,
   RefreshTokenResponse,
-  User,
-  ServiceResponse,
+  ProfilePhotoResponse,
+  ProfilePhotoResponseData,
+  ApiSuccessResponse,
 } from '../types/api.types';
 
 export const authService = {
@@ -26,6 +29,7 @@ export const authService = {
     // Clear tokens from localStorage
     localStorage.removeItem(import.meta.env.VITE_AUTH_TOKEN_KEY || 'spes_auth_token');
     localStorage.removeItem(import.meta.env.VITE_AUTH_REFRESH_TOKEN_KEY || 'spes_refresh_token');
+    localStorage.removeItem(import.meta.env.VITE_AUTH_PROFILE_KEY || 'spes_auth_profile');
   },
 
   // Refresh access token
@@ -38,18 +42,59 @@ export const authService = {
   },
 
   // Get current user profile
-  getProfile: async (): Promise<User> => {
-    const response = await apiClient.get<User>(API_ENDPOINTS.AUTH.PROFILE);
-    return response.data;
+  getProfile: async (): Promise<MeResponseData> => {
+    const response = await apiClient.get<MeResponse>(API_ENDPOINTS.AUTH.ME);
+    return response.data.data;
   },
 
   // Update user profile
-  updateProfile: async (data: Partial<User>): Promise<User> => {
-    const response = await apiClient.put<User>(
+  updateProfile: async (data: Partial<AuthUser>): Promise<AuthUser> => {
+    const response = await apiClient.put<ApiSuccessResponse<AuthUser>>(
       API_ENDPOINTS.AUTH.PROFILE,
       data
     );
-    return response.data;
+    return response.data.data;
+  },
+
+  // Upload profile photo
+  uploadProfilePhoto: async (file: File): Promise<ProfilePhotoResponseData> => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await apiClient.post<ProfilePhotoResponse>(
+      API_ENDPOINTS.USERS.PROFILE_PHOTO,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+
+    return response.data.data;
+  },
+
+  // Update existing profile photo
+  updateProfilePhoto: async (file: File): Promise<ProfilePhotoResponseData> => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await apiClient.put<ProfilePhotoResponse>(
+      API_ENDPOINTS.USERS.PROFILE_PHOTO,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+
+    return response.data.data;
+  },
+
+  // Delete profile photo
+  deleteProfilePhoto: async (): Promise<void> => {
+    await apiClient.delete(API_ENDPOINTS.USERS.PROFILE_PHOTO);
   },
 
   // Change password
@@ -87,6 +132,6 @@ export const authService = {
   clearAuth: (): void => {
     localStorage.removeItem(import.meta.env.VITE_AUTH_TOKEN_KEY || 'spes_auth_token');
     localStorage.removeItem(import.meta.env.VITE_AUTH_REFRESH_TOKEN_KEY || 'spes_refresh_token');
+    localStorage.removeItem(import.meta.env.VITE_AUTH_PROFILE_KEY || 'spes_auth_profile');
   },
 };
-

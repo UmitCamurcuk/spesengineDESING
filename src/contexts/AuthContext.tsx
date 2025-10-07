@@ -1,13 +1,16 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
 import { authService } from '../api/services/auth.service';
-import { User, LoginRequest, LoginResponse } from '../api/types/api.types';
+import { ApiError, AuthUser, LoginRequest, TokenInfo } from '../api/types/api.types';
 import { env } from '../config/env';
 import { logger } from '../utils/logger';
+import { useAppDispatch, useReduxSelector } from '../redux/hooks';
+import { loginThunk, logoutThunk, resetAuthState, setUser } from '../redux/slices/authSlice';
 
 // Auth context types
 interface AuthContextType {
   // State
-  user: User | null;
+  user: AuthUser | null;
+  session: TokenInfo | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
@@ -16,7 +19,9 @@ interface AuthContextType {
   login: (credentials: LoginRequest) => Promise<void>;
   logout: () => Promise<void>;
   refreshToken: () => Promise<void>;
-  updateProfile: (data: Partial<User>) => Promise<void>;
+  updateProfile: (data: Partial<AuthUser>) => Promise<void>;
+  updateProfilePhoto: (file: File) => Promise<void>;
+  deleteProfilePhoto: () => Promise<void>;
   changePassword: (data: {
     currentPassword: string;
     newPassword: string;
@@ -39,14 +44,25 @@ interface AuthProviderProps {
 
 // Auth provider component
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const dispatch = useAppDispatch();
+  const { user, session, accessToken, status, error: authError } = useReduxSelector((state) => state.auth);
   const [error, setError] = useState<string | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const isAuthenticated = useMemo(() => Boolean(accessToken), [accessToken]);
+  const isLoading = isInitializing || status === 'loading' || isProcessing;
+
+  const fetchAndSetProfile = async () => {
+    const profile = await authService.getProfile();
+    dispatch(setUser({ user: profile.user, session: profile.token }));
+    return profile;
+  };
 
   // Initialize auth state on mount
   useEffect(() => {
     initializeAuth();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Auto-refresh token before expiry
@@ -63,76 +79,89 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Initialize authentication
   const initializeAuth = async () => {
     try {
-      setIsLoading(true);
-      
-      // Check if user has valid token
-      if (authService.isAuthenticated()) {
-        // Try to get user profile
-        const userProfile = await authService.getProfile();
-        setUser(userProfile);
-        setIsAuthenticated(true);
-        logger.info('User authenticated successfully', { userId: userProfile.id });
+      setIsInitializing(true);
+
+      if (!authService.isAuthenticated()) {
+        setError(null);
+        return;
       }
+
+      const profile = await fetchAndSetProfile();
+      logger.info('User authenticated successfully', { email: profile.user.email });
     } catch (error) {
       logger.error('Failed to initialize auth', error);
-      // Clear invalid tokens
-      authService.clearAuth();
+      dispatch(resetAuthState());
+      setError('Oturum başlatılamadı');
     } finally {
-      setIsLoading(false);
+      setIsInitializing(false);
     }
   };
+
+  // Keep local error in sync with auth slice error
+  useEffect(() => {
+    if (authError) {
+      setError(authError);
+    }
+  }, [authError]);
+
+  // Load user profile whenever we have a token but no profile yet
+  useEffect(() => {
+    const loadUserProfile = async () => {
+      if (!accessToken || user) {
+        setIsInitializing(false);
+        return;
+      }
+
+      try {
+        setIsInitializing(true);
+        const profile = await fetchAndSetProfile();
+        logger.info('User profile loaded', { email: profile.user.email });
+      } catch (profileError) {
+        logger.error('Failed to load user profile', profileError);
+        dispatch(resetAuthState());
+        setError('Profil bilgileri alınamadı');
+      } finally {
+        setIsInitializing(false);
+      }
+    }
+    loadUserProfile();
+  }, [accessToken, user, dispatch]);
 
   // Login function
   const login = async (credentials: LoginRequest) => {
     try {
-      setIsLoading(true);
       setError(null);
+      await dispatch(loginThunk(credentials)).unwrap();
 
-      const response: LoginResponse = await authService.login(credentials);
+      const profile = await fetchAndSetProfile();
       
-      // Store tokens
-      authService.setTokens(response.token, response.refreshToken);
-      
-      // Set user state
-      setUser(response.user);
-      setIsAuthenticated(true);
-      
-      logger.info('User logged in successfully', { 
-        userId: response.user.id,
-        email: response.user.email 
+      logger.info('User logged in successfully', {
+        email: profile.user.email,
       });
-    } catch (error: any) {
-      const errorMessage = error?.message || 'Login failed. Please try again.';
+    } catch (error) {
+      const apiError = error as ApiError;
+      const errorMessage = apiError?.message || 'Login failed. Please try again.';
       setError(errorMessage);
       logger.error('Login failed', { error: errorMessage, email: credentials.email });
       throw error;
-    } finally {
-      setIsLoading(false);
     }
   };
 
   // Logout function
   const logout = async () => {
     try {
-      setIsLoading(true);
-      
-      // Call logout API
-      await authService.logout();
-      
-      // Clear local state
-      setUser(null);
-      setIsAuthenticated(false);
+      await dispatch(logoutThunk()).unwrap();
+      dispatch(setUser({ user: null, session: null }));
       setError(null);
-      
+
       logger.info('User logged out successfully');
     } catch (error) {
       logger.error('Logout failed', error);
-      // Clear local state even if API call fails
-      setUser(null);
-      setIsAuthenticated(false);
+      dispatch(resetAuthState());
+      dispatch(setUser({ user: null, session: null }));
       setError(null);
     } finally {
-      setIsLoading(false);
+      setIsInitializing(false);
     }
   };
 
@@ -145,10 +174,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       const response = await authService.refreshToken(refreshTokenValue);
-      
-      // Update tokens
-      authService.setTokens(response.token, response.refreshToken);
-      
+
+      authService.setTokens(
+        response.data.accessToken,
+        response.data.refreshToken
+      );
+
       logger.debug('Token refreshed successfully');
     } catch (error) {
       logger.error('Token refresh failed', error);
@@ -158,22 +189,63 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   // Update user profile
-  const updateProfile = async (data: Partial<User>) => {
+  const updateProfile = async (data: Partial<AuthUser>) => {
     try {
-      setIsLoading(true);
+      setIsProcessing(true);
       setError(null);
 
       const updatedUser = await authService.updateProfile(data);
-      setUser(updatedUser);
-      
-      logger.info('Profile updated successfully', { userId: updatedUser.id });
+      dispatch(setUser({ user: updatedUser }));
+
+      logger.info('Profile updated successfully', { email: updatedUser.email });
     } catch (error: any) {
       const errorMessage = error?.message || 'Failed to update profile';
       setError(errorMessage);
       logger.error('Profile update failed', { error: errorMessage });
       throw error;
     } finally {
-      setIsLoading(false);
+      setIsProcessing(false);
+    }
+  };
+
+  const updateProfilePhoto = async (file: File) => {
+    try {
+      setIsProcessing(true);
+      setError(null);
+
+      if (user?.profilePhotoUrl) {
+        await authService.updateProfilePhoto(file);
+      } else {
+        await authService.uploadProfilePhoto(file);
+      }
+
+      const profile = await fetchAndSetProfile();
+      logger.info('Profile photo updated successfully', { email: profile.user.email });
+    } catch (error: any) {
+      const errorMessage = error?.message || 'Failed to update profile photo';
+      setError(errorMessage);
+      logger.error('Profile photo update failed', { error: errorMessage });
+      throw error;
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const deleteProfilePhoto = async () => {
+    try {
+      setIsProcessing(true);
+      setError(null);
+
+      await authService.deleteProfilePhoto();
+      const profile = await fetchAndSetProfile();
+      logger.info('Profile photo deleted successfully', { email: profile.user.email });
+    } catch (error: any) {
+      const errorMessage = error?.message || 'Failed to delete profile photo';
+      setError(errorMessage);
+      logger.error('Profile photo delete failed', { error: errorMessage });
+      throw error;
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -184,19 +256,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     confirmPassword: string;
   }) => {
     try {
-      setIsLoading(true);
+      setIsProcessing(true);
       setError(null);
 
       await authService.changePassword(data);
       
-      logger.info('Password changed successfully', { userId: user?.id });
+      logger.info('Password changed successfully', { email: user?.email });
     } catch (error: any) {
       const errorMessage = error?.message || 'Failed to change password';
       setError(errorMessage);
       logger.error('Password change failed', { error: errorMessage });
       throw error;
     } finally {
-      setIsLoading(false);
+      setIsProcessing(false);
     }
   };
 
@@ -209,15 +281,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const hasPermission = (permission: string): boolean => {
     if (!user) return false;
     
-    // This would typically check against user roles and permissions
-    // For now, we'll implement a simple check
-    return user.role === 'admin' || user.role === 'super-admin';
+    // This would typically check against user roles and permissions.
+    // For now, treat any role containing "admin" as elevated access.
+    const normalizedRole = (user.role || '').toLowerCase();
+    return normalizedRole.includes('admin');
   };
 
   // Check if user has specific role
   const hasRole = (role: string): boolean => {
     if (!user) return false;
-    return user.role === role;
+    return (user.role || '').toLowerCase() === role.toLowerCase();
   };
 
   // Context value
@@ -231,9 +304,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     refreshToken,
     updateProfile,
     changePassword,
+    updateProfilePhoto,
+    deleteProfilePhoto,
     clearError,
     hasPermission,
     hasRole,
+    session,
   };
 
   return (
@@ -329,4 +405,3 @@ export const withPermission = (permission: string) => <P extends object>(
 };
 
 export default AuthContext;
-

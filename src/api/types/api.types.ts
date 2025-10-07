@@ -1,13 +1,38 @@
 // API Response Types
-export interface ApiResponse<T = any> {
-  data: T;
-  message?: string;
-  success: boolean;
-  timestamp: string;
+export interface ApiMeta {
+  requestId: string;
+  [key: string]: unknown;
 }
 
-export interface PaginatedResponse<T = any> {
-  data: T[];
+export interface ValidationFieldError {
+  path: string;
+  rule?: string;
+  message: string;
+}
+
+export interface ApiErrorDetail {
+  code: string;
+  message: string;
+  details?: unknown;
+  fields?: ValidationFieldError[];
+}
+
+export interface ApiSuccessResponse<T = any> {
+  ok: true;
+  data: T;
+  meta: ApiMeta;
+}
+
+export interface ApiErrorResponse {
+  ok: false;
+  error: ApiErrorDetail;
+  meta: ApiMeta;
+}
+
+export type ApiResponse<T = any> = ApiSuccessResponse<T> | ApiErrorResponse;
+
+export interface PaginatedResponse<T = any> extends ApiSuccessResponse<{
+  items: T[];
   pagination: {
     page: number;
     limit: number;
@@ -16,17 +41,16 @@ export interface PaginatedResponse<T = any> {
     hasNext: boolean;
     hasPrev: boolean;
   };
-  message?: string;
-  success: boolean;
-  timestamp: string;
-}
+}> {}
 
-// API Error Types
+// Normalized API error used in the app after interceptor processing
 export interface ApiError {
   message: string;
   code: string;
   status: number;
-  details?: any;
+  details?: unknown;
+  fields?: ValidationFieldError[];
+  meta?: ApiMeta;
   timestamp: string;
 }
 
@@ -64,6 +88,28 @@ export interface User extends BaseEntity {
   role: string;
   isActive: boolean;
   lastLoginAt?: string;
+}
+
+export interface TenantMembership {
+  tenantId: string;
+  roles: string[];
+}
+
+export interface AuthUser {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  location?: string;
+  department?: string;
+  about?: string;
+  role?: string;
+  notificationsEnabled?: boolean;
+  emailNotificationsEnabled?: boolean;
+  profilePhotoUrl?: string;
+  twoFactorEnabled?: boolean;
+  tenants: TenantMembership[];
+  authzVersion: number;
 }
 
 export interface Item extends BaseEntity {
@@ -164,22 +210,42 @@ export interface LoginRequest {
   rememberMe?: boolean;
 }
 
-export interface LoginResponse {
-  user: User;
-  token: string;
+export interface LoginResponseData {
+  accessToken: string;
   refreshToken: string;
-  expiresIn: number;
 }
+
+export type LoginResponse = ApiSuccessResponse<LoginResponseData>;
 
 export interface RefreshTokenRequest {
   refreshToken: string;
 }
 
-export interface RefreshTokenResponse {
-  token: string;
+export interface RefreshTokenResponseData {
+  accessToken: string;
   refreshToken: string;
-  expiresIn: number;
 }
+
+export type RefreshTokenResponse = ApiSuccessResponse<RefreshTokenResponseData>;
+
+export interface TokenInfo {
+  iat: number;
+  exp: number;
+  tenantId: string;
+}
+
+export interface MeResponseData {
+  user: AuthUser;
+  token: TokenInfo;
+}
+
+export type MeResponse = ApiSuccessResponse<MeResponseData>;
+
+export interface ProfilePhotoResponseData {
+  profilePhotoUrl: string;
+}
+
+export type ProfilePhotoResponse = ApiSuccessResponse<ProfilePhotoResponseData>;
 
 // API Client Configuration
 export interface ApiClientConfig {
@@ -192,4 +258,3 @@ export interface ApiClientConfig {
 export type ServiceResponse<T> = Promise<ApiResponse<T>>;
 export type ServicePaginatedResponse<T> = Promise<PaginatedResponse<T>>;
 export type ServiceError = ApiError;
-

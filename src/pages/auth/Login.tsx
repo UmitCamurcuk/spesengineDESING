@@ -4,17 +4,17 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Card } from '../../components/ui/Card';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { useReduxSelector } from '../../redux/hooks';
 
-interface LoginProps {
-  onLogin: (credentials: { email: string; password: string }) => void;
-}
-
-export const Login: React.FC<LoginProps> = ({ onLogin }) => {
+export const Login: React.FC = () => {
   const { t } = useLanguage();
+  const { login } = useAuth();
+  const { status, error, fieldErrors } = useReduxSelector((state) => state.auth);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -31,14 +31,14 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
       return;
     }
 
-    setLoading(true);
-    
-    // Simulate API call - accept any credentials for demo
-    setTimeout(() => {
-      onLogin({ email, password });
-      setLoading(false);
-    }, 1000);
+    await login({ email, password, rememberMe }).catch(() => {
+      // Error state handled centrally; no-op here.
+    });
   };
+
+  const emailError = errors.email || fieldErrors.email;
+  const passwordError = errors.password || fieldErrors.password;
+  const isLoading = status === 'loading';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/10 via-background to-accent/10 flex items-center justify-center p-4">
@@ -57,7 +57,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
             label={t('common.email')}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            error={errors.email}
+            error={emailError}
             required
             placeholder={t('common.email')}
           />
@@ -67,7 +67,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
             label={t('common.password')}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            error={errors.password}
+            error={passwordError}
             required
             placeholder={t('common.password')}
             rightIcon={
@@ -86,6 +86,8 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
               <input
                 type="checkbox"
                 className="rounded border-input text-primary focus:ring-ring"
+                checked={rememberMe}
+                onChange={(event) => setRememberMe(event.target.checked)}
               />
               <span className="ml-2 text-sm text-muted-foreground">{t('common.remember_me')}</span>
             </label>
@@ -94,9 +96,15 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
             </a>
           </div>
 
+          {error && (
+            <div className="rounded-md bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
+              {error}
+            </div>
+          )}
+
           <Button
             type="submit"
-            loading={loading}
+            loading={isLoading}
             className="w-full"
             size="lg"
           >

@@ -14,6 +14,8 @@ interface EnvConfig {
   // Authentication
   AUTH_TOKEN_KEY: string;
   AUTH_REFRESH_TOKEN_KEY: string;
+  AUTH_PROFILE_KEY: string;
+  ASSET_BASE_URL: string;
   AUTH_TOKEN_EXPIRY: number;
   
   // Features
@@ -88,7 +90,7 @@ const parseArray = (value: string): string[] => {
 // Environment configuration
 export const env: EnvConfig = {
   // API Configuration
-  API_BASE_URL: getEnvVar('VITE_API_BASE_URL', 'http://localhost:3000/api'),
+  API_BASE_URL: getEnvVar('VITE_API_BASE_URL', 'http://localhost:8080/api'),
   API_TIMEOUT: getEnvVar('VITE_API_TIMEOUT', 30000, parseNumber),
   
   // App Configuration
@@ -99,6 +101,11 @@ export const env: EnvConfig = {
   // Authentication
   AUTH_TOKEN_KEY: getEnvVar('VITE_AUTH_TOKEN_KEY', 'spes_auth_token'),
   AUTH_REFRESH_TOKEN_KEY: getEnvVar('VITE_AUTH_REFRESH_TOKEN_KEY', 'spes_refresh_token'),
+  AUTH_PROFILE_KEY: getEnvVar('VITE_AUTH_PROFILE_KEY', 'spes_auth_profile'),
+  ASSET_BASE_URL: getEnvVar(
+    'VITE_ASSET_BASE_URL',
+    (getEnvVar('VITE_API_BASE_URL', 'http://localhost:8080/api') as string).replace(/\/api\/?$/, '')
+  ),
   AUTH_TOKEN_EXPIRY: getEnvVar('VITE_AUTH_TOKEN_EXPIRY', 3600, parseNumber),
   
   // Features
@@ -157,4 +164,3 @@ export const features = {
 
 // Export default
 export default env;
-

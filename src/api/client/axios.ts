@@ -1,9 +1,24 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
-import { ApiResponse, ApiError } from '../types/api.types';
+import { API_ENDPOINTS } from '../endpoints';
+import {
+  ApiError,
+  ApiResponse,
+  LoginResponseData,
+} from '../types/api.types';
+
+interface ExtendedAxiosRequestConfig extends AxiosRequestConfig {
+  metadata?: {
+    startTime: number;
+  };
+  _retry?: boolean;
+}
+
+const AUTH_TOKEN_KEY = import.meta.env.VITE_AUTH_TOKEN_KEY || 'spes_auth_token';
+const AUTH_REFRESH_TOKEN_KEY = import.meta.env.VITE_AUTH_REFRESH_TOKEN_KEY || 'spes_refresh_token';
 
 // Create axios instance with default configuration
 export const apiClient: AxiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api',
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api',
   timeout: parseInt(import.meta.env.VITE_API_TIMEOUT || '30000'),
   headers: {
     'Content-Type': 'application/json',
@@ -13,17 +28,18 @@ export const apiClient: AxiosInstance = axios.create({
 // Request interceptor - Add auth token to requests
 apiClient.interceptors.request.use(
   (config: AxiosRequestConfig) => {
+    const extendedConfig = config as ExtendedAxiosRequestConfig;
     // Get token from localStorage
-    const token = localStorage.getItem(import.meta.env.VITE_AUTH_TOKEN_KEY || 'spes_auth_token');
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
     
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
+    if (token && extendedConfig.headers) {
+      extendedConfig.headers.Authorization = `Bearer ${token}`;
     }
     
     // Add request timestamp for debugging
-    config.metadata = { startTime: new Date().getTime() };
+    extendedConfig.metadata = { startTime: new Date().getTime() };
     
-    return config;
+    return extendedConfig;
   },
   (error) => {
     console.error('Request interceptor error:', error);
@@ -35,61 +51,90 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response: AxiosResponse<ApiResponse>) => {
     // Log request duration
-    const duration = new Date().getTime() - (response.config.metadata?.startTime || 0);
-    console.log(`API Request completed in ${duration}ms:`, response.config.url);
+    const config = response.config as ExtendedAxiosRequestConfig;
+    const start = config.metadata?.startTime || 0;
+    const duration = start ? new Date().getTime() - start : 0;
+    const method = response.config.method?.toUpperCase() ?? 'GET';
+
+    if (import.meta.env.DEV) {
+      console.debug(`API ${method} ${response.config.url} completed in ${duration}ms`);
+    }
     
     return response;
   },
   async (error) => {
-    const originalRequest = error.config;
-    
-    // Handle 401 Unauthorized - Try to refresh token
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      
-      try {
-        const refreshToken = localStorage.getItem(
-          import.meta.env.VITE_AUTH_REFRESH_TOKEN_KEY || 'spes_refresh_token'
-        );
-        
-        if (refreshToken) {
-          const response = await axios.post('/auth/refresh', {
-            refreshToken
-          });
-          
-          const { token, refreshToken: newRefreshToken } = response.data;
-          
-          // Update tokens in localStorage
-          localStorage.setItem(
-            import.meta.env.VITE_AUTH_TOKEN_KEY || 'spes_auth_token',
-            token
-          );
-          localStorage.setItem(
-            import.meta.env.VITE_AUTH_REFRESH_TOKEN_KEY || 'spes_refresh_token',
-            newRefreshToken
-          );
-          
-          // Retry original request with new token
-          originalRequest.headers.Authorization = `Bearer ${token}`;
-          return apiClient(originalRequest);
-        }
-      } catch (refreshError) {
-        // Refresh failed, redirect to login
-        localStorage.removeItem(import.meta.env.VITE_AUTH_TOKEN_KEY || 'spes_auth_token');
-        localStorage.removeItem(import.meta.env.VITE_AUTH_REFRESH_TOKEN_KEY || 'spes_refresh_token');
-        window.location.href = '/login';
-        return Promise.reject(refreshError);
-      }
-    }
-    
-    // Normalize error response
+    const originalRequest = error.config as ExtendedAxiosRequestConfig | undefined;
+    const status = error.response?.status;
+
+    const responseData = error.response?.data as ApiResponse | undefined;
+
     const apiError: ApiError = {
-      message: error.response?.data?.message || error.message || 'An error occurred',
-      code: error.response?.data?.code || error.code || 'UNKNOWN_ERROR',
-      status: error.response?.status || 0,
-      details: error.response?.data?.details || error.response?.data,
+      message: responseData && 'error' in responseData
+        ? responseData.error.message
+        : error.message || 'Beklenmeyen bir hata oluştu',
+      code: responseData && 'error' in responseData
+        ? responseData.error.code
+        : error.code || 'UNKNOWN_ERROR',
+      status: status || 0,
+      details: responseData && 'error' in responseData ? responseData.error.details : error.response?.data,
+      fields: responseData && 'error' in responseData ? responseData.error.fields : undefined,
+      meta: responseData?.meta,
       timestamp: new Date().toISOString(),
     };
+
+    const requestUrl = originalRequest?.url || '';
+    const authEndpoints = [
+      API_ENDPOINTS.AUTH.LOGIN,
+      API_ENDPOINTS.AUTH.REFRESH,
+      API_ENDPOINTS.AUTH.LOGOUT,
+    ];
+    const shouldSkipRefresh = authEndpoints.some((endpoint) => requestUrl.includes(endpoint));
+
+    // Handle 401 Unauthorized - Try to refresh token when applicable
+    if (status === 401 && originalRequest && !originalRequest._retry && !shouldSkipRefresh) {
+      originalRequest._retry = true;
+
+      try {
+        const refreshToken = localStorage.getItem(AUTH_REFRESH_TOKEN_KEY);
+
+        if (!refreshToken) {
+          throw new Error('Missing refresh token');
+        }
+
+        const baseURL = apiClient.defaults.baseURL?.replace(/\/$/, '') || '';
+        const refreshUrl = `${baseURL}${API_ENDPOINTS.AUTH.REFRESH}`;
+
+        const response = await axios.post<ApiResponse<LoginResponseData>>(
+          refreshUrl,
+          { refreshToken },
+          { headers: { 'Content-Type': 'application/json' } }
+        );
+
+        if (response.data?.ok) {
+          const { accessToken, refreshToken: newRefreshToken } = response.data.data;
+
+          // Update tokens in localStorage
+          localStorage.setItem(AUTH_TOKEN_KEY, accessToken);
+          localStorage.setItem(AUTH_REFRESH_TOKEN_KEY, newRefreshToken);
+
+          // Retry original request with new token
+          originalRequest.headers = originalRequest.headers || {};
+          originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+          return apiClient(originalRequest);
+        }
+
+        throw new Error('Token refresh response invalid');
+      } catch (refreshError) {
+        localStorage.removeItem(AUTH_TOKEN_KEY);
+        localStorage.removeItem(AUTH_REFRESH_TOKEN_KEY);
+
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
+
+        return Promise.reject(apiError);
+      }
+    }
     
     console.error('API Error:', apiError);
     return Promise.reject(apiError);
@@ -98,4 +143,3 @@ apiClient.interceptors.response.use(
 
 // Export configured client
 export default apiClient;
-

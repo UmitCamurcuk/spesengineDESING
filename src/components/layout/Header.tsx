@@ -186,9 +186,18 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onMenuClick, act
               onClick={() => setShowProfileMenu(!showProfileMenu)}
               className="flex items-center space-x-2 p-1.5 rounded-md hover:bg-muted transition-colors"
             >
-              <div className="w-7 h-7 bg-primary rounded-full flex items-center justify-center">
-                <User className="h-3.5 w-3.5 text-white" />
-              </div>
+              {user?.avatar ? (
+                <img
+                  src={user.avatar}
+                  alt={user.name || user.email || 'User avatar'}
+                  className="w-7 h-7 rounded-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="w-7 h-7 bg-primary rounded-full flex items-center justify-center">
+                  <User className="h-3.5 w-3.5 text-white" />
+                </div>
+              )}
               <div className="text-left hidden sm:block">
                 <p className="text-sm font-medium text-foreground">
                   {user?.name || 'Admin User'}
