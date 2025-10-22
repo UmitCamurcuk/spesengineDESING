@@ -768,6 +768,17 @@
     "password_change_failed": "Şifre değiştirme işlemi başarısız oldu.",
     "two_factor_enabled": "İki faktörlü doğrulama başarıyla ayarlandı!",
     "verification_code_length": "Doğrulama kodu 6 haneli olmalıdır!",
-    "no_data_available": "Profil bilgisi bulunamadı"
+    "no_data_available": "Profil bilgisi bulunamadı",
+    "history_title": "Geçmiş",
+    "history_description": "Hesabınızda yapılan işlemlerin kaydı",
+    "history_hint": "Geçmiş kayıtları yalnızca istediğinizde yüklenir.",
+    "history_show": "Geçmişi Göster",
+    "history_reload": "Yenile",
+    "history_load_more": "Daha fazla yükle",
+    "history_empty": "Henüz kayıt bulunmuyor.",
+    "history_load_failed": "Geçmiş kayıtları yüklenirken hata oluştu.",
+    "history_no_id": "Kullanıcı kimliği bulunamadı.",
+    "history_table_title": "İşlem Geçmişi",
+    "history_table_description": "Gerçekleştirilen tüm aksiyonların listesi"
   }
 }

@@ -768,7 +768,18 @@
     "password_change_failed": "Failed to change the password.",
     "two_factor_enabled": "Two-factor authentication has been enabled successfully!",
     "verification_code_length": "Verification code must be 6 digits!",
-    "no_data_available": "No profile data available"
+    "no_data_available": "No profile data available",
+    "history_title": "History",
+    "history_description": "Record of the actions performed on your account",
+    "history_hint": "History entries are loaded only when requested.",
+    "history_show": "Show History",
+    "history_reload": "Refresh",
+    "history_load_more": "Load more",
+    "history_empty": "No records available yet.",
+    "history_load_failed": "Failed to load history records.",
+    "history_no_id": "User identifier is missing.",
+    "history_table_title": "Activity History",
+    "history_table_description": "List of all recorded actions"
   },
   "ui": {
     "filter": "Filter",

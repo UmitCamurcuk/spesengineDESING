@@ -194,10 +194,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setIsProcessing(true);
       setError(null);
 
-      const updatedUser = await authService.updateProfile(data);
-      dispatch(setUser({ user: updatedUser }));
-
-      logger.info('Profile updated successfully', { email: updatedUser.email });
+      await authService.updateProfile(data);
+      const profile = await fetchAndSetProfile();
+      logger.info('Profile updated successfully', { email: profile.user.email });
     } catch (error: any) {
       const errorMessage = error?.message || 'Failed to update profile';
       setError(errorMessage);

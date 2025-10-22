@@ -6,6 +6,7 @@ export * from './useLocalStorage';
 export * from './useMemoizedCallback';
 export * from './useVirtualization';
 export * from './useAccessibility';
+export * from './useServerTable';
 
 // Re-export commonly used hooks for convenience
 export {

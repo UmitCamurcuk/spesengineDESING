@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Search, Filter, User, Calendar } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { Button } from './Button';
@@ -41,6 +41,19 @@ interface DataTableProps<T> {
     description?: string;
     action?: React.ReactNode;
   };
+  mode?: 'client' | 'server';
+  totalItems?: number;
+  currentPage?: number;
+  currentPageSize?: number;
+  onPageChange?: (page: number) => void;
+  onPageSizeChange?: (size: number) => void;
+  searchValue?: string;
+  onSearchChange?: (value: string) => void;
+  filterValues?: Record<string, string>;
+  onFilterChange?: (key: string, value: string) => void;
+  onSortChange?: (key: string, direction: 'asc' | 'desc') => void;
+  sortKey?: string;
+  sortDirection?: 'asc' | 'desc';
 }
 
 interface PaginationProps {
@@ -58,24 +71,27 @@ const Pagination: React.FC<PaginationProps> = ({
   onPageChange,
   pageSize,
   totalItems,
-  onPageSizeChange
+  onPageSizeChange,
 }) => {
   const { t } = useLanguage();
-  const startItem = (currentPage - 1) * pageSize + 1;
-  const endItem = Math.min(currentPage * pageSize, totalItems);
+  const safeTotalPages = Math.max(1, totalPages);
+  const safeCurrentPage = Math.min(currentPage, safeTotalPages);
+  const startItem = totalItems === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1;
+  const endItem = totalItems === 0 ? 0 : Math.min(safeCurrentPage * pageSize, totalItems);
 
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-border">
       <div className="flex items-center gap-4">
         <div className="text-xs text-muted-foreground">
-          {t('pagination.showing')} {startItem} {t('pagination.to')} {endItem} {t('pagination.of')} {totalItems} {t('pagination.results')}
+          {t('pagination.showing')} {startItem} {t('pagination.to')} {endItem} {t('pagination.of')} {totalItems}{' '}
+          {t('pagination.results')}
         </div>
         {onPageSizeChange && (
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">{t('pagination.show')}:</span>
             <select
               value={pageSize}
-              onChange={(e) => onPageSizeChange(parseInt(e.target.value))}
+              onChange={(e) => onPageSizeChange(parseInt(e.target.value, 10))}
               className="text-xs border border-input rounded px-2 py-1 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             >
               <option value={5}>5</option>
@@ -93,24 +109,24 @@ const Pagination: React.FC<PaginationProps> = ({
         <Button
           variant="outline"
           size="sm"
-          onClick={() => onPageChange(currentPage - 1)}
-          disabled={currentPage === 1}
+          onClick={() => onPageChange(safeCurrentPage - 1)}
+          disabled={safeCurrentPage === 1}
         >
           <ChevronLeft className="h-3.5 w-3.5" />
           <span className="hidden sm:inline ml-1">{t('pagination.previous')}</span>
         </Button>
 
         <div className="flex items-center space-x-1">
-          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+          {Array.from({ length: Math.min(5, safeTotalPages) }, (_, i) => {
             let pageNum;
-            if (totalPages <= 5) {
+            if (safeTotalPages <= 5) {
               pageNum = i + 1;
-            } else if (currentPage <= 3) {
+            } else if (safeCurrentPage <= 3) {
               pageNum = i + 1;
-            } else if (currentPage >= totalPages - 2) {
-              pageNum = totalPages - 4 + i;
+            } else if (safeCurrentPage >= safeTotalPages - 2) {
+              pageNum = safeTotalPages - 4 + i;
             } else {
-              pageNum = currentPage - 2 + i;
+              pageNum = safeCurrentPage - 2 + i;
             }
 
             return (
@@ -119,9 +135,7 @@ const Pagination: React.FC<PaginationProps> = ({
                 onClick={() => onPageChange(pageNum)}
                 className={cn(
                   'w-7 h-7 text-xs rounded-md transition-colors',
-                  pageNum === currentPage
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-foreground hover:bg-muted'
+                  pageNum === safeCurrentPage ? 'bg-primary text-primary-foreground' : 'text-foreground hover:bg-muted',
                 )}
               >
                 {pageNum}
@@ -133,8 +147,8 @@ const Pagination: React.FC<PaginationProps> = ({
         <Button
           variant="outline"
           size="sm"
-          onClick={() => onPageChange(currentPage + 1)}
-          disabled={currentPage === totalPages}
+          onClick={() => onPageChange(safeCurrentPage + 1)}
+          disabled={safeCurrentPage === safeTotalPages}
         >
           <span className="hidden sm:inline mr-1">{t('pagination.next')}</span>
           <ChevronRight className="h-3.5 w-3.5" />
@@ -165,80 +179,178 @@ export function DataTable<T extends Record<string, any>>({
   columns,
   loading = false,
   searchable = true,
-  searchPlaceholder = "Search...",
+  searchPlaceholder = 'Search...',
   filters = [],
   onRowClick,
   className,
   pageSize = 10,
   showPagination = true,
-  emptyState
+  emptyState,
+  mode = 'client',
+  totalItems,
+  currentPage,
+  currentPageSize,
+  onPageChange,
+  onPageSizeChange,
+  searchValue,
+  onSearchChange,
+  filterValues,
+  onFilterChange,
+  onSortChange,
+  sortKey,
+  sortDirection,
 }: DataTableProps<T>) {
   const { t } = useLanguage();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterValues, setFilterValues] = useState<Record<string, string>>({});
-  const [sortKey, setSortKey] = useState<string>('');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [currentPageSize, setCurrentPageSize] = useState(pageSize);
+  const isServerMode = mode === 'server';
+
+  const [internalSearch, setInternalSearch] = useState('');
+  const [internalFilters, setInternalFilters] = useState<Record<string, string>>({});
+  const [internalSortKey, setInternalSortKey] = useState<string>('');
+  const [internalSortDirection, setInternalSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [internalPage, setInternalPage] = useState(1);
+  const [internalPageSize, setInternalPageSize] = useState(pageSize);
+
+  useEffect(() => {
+    if (!isServerMode) {
+      setInternalPageSize(pageSize);
+    }
+  }, [pageSize, isServerMode]);
+
+  const resolvedSearch = isServerMode ? searchValue ?? '' : internalSearch;
+  const resolvedFilters = isServerMode ? filterValues ?? {} : internalFilters;
+
+  const isSortKeyControlled = sortKey !== undefined;
+  const isSortDirectionControlled = sortDirection !== undefined;
+  const resolvedSortKey = sortKey ?? internalSortKey;
+  const resolvedSortDirection = sortDirection ?? internalSortDirection;
+
+  const resolvedPage = isServerMode ? currentPage ?? 1 : internalPage;
+  const resolvedPageSize = isServerMode ? currentPageSize ?? internalPageSize : internalPageSize;
 
   const handleSort = (column: Column<T>) => {
     if (!column.sortable) return;
 
     const key = column.key as string;
-    const direction = sortKey === key && sortDirection === 'asc' ? 'desc' : 'asc';
-    setSortKey(key);
-    setSortDirection(direction);
+    const direction = resolvedSortKey === key && resolvedSortDirection === 'asc' ? 'desc' : 'asc';
+
+    if (isServerMode) {
+      if (!isSortKeyControlled) {
+        setInternalSortKey(key);
+      }
+      if (!isSortDirectionControlled) {
+        setInternalSortDirection(direction);
+      }
+      onSortChange?.(key, direction);
+    } else {
+      setInternalSortKey(key);
+      setInternalSortDirection(direction);
+    }
   };
 
-  const handlePageSizeChange = (newPageSize: number) => {
-    setCurrentPageSize(newPageSize);
-    setCurrentPage(1); // Reset to first page when changing page size
+  const handlePageSizeChange = (value: number) => {
+    if (isServerMode) {
+      onPageSizeChange?.(value);
+    } else {
+      setInternalPageSize(value);
+      setInternalPage(1);
+    }
   };
 
-  // Reset to first page when page size changes
+  const handlePageChange = (page: number) => {
+    if (page < 1) return;
+    if (isServerMode) {
+      onPageChange?.(page);
+    } else {
+      setInternalPage(page);
+    }
+  };
+
+  const handleSearchChange = (value: string) => {
+    if (isServerMode) {
+      onSearchChange?.(value);
+    } else {
+      setInternalSearch(value);
+      setInternalPage(1);
+    }
+  };
+
+  const handleFilterChange = (key: string, value: string) => {
+    if (isServerMode) {
+      onFilterChange?.(key, value);
+    } else {
+      setInternalFilters((prev) => ({
+        ...prev,
+        [key]: value,
+      }));
+      setInternalPage(1);
+    }
+  };
+
   useEffect(() => {
-    setCurrentPage(1);
-  }, [currentPageSize]);
+    if (!isServerMode) {
+      setInternalPage(1);
+    }
+  }, [internalPageSize, isServerMode]);
 
-  const filteredData = data.filter(item => {
-    if (searchTerm) {
-      const searchableFields = columns
-        .filter(col => typeof item[col.key] === 'string')
-        .map(col => String(item[col.key]).toLowerCase());
-
-      if (!searchableFields.some(field => field.includes(searchTerm.toLowerCase()))) {
-        return false;
-      }
+  const filteredData = useMemo(() => {
+    if (isServerMode) {
+      return data;
     }
 
-    for (const [key, value] of Object.entries(filterValues)) {
-      if (value && item[key] !== value) {
-        return false;
+    return data.filter((item) => {
+      if (resolvedSearch) {
+        const normalized = resolvedSearch.toLowerCase();
+        const searchableFields = columns
+          .filter((col) => typeof item[col.key] === 'string')
+          .map((col) => String(item[col.key]).toLowerCase());
+
+        if (!searchableFields.some((field) => field.includes(normalized))) {
+          return false;
+        }
       }
+
+      for (const [key, value] of Object.entries(resolvedFilters)) {
+        if (value && item[key] !== value) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [columns, data, isServerMode, resolvedFilters, resolvedSearch]);
+
+  const sortedData = useMemo(() => {
+    if (isServerMode || !resolvedSortKey) {
+      return filteredData;
     }
 
-    return true;
-  });
+    return [...filteredData].sort((a, b) => {
+      const aVal = a[resolvedSortKey];
+      const bVal = b[resolvedSortKey];
 
-  const sortedData = [...filteredData].sort((a, b) => {
-    if (!sortKey) return 0;
+      if (aVal < bVal) return resolvedSortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return resolvedSortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [filteredData, isServerMode, resolvedSortDirection, resolvedSortKey]);
 
-    const aVal = a[sortKey];
-    const bVal = b[sortKey];
+  const paginatedData = useMemo(() => {
+    if (isServerMode || !showPagination) {
+      return sortedData;
+    }
 
-    if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-    if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
-    return 0;
-  });
+    const start = (resolvedPage - 1) * resolvedPageSize;
+    const end = resolvedPage * resolvedPageSize;
+    return sortedData.slice(start, end);
+  }, [isServerMode, resolvedPage, resolvedPageSize, showPagination, sortedData]);
 
-  const totalPages = Math.ceil(sortedData.length / currentPageSize);
-  const paginatedData = showPagination
-    ? sortedData.slice((currentPage - 1) * currentPageSize, currentPage * currentPageSize)
-    : sortedData;
+  const displayData = isServerMode ? data : paginatedData;
+  const totalItemCount = isServerMode ? totalItems ?? data.length : sortedData.length;
+  const totalPages = Math.max(1, Math.ceil(totalItemCount / Math.max(resolvedPageSize, 1)));
 
   if (loading) {
     return (
-      <div className="bg-card rounded-lg border border-border overflow-hidden">
+      <div className={cn('bg-card rounded-lg border border-border overflow-hidden', className)}>
         <div className="animate-pulse">
           <div className="p-4 border-b border-border">
             <div className="h-9 bg-muted rounded-md w-1/3"></div>
@@ -261,6 +373,77 @@ export function DataTable<T extends Record<string, any>>({
     );
   }
 
+  if (!displayData.length) {
+    return (
+      <div className={cn('bg-card rounded-lg border border-border overflow-hidden', className)}>
+        {(searchable || filters.length > 0) && (
+          <div className="p-3.5 border-b border-border space-y-3 flex-shrink-0">
+            <div className="flex flex-col sm:flex-row gap-3">
+              {searchable && (
+                <div className="flex-1">
+                  <Input
+                    placeholder={searchPlaceholder}
+                    value={resolvedSearch}
+                    onChange={(e) => handleSearchChange(e.target.value)}
+                    leftIcon={<Search className="h-4 w-4" />}
+                    className="h-10"
+                  />
+                </div>
+              )}
+
+              {filters.length > 0 && (
+                <div className="flex flex-wrap gap-3">
+                  {filters.map((filter) => (
+                    <div key={filter.key} className="flex-shrink-0">
+                      {filter.type === 'select' ? (
+                        <select
+                          value={resolvedFilters[filter.key] || ''}
+                          onChange={(e) => handleFilterChange(filter.key, e.target.value)}
+                          className="px-3 py-2 pr-10 text-sm bg-background text-foreground border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring min-w-[120px] h-10"
+                        >
+                          <option value="">{filter.label}</option>
+                          {filter.options?.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <Input
+                          placeholder={filter.placeholder || filter.label}
+                          value={resolvedFilters[filter.key] || ''}
+                          onChange={(e) => handleFilterChange(filter.key, e.target.value)}
+                          className="min-w-[120px]"
+                        />
+                      )}
+                    </div>
+                  ))}
+                  <Button variant="outline" size="sm" className="px-3 h-10">
+                    <Filter className="h-4 w-4 mr-2" />
+                    {t('ui.filter')}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="p-10 text-center space-y-3">
+          {emptyState?.icon && (
+            <div className="flex justify-center text-muted-foreground">{emptyState.icon}</div>
+          )}
+          <div>
+            <h3 className="text-lg font-semibold text-foreground">{emptyState?.title ?? t('common.no_results')}</h3>
+            <p className="text-sm text-muted-foreground">
+              {emptyState?.description ?? t('common.no_results_description')}
+            </p>
+          </div>
+          {emptyState?.action}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={cn('bg-card rounded-lg border border-border overflow-hidden flex flex-col h-full', className)}>
       {(searchable || filters.length > 0) && (
@@ -270,8 +453,8 @@ export function DataTable<T extends Record<string, any>>({
               <div className="flex-1">
                 <Input
                   placeholder={searchPlaceholder}
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  value={resolvedSearch}
+                  onChange={(e) => handleSearchChange(e.target.value)}
                   leftIcon={<Search className="h-4 w-4" />}
                   className="h-10"
                 />
@@ -280,16 +463,16 @@ export function DataTable<T extends Record<string, any>>({
 
             {filters.length > 0 && (
               <div className="flex flex-wrap gap-3">
-                {filters.map(filter => (
+                {filters.map((filter) => (
                   <div key={filter.key} className="flex-shrink-0">
                     {filter.type === 'select' ? (
                       <select
-                        value={filterValues[filter.key] || ''}
-                        onChange={(e) => setFilterValues(prev => ({ ...prev, [filter.key]: e.target.value }))}
+                        value={resolvedFilters[filter.key] || ''}
+                        onChange={(e) => handleFilterChange(filter.key, e.target.value)}
                         className="px-3 py-2 pr-10 text-sm bg-background text-foreground border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring min-w-[120px] h-10"
                       >
                         <option value="">{filter.label}</option>
-                        {filter.options?.map(option => (
+                        {filter.options?.map((option) => (
                           <option key={option.value} value={option.value}>
                             {option.label}
                           </option>
@@ -298,8 +481,8 @@ export function DataTable<T extends Record<string, any>>({
                     ) : (
                       <Input
                         placeholder={filter.placeholder || filter.label}
-                        value={filterValues[filter.key] || ''}
-                        onChange={(e) => setFilterValues(prev => ({ ...prev, [filter.key]: e.target.value }))}
+                        value={resolvedFilters[filter.key] || ''}
+                        onChange={(e) => handleFilterChange(filter.key, e.target.value)}
                         className="min-w-[120px]"
                       />
                     )}
@@ -319,43 +502,33 @@ export function DataTable<T extends Record<string, any>>({
         <table className="min-w-full divide-y divide-border">
           <thead className="bg-muted">
             <tr>
-              {columns.map((column) => (
+              {columns.map((column, index) => (
                 <th
-                  key={column.key as string}
+                  key={index}
+                  scope="col"
                   className={cn(
-                    'px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide',
-                    column.sortable && 'cursor-pointer hover:bg-muted select-none transition-colors duration-150',
-                    column.width,
+                    'px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider',
                     column.align === 'center' && 'text-center',
-                    column.align === 'right' && 'text-right'
+                    column.align === 'right' && 'text-right',
+                    column.width && `w-${column.width}`,
                   )}
-                  onClick={() => handleSort(column)}
                 >
-                  <div className={cn(
-                    'flex items-center space-x-1',
-                    column.align === 'center' && 'justify-center',
-                    column.align === 'right' && 'justify-end'
-                  )}>
+                  <div
+                    className={cn(
+                      'flex items-center',
+                      column.align === 'center' && 'justify-center',
+                      column.align === 'right' && 'justify-end',
+                      column.sortable && 'cursor-pointer select-none',
+                    )}
+                    onClick={() => handleSort(column)}
+                  >
                     <span>{column.title}</span>
-                    {column.sortable && (
-                      <div className="flex flex-col">
-                        <ChevronUp
-                          className={cn(
-                            'h-3 w-3 transition-colors duration-150',
-                            sortKey === column.key && sortDirection === 'asc'
-                              ? 'text-primary'
-                              : 'text-muted-foreground'
-                          )}
-                        />
-                        <ChevronDown
-                          className={cn(
-                            'h-3 w-3 -mt-1 transition-colors duration-150',
-                            sortKey === column.key && sortDirection === 'desc'
-                              ? 'text-primary'
-                              : 'text-muted-foreground'
-                          )}
-                        />
-                      </div>
+                    {column.sortable && resolvedSortKey === (column.key as string) && (
+                      resolvedSortDirection === 'asc' ? (
+                        <ChevronUp className="ml-1 h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="ml-1 h-4 w-4" />
+                      )
                     )}
                   </div>
                 </th>
@@ -363,116 +536,72 @@ export function DataTable<T extends Record<string, any>>({
             </tr>
           </thead>
           <tbody className="bg-card divide-y divide-border">
-            {paginatedData.length === 0 ? (
-              <tr>
-                <td colSpan={columns.length} className="px-4 py-12 text-center">
-                  <div className="text-muted-foreground">
-                    {emptyState?.icon && (
-                      <div className="w-10 h-10 mx-auto mb-3 text-muted-foreground">
-                        {emptyState.icon}
-                      </div>
+            {displayData.map((item, rowIndex) => (
+              <tr
+                key={rowIndex}
+                className={cn('hover:bg-muted/60 transition-colors', onRowClick && 'cursor-pointer')}
+                onClick={() => onRowClick?.(item)}
+              >
+                {columns.map((column, colIndex) => (
+                  <td
+                    key={colIndex}
+                    className={cn(
+                      'px-4 py-3 whitespace-nowrap text-sm text-foreground align-middle',
+                      column.align === 'center' && 'text-center',
+                      column.align === 'right' && 'text-right',
                     )}
-                    <p className="text-sm font-medium">{emptyState?.title || 'No data found'}</p>
-                    {emptyState?.description && (
-                      <p className="text-xs text-muted-foreground mt-1">{emptyState.description}</p>
-                    )}
-                    {emptyState?.action && (
-                      <div className="mt-3">{emptyState.action}</div>
-                    )}
-                  </div>
-                </td>
+                  >
+                    {column.render
+                      ? column.render(item[column.key as keyof T], item)
+                      : typeof item[column.key as keyof T] === 'boolean'
+                        ? item[column.key as keyof T]
+                          ? <Badge variant="success" size="sm">{t('common.yes')}</Badge>
+                          : <Badge variant="secondary" size="sm">{t('common.no')}</Badge>
+                        : String(item[column.key as keyof T] ?? '-')}
+                  </td>
+                ))}
               </tr>
-            ) : (
-              paginatedData.map((item, index) => (
-                <tr
-                  key={index}
-                  className={cn(
-                    'hover:bg-muted transition-colors duration-150',
-                    onRowClick && 'cursor-pointer'
-                  )}
-                  onClick={() => onRowClick?.(item)}
-                >
-                  {columns.map((column) => (
-                    <td
-                      key={column.key as string}
-                      className={cn(
-                        'px-4 py-3 whitespace-nowrap text-sm text-foreground',
-                        column.align === 'center' && 'text-center',
-                        column.align === 'right' && 'text-right'
-                      )}
-                    >
-                      {column.render
-                        ? column.render(item[column.key], item)
-                        : item[column.key]}
-                    </td>
-                  ))}
-                </tr>
-              ))
-            )}
+            ))}
           </tbody>
         </table>
       </div>
 
-      <div className="lg:hidden divide-y divide-border">
-        {paginatedData.length === 0 ? (
-          <div className="px-3 py-12 text-center">
-            <div className="text-muted-foreground">
-              {emptyState?.icon && (
-                <div className="w-10 h-10 mx-auto mb-3 text-muted-foreground">
-                  {emptyState.icon}
-                </div>
-              )}
-              <p className="text-sm font-medium">{emptyState?.title || 'No data found'}</p>
-              {emptyState?.description && (
-                <p className="text-xs text-muted-foreground mt-1">{emptyState.description}</p>
-              )}
-              {emptyState?.action && (
-                <div className="mt-3">{emptyState.action}</div>
-              )}
-            </div>
-          </div>
-        ) : (
-          paginatedData.map((item, index) => (
-            <div
-              key={index}
-              className={cn(
-                'p-3 hover:bg-muted transition-colors duration-150',
-                onRowClick && 'cursor-pointer'
-              )}
-              onClick={() => onRowClick?.(item)}
-            >
-              {columns[0].mobileRender ? columns[0].mobileRender(item) : (
-                <div className="space-y-2.5">
-                  {columns.slice(0, 3).map((column) => (
-                    <div key={column.key as string}>
-                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-0.5">
-                        {column.title}
-                      </div>
-                      <div className="text-sm text-foreground">
-                        {column.render
-                          ? column.render(item[column.key], item)
-                          : item[column.key]}
-                      </div>
+      <div className="lg:hidden">
+        <div className="divide-y divide-border">
+          {displayData.map((item, index) => (
+            <div key={index} className="p-4 space-y-3">
+              {columns.map((column, colIndex) => (
+                <div key={colIndex}>
+                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                    {column.title}
+                  </div>
+                  {column.mobileRender ? (
+                    column.mobileRender(item)
+                  ) : (
+                    <div className="text-sm text-foreground">
+                      {column.render
+                        ? column.render(item[column.key as keyof T], item)
+                        : typeof item[column.key as keyof T] === 'boolean'
+                          ? t(item[column.key as keyof T] ? 'common.yes' : 'common.no')
+                          : String(item[column.key as keyof T] ?? '-')}
                     </div>
-                  ))}
+                  )}
                 </div>
-              )}
+              ))}
             </div>
-          ))
-        )}
+          ))}
+        </div>
       </div>
 
-      {showPagination && (
-        <div className="flex-shrink-0">
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={setCurrentPage}
-            pageSize={currentPageSize}
-            totalItems={sortedData.length}
-            onPageSizeChange={handlePageSizeChange}
-          />
-        </div>
+      {showPagination && totalItemCount > 0 && (
+        <Pagination
+          currentPage={resolvedPage}
+          totalPages={totalPages}
+          onPageChange={handlePageChange}
+          pageSize={resolvedPageSize}
+          totalItems={totalItemCount}
+          onPageSizeChange={handlePageSizeChange}
+        />
       )}
     </div>
   );

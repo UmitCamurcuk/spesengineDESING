@@ -1,16 +1,54 @@
+export type HistoryAction =
+  | 'created'
+  | 'updated'
+  | 'deleted'
+  | 'viewed'
+  | 'exported'
+  | 'imported'
+  | 'login'
+  | 'logout';
+
+export interface HistoryChange {
+  field: string;
+  oldValue?: unknown;
+  newValue?: unknown;
+}
+
+export interface HistoryActor {
+  userId?: string;
+  name?: string;
+  email?: string;
+  ip?: string;
+  userAgent?: string;
+}
+
+export interface HistoryDiff {
+  before?: Record<string, unknown> | null;
+  after?: Record<string, unknown> | null;
+}
+
+export interface HistoryRequestInfo {
+  requestId?: string;
+  source?: string;
+  correlationId?: string;
+}
+
 export interface HistoryEntry {
   id: string;
+  tenantId?: string;
   entityType: string;
   entityId: string;
-  action: 'created' | 'updated' | 'deleted' | 'viewed' | 'exported' | 'imported';
-  field?: string;
-  oldValue?: any;
-  newValue?: any;
-  userId: string;
-  userName: string;
-  userEmail: string;
+  action: HistoryAction;
+  summary?: string;
   timestamp: string;
-  metadata?: Record<string, any>;
+  actor?: HistoryActor;
+  actorName?: string;
+  actorEmail?: string;
+  changes?: HistoryChange[];
+  diff?: HistoryDiff;
+  tags?: string[];
+  metadata?: Record<string, unknown>;
+  request?: HistoryRequestInfo;
 }
 
 export interface NotificationSettings {

@@ -21,6 +21,8 @@ export const API_ENDPOINTS = {
     ME: '/users/me',
   },
   
+  HISTORY: '/history',
+  
   // Role management
   ROLES: {
     BASE: '/roles',

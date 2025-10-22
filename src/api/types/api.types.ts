@@ -96,6 +96,7 @@ export interface TenantMembership {
 }
 
 export interface AuthUser {
+  id?: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -246,6 +247,59 @@ export interface ProfilePhotoResponseData {
 }
 
 export type ProfilePhotoResponse = ApiSuccessResponse<ProfilePhotoResponseData>;
+
+export interface HistoryApiActor {
+  userId?: string;
+  email?: string;
+  ip?: string;
+  userAgent?: string;
+}
+
+export interface HistoryApiEntity {
+  type: string;
+  id: string;
+}
+
+export interface HistoryApiRequestInfo {
+  requestId?: string;
+  source?: string;
+  correlationId?: string;
+}
+
+export interface HistoryApiDiff {
+  before?: Record<string, unknown> | null;
+  after?: Record<string, unknown> | null;
+}
+
+export interface HistoryApiItem {
+  id: string;
+  tenantId: string;
+  entity: HistoryApiEntity;
+  action: 'created' | 'updated' | 'deleted' | 'viewed' | 'login' | 'logout';
+  at: string;
+  actor?: HistoryApiActor;
+  request?: HistoryApiRequestInfo;
+  summary?: string;
+  diff?: HistoryApiDiff;
+  tags?: string[];
+  meta?: Record<string, unknown> | null;
+}
+
+export interface HistoryApiPagination {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+}
+
+export interface HistoryResponseData {
+  items: HistoryApiItem[];
+  pagination: HistoryApiPagination;
+}
+
+export type HistoryResponse = ApiSuccessResponse<HistoryResponseData>;
 
 // API Client Configuration
 export interface ApiClientConfig {

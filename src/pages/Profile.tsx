@@ -14,7 +14,8 @@ import {
   Lock,
   Globe,
   Eye,
-  EyeOff
+  EyeOff,
+  History as HistoryIcon
 } from 'lucide-react';
 import { Card, CardHeader } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -27,6 +28,9 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { ApiError } from '../api/types/api.types';
+import { HistoryTable } from '../components/common/HistoryTable';
+import { historyService } from '../api/services/history.service';
+import type { HistoryEntry } from '../types/common';
 
 interface ProfileFormState {
   firstName: string;
@@ -65,6 +69,11 @@ export const Profile: React.FC = () => {
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const [isPasswordSubmitting, setIsPasswordSubmitting] = useState(false);
   const [passwordErrors, setPasswordErrors] = useState<{ currentPassword?: string; newPassword?: string; confirmPassword?: string }>({});
+  const [historyVisible, setHistoryVisible] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyRecords, setHistoryRecords] = useState<HistoryEntry[]>([]);
+  const [historyCursor, setHistoryCursor] = useState<string | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [formData, setFormData] = useState<ProfileFormState>({
     firstName: authUser?.firstName || '',
     lastName: authUser?.lastName || '',
@@ -89,6 +98,65 @@ export const Profile: React.FC = () => {
     code: '',
     backupCode: '',
   });
+
+  const loadHistory = async (cursor?: string, append = false) => {
+    if (!authUser?.id) {
+      showErrorToast(t('profile.history_no_id'));
+      return;
+    }
+
+    try {
+      setHistoryLoading(true);
+      setHistoryError(null);
+
+      const response = await historyService.getHistory({
+        entityType: 'User',
+        entityId: authUser.id,
+        limit: 50,
+        cursor,
+      });
+
+      setHistoryRecords((prev) =>
+        append ? [...prev, ...response.items] : response.items
+      );
+      setHistoryCursor(response.nextCursor ?? null);
+
+      if (!response.items.length && !append) {
+        setHistoryError(t('profile.history_empty'));
+      }
+    } catch (error: any) {
+      const message = error?.message || t('profile.history_load_failed');
+      setHistoryError(message);
+      showErrorToast(message);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const handleShowHistory = () => {
+    if (!authUser?.id) {
+      showErrorToast(t('profile.history_no_id'));
+      return;
+    }
+
+    setHistoryVisible(true);
+
+    if (!historyRecords.length) {
+      void loadHistory();
+    }
+  };
+
+  const handleRefreshHistory = () => {
+    if (authUser?.id) {
+      void loadHistory();
+    }
+  };
+
+  const handleLoadMoreHistory = () => {
+    if (historyCursor) {
+      void loadHistory(historyCursor, true);
+    }
+  };
 
 
   // Track changes
@@ -675,9 +743,70 @@ export const Profile: React.FC = () => {
                 </label>
               </div>
             </div>
-          </Card>
-        </div>
-      </div>
+      </Card>
+    </div>
+  </div>
+
+      <Card padding="lg">
+        <CardHeader
+          title={t('profile.history_title')}
+          subtitle={t('profile.history_description')}
+          action={historyVisible ? (
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleRefreshHistory}
+                disabled={historyLoading}
+              >
+                {t('profile.history_reload')}
+              </Button>
+              {historyCursor && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleLoadMoreHistory}
+                  disabled={historyLoading}
+                >
+                  {t('profile.history_load_more')}
+                </Button>
+              )}
+            </div>
+          ) : undefined}
+        >
+          <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
+            <HistoryIcon className="h-3.5 w-3.5" />
+            <span>{t('profile.history_hint')}</span>
+          </div>
+        </CardHeader>
+
+        {!historyVisible ? (
+          <Button
+            type="button"
+            onClick={handleShowHistory}
+            disabled={historyLoading || !authUser?.id}
+          >
+            {t('profile.history_show')}
+          </Button>
+        ) : (
+          <div className="space-y-4">
+            {historyError && (
+              <div className="rounded-md border border-error/20 bg-error-background/40 p-3 text-sm text-error">
+                {historyError}
+              </div>
+            )}
+
+            <HistoryTable
+              records={historyRecords}
+              loading={historyLoading}
+              title={t('profile.history_table_title')}
+              description={t('profile.history_table_description')}
+            />
+          </div>
+        )}
+      </Card>
 
       {/* Avatar Upload Modal */}
       <Modal
