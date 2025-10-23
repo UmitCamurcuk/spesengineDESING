@@ -20,6 +20,7 @@ export interface HistoryActor {
   email?: string;
   ip?: string;
   userAgent?: string;
+  profilePhotoUrl?: string;
 }
 
 export interface HistoryDiff {
@@ -38,6 +39,9 @@ export interface HistoryEntry {
   tenantId?: string;
   entityType: string;
   entityId: string;
+  entityLabel?: string;
+  entityEmail?: string;
+  entityProfilePhotoUrl?: string;
   action: HistoryAction;
   summary?: string;
   timestamp: string;

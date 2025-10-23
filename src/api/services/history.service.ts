@@ -59,6 +59,8 @@ const ensureActor = (item: HistoryApiItem): HistoryActor | undefined => {
     email: item.actor?.email,
     ip: item.actor?.ip,
     userAgent: item.actor?.userAgent,
+    name: item.actor?.name,
+    profilePhotoUrl: item.actor?.profilePhotoUrl,
   };
 
   const name = formatActorName(actor);
@@ -114,24 +116,22 @@ const buildChanges = (item: HistoryApiItem): HistoryChange[] | undefined => {
 const toHistoryEntry = (item: HistoryApiItem): HistoryEntry => {
   const changes = buildChanges(item);
   const actor = ensureActor(item);
-  const actorName =
-    actor?.name ??
-    actor?.email ??
-    actor?.userId ??
-    actor?.ip ??
-    'System';
-  const actorEmail = actor?.email ?? actor?.ip ?? undefined;
+  const actorName = formatActorName(actor);
+  const actorEmail = actor?.email ?? item.actor?.email ?? actor?.ip ?? undefined;
 
   return {
     id: item.id,
     tenantId: item.tenantId,
     entityType: item.entity.type,
     entityId: item.entity.id,
+    entityLabel: item.entity.label ?? undefined,
+    entityEmail: item.entity.email ?? undefined,
+    entityProfilePhotoUrl: item.entity.profilePhotoUrl ?? undefined,
     action: item.action,
     summary: item.summary ?? `${item.entity.type} ${item.action}`,
     timestamp: item.at,
     actor,
-    actorName,
+    actorName: actorName ?? 'System',
     actorEmail,
     changes,
     diff: item.diff,

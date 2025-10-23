@@ -253,11 +253,16 @@ export interface HistoryApiActor {
   email?: string;
   ip?: string;
   userAgent?: string;
+  name?: string;
+  profilePhotoUrl?: string;
 }
 
 export interface HistoryApiEntity {
   type: string;
   id: string;
+  label?: string;
+  email?: string;
+  profilePhotoUrl?: string;
 }
 
 export interface HistoryApiRequestInfo {

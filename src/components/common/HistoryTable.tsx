@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
   Activity,
   Eye,
@@ -13,7 +13,11 @@ import {
 } from 'lucide-react';
 import { DataTable, UserInfo } from '../ui/DataTable';
 import { Badge } from '../ui/Badge';
+import { Button } from '../ui/Button';
 import { HistoryEntry, HistoryChange } from '../../types/common';
+import { useServerTable } from '../../hooks';
+import { historyService } from '../../api/services/history.service';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface HistoryTableProps {
   entityType?: string;
@@ -22,55 +26,17 @@ interface HistoryTableProps {
   loading?: boolean;
   title?: string;
   description?: string;
-  editMode?: boolean;
+  currentUserId?: string;
+  currentUserName?: string;
+  currentUserEmail?: string;
 }
 
-const mockHistoryData: HistoryEntry[] = [
-  {
-    id: '1',
-    tenantId: 'demo',
-    entityType: 'User',
-    entityId: 'user-1',
-    action: 'updated',
-    summary: 'Profile information updated',
-    timestamp: '2024-01-25T10:30:00Z',
-    actor: { userId: '1', name: 'John Doe', email: 'john.doe@company.com' },
-    actorName: 'John Doe',
-    actorEmail: 'john.doe@company.com',
-    changes: [
-      { field: 'firstName', oldValue: 'John', newValue: 'Jonathan' },
-      { field: 'location', oldValue: 'Istanbul', newValue: 'Ankara' },
-    ],
-    tags: ['profile'],
-    request: { source: 'api' },
-  },
-  {
-    id: '2',
-    tenantId: 'demo',
-    entityType: 'User',
-    entityId: 'user-1',
-    action: 'login',
-    summary: 'Successful login',
-    timestamp: '2024-01-24T09:45:00Z',
-    actor: { userId: '1', email: 'john.doe@company.com', ip: '192.168.1.12' },
-    actorName: 'john.doe',
-    actorEmail: 'john.doe@company.com',
-    tags: ['authentication'],
-    request: { source: 'api' },
-  },
-  {
-    id: '3',
-    tenantId: 'demo',
-    entityType: 'User',
-    entityId: 'user-1',
-    action: 'created',
-    summary: 'User account created',
-    timestamp: '2024-01-20T14:15:00Z',
-    actorName: 'System',
-    tags: ['bootstrap'],
-    request: { source: 'system' },
-  },
-];
+interface HistoryTableFilters {
+  action?: string;
+  actor?: string;
+}
+
+const defaultActionOrder = ['created', 'updated', 'deleted', 'viewed', 'login', 'logout'];
 
 const getActionIcon = (action: string) => {
   switch (action) {
@@ -147,9 +113,6 @@ const getActorName = (entry: HistoryEntry): string =>
   entry.actor?.ip ??
   'System';
 
-const getActorEmail = (entry: HistoryEntry): string =>
-  entry.actorEmail ?? entry.actor?.email ?? entry.actor?.ip ?? '—';
-
 const renderChanges = (changes: HistoryChange[] | undefined) => {
   if (!changes || changes.length === 0) {
     return <span className="text-muted-foreground text-sm">—</span>;
@@ -182,132 +145,369 @@ const renderChanges = (changes: HistoryChange[] | undefined) => {
 };
 
 export const HistoryTable: React.FC<HistoryTableProps> = ({
+  entityType,
+  entityId,
   records,
-  loading = false,
+  loading: externalLoading = false,
   title = 'Activity History',
   description = 'Complete audit trail of all changes and activities',
+  currentUserId,
+  currentUserName,
+  currentUserEmail,
 }) => {
-  const data = records ?? mockHistoryData;
+  const { t, language } = useLanguage();
+  const useServer = !records;
 
-  const actionOptions = Array.from(new Set(data.map((entry) => entry.action))).map(
-    (action) => ({
-      value: action,
-      label: formatLabel(action),
-    }),
+  const fetchHistory = useCallback(
+    async ({ page, pageSize, filters, search }: { page: number; pageSize: number; filters: HistoryTableFilters; search?: string }) => {
+      if (!useServer || !entityType || !entityId) {
+        const dataset = records ?? [];
+        return {
+          items: dataset,
+          totalItems: dataset.length,
+        };
+      }
+
+      const response = await historyService.getHistory({
+        entityType,
+        entityId,
+        page,
+        pageSize,
+        action: filters.action && filters.action.length > 0 ? filters.action : undefined,
+        actor: filters.actor && filters.actor.length > 0 ? filters.actor : undefined,
+        search,
+      });
+
+      return {
+        items: response.items,
+        totalItems: response.pagination.totalItems,
+      };
+    },
+    [entityId, entityType, records, useServer],
   );
 
-  const actorOptions = Array.from(
-    new Set(data.map((entry) => getActorName(entry))),
-  ).map((name) => ({
-    value: name,
-    label: name,
-  }));
+  const {
+    items,
+    loading,
+    error,
+    page,
+    pageSize,
+    totalItems,
+    setPage,
+    setPageSize,
+    search,
+    setSearch,
+    filters: serverFilters,
+    setFilters,
+    refresh,
+  } = useServerTable<HistoryEntry, HistoryTableFilters>({
+    fetcher: fetchHistory,
+    initialPageSize: 5,
+    initialFilters: { action: '', actor: '' },
+  });
 
-  const columns = [
-    {
-      key: 'action',
-      title: 'Action',
-      render: (value: string, entry: HistoryEntry) => (
-        <div className="flex items-center space-x-2">
-          <div className={`p-1.5 rounded-full bg-${getActionColor(value)}-100`}>
-            {getActionIcon(value)}
+  const dataset = useServer ? items : records ?? [];
+  const isLoading = externalLoading || (useServer ? loading : false);
+  const locale = language === 'tr' ? 'tr-TR' : language === 'en' ? 'en-US' : language;
+
+  const translateAction = useCallback(
+    (action: string) => t(`profile.history_action_${action}`, { defaultValue: formatLabel(action) }),
+    [t],
+  );
+
+  const translateTag = useCallback(
+    (tag: string) => t(`profile.history_tag_${tag}`, { defaultValue: formatLabel(tag) }),
+    [t],
+  );
+
+  const actionOptions = useMemo(() => {
+    const actions = Array.from(
+      new Set([...defaultActionOrder, ...dataset.map((entry) => entry.action)]),
+    );
+    return actions.map((action) => ({
+      value: action,
+      label: translateAction(action),
+    }));
+  }, [dataset, translateAction]);
+
+  const actorOptions = useMemo(() => {
+    const actorMap = new Map<string, string>();
+    dataset.forEach((entry) => {
+      const value = entry.actorEmail ?? entry.actor?.email ?? entry.actor?.userId ?? '';
+      if (!value) {
+        return;
+      }
+      if (!actorMap.has(value)) {
+        actorMap.set(value, getActorName(entry));
+      }
+    });
+
+    return Array.from(actorMap.entries()).map(([value, label]) => ({
+      value,
+      label,
+    }));
+  }, [dataset]);
+
+  const filterValues = useServer
+    ? {
+        action: serverFilters.action ?? '',
+        actor: serverFilters.actor ?? '',
+      }
+    : undefined;
+
+  const handleFilterChange = useCallback(
+    (key: string, value: string) => {
+      if (!useServer) {
+        return;
+      }
+
+      setFilters((prev) => ({
+        ...prev,
+        [key]: value,
+      }) as HistoryTableFilters);
+    },
+    [setFilters, useServer],
+  );
+
+  const handleSearchChange = useCallback(
+    (value: string) => {
+      if (!useServer) {
+        return;
+      }
+      setSearch(value);
+    },
+    [setSearch, useServer],
+  );
+
+  const handlePageChange = useCallback(
+    (nextPage: number) => {
+      if (!useServer) {
+        return;
+      }
+      setPage(nextPage);
+    },
+    [setPage, useServer],
+  );
+
+  const handlePageSizeChange = useCallback(
+    (nextSize: number) => {
+      if (!useServer) {
+        return;
+      }
+      setPageSize(nextSize);
+    },
+    [setPageSize, useServer],
+  );
+
+  const handleRefresh = useCallback(() => {
+    if (!useServer) {
+      return;
+    }
+    void refresh();
+  }, [refresh, useServer]);
+
+  const serverError = useServer ? error : null;
+
+  const resolveSummary = useCallback(
+    (entry: HistoryEntry) => {
+      const entityKey = entry.entityType?.toLowerCase() ?? 'generic';
+      let summaryKey = `profile.history_summary_${entityKey}_${entry.action}`;
+
+      if (
+        currentUserId &&
+        entry.entityType === 'User' &&
+        entry.action === 'viewed' &&
+        entry.actor?.userId === currentUserId
+      ) {
+        summaryKey = `profile.history_summary_${entityKey}_${entry.action}_self`;
+      }
+
+      return t(summaryKey, {
+        defaultValue: entry.summary ?? translateAction(entry.action),
+      });
+    },
+    [currentUserId, t, translateAction],
+  );
+
+  const resolveSourceLabel = useCallback(
+    (source?: string | null) => {
+      if (!source) {
+        return undefined;
+      }
+      return t(`profile.history_source_${source}`, {
+        defaultValue: formatLabel(source),
+      });
+    },
+    [t],
+  );
+
+  const resolveActorInfo = useCallback(
+    (entry: HistoryEntry) => {
+      const baseName =
+        entry.actor?.name ??
+        entry.actorName ??
+        entry.actor?.email ??
+        entry.actor?.userId ??
+        entry.actor?.ip ??
+        t('profile.history_actor_unknown');
+
+      const identifier =
+        entry.actor?.email ??
+        entry.actorEmail ??
+        entry.actor?.ip ??
+        entry.actor?.userId ??
+        '—';
+
+      let displayName = baseName;
+      if (currentUserId && entry.actor?.userId === currentUserId) {
+        const youLabel = t('profile.history_actor_you');
+        if (baseName && baseName !== youLabel) {
+          displayName = `${baseName} (${youLabel})`;
+        } else {
+          displayName = youLabel;
+        }
+      } else if (baseName === 'System') {
+        displayName = t('profile.history_actor_system');
+      }
+
+      return {
+        name: displayName,
+        identifier,
+      };
+    },
+    [currentUserId, t],
+  );
+
+  const columns = useMemo(
+    () => [
+      {
+        key: 'action',
+        title: t('profile.history_column_action'),
+        render: (value: string, entry: HistoryEntry) => (
+          <div className="flex items-center space-x-2">
+            <div className={`p-1.5 rounded-full bg-${getActionColor(value)}-100`}>
+              {getActionIcon(value)}
+            </div>
+            <Badge variant={getActionColor(value) as any} size="sm">
+              {translateAction(value)}
+            </Badge>
           </div>
-          <Badge variant={getActionColor(value) as any} size="sm">
-            {formatLabel(value)}
-          </Badge>
-        </div>
-      ),
-      mobileRender: (entry: HistoryEntry) => (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <div className={`p-1.5 rounded-full bg-${getActionColor(entry.action)}-100`}>
-                {getActionIcon(entry.action)}
+        ),
+        mobileRender: (entry: HistoryEntry) => (
+          (() => {
+            const actorInfo = resolveActorInfo(entry);
+            return (
+              <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className={`p-1.5 rounded-full bg-${getActionColor(entry.action)}-100`}>
+                  {getActionIcon(entry.action)}
+                </div>
+                <Badge variant={getActionColor(entry.action) as any} size="sm">
+                  {translateAction(entry.action)}
+                </Badge>
               </div>
-              <Badge variant={getActionColor(entry.action) as any} size="sm">
-                {formatLabel(entry.action)}
-              </Badge>
+              <div className="flex items-center text-xs text-muted-foreground space-x-1">
+                <Clock className="h-3.5 w-3.5" />
+                <span>{new Date(entry.timestamp).toLocaleString(locale)}</span>
+              </div>
             </div>
-            <div className="flex items-center text-xs text-muted-foreground space-x-1">
-              <Clock className="h-3.5 w-3.5" />
-              <span>{new Date(entry.timestamp).toLocaleString()}</span>
+
+            <div className="space-y-1">
+              <div className="text-sm font-medium text-foreground">
+                {resolveSummary(entry)}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {t(`profile.history_entity_${entry.entityType?.toLowerCase()}`, {
+                  defaultValue: entry.entityType,
+                })}
+                {' · '}
+                {entry.entityId}
+              </div>
+              {entry.request?.source && (
+                <div className="text-xs text-muted-foreground">
+                  {t('profile.history_source_label')}: {resolveSourceLabel(entry.request.source)}
+                </div>
+              )}
+            </div>
+
+            {entry.tags && entry.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {entry.tags.map((tag) => (
+                  <Badge key={tag} variant="secondary" size="sm">
+                    {translateTag(tag)}
+                  </Badge>
+                ))}
+              </div>
+            )}
+
+            <div>{renderChanges(entry.changes)}</div>
+
+            <div className="text-xs text-muted-foreground">
+                  {actorInfo.name} • {actorInfo.identifier}
             </div>
           </div>
-
+            );
+          })()
+        ),
+      },
+      {
+        key: 'summary',
+        title: t('profile.history_column_details'),
+        render: (_: string, entry: HistoryEntry) => (
           <div className="space-y-1">
             <div className="text-sm font-medium text-foreground">
-              {entry.summary ?? formatLabel(entry.action)}
+              {resolveSummary(entry)}
             </div>
             <div className="text-xs text-muted-foreground">
-              {entry.entityType} · {entry.entityId}
+              {t(`profile.history_entity_${entry.entityType?.toLowerCase()}`, {
+                defaultValue: entry.entityType,
+              })}
+              {' · '}
+              {entry.entityId}
             </div>
+            {entry.request?.source && (
+              <div className="text-xs text-muted-foreground">
+                {t('profile.history_source_label')}: {resolveSourceLabel(entry.request.source)}
+              </div>
+            )}
+            {entry.tags && entry.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1 pt-1">
+                {entry.tags.map((tag) => (
+                  <Badge key={tag} variant="secondary" size="sm">
+                    {translateTag(tag)}
+                  </Badge>
+                ))}
+              </div>
+            )}
           </div>
-
-          {entry.tags && entry.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {entry.tags.map((tag) => (
-                <Badge key={tag} variant="secondary" size="sm">
-                  {tag}
-                </Badge>
-              ))}
-            </div>
-          )}
-
-          <div>{renderChanges(entry.changes)}</div>
-
-          <div className="text-xs text-muted-foreground">
-            {getActorName(entry)} • {getActorEmail(entry)}
-          </div>
-        </div>
-      ),
-    },
-    {
-      key: 'summary',
-      title: 'Details',
-      render: (_: string, entry: HistoryEntry) => (
-        <div className="space-y-1">
-          <div className="text-sm font-medium text-foreground">
-            {entry.summary ?? formatLabel(entry.action)}
-          </div>
-          <div className="text-xs text-muted-foreground">
-            {entry.entityType} · {entry.entityId}
-          </div>
-          {entry.request?.source && (
-            <div className="text-xs text-muted-foreground">
-              Source: {formatLabel(entry.request.source)}
-            </div>
-          )}
-          {entry.tags && entry.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 pt-1">
-              {entry.tags.map((tag) => (
-                <Badge key={tag} variant="secondary" size="sm">
-                  {tag}
-                </Badge>
-              ))}
-            </div>
-          )}
-        </div>
-      ),
-    },
-    {
-      key: 'changes',
-      title: 'Changes',
-      render: (_: HistoryChange[] | undefined, entry: HistoryEntry) =>
-        renderChanges(entry.changes),
-    },
-    {
-      key: 'timestamp',
-      title: 'Performed',
-      sortable: true,
-      render: (value: string, entry: HistoryEntry) => (
-        <UserInfo
-          name={getActorName(entry)}
-          email={getActorEmail(entry)}
-          date={value}
-        />
-      ),
-    },
-  ];
+        ),
+      },
+      {
+       key: 'changes',
+        title: t('profile.history_column_changes'),
+        render: (_: HistoryChange[] | undefined, entry: HistoryEntry) => renderChanges(entry.changes),
+      },
+      {
+       key: 'timestamp',
+        title: t('profile.history_column_performed'),
+        sortable: true,
+        render: (value: string, entry: HistoryEntry) => (
+          (() => {
+            const actorInfo = resolveActorInfo(entry);
+            return (
+              <UserInfo
+                name={actorInfo.name}
+                email={actorInfo.identifier}
+                date={new Date(value).toLocaleString(locale)}
+              />
+            );
+          })()
+        ),
+      },
+    ],
+    [locale, resolveActorInfo, resolveSourceLabel, resolveSummary, t, translateAction, translateTag],
+  );
 
   return (
     <div className="space-y-4">
@@ -316,32 +516,58 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
           <h3 className="text-lg font-semibold text-foreground">{title}</h3>
           <p className="text-sm text-muted-foreground">{description}</p>
         </div>
+        {useServer && (
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
+              {isLoading ? t('common.loading') : t('profile.history_reload')}
+            </Button>
+          </div>
+        )}
       </div>
 
+      {serverError && (
+        <div className="rounded-md border border-error/30 bg-error-background/40 px-3 py-2 text-sm text-error">
+          {serverError}
+        </div>
+      )}
+
       <DataTable
-        data={data}
+        data={dataset}
         columns={columns}
-        loading={loading}
-        searchPlaceholder="Search history..."
+        loading={isLoading}
+        searchable
+        searchPlaceholder={t('profile.history_search_placeholder', { defaultValue: 'Search history...' })}
         filters={[
           {
             key: 'action',
-            label: 'All Actions',
+            label: t('profile.history_filter_all_actions'),
             type: 'select',
             options: actionOptions,
           },
           {
-            key: 'actorName',
-            label: 'All Users',
+            key: 'actor',
+            label: t('profile.history_filter_all_users'),
             type: 'select',
             options: actorOptions,
           },
         ]}
-        pageSize={20}
+        mode={useServer ? 'server' : 'client'}
+        totalItems={useServer ? totalItems : undefined}
+        currentPage={useServer ? page : undefined}
+        currentPageSize={useServer ? pageSize : undefined}
+        onPageChange={useServer ? handlePageChange : undefined}
+        onPageSizeChange={useServer ? handlePageSizeChange : undefined}
+        searchValue={useServer ? search : undefined}
+        onSearchChange={useServer ? handleSearchChange : undefined}
+        filterValues={filterValues}
+        onFilterChange={useServer ? handleFilterChange : undefined}
+        pageSize={useServer ? pageSize : 5}
         emptyState={{
           icon: <Activity className="h-12 w-12" />,
-          title: 'No history found',
-          description: 'No activities have been recorded yet.',
+          title: t('profile.history_empty'),
+          description: t('profile.history_empty_description', {
+            defaultValue: 'No activities have been recorded yet.',
+          }),
         }}
       />
     </div>
