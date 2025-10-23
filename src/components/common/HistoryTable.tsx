@@ -395,6 +395,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
       {
         key: 'action',
         title: t('profile.history_column_action'),
+        width: '10%',
         render: (value: string, entry: HistoryEntry) => (
           <div className="flex items-center space-x-2">
             <div className={`p-1.5 rounded-full bg-${getActionColor(value)}-100`}>
@@ -487,6 +488,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
       {
         key: 'summary',
         title: t('profile.history_column_details'),
+        width: '15%',
         render: (_: string, entry: HistoryEntry) => (
           <div className="space-y-1">
             <div className="text-sm font-medium text-foreground">
@@ -525,12 +527,13 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
         ),
       },
       {
-       key: 'changes',
+        key: 'changes',
         title: t('profile.history_column_changes'),
         align: 'center' as const,
+        width: '60%',
         render: (_: HistoryChange[] | undefined, entry: HistoryEntry) => (
           <div className="flex justify-center">
-            <div className="max-w-[220px] text-center">
+            <div className="max-w-[360px] text-center">
               {renderChanges(entry.changes)}
             </div>
           </div>
@@ -541,11 +544,12 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
         title: t('profile.history_column_performed'),
         sortable: true,
         align: 'center' as const,
+        width: '15%',
         render: (value: string, entry: HistoryEntry) => (
           (() => {
             const actorInfo = resolveActorInfo(entry);
             return (
-              <div className="flex justify-center w-[260px]">
+              <div className="flex justify-center w-full">
                 <UserInfo
                   name={actorInfo.name}
                   email={actorInfo.email ?? actorInfo.identifier}

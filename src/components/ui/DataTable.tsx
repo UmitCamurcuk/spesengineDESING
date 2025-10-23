@@ -519,20 +519,20 @@ export function DataTable<T extends Record<string, any>>({
           <thead className="bg-muted">
             <tr>
               {columns.map((column, index) => (
-                <th
-                  key={index}
-                  scope="col"
+              <th
+                key={index}
+                scope="col"
+                className={cn(
+                  'px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider',
+                  column.align === 'center' && 'text-center',
+                  column.align === 'right' && 'text-right',
+                )}
+                style={column.width ? { width: column.width } : undefined}
+              >
+                <div
                   className={cn(
-                    'px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider',
-                    column.align === 'center' && 'text-center',
-                    column.align === 'right' && 'text-right',
-                    column.width && `w-${column.width}`,
-                  )}
-                >
-                  <div
-                    className={cn(
-                      'flex items-center',
-                      column.align === 'center' && 'justify-center',
+                    'flex items-center',
+                    column.align === 'center' && 'justify-center',
                       column.align === 'right' && 'justify-end',
                       column.sortable && 'cursor-pointer select-none',
                     )}
@@ -559,18 +559,19 @@ export function DataTable<T extends Record<string, any>>({
                 onClick={() => onRowClick?.(item)}
               >
                 {columns.map((column, colIndex) => (
-                  <td
-                    key={colIndex}
-                    className={cn(
-                      'px-4 py-3 whitespace-nowrap text-sm text-foreground align-middle',
-                      column.align === 'center' && 'text-center',
-                      column.align === 'right' && 'text-right',
-                    )}
-                  >
-                    {column.render
-                      ? column.render(item[column.key as keyof T], item)
-                      : typeof item[column.key as keyof T] === 'boolean'
-                        ? item[column.key as keyof T]
+                <td
+                  key={colIndex}
+                  className={cn(
+                    'px-4 py-3 whitespace-nowrap text-sm text-foreground align-middle',
+                    column.align === 'center' && 'text-center',
+                    column.align === 'right' && 'text-right',
+                  )}
+                  style={column.width ? { width: column.width } : undefined}
+                >
+                  {column.render
+                    ? column.render(item[column.key as keyof T], item)
+                    : typeof item[column.key as keyof T] === 'boolean'
+                      ? item[column.key as keyof T]
                           ? <Badge variant="success" size="sm">{t('common.yes')}</Badge>
                           : <Badge variant="secondary" size="sm">{t('common.no')}</Badge>
                         : String(item[column.key as keyof T] ?? '-')}
