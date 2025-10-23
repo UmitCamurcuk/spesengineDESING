@@ -10,6 +10,7 @@ import {
   LogIn,
   LogOut,
   Clock,
+  User,
 } from 'lucide-react';
 import { DataTable, UserInfo } from '../ui/DataTable';
 import { Badge } from '../ui/Badge';
@@ -351,31 +352,42 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
         entry.actor?.ip ??
         t('profile.history_actor_unknown');
 
+      const email = entry.actor?.email ?? entry.actorEmail ?? undefined;
       const identifier =
-        entry.actor?.email ??
-        entry.actorEmail ??
-        entry.actor?.ip ??
+        email ??
         entry.actor?.userId ??
+        entry.actor?.ip ??
         '—';
 
       let displayName = baseName;
       if (currentUserId && entry.actor?.userId === currentUserId) {
         const youLabel = t('profile.history_actor_you');
-        if (baseName && baseName !== youLabel) {
-          displayName = `${baseName} (${youLabel})`;
-        } else {
-          displayName = youLabel;
-        }
+        displayName = baseName && baseName !== youLabel ? `${baseName} (${youLabel})` : youLabel;
       } else if (baseName === 'System') {
         displayName = t('profile.history_actor_system');
       }
 
       return {
         name: displayName,
+        email,
         identifier,
+        avatarUrl: entry.actor?.profilePhotoUrl,
       };
     },
     [currentUserId, t],
+  );
+
+  const getEntityInfo = useCallback(
+    (entry: HistoryEntry) => {
+      const typeKey = entry.entityType?.toLowerCase();
+      const typeLabel = t(`profile.history_entity_${typeKey}`, {
+        defaultValue: entry.entityType,
+      });
+      const label = entry.entityLabel ?? entry.entityId;
+      const email = entry.entityEmail;
+      return { typeLabel, label, email };
+    },
+    [t],
   );
 
   const columns = useMemo(
@@ -396,6 +408,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
         mobileRender: (entry: HistoryEntry) => (
           (() => {
             const actorInfo = resolveActorInfo(entry);
+            const entityInfo = getEntityInfo(entry);
             return (
               <div className="space-y-3">
             <div className="flex items-center justify-between">
@@ -418,12 +431,15 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
                 {resolveSummary(entry)}
               </div>
               <div className="text-xs text-muted-foreground">
-                {t(`profile.history_entity_${entry.entityType?.toLowerCase()}`, {
-                  defaultValue: entry.entityType,
-                })}
+                {entityInfo.typeLabel}
                 {' · '}
-                {entry.entityId}
+                {entityInfo.label}
               </div>
+              {entityInfo.email && (
+                <div className="text-xs text-muted-foreground">
+                  {entityInfo.email}
+                </div>
+              )}
               {entry.request?.source && (
                 <div className="text-xs text-muted-foreground">
                   {t('profile.history_source_label')}: {resolveSourceLabel(entry.request.source)}
@@ -443,8 +459,25 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
 
             <div>{renderChanges(entry.changes)}</div>
 
-            <div className="text-xs text-muted-foreground">
-                  {actorInfo.name} • {actorInfo.identifier}
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="w-7 h-7 rounded-full overflow-hidden bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center">
+                {actorInfo.avatarUrl ? (
+                  <img
+                    src={actorInfo.avatarUrl}
+                    alt={actorInfo.name}
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <User className="h-3.5 w-3.5 text-white" />
+                )}
+              </div>
+              <div className="flex flex-col">
+                <span className="text-xs font-medium text-foreground">{actorInfo.name}</span>
+                <span className="text-[10px] text-muted-foreground">
+                  {actorInfo.email ?? actorInfo.identifier}
+                </span>
+              </div>
             </div>
           </div>
             );
@@ -459,13 +492,21 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
             <div className="text-sm font-medium text-foreground">
               {resolveSummary(entry)}
             </div>
-            <div className="text-xs text-muted-foreground">
-              {t(`profile.history_entity_${entry.entityType?.toLowerCase()}`, {
-                defaultValue: entry.entityType,
-              })}
-              {' · '}
-              {entry.entityId}
-            </div>
+            {(() => {
+              const entityInfo = getEntityInfo(entry);
+              return (
+                <>
+                  <div className="text-xs text-muted-foreground">
+                    {entityInfo.typeLabel}
+                    {' · '}
+                    {entityInfo.label}
+                  </div>
+                  {entityInfo.email && (
+                    <div className="text-xs text-muted-foreground">{entityInfo.email}</div>
+                  )}
+                </>
+              );
+            })()}
             {entry.request?.source && (
               <div className="text-xs text-muted-foreground">
                 {t('profile.history_source_label')}: {resolveSourceLabel(entry.request.source)}
@@ -486,27 +527,38 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
       {
        key: 'changes',
         title: t('profile.history_column_changes'),
-        render: (_: HistoryChange[] | undefined, entry: HistoryEntry) => renderChanges(entry.changes),
+        align: 'center' as const,
+        render: (_: HistoryChange[] | undefined, entry: HistoryEntry) => (
+          <div className="flex justify-center">
+            <div className="max-w-[220px] text-center">
+              {renderChanges(entry.changes)}
+            </div>
+          </div>
+        ),
       },
       {
        key: 'timestamp',
         title: t('profile.history_column_performed'),
         sortable: true,
+        align: 'center' as const,
         render: (value: string, entry: HistoryEntry) => (
           (() => {
             const actorInfo = resolveActorInfo(entry);
             return (
-              <UserInfo
-                name={actorInfo.name}
-                email={actorInfo.identifier}
-                date={new Date(value).toLocaleString(locale)}
-              />
+              <div className="flex justify-center w-[260px]">
+                <UserInfo
+                  name={actorInfo.name}
+                  email={actorInfo.email ?? actorInfo.identifier}
+                  avatarUrl={actorInfo.avatarUrl}
+                  date={new Date(value).toLocaleString(locale)}
+                />
+              </div>
             );
           })()
         ),
       },
     ],
-    [locale, resolveActorInfo, resolveSourceLabel, resolveSummary, t, translateAction, translateTag],
+    [getEntityInfo, locale, resolveActorInfo, resolveSourceLabel, resolveSummary, t, translateAction, translateTag],
   );
 
   return (

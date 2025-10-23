@@ -158,10 +158,26 @@ const Pagination: React.FC<PaginationProps> = ({
   );
 };
 
-const UserInfo: React.FC<{ name: string; email: string; date: string }> = ({ name, email, date }) => (
+interface UserInfoProps {
+  name: string;
+  email: string;
+  date: string;
+  avatarUrl?: string;
+}
+
+const UserInfo: React.FC<UserInfoProps> = ({ name, email, date, avatarUrl }) => (
   <div className="flex items-center space-x-2.5">
-    <div className="w-7 h-7 bg-gradient-to-br from-primary to-primary-hover rounded-full flex items-center justify-center">
-      <User className="h-3.5 w-3.5 text-white" />
+    <div className="w-7 h-7 rounded-full flex items-center justify-center bg-gradient-to-br from-primary to-primary-hover overflow-hidden">
+      {avatarUrl ? (
+        <img
+          src={avatarUrl}
+          alt={name}
+          className="w-full h-full object-cover"
+          referrerPolicy="no-referrer"
+        />
+      ) : (
+        <User className="h-3.5 w-3.5 text-white" />
+      )}
     </div>
     <div>
       <div className="text-xs font-medium text-foreground">{name}</div>
