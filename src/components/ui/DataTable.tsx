@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Search, Filter, User, Calendar } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { Button } from './Button';
@@ -232,7 +232,15 @@ export function DataTable<T extends Record<string, any>>({
     }
   }, [pageSize, isServerMode]);
 
-  const resolvedSearch = isServerMode ? searchValue ?? '' : internalSearch;
+  const [serverSearchInput, setServerSearchInput] = useState(searchValue ?? '');
+
+  useEffect(() => {
+    if (isServerMode) {
+      setServerSearchInput(searchValue ?? '');
+    }
+  }, [isServerMode, searchValue]);
+
+  const resolvedSearch = isServerMode ? serverSearchInput : internalSearch;
   const resolvedFilters = isServerMode ? filterValues ?? {} : internalFilters;
 
   const isSortKeyControlled = sortKey !== undefined;
@@ -281,12 +289,28 @@ export function DataTable<T extends Record<string, any>>({
     }
   };
 
-  const handleSearchChange = (value: string) => {
+  const handleSearchInputChange = (value: string) => {
     if (isServerMode) {
-      onSearchChange?.(value);
+      setServerSearchInput(value);
     } else {
       setInternalSearch(value);
       setInternalPage(1);
+    }
+  };
+
+  const triggerServerSearch = useCallback(() => {
+    if (!isServerMode) {
+      return;
+    }
+    onSearchChange?.(serverSearchInput.trim());
+  }, [isServerMode, onSearchChange, serverSearchInput]);
+
+  const handleSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      if (isServerMode) {
+        triggerServerSearch();
+      }
     }
   };
 
@@ -364,7 +388,7 @@ export function DataTable<T extends Record<string, any>>({
   const totalItemCount = isServerMode ? totalItems ?? data.length : sortedData.length;
   const totalPages = Math.max(1, Math.ceil(totalItemCount / Math.max(resolvedPageSize, 1)));
 
-  if (loading) {
+  if (loading && displayData.length === 0) {
     return (
       <div className={cn('bg-card rounded-lg border border-border overflow-hidden', className)}>
         <div className="animate-pulse">
@@ -396,14 +420,26 @@ export function DataTable<T extends Record<string, any>>({
           <div className="p-3.5 border-b border-border space-y-3 flex-shrink-0">
             <div className="flex flex-col sm:flex-row gap-3">
               {searchable && (
-                <div className="flex-1">
+                <div className={cn('flex-1', isServerMode && 'flex items-center gap-2')}>
                   <Input
                     placeholder={searchPlaceholder}
                     value={resolvedSearch}
-                    onChange={(e) => handleSearchChange(e.target.value)}
+                    onChange={(e) => handleSearchInputChange(e.target.value)}
+                    onKeyDown={handleSearchKeyDown}
                     leftIcon={<Search className="h-4 w-4" />}
                     className="h-10"
                   />
+                  {isServerMode && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-10"
+                      onClick={triggerServerSearch}
+                    >
+                      <Search className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               )}
 
@@ -466,14 +502,26 @@ export function DataTable<T extends Record<string, any>>({
         <div className="p-3.5 border-b border-border space-y-3 flex-shrink-0">
           <div className="flex flex-col sm:flex-row gap-3">
             {searchable && (
-              <div className="flex-1">
+              <div className={cn('flex-1', isServerMode && 'flex items-center gap-2')}>
                 <Input
                   placeholder={searchPlaceholder}
                   value={resolvedSearch}
-                  onChange={(e) => handleSearchChange(e.target.value)}
+                  onChange={(e) => handleSearchInputChange(e.target.value)}
+                  onKeyDown={handleSearchKeyDown}
                   leftIcon={<Search className="h-4 w-4" />}
                   className="h-10"
                 />
+                {isServerMode && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-10"
+                    onClick={triggerServerSearch}
+                  >
+                    <Search className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             )}
 

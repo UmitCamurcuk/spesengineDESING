@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 export type SortDirection = 'asc' | 'desc';
 
@@ -71,36 +71,72 @@ export function useServerTable<T, F extends Record<string, any> = Record<string,
   const [totalItems, setTotalItems] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [manualRefreshToken, setManualRefreshToken] = useState(0);
+  const lastSignatureRef = useRef<string | null>(null);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(totalItems / Math.max(pageSize, 1))), [pageSize, totalItems]);
 
-  const executeFetch = useCallback(async () => {
-    setLoading(true);
-    try {
-      const result = await fetcher({
-        page,
-        pageSize,
-        search: search.trim().length > 0 ? search.trim() : undefined,
-        filters,
-        sort,
-      });
-      setItems(result.items);
-      setTotalItems(result.totalItems);
-      setError(null);
-    } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : 'Veriler yüklenirken bir hata oluştu';
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  }, [fetcher, filters, page, pageSize, search, sort]);
+  const trimmedSearch = useMemo(() => search.trim(), [search]);
+
+  const fetchParams = useMemo(
+    () => ({
+      page,
+      pageSize,
+      search: trimmedSearch.length > 0 ? trimmedSearch : undefined,
+      filters,
+      sort,
+    }),
+    [filters, page, pageSize, trimmedSearch, sort],
+  );
+
+  const fetchSignature = useMemo(
+    () =>
+      JSON.stringify({
+        page: fetchParams.page,
+        pageSize: fetchParams.pageSize,
+        search: fetchParams.search ?? null,
+        filters: fetchParams.filters,
+        sort: fetchParams.sort,
+        token: manualRefreshToken,
+      }),
+    [fetchParams, manualRefreshToken],
+  );
 
   useEffect(() => {
-    void executeFetch();
-  }, [executeFetch]);
+    if (lastSignatureRef.current === fetchSignature) {
+      return;
+    }
+    lastSignatureRef.current = fetchSignature;
+
+    let cancelled = false;
+    setLoading(true);
+
+    fetcher(fetchParams)
+      .then((result) => {
+        if (cancelled) {
+          return;
+        }
+        setItems(result.items);
+        setTotalItems(result.totalItems);
+        setError(null);
+      })
+      .catch((err) => {
+        if (cancelled) {
+          return;
+        }
+        const message =
+          err instanceof Error ? err.message : 'Veriler yüklenirken bir hata oluştu';
+        setError(message);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+      lastSignatureRef.current = null;
+    };
+  }, [fetchParams, fetchSignature, fetcher]);
 
   const setPage = useCallback((nextPage: number) => {
     setPageState(Math.max(1, nextPage));
@@ -155,8 +191,9 @@ export function useServerTable<T, F extends Record<string, any> = Record<string,
   }, []);
 
   const refresh = useCallback(async () => {
-    await executeFetch();
-  }, [executeFetch]);
+    lastSignatureRef.current = null;
+    setManualRefreshToken((token) => token + 1);
+  }, []);
 
   return {
     items,

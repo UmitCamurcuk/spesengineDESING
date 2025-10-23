@@ -138,6 +138,7 @@ const toHistoryEntry = (item: HistoryApiItem): HistoryEntry => {
     tags: item.tags,
     metadata: item.meta ?? undefined,
     request: item.request,
+    comment: typeof item.meta?.comment === 'string' ? item.meta.comment : undefined,
   };
 };
 
@@ -148,10 +149,33 @@ export const historyService = {
     });
 
     const payload: HistoryResponseData = response.data.data;
+    const searchTerm = params.search?.toLowerCase().trim();
+
+    const mappedItems = payload.items.map(toHistoryEntry);
+
+    const filteredItems = searchTerm
+      ? mappedItems.filter((entry) => {
+          const matchesComment = entry.comment?.toLowerCase().includes(searchTerm) ?? false;
+          const matchesChanges = entry.changes?.some((change) => {
+            const values = [change.field, change.oldValue, change.newValue]
+              .map((val) => (val === null || val === undefined ? '' : String(val).toLowerCase()));
+            return values.some((val) => val.includes(searchTerm));
+          }) ?? false;
+          return matchesComment || matchesChanges;
+        })
+      : mappedItems;
+
+    const adjustedPagination = searchTerm
+      ? {
+          ...payload.pagination,
+          totalItems: filteredItems.length,
+          totalPages: Math.max(1, Math.ceil(filteredItems.length / Math.max(payload.pagination.pageSize, 1))),
+        }
+      : payload.pagination;
 
     return {
-      items: payload.items.map(toHistoryEntry),
-      pagination: payload.pagination,
+      items: filteredItems,
+      pagination: adjustedPagination,
     };
   },
 };

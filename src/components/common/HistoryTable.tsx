@@ -11,6 +11,7 @@ import {
   LogOut,
   Clock,
   User,
+  MessageSquare,
 } from 'lucide-react';
 import { DataTable, UserInfo } from '../ui/DataTable';
 import { Badge } from '../ui/Badge';
@@ -19,6 +20,7 @@ import { HistoryEntry, HistoryChange } from '../../types/common';
 import { useServerTable } from '../../hooks';
 import { historyService } from '../../api/services/history.service';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { resolveAssetUrl } from '../../utils/url';
 
 interface HistoryTableProps {
   entityType?: string;
@@ -106,6 +108,35 @@ const formatChangeValue = (value: unknown): string => {
   return String(value);
 };
 
+const isImageValue = (value: unknown): value is string => {
+  if (typeof value !== 'string') {
+    return false;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (normalized.startsWith('data:')) {
+    return normalized.startsWith('data:image');
+  }
+  return /\.(png|jpe?g|gif|webp|svg)$/i.test(normalized) || normalized.startsWith('/uploads/');
+};
+
+const renderChangeMedia = (value: unknown, label: string) => {
+  if (!isImageValue(value)) {
+    return null;
+  }
+
+  const apiBase = import.meta.env.VITE_ASSET_BASE_URL || import.meta.env.VITE_API_BASE_URL;
+  const src = resolveAssetUrl(value, apiBase);
+
+  return (
+    <img
+      src={src}
+      alt={label}
+      className="h-12 w-12 rounded-md object-cover border border-border"
+      referrerPolicy="no-referrer"
+    />
+  );
+};
+
 const getActorName = (entry: HistoryEntry): string =>
   entry.actorName ??
   entry.actor?.name ??
@@ -113,37 +144,6 @@ const getActorName = (entry: HistoryEntry): string =>
   entry.actor?.userId ??
   entry.actor?.ip ??
   'System';
-
-const renderChanges = (changes: HistoryChange[] | undefined) => {
-  if (!changes || changes.length === 0) {
-    return <span className="text-muted-foreground text-sm">—</span>;
-  }
-
-  const MAX_VISIBLE = 4;
-  const visibleChanges = changes.slice(0, MAX_VISIBLE);
-  const remaining = changes.length - visibleChanges.length;
-
-  return (
-    <div className="space-y-2">
-      {visibleChanges.map((change) => (
-        <div key={change.field} className="text-xs">
-          <div className="font-medium text-foreground">{change.field}</div>
-          <div className="mt-1 space-y-0.5">
-            <div className="text-error line-through">
-              {formatChangeValue(change.oldValue)}
-            </div>
-            <div className="text-success">
-              {formatChangeValue(change.newValue)}
-            </div>
-          </div>
-        </div>
-      ))}
-      {remaining > 0 && (
-        <div className="text-xs text-muted-foreground">+{remaining} more changes</div>
-      )}
-    </div>
-  );
-};
 
 export const HistoryTable: React.FC<HistoryTableProps> = ({
   entityType,
@@ -158,6 +158,53 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
 }) => {
   const { t, language } = useLanguage();
   const useServer = !records;
+
+  const renderChanges = useCallback(
+    (changes: HistoryChange[] | undefined) => {
+      if (!changes || changes.length === 0) {
+        return <span className="text-muted-foreground text-sm">—</span>;
+      }
+
+      const MAX_VISIBLE = 4;
+      const visibleChanges = changes.slice(0, MAX_VISIBLE);
+      const remaining = changes.length - visibleChanges.length;
+
+      return (
+        <div className="space-y-2">
+          {visibleChanges.map((change) => (
+            <div key={change.field} className="text-xs">
+              <div className="font-medium text-foreground flex items-center gap-2">
+                <span>{change.field}</span>
+                {renderChangeMedia(change.newValue, `${change.field}-after`)}
+              </div>
+              <div className="mt-1 grid grid-cols-2 gap-3">
+                <div>
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                    {change.oldValue !== undefined ? t('profile.history_before_label') : ''}
+                  </div>
+                  <div className="text-error line-through">
+                    {renderChangeMedia(change.oldValue, `${change.field}-before`) || formatChangeValue(change.oldValue)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                    {change.newValue !== undefined ? t('profile.history_after_label') : ''}
+                  </div>
+                  <div className="text-success">
+                    {renderChangeMedia(change.newValue, `${change.field}-after`) || formatChangeValue(change.newValue)}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+          {remaining > 0 && (
+            <div className="text-xs text-muted-foreground">+{remaining} {t('profile.history_more_changes')}</div>
+          )}
+        </div>
+      );
+    },
+    [t],
+  );
 
   const fetchHistory = useCallback(
     async ({ page, pageSize, filters, search }: { page: number; pageSize: number; filters: HistoryTableFilters; search?: string }) => {
@@ -480,6 +527,13 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
                 </span>
               </div>
             </div>
+
+            {entry.comment && (
+              <div className="flex items-start gap-2 text-xs text-muted-foreground">
+                <MessageSquare className="h-3.5 w-3.5 mt-0.5" />
+                <span className="text-foreground whitespace-pre-wrap break-words">{entry.comment}</span>
+              </div>
+            )}
           </div>
             );
           })()
@@ -488,7 +542,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
       {
         key: 'summary',
         title: t('profile.history_column_details'),
-        width: '15%',
+        width: '20%',
         render: (_: string, entry: HistoryEntry) => (
           <div className="space-y-1">
             <div className="text-sm font-medium text-foreground">
@@ -527,10 +581,10 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
         ),
       },
       {
-        key: 'changes',
+       key: 'changes',
         title: t('profile.history_column_changes'),
         align: 'center' as const,
-        width: '60%',
+        width: '40%',
         render: (_: HistoryChange[] | undefined, entry: HistoryEntry) => (
           <div className="flex justify-center">
             <div className="max-w-[360px] text-center">
@@ -540,11 +594,25 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
         ),
       },
       {
+        key: 'comment',
+        title: t('profile.history_column_comment'),
+        width: '20%',
+        render: (_: string | undefined, entry: HistoryEntry) =>
+          entry.comment ? (
+            <div className="flex items-start gap-2 text-sm text-foreground">
+              <MessageSquare className="h-3.5 w-3.5 text-muted-foreground mt-0.5" />
+              <div className="text-left whitespace-normal break-words">{entry.comment}</div>
+            </div>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          ),
+      },
+      {
        key: 'timestamp',
         title: t('profile.history_column_performed'),
         sortable: true,
         align: 'center' as const,
-        width: '15%',
+        width: '10%',
         render: (value: string, entry: HistoryEntry) => (
           (() => {
             const actorInfo = resolveActorInfo(entry);

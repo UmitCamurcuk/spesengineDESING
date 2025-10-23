@@ -53,6 +53,7 @@ export interface HistoryEntry {
   tags?: string[];
   metadata?: Record<string, unknown>;
   request?: HistoryRequestInfo;
+  comment?: string;
 }
 
 export interface NotificationSettings {
