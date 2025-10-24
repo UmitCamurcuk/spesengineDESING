@@ -107,12 +107,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Load user profile whenever we have a token but no profile yet
   useEffect(() => {
     const loadUserProfile = async () => {
-      if (!accessToken || user) {
+      if (!accessToken || user || isProcessing) {
         setIsInitializing(false);
         return;
       }
 
       try {
+        setIsProcessing(true);
         setIsInitializing(true);
         const profile = await fetchAndSetProfile();
         logger.info('User profile loaded', { email: profile.user.email });
@@ -121,16 +122,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         dispatch(resetAuthState());
         setError('Profil bilgileri alınamadı');
       } finally {
+        setIsProcessing(false);
         setIsInitializing(false);
       }
     }
     loadUserProfile();
-  }, [accessToken, user, dispatch]);
+  }, [accessToken, user, dispatch, isProcessing]);
 
   // Login function
   const login = async (credentials: LoginRequest) => {
     try {
       setError(null);
+      setIsProcessing(true);
       await dispatch(loginThunk(credentials)).unwrap();
 
       const profile = await fetchAndSetProfile();
@@ -144,6 +147,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setError(errorMessage);
       logger.error('Login failed', { error: errorMessage, email: credentials.email });
       throw error;
+    } finally {
+      setIsProcessing(false);
     }
   };
 

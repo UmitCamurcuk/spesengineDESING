@@ -24,40 +24,61 @@ const formatChangeValue = (value: unknown, field: string, t: (key: string) => st
       if (field === 'general' || field === 'appearance' || field === 'localization') {
         return Object.entries(obj)
           .map(([key, val]) => {
-            // Manuel çeviri mapping
+            // Manuel çeviri mapping - hardcoded değerler
             const fieldTranslations: Record<string, string> = {
-              'companyName': t('settings_fields.companyName') || 'Şirket Adı',
-              'timezone': t('settings_fields.timezone') || 'Saat Dilimi',
-              'dateFormat': t('settings_fields.dateFormat') || 'Tarih Formatı',
-              'maintenanceMode': t('settings_fields.maintenanceMode') || 'Bakım Modu',
-              'themeMode': t('settings_fields.themeMode') || 'Tema Modu',
-              'language': t('settings_fields.language') || 'Dil',
-              'emailNotifications': t('settings_fields.emailNotifications') || 'E-posta Bildirimleri',
-              'pushNotifications': t('settings_fields.pushNotifications') || 'Anlık Bildirimler',
-              'twoFactorAuth': t('settings_fields.twoFactorAuth') || 'İki Faktörlü Kimlik Doğrulama',
-              'sessionTimeout': t('settings_fields.sessionTimeout') || 'Oturum Zaman Aşımı',
-              'apiRateLimit': t('settings_fields.apiRateLimit') || 'API Hız Sınırı',
-              'backupFrequency': t('settings_fields.backupFrequency') || 'Yedekleme Sıklığı',
-              'logLevel': t('settings_fields.logLevel') || 'Log Seviyesi',
-              'debugMode': t('settings_fields.debugMode') || 'Hata Ayıklama Modu',
-              'autoSave': t('settings_fields.autoSave') || 'Otomatik Kaydetme',
-              'confirmChanges': t('settings_fields.confirmChanges') || 'Değişiklikleri Onayla',
-              'showTooltips': t('settings_fields.showTooltips') || 'İpucu Göster',
-              'compactView': t('settings_fields.compactView') || 'Kompakt Görünüm',
-              'sidebarCollapsed': t('settings_fields.sidebarCollapsed') || 'Kenar Çubuğu Daraltılmış',
-              'gridDensity': t('settings_fields.gridDensity') || 'Grid Yoğunluğu',
-              'defaultPageSize': t('settings_fields.defaultPageSize') || 'Varsayılan Sayfa Boyutu',
-              'enableAnimations': t('settings_fields.enableAnimations') || 'Animasyonları Etkinleştir',
-              'showWelcomeMessage': t('settings_fields.showWelcomeMessage') || 'Hoş Geldin Mesajını Göster',
-              'enableKeyboardShortcuts': t('settings_fields.enableKeyboardShortcuts') || 'Klavye Kısayollarını Etkinleştir',
-              'autoRefresh': t('settings_fields.autoRefresh') || 'Otomatik Yenileme',
-              'enableDarkMode': t('settings_fields.enableDarkMode') || 'Karanlık Modu Etkinleştir',
-              'enableNotifications': t('settings_fields.enableNotifications') || 'Bildirimleri Etkinleştir',
-              'enableSounds': t('settings_fields.enableSounds') || 'Sesleri Etkinleştir',
-              'enableVibrations': t('settings_fields.enableVibrations') || 'Titreşimi Etkinleştir'
+              'companyName': 'Şirket Adı',
+              'timezone': 'Saat Dilimi',
+              'dateFormat': 'Tarih Formatı',
+              'maintenanceMode': 'Bakım Modu',
+              'themeMode': 'Tema Modu',
+              'language': 'Dil',
+              'defaultLanguage': 'Varsayılan Dil',
+              'fallbackLanguage': 'Yedek Dil',
+              'supportedLanguages': 'Desteklenen Diller',
+              'allowUserLanguageSwitch': 'Kullanıcı Dil Değiştirme',
+              'autoTranslateNewContent': 'Otomatik Çeviri',
+              'emailNotifications': 'E-posta Bildirimleri',
+              'pushNotifications': 'Anlık Bildirimler',
+              'twoFactorAuth': 'İki Faktörlü Kimlik Doğrulama',
+              'sessionTimeout': 'Oturum Zaman Aşımı',
+              'apiRateLimit': 'API Hız Sınırı',
+              'backupFrequency': 'Yedekleme Sıklığı',
+              'logLevel': 'Log Seviyesi',
+              'debugMode': 'Hata Ayıklama Modu',
+              'autoSave': 'Otomatik Kaydetme',
+              'confirmChanges': 'Değişiklikleri Onayla',
+              'showTooltips': 'İpucu Göster',
+              'compactView': 'Kompakt Görünüm',
+              'sidebarCollapsed': 'Kenar Çubuğu Daraltılmış',
+              'gridDensity': 'Grid Yoğunluğu',
+              'defaultPageSize': 'Varsayılan Sayfa Boyutu',
+              'enableAnimations': 'Animasyonları Etkinleştir',
+              'showWelcomeMessage': 'Hoş Geldin Mesajını Göster',
+              'enableKeyboardShortcuts': 'Klavye Kısayollarını Etkinleştir',
+              'autoRefresh': 'Otomatik Yenileme',
+              'enableDarkMode': 'Karanlık Modu Etkinleştir',
+              'enableNotifications': 'Bildirimleri Etkinleştir',
+              'enableSounds': 'Sesleri Etkinleştir',
+              'enableVibrations': 'Titreşimi Etkinleştir'
             };
             
             const displayKey = fieldTranslations[key] || key;
+            
+            // Array değerleri için özel format
+            if (Array.isArray(val)) {
+              const formattedArray = val.map(item => {
+                if (typeof item === 'object' && item !== null) {
+                  // Object array'i için özel format
+                  if (item.code && item.label) {
+                    return `${item.code} (${item.label})`;
+                  }
+                  return JSON.stringify(item);
+                }
+                return String(item);
+              }).join(', ');
+              return `${displayKey}: [${formattedArray}]`;
+            }
+            
             return `${displayKey}: ${val}`;
           })
           .join('\n');
@@ -114,7 +135,7 @@ export const ChangesModal: React.FC<ChangesModalProps> = ({
       <Modal isOpen={isOpen} onClose={onClose} size="md">
         <div className="p-6">
           <div className="text-center py-8">
-            <p className="text-muted-foreground">{t('changes_modal_no_changes')}</p>
+            <p className="text-muted-foreground">Değişiklik bulunamadı</p>
           </div>
         </div>
       </Modal>
@@ -125,9 +146,9 @@ export const ChangesModal: React.FC<ChangesModalProps> = ({
     <Modal isOpen={isOpen} onClose={onClose} size="lg">
       <div className="p-6">
         <div className="mb-6">
-          <h3 className="text-lg font-semibold text-foreground">{title || t('changes_modal_title')}</h3>
+          <h3 className="text-lg font-semibold text-foreground">{title || 'Değişiklik Detayları'}</h3>
           <p className="text-sm text-muted-foreground">
-            {changes.length} {t('changes_modal_count')}
+            {changes.length} değişiklik gösteriliyor
           </p>
         </div>
 
@@ -135,14 +156,14 @@ export const ChangesModal: React.FC<ChangesModalProps> = ({
           {changes.map((change, index) => (
             <div key={`${change.field}-${index}`} className="border border-border rounded-lg p-4">
               <div className="flex items-center gap-2 mb-3">
-                <h4 className="font-medium text-foreground">{t('changes_modal_field')}: {change.field}</h4>
+                <h4 className="font-medium text-foreground">Alan: {change.field}</h4>
                 {renderChangeMedia(change.newValue, `${change.field}-after`)}
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
-                    {t('changes_modal_before')}
+                    Önce
                   </div>
                   <div className="bg-error/10 border border-error/20 rounded-md p-3">
                     <div className="text-error line-through text-sm whitespace-pre-wrap">
@@ -153,7 +174,7 @@ export const ChangesModal: React.FC<ChangesModalProps> = ({
                 
                 <div>
                   <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
-                    {t('changes_modal_after')}
+                    Sonra
                   </div>
                   <div className="bg-success/10 border border-success/20 rounded-md p-3">
                     <div className="text-success text-sm whitespace-pre-wrap">
@@ -168,7 +189,7 @@ export const ChangesModal: React.FC<ChangesModalProps> = ({
 
         <div className="flex justify-end mt-6 pt-4 border-t border-border">
           <Button onClick={onClose}>
-            {t('changes_modal_close')}
+            Kapat
           </Button>
         </div>
       </div>

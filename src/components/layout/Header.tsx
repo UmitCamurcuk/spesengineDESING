@@ -145,7 +145,7 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onMenuClick, act
             {/* Desktop Breadcrumbs */}
             <div className="hidden sm:flex items-center space-x-1 mt-0.5">
               {breadcrumbs.map((crumb, index) => (
-                <React.Fragment key={crumb.path}>
+                <React.Fragment key={`${crumb.path}-${index}`}>
                   {index > 0 && (
                     <span className="text-muted-foreground text-sm">/</span>
                   )}
