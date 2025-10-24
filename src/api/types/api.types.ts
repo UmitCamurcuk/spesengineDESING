@@ -316,6 +316,10 @@ export type SettingsPatchPayload = Partial<{
   data: Partial<SettingsData>;
 }>;
 
+export type SettingsPatchRequest = SettingsPatchPayload & {
+  comment: string;
+};
+
 // Auth Types
 export interface LoginRequest {
   email: string;

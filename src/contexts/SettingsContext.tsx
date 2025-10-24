@@ -8,7 +8,7 @@ import React, {
   type ReactNode,
 } from 'react';
 import { settingsService } from '../api';
-import type { AppSettings, UpdateSettingsPayload, SettingsPatchPayload } from '../api/types/api.types';
+import type { AppSettings, SettingsPatchPayload, SettingsPatchRequest } from '../api/types/api.types';
 import { useLanguage } from './LanguageContext';
 import { useTheme } from './ThemeContext';
 import { useAuth } from './AuthContext';
@@ -19,7 +19,7 @@ interface SettingsContextValue {
   isSaving: boolean;
   error: string | null;
   refresh: () => Promise<void>;
-  save: (payload: SettingsPatchPayload) => Promise<AppSettings>;
+  save: (payload: SettingsPatchPayload, comment: string) => Promise<AppSettings>;
   applyLocally: (settings: AppSettings) => void;
 }
 
@@ -123,14 +123,18 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
   }, [isAuthenticated, load]);
 
   const save = useCallback(
-    async (payload: SettingsPatchPayload) => {
+    async (payload: SettingsPatchPayload, comment: string) => {
       if (!isAuthenticated) {
         throw new Error('Cannot save settings while not authenticated');
       }
       setIsSaving(true);
       setError(null);
       try {
-        const response = await settingsService.updateSettings(payload);
+        const request: SettingsPatchRequest = {
+          ...payload,
+          comment: comment.trim(),
+        };
+        const response = await settingsService.updateSettings(request);
         setSettings(response);
         applyLocally(response);
         return response;

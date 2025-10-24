@@ -21,10 +21,11 @@ import { Checkbox } from '../../components/ui/Checkbox';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Tabs, TabPanel } from '../../components/ui/Tabs';
+import { ChangeConfirmDialog } from '../../components/ui/ChangeConfirmDialog';
 import { useSettings } from '../../contexts/SettingsContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useLanguage } from '../../contexts/LanguageContext';
-import type { AppSettings, UpdateSettingsPayload, SettingsPatchPayload, LanguageOption } from '../../api/types/api.types';
+import type { AppSettings, UpdateSettingsPayload, SettingsPatchPayload, SettingsIntegrations, LanguageOption } from '../../api/types/api.types';
 import { HistoryTable } from '../../components/common/HistoryTable';
 
 interface LanguageDraft extends LanguageOption {}
@@ -93,199 +94,315 @@ const sanitizeLanguageOption = (lang: LanguageOption): LanguageOption => ({
 
 const prepareLanguageList = (languages: LanguageOption[]) => languages.map(sanitizeLanguageOption);
 
-const languagesEqual = (a: LanguageOption[], b: LanguageOption[]) =>
-  JSON.stringify(prepareLanguageList(a)) === JSON.stringify(prepareLanguageList(b));
-
-const buildSettingsPatch = (
-  base: UpdateSettingsPayload,
-  current: UpdateSettingsPayload,
-): SettingsPatchPayload => {
-  const patch: SettingsPatchPayload = {};
-
-  const general: Partial<typeof base.general> = {};
-  if (base.general.companyName !== current.general.companyName) {
-    general.companyName = current.general.companyName.trim();
-  }
-  if (base.general.timezone !== current.general.timezone) {
-    general.timezone = current.general.timezone.trim();
-  }
-  if (base.general.dateFormat !== current.general.dateFormat) {
-    general.dateFormat = current.general.dateFormat.trim();
-  }
-  if (base.general.maintenanceMode !== current.general.maintenanceMode) {
-    general.maintenanceMode = current.general.maintenanceMode;
-  }
-  if (Object.keys(general).length > 0) {
-    patch.general = general;
-  }
-
-  const appearance: Partial<typeof base.appearance> = {};
-  if (base.appearance.themeMode !== current.appearance.themeMode) {
-    appearance.themeMode = current.appearance.themeMode;
-  }
-  if (base.appearance.darkVariant !== current.appearance.darkVariant) {
-    appearance.darkVariant = current.appearance.darkVariant;
-  }
-  if (base.appearance.compactMode !== current.appearance.compactMode) {
-    appearance.compactMode = current.appearance.compactMode;
-  }
-  if (base.appearance.showAvatars !== current.appearance.showAvatars) {
-    appearance.showAvatars = current.appearance.showAvatars;
-  }
-  if (Object.keys(appearance).length > 0) {
-    patch.appearance = appearance;
-  }
-
-  const localization: Partial<Omit<typeof base.localization, 'supportedLanguages'>> & {
-    supportedLanguages?: LanguageOption[];
-  } = {};
-  if (base.localization.defaultLanguage !== current.localization.defaultLanguage) {
-    localization.defaultLanguage = normalizeLanguageCode(current.localization.defaultLanguage);
-  }
-  if (base.localization.fallbackLanguage !== current.localization.fallbackLanguage) {
-    localization.fallbackLanguage = normalizeLanguageCode(current.localization.fallbackLanguage);
-  }
-  if (!languagesEqual(base.localization.supportedLanguages, current.localization.supportedLanguages)) {
-    localization.supportedLanguages = prepareLanguageList(current.localization.supportedLanguages);
-  }
-  if (base.localization.allowUserLanguageSwitch !== current.localization.allowUserLanguageSwitch) {
-    localization.allowUserLanguageSwitch = current.localization.allowUserLanguageSwitch;
-  }
-  if (base.localization.autoTranslateNewContent !== current.localization.autoTranslateNewContent) {
-    localization.autoTranslateNewContent = current.localization.autoTranslateNewContent;
-  }
-  if (Object.keys(localization).length > 0) {
-    patch.localization = localization;
-  }
-
-  const notifications: Partial<typeof base.notifications> = {};
-  if (base.notifications.email !== current.notifications.email) {
-    notifications.email = current.notifications.email;
-  }
-  if (base.notifications.push !== current.notifications.push) {
-    notifications.push = current.notifications.push;
-  }
-  if (base.notifications.slack !== current.notifications.slack) {
-    notifications.slack = current.notifications.slack;
-  }
-  if (base.notifications.sms !== current.notifications.sms) {
-    notifications.sms = current.notifications.sms;
-  }
-  if (base.notifications.weeklyDigest !== current.notifications.weeklyDigest) {
-    notifications.weeklyDigest = current.notifications.weeklyDigest;
-  }
-  if (base.notifications.anomalyAlerts !== current.notifications.anomalyAlerts) {
-    notifications.anomalyAlerts = current.notifications.anomalyAlerts;
-  }
-  if (Object.keys(notifications).length > 0) {
-    patch.notifications = notifications;
-  }
-
-  const integrations: NonNullable<SettingsPatchPayload['integrations']> = {};
-  const slackChanges: Partial<typeof base.integrations.slack> = {};
-  if (base.integrations.slack.enabled !== current.integrations.slack.enabled) {
-    slackChanges.enabled = current.integrations.slack.enabled;
-  }
-  if (base.integrations.slack.channel !== current.integrations.slack.channel) {
-    slackChanges.channel = current.integrations.slack.channel.trim();
-  }
-  if (base.integrations.slack.webhookUrl !== current.integrations.slack.webhookUrl) {
-    slackChanges.webhookUrl = current.integrations.slack.webhookUrl.trim();
-  }
-  if (base.integrations.slack.mentionAll !== current.integrations.slack.mentionAll) {
-    slackChanges.mentionAll = current.integrations.slack.mentionAll;
-  }
-  if (base.integrations.slack.sendDigest !== current.integrations.slack.sendDigest) {
-    slackChanges.sendDigest = current.integrations.slack.sendDigest;
-  }
-  if (Object.keys(slackChanges).length > 0) {
-    integrations.slack = slackChanges;
-  }
-
-  const teamsChanges: Partial<typeof base.integrations.microsoftTeams> = {};
-  if (base.integrations.microsoftTeams.enabled !== current.integrations.microsoftTeams.enabled) {
-    teamsChanges.enabled = current.integrations.microsoftTeams.enabled;
-  }
-  if (base.integrations.microsoftTeams.channel !== current.integrations.microsoftTeams.channel) {
-    teamsChanges.channel = current.integrations.microsoftTeams.channel.trim();
-  }
-  if (base.integrations.microsoftTeams.webhookUrl !== current.integrations.microsoftTeams.webhookUrl) {
-    teamsChanges.webhookUrl = current.integrations.microsoftTeams.webhookUrl.trim();
-  }
-  if (Object.keys(teamsChanges).length > 0) {
-    integrations.microsoftTeams = teamsChanges;
-  }
-
-  const webhookChanges: Partial<typeof base.integrations.webhook> = {};
-  if (base.integrations.webhook.enabled !== current.integrations.webhook.enabled) {
-    webhookChanges.enabled = current.integrations.webhook.enabled;
-  }
-  if (base.integrations.webhook.endpoint !== current.integrations.webhook.endpoint) {
-    webhookChanges.endpoint = current.integrations.webhook.endpoint.trim();
-  }
-  if (base.integrations.webhook.secret !== current.integrations.webhook.secret) {
-    webhookChanges.secret = current.integrations.webhook.secret.trim();
-  }
-  if (Object.keys(webhookChanges).length > 0) {
-    integrations.webhook = webhookChanges;
-  }
-  if (Object.keys(integrations).length > 0) {
-    patch.integrations = integrations;
-  }
-
-  const security: Partial<typeof base.security> = {};
-  if (base.security.sessionTimeoutMinutes !== current.security.sessionTimeoutMinutes) {
-    security.sessionTimeoutMinutes = current.security.sessionTimeoutMinutes;
-  }
-  if (base.security.passwordExpiryDays !== current.security.passwordExpiryDays) {
-    security.passwordExpiryDays = current.security.passwordExpiryDays;
-  }
-  if (base.security.enforceTwoFactor !== current.security.enforceTwoFactor) {
-    security.enforceTwoFactor = current.security.enforceTwoFactor;
-  }
-  if (base.security.requireTwoFactorForAdmins !== current.security.requireTwoFactorForAdmins) {
-    security.requireTwoFactorForAdmins = current.security.requireTwoFactorForAdmins;
-  }
-  if (base.security.loginAlerts !== current.security.loginAlerts) {
-    security.loginAlerts = current.security.loginAlerts;
-  }
-  if (base.security.allowRememberDevice !== current.security.allowRememberDevice) {
-    security.allowRememberDevice = current.security.allowRememberDevice;
-  }
-  if (Object.keys(security).length > 0) {
-    patch.security = security;
-  }
-
-  const data: Partial<typeof base.data> = {};
-  if (base.data.autoBackup !== current.data.autoBackup) {
-    data.autoBackup = current.data.autoBackup;
-  }
-  if (base.data.retentionDays !== current.data.retentionDays) {
-    data.retentionDays = current.data.retentionDays;
-  }
-  if (base.data.allowExport !== current.data.allowExport) {
-    data.allowExport = current.data.allowExport;
-  }
-  if (Object.keys(data).length > 0) {
-    patch.data = data;
-  }
-
-  return patch;
+type ChangeSummary = {
+  field: string;
+  oldValue: string | number | boolean;
+  newValue: string | number | boolean;
 };
 
-const hasPatchChanges = (patch?: SettingsPatchPayload | null): boolean => {
-  if (!patch) {
-    return false;
+const formatChangeValue = (value: unknown): string | number | boolean => {
+  if (typeof value === 'boolean' || typeof value === 'number') {
+    return value;
   }
-  return Object.values(patch).some((section) => {
-    if (!section) {
-      return false;
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return '—';
     }
-    if (typeof section !== 'object') {
-      return true;
+    return value
+      .map((item) => {
+        if (typeof item === 'string') {
+          return item;
+        }
+        if (typeof item === 'object' && item && 'code' in item && 'label' in item) {
+          const option = item as LanguageOption;
+          return `${option.label} (${option.code})`;
+        }
+        return String(item);
+      })
+      .join(', ');
+  }
+  if (value === null || value === undefined) {
+    return '—';
+  }
+  const text = String(value).trim();
+  return text.length === 0 ? '—' : text;
+};
+
+const computeSettingsChanges = (
+  base: UpdateSettingsPayload | null,
+  current: UpdateSettingsPayload | null,
+): { patch: SettingsPatchPayload; changes: ChangeSummary[] } => {
+  if (!base || !current) {
+    return { patch: {}, changes: [] };
+  }
+
+  const patch: SettingsPatchPayload = {};
+  const changes: ChangeSummary[] = [];
+
+  const ensureSection = <K extends keyof SettingsPatchPayload>(section: K): NonNullable<SettingsPatchPayload[K]> => {
+    if (!patch[section]) {
+      patch[section] = {} as NonNullable<SettingsPatchPayload[K]>;
     }
-    return Object.keys(section as Record<string, unknown>).length > 0;
-  });
+    return patch[section] as NonNullable<SettingsPatchPayload[K]>;
+  };
+
+  const pushChange = <K extends keyof SettingsPatchPayload, P extends keyof NonNullable<SettingsPatchPayload[K]>>(
+    section: K,
+    key: P,
+    oldValue: unknown,
+    newValue: unknown,
+    display?: { old?: string | number | boolean; new?: string | number | boolean },
+  ) => {
+    const target = ensureSection(section);
+    (target as Record<string, unknown>)[key as string] = newValue;
+    changes.push({
+      field: `${section as string}.${String(key)}`,
+      oldValue: display?.old ?? formatChangeValue(oldValue),
+      newValue: display?.new ?? formatChangeValue(newValue),
+    });
+  };
+
+  const normalizeString = (value: string) => value.trim();
+
+  // General
+  const companyName = normalizeString(current.general.companyName);
+  if (base.general.companyName !== companyName) {
+    pushChange('general', 'companyName', base.general.companyName, companyName);
+  }
+
+  const timezone = normalizeString(current.general.timezone);
+  if (base.general.timezone !== timezone) {
+    pushChange('general', 'timezone', base.general.timezone, timezone);
+  }
+
+  const dateFormat = normalizeString(current.general.dateFormat);
+  if (base.general.dateFormat !== dateFormat) {
+    pushChange('general', 'dateFormat', base.general.dateFormat, dateFormat);
+  }
+
+  if (base.general.maintenanceMode !== current.general.maintenanceMode) {
+    pushChange('general', 'maintenanceMode', base.general.maintenanceMode, current.general.maintenanceMode);
+  }
+
+  // Appearance
+  if (base.appearance.themeMode !== current.appearance.themeMode) {
+    pushChange('appearance', 'themeMode', base.appearance.themeMode, current.appearance.themeMode);
+  }
+
+  if (base.appearance.darkVariant !== current.appearance.darkVariant) {
+    pushChange('appearance', 'darkVariant', base.appearance.darkVariant, current.appearance.darkVariant);
+  }
+
+  if (base.appearance.compactMode !== current.appearance.compactMode) {
+    pushChange('appearance', 'compactMode', base.appearance.compactMode, current.appearance.compactMode);
+  }
+
+  if (base.appearance.showAvatars !== current.appearance.showAvatars) {
+    pushChange('appearance', 'showAvatars', base.appearance.showAvatars, current.appearance.showAvatars);
+  }
+
+  // Localization
+  const baseDefaultLanguage = normalizeLanguageCode(base.localization.defaultLanguage);
+  const currentDefaultLanguage = normalizeLanguageCode(current.localization.defaultLanguage);
+  if (baseDefaultLanguage !== currentDefaultLanguage) {
+    pushChange('localization', 'defaultLanguage', baseDefaultLanguage, currentDefaultLanguage);
+  }
+
+  const baseFallbackLanguage = normalizeLanguageCode(base.localization.fallbackLanguage);
+  const currentFallbackLanguage = normalizeLanguageCode(current.localization.fallbackLanguage);
+  if (baseFallbackLanguage !== currentFallbackLanguage) {
+    pushChange('localization', 'fallbackLanguage', baseFallbackLanguage, currentFallbackLanguage);
+  }
+
+  const baseSupportedLanguages = prepareLanguageList(base.localization.supportedLanguages);
+  const currentSupportedLanguages = prepareLanguageList(current.localization.supportedLanguages);
+  if (JSON.stringify(baseSupportedLanguages) !== JSON.stringify(currentSupportedLanguages)) {
+    ensureSection('localization').supportedLanguages = currentSupportedLanguages;
+    changes.push({
+      field: 'localization.supportedLanguages',
+      oldValue: formatChangeValue(baseSupportedLanguages),
+      newValue: formatChangeValue(currentSupportedLanguages),
+    });
+  }
+
+  if (base.localization.allowUserLanguageSwitch !== current.localization.allowUserLanguageSwitch) {
+    pushChange(
+      'localization',
+      'allowUserLanguageSwitch',
+      base.localization.allowUserLanguageSwitch,
+      current.localization.allowUserLanguageSwitch,
+    );
+  }
+
+  if (base.localization.autoTranslateNewContent !== current.localization.autoTranslateNewContent) {
+    pushChange(
+      'localization',
+      'autoTranslateNewContent',
+      base.localization.autoTranslateNewContent,
+      current.localization.autoTranslateNewContent,
+    );
+  }
+
+  // Notifications
+  if (base.notifications.email !== current.notifications.email) {
+    pushChange('notifications', 'email', base.notifications.email, current.notifications.email);
+  }
+  if (base.notifications.push !== current.notifications.push) {
+    pushChange('notifications', 'push', base.notifications.push, current.notifications.push);
+  }
+  if (base.notifications.slack !== current.notifications.slack) {
+    pushChange('notifications', 'slack', base.notifications.slack, current.notifications.slack);
+  }
+  if (base.notifications.sms !== current.notifications.sms) {
+    pushChange('notifications', 'sms', base.notifications.sms, current.notifications.sms);
+  }
+  if (base.notifications.weeklyDigest !== current.notifications.weeklyDigest) {
+    pushChange('notifications', 'weeklyDigest', base.notifications.weeklyDigest, current.notifications.weeklyDigest);
+  }
+  if (base.notifications.anomalyAlerts !== current.notifications.anomalyAlerts) {
+    pushChange('notifications', 'anomalyAlerts', base.notifications.anomalyAlerts, current.notifications.anomalyAlerts);
+  }
+
+  // Integrations helpers
+  const ensureIntegrationsSection = () => ensureSection('integrations');
+  const ensureIntegration = <K extends keyof SettingsIntegrations>(key: K): NonNullable<SettingsIntegrations[K]> => {
+    const integrationsSection = ensureIntegrationsSection();
+    if (!integrationsSection[key]) {
+      integrationsSection[key] = {} as NonNullable<SettingsIntegrations[K]>;
+    }
+    return integrationsSection[key] as NonNullable<SettingsIntegrations[K]>;
+  };
+
+  const pushIntegrationChange = <K extends keyof SettingsIntegrations, P extends keyof NonNullable<SettingsIntegrations[K]>>(
+    integrationKey: K,
+    property: P,
+    oldValue: unknown,
+    newValue: unknown,
+  ) => {
+    const integration = ensureIntegration(integrationKey);
+    (integration as Record<string, unknown>)[property as string] = newValue;
+    changes.push({
+      field: `integrations.${String(integrationKey)}.${String(property)}`,
+      oldValue: formatChangeValue(oldValue),
+      newValue: formatChangeValue(newValue),
+    });
+  };
+
+  // Integrations - Slack
+  if (base.integrations.slack.enabled !== current.integrations.slack.enabled) {
+    pushIntegrationChange('slack', 'enabled', base.integrations.slack.enabled, current.integrations.slack.enabled);
+  }
+
+  const slackChannel = normalizeString(current.integrations.slack.channel);
+  if (base.integrations.slack.channel !== slackChannel) {
+    pushIntegrationChange('slack', 'channel', base.integrations.slack.channel, slackChannel);
+  }
+
+  const slackWebhook = normalizeString(current.integrations.slack.webhookUrl);
+  if (base.integrations.slack.webhookUrl !== slackWebhook) {
+    pushIntegrationChange('slack', 'webhookUrl', base.integrations.slack.webhookUrl, slackWebhook);
+  }
+
+  if (base.integrations.slack.mentionAll !== current.integrations.slack.mentionAll) {
+    pushIntegrationChange('slack', 'mentionAll', base.integrations.slack.mentionAll, current.integrations.slack.mentionAll);
+  }
+
+  if (base.integrations.slack.sendDigest !== current.integrations.slack.sendDigest) {
+    pushIntegrationChange('slack', 'sendDigest', base.integrations.slack.sendDigest, current.integrations.slack.sendDigest);
+  }
+
+  // Integrations - Teams
+  if (base.integrations.microsoftTeams.enabled !== current.integrations.microsoftTeams.enabled) {
+    pushIntegrationChange('microsoftTeams', 'enabled', base.integrations.microsoftTeams.enabled, current.integrations.microsoftTeams.enabled);
+  }
+
+  const teamsChannel = normalizeString(current.integrations.microsoftTeams.channel);
+  if (base.integrations.microsoftTeams.channel !== teamsChannel) {
+    pushIntegrationChange('microsoftTeams', 'channel', base.integrations.microsoftTeams.channel, teamsChannel);
+  }
+
+  const teamsWebhook = normalizeString(current.integrations.microsoftTeams.webhookUrl);
+  if (base.integrations.microsoftTeams.webhookUrl !== teamsWebhook) {
+    pushIntegrationChange('microsoftTeams', 'webhookUrl', base.integrations.microsoftTeams.webhookUrl, teamsWebhook);
+  }
+
+  // Integrations - Webhook
+  if (base.integrations.webhook.enabled !== current.integrations.webhook.enabled) {
+    pushIntegrationChange('webhook', 'enabled', base.integrations.webhook.enabled, current.integrations.webhook.enabled);
+  }
+
+  const webhookEndpoint = normalizeString(current.integrations.webhook.endpoint);
+  if (base.integrations.webhook.endpoint !== webhookEndpoint) {
+    pushIntegrationChange('webhook', 'endpoint', base.integrations.webhook.endpoint, webhookEndpoint);
+  }
+
+  const webhookSecret = normalizeString(current.integrations.webhook.secret);
+  if (base.integrations.webhook.secret !== webhookSecret) {
+    pushIntegrationChange('webhook', 'secret', base.integrations.webhook.secret, webhookSecret);
+  }
+
+  // Security
+  if (base.security.sessionTimeoutMinutes !== current.security.sessionTimeoutMinutes) {
+    pushChange(
+      'security',
+      'sessionTimeoutMinutes',
+      base.security.sessionTimeoutMinutes,
+      current.security.sessionTimeoutMinutes,
+    );
+  }
+
+  if (base.security.passwordExpiryDays !== current.security.passwordExpiryDays) {
+    pushChange(
+      'security',
+      'passwordExpiryDays',
+      base.security.passwordExpiryDays,
+      current.security.passwordExpiryDays,
+    );
+  }
+
+  if (base.security.enforceTwoFactor !== current.security.enforceTwoFactor) {
+    pushChange('security', 'enforceTwoFactor', base.security.enforceTwoFactor, current.security.enforceTwoFactor);
+  }
+
+  if (base.security.requireTwoFactorForAdmins !== current.security.requireTwoFactorForAdmins) {
+    pushChange(
+      'security',
+      'requireTwoFactorForAdmins',
+      base.security.requireTwoFactorForAdmins,
+      current.security.requireTwoFactorForAdmins,
+    );
+  }
+
+  if (base.security.loginAlerts !== current.security.loginAlerts) {
+    pushChange('security', 'loginAlerts', base.security.loginAlerts, current.security.loginAlerts);
+  }
+
+  if (base.security.allowRememberDevice !== current.security.allowRememberDevice) {
+    pushChange(
+      'security',
+      'allowRememberDevice',
+      base.security.allowRememberDevice,
+      current.security.allowRememberDevice,
+    );
+  }
+
+  // Data
+  if (base.data.autoBackup !== current.data.autoBackup) {
+    pushChange('data', 'autoBackup', base.data.autoBackup, current.data.autoBackup);
+  }
+
+  if (base.data.retentionDays !== current.data.retentionDays) {
+    pushChange('data', 'retentionDays', base.data.retentionDays, current.data.retentionDays);
+  }
+
+  if (base.data.allowExport !== current.data.allowExport) {
+    pushChange('data', 'allowExport', base.data.allowExport, current.data.allowExport);
+  }
+
+  return {
+    patch,
+    changes,
+  };
 };
 
 const formatTimestamp = (timestamp: string | null | undefined) => {
@@ -309,6 +426,8 @@ export const Settings: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('general');
   const [languageDraft, setLanguageDraft] = useState<LanguageDraft>({ code: '', label: '' });
   const [isEditing, setIsEditing] = useState<boolean>(false);
+  const [confirmOpen, setConfirmOpen] = useState<boolean>(false);
+  const [confirmLoading, setConfirmLoading] = useState<boolean>(false);
 
   useEffect(() => {
     if (settings) {
@@ -319,14 +438,9 @@ export const Settings: React.FC = () => {
 
   const baseline = useMemo(() => (settings ? stripMetadata(settings) : null), [settings]);
 
-  const changes = useMemo<SettingsPatchPayload | null>(() => {
-    if (!form || !baseline) {
-      return null;
-    }
-    return buildSettingsPatch(baseline, form);
-  }, [baseline, form]);
+  const { patch, changes: changeList } = useMemo(() => computeSettingsChanges(baseline, form), [baseline, form]);
 
-  const hasChanges = useMemo(() => hasPatchChanges(changes), [changes]);
+  const hasChanges = changeList.length > 0;
   const isLocked = !isEditing || isSaving;
 
   const updateForm = (updater: (draft: UpdateSettingsPayload) => UpdateSettingsPayload) => {
@@ -512,31 +626,51 @@ export const Settings: React.FC = () => {
     success(t('settings.localization.messages.language_removed'));
   };
 
-  const handleSave = async () => {
-    if (!isEditing || !form || !baseline || !changes || !hasPatchChanges(changes)) {
-      return;
-    }
-    try {
-      const patch = clonePayload<SettingsPatchPayload>(changes);
-      const result = await save(patch);
-      setForm(stripMetadata(result));
-      setIsEditing(false);
-      success(t('settings.messages.save_success'));
-    } catch (err: any) {
-      const message = err?.message ?? t('settings.messages.save_error');
-      error(message);
-    }
-  };
-
   const handleReset = () => {
     if (baseline) {
       setForm(clonePayload(baseline));
     }
   };
 
+  const performSave = async (comment: string) => {
+    if (!isEditing || !form || !baseline || !hasChanges) {
+      setConfirmOpen(false);
+      return;
+    }
+
+    try {
+      setConfirmLoading(true);
+      const requestPatch = clonePayload(patch);
+      const result = await save(requestPatch, comment.trim());
+      setForm(stripMetadata(result));
+      setIsEditing(false);
+      setLanguageDraft({ code: '', label: '' });
+      setConfirmOpen(false);
+      success(t('settings.messages.save_success'));
+    } catch (err: any) {
+      const message = err?.message ?? t('settings.messages.save_error');
+      error(message);
+    } finally {
+      setConfirmLoading(false);
+    }
+  };
+
+  const handleSaveClick = () => {
+    if (!hasChanges || confirmLoading) {
+      return;
+    }
+    setConfirmOpen(true);
+  };
+
+  const handleConfirmSave = (comment: string) => {
+    void performSave(comment);
+  };
+
   const handleCancelEdit = () => {
     handleReset();
     setLanguageDraft({ code: '', label: '' });
+    setConfirmOpen(false);
+    setConfirmLoading(false);
     setIsEditing(false);
   };
 
@@ -545,6 +679,7 @@ export const Settings: React.FC = () => {
       setForm(stripMetadata(settings));
     }
     setLanguageDraft({ code: '', label: '' });
+    setConfirmOpen(false);
     setIsEditing(true);
   };
 
@@ -627,7 +762,7 @@ export const Settings: React.FC = () => {
                 size="sm"
                 leftIcon={<RotateCcw className="h-4 w-4" />}
                 onClick={handleCancelEdit}
-                disabled={isSaving}
+                disabled={isSaving || confirmLoading}
               >
                 {t('settings.actions.cancel')}
               </Button>
@@ -636,9 +771,9 @@ export const Settings: React.FC = () => {
                 variant="primary"
                 size="sm"
                 leftIcon={<Save className="h-4 w-4" />}
-                onClick={handleSave}
-                disabled={!hasChanges}
-                loading={isSaving}
+                onClick={handleSaveClick}
+                disabled={!hasChanges || isSaving || confirmLoading}
+                loading={isSaving || confirmLoading}
               >
                 {t('settings.actions.save')}
               </Button>
@@ -1118,17 +1253,27 @@ export const Settings: React.FC = () => {
           </div>
         </CardHeader>
 
-        {settings?.id ? (
-          <HistoryTable
-            entityType="Settings"
-            entityId={settings.id ?? 'default'}
-            title={t('settings.history.title')}
-            description={t('settings.history.subtitle')}
-          />
-        ) : (
-          <p className="text-sm text-muted-foreground">{t('settings.history.empty')}</p>
-        )}
+        <HistoryTable
+          entityType="Settings"
+          entityId={settings?.id ?? 'default'}
+          title={t('settings.history.title')}
+          description={t('settings.history.subtitle')}
+        />
       </Card>
+
+      <ChangeConfirmDialog
+        open={confirmOpen}
+        onClose={() => {
+          if (!confirmLoading) {
+            setConfirmOpen(false);
+          }
+        }}
+        onConfirm={handleConfirmSave}
+        changes={changeList}
+        loading={confirmLoading}
+        entityName={t('settings.page_title')}
+        title={t('settings.history.title')}
+      />
 
     </div>
   );
