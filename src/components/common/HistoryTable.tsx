@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity,
   Eye,
@@ -16,6 +16,7 @@ import {
 import { DataTable, UserInfo } from '../ui/DataTable';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
+import { ChangesModal } from '../ui/ChangesModal';
 import { HistoryEntry, HistoryChange } from '../../types/common';
 import { useServerTable } from '../../hooks';
 import { historyService } from '../../api/services/history.service';
@@ -159,6 +160,18 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
   const { t, language } = useLanguage();
   const useServer = !records;
   const scrollPositionRef = useRef(0);
+  const [selectedChanges, setSelectedChanges] = useState<HistoryChange[] | null>(null);
+  const [changesModalOpen, setChangesModalOpen] = useState(false);
+
+  const handleShowChanges = useCallback((changes: HistoryChange[]) => {
+    setSelectedChanges(changes);
+    setChangesModalOpen(true);
+  }, []);
+
+  const handleCloseChangesModal = useCallback(() => {
+    setChangesModalOpen(false);
+    setSelectedChanges(null);
+  }, []);
 
   const renderChanges = useCallback(
     (changes: HistoryChange[] | undefined) => {
@@ -166,24 +179,23 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
         return <span className="text-muted-foreground text-sm">—</span>;
       }
 
-      const MAX_VISIBLE = 4;
+      const MAX_VISIBLE = 1;
       const visibleChanges = changes.slice(0, MAX_VISIBLE);
-      const remaining = changes.length - visibleChanges.length;
 
       return (
         <div className="space-y-2">
           {visibleChanges.map((change) => (
             <div key={change.field} className="text-xs">
               <div className="font-medium text-foreground flex items-center gap-2">
-                <span>{change.field}</span>
+                <span className="truncate">{change.field}</span>
                 {renderChangeMedia(change.newValue, `${change.field}-after`)}
               </div>
-              <div className="mt-1 grid grid-cols-2 gap-3">
+              <div className="mt-1 grid grid-cols-2 gap-2">
                 <div>
                   <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
                     {change.oldValue !== undefined ? t('profile.history_before_label') : ''}
                   </div>
-                  <div className="text-error line-through">
+                  <div className="text-error line-through text-xs truncate">
                     {renderChangeMedia(change.oldValue, `${change.field}-before`) || formatChangeValue(change.oldValue)}
                   </div>
                 </div>
@@ -191,20 +203,30 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
                   <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
                     {change.newValue !== undefined ? t('profile.history_after_label') : ''}
                   </div>
-                  <div className="text-success">
+                  <div className="text-success text-xs truncate">
                     {renderChangeMedia(change.newValue, `${change.field}-after`) || formatChangeValue(change.newValue)}
                   </div>
                 </div>
               </div>
             </div>
           ))}
-          {remaining > 0 && (
-            <div className="text-xs text-muted-foreground">+{remaining} {t('profile.history_more_changes')}</div>
-          )}
+          
+          {/* Her zaman detayları gör butonu göster */}
+          <div className="flex justify-end mt-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleShowChanges(changes)}
+              className="h-6 px-2 text-xs"
+            >
+              <Eye className="h-3 w-3 mr-1" />
+              Detayları Gör
+            </Button>
+          </div>
         </div>
       );
     },
-    [t],
+    [t, handleShowChanges],
   );
 
   const fetchHistory = useCallback(
@@ -260,12 +282,12 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
   const locale = language === 'tr' ? 'tr-TR' : language === 'en' ? 'en-US' : language;
 
   const translateAction = useCallback(
-    (action: string) => t(`profile.history_action_${action}`, { defaultValue: formatLabel(action) }),
+    (action: string) => t(`profile.history_action_${action}`) || formatLabel(action),
     [t],
   );
 
   const translateTag = useCallback(
-    (tag: string) => t(`profile.history_tag_${tag}`, { defaultValue: formatLabel(tag) }),
+    (tag: string) => t(`profile.history_tag_${tag}`) || formatLabel(tag),
     [t],
   );
 
@@ -385,9 +407,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
         summaryKey = `profile.history_summary_${entityKey}_${entry.action}_self`;
       }
 
-      return t(summaryKey, {
-        defaultValue: entry.summary ?? translateAction(entry.action),
-      });
+      return t(summaryKey) || entry.summary || translateAction(entry.action);
     },
     [currentUserId, t, translateAction],
   );
@@ -397,9 +417,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
       if (!source) {
         return undefined;
       }
-      return t(`profile.history_source_${source}`, {
-        defaultValue: formatLabel(source),
-      });
+      return t(`profile.history_source_${source}`) || formatLabel(source);
     },
     [t],
   );
@@ -442,9 +460,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
   const getEntityInfo = useCallback(
     (entry: HistoryEntry) => {
       const typeKey = entry.entityType?.toLowerCase();
-      const typeLabel = t(`profile.history_entity_${typeKey}`, {
-        defaultValue: entry.entityType,
-      });
+      const typeLabel = t(`profile.history_entity_${typeKey}`) || entry.entityType;
       const label = entry.entityLabel ?? entry.entityId;
       const email = entry.entityEmail;
       return { typeLabel, label, email };
@@ -458,13 +474,13 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
         key: 'action',
         title: t('profile.history_column_action'),
         width: '10%',
-        render: (value: string, entry: HistoryEntry) => (
+        render: (_: string, entry: HistoryEntry) => (
           <div className="flex items-center space-x-2">
-            <div className={`p-1.5 rounded-full bg-${getActionColor(value)}-100`}>
-              {getActionIcon(value)}
+            <div className={`p-1.5 rounded-full bg-${getActionColor(entry.action)}-100`}>
+              {getActionIcon(entry.action)}
             </div>
-            <Badge variant={getActionColor(value) as any} size="sm">
-              {translateAction(value)}
+            <Badge variant={getActionColor(entry.action) as any} size="sm">
+              {translateAction(entry.action)}
             </Badge>
           </div>
         ),
@@ -628,7 +644,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
         sortable: true,
         align: 'center' as const,
         width: '10%',
-        render: (value: string, entry: HistoryEntry) => (
+        render: (_: string, entry: HistoryEntry) => (
           (() => {
             const actorInfo = resolveActorInfo(entry);
             return (
@@ -637,7 +653,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
                   name={actorInfo.name}
                   email={actorInfo.email ?? actorInfo.identifier}
                   avatarUrl={actorInfo.avatarUrl}
-                  date={new Date(value).toLocaleString(locale)}
+                  date={new Date(entry.timestamp).toLocaleString(locale)}
                 />
               </div>
             );
@@ -675,7 +691,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
         columns={columns}
         loading={isLoading}
         searchable
-        searchPlaceholder={t('profile.history_search_placeholder', { defaultValue: 'Search history...' })}
+        searchPlaceholder={t('profile.history_search_placeholder') || 'Search history...'}
         filters={[
           {
             key: 'action',
@@ -704,10 +720,15 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
         emptyState={{
           icon: <Activity className="h-12 w-12" />,
           title: t('profile.history_empty'),
-          description: t('profile.history_empty_description', {
-            defaultValue: 'No activities have been recorded yet.',
-          }),
+          description: t('profile.history_empty_description') || 'No activities have been recorded yet.',
         }}
+      />
+
+      <ChangesModal
+        isOpen={changesModalOpen}
+        onClose={handleCloseChangesModal}
+        changes={selectedChanges || []}
+        title={t('changes_modal_title')}
       />
     </div>
   );
