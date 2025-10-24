@@ -433,7 +433,21 @@
     "add_translation": "Çeviri Ekle",
     "remove_translation": "Çeviri Kaldır",
     "select_language": "Dil Seç",
-    "translation_text": "Çeviri Metni"
+    "translation_text": "Çeviri Metni",
+    "settings": {
+      "title": "Sistem Çeviri Ayarları",
+      "subtitle": "Bu ayarlar tüm kullanıcılar için geçerlidir.",
+      "columns": {
+        "feature": "Özellik",
+        "description": "Açıklama",
+        "value": "Seçilen Değer",
+        "status": "Durum"
+      },
+      "enabled": "Aktif",
+      "disabled": "Pasif",
+      "manage": "Yönet",
+      "updated": "{{value}} güncellendi"
+    }
   },
   "associations": {
     "title": "İlişkiler",

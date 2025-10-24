@@ -451,7 +451,21 @@
     "add_translation": "Add Translation",
     "remove_translation": "Remove Translation",
     "select_language": "Select Language",
-    "translation_text": "Translation Text"
+    "translation_text": "Translation Text",
+    "settings": {
+      "title": "System Localization Settings",
+      "subtitle": "These preferences are applied globally for every user.",
+      "columns": {
+        "feature": "Feature",
+        "description": "Description",
+        "value": "Configured Value",
+        "status": "Status"
+      },
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "manage": "Manage",
+      "updated": "Updated {{value}}"
+    }
   },
   "associations": {
     "title": "Associations",

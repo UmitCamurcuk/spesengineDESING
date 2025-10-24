@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   Activity,
   Eye,
@@ -158,6 +158,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
 }) => {
   const { t, language } = useLanguage();
   const useServer = !records;
+  const scrollPositionRef = useRef(0);
 
   const renderChanges = useCallback(
     (changes: HistoryChange[] | undefined) => {
@@ -308,6 +309,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
       if (!useServer) {
         return;
       }
+      scrollPositionRef.current = window.scrollY;
 
       setFilters((prev) => ({
         ...prev,
@@ -322,6 +324,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
       if (!useServer) {
         return;
       }
+      scrollPositionRef.current = window.scrollY;
       setSearch(value);
     },
     [setSearch, useServer],
@@ -332,6 +335,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
       if (!useServer) {
         return;
       }
+      scrollPositionRef.current = window.scrollY;
       setPage(nextPage);
     },
     [setPage, useServer],
@@ -342,6 +346,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
       if (!useServer) {
         return;
       }
+      scrollPositionRef.current = window.scrollY;
       setPageSize(nextSize);
     },
     [setPageSize, useServer],
@@ -351,10 +356,20 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
     if (!useServer) {
       return;
     }
+    scrollPositionRef.current = window.scrollY;
     void refresh();
   }, [refresh, useServer]);
 
   const serverError = useServer ? error : null;
+
+  useEffect(() => {
+    if (!useServer) {
+      return;
+    }
+    if (!isLoading) {
+      window.scrollTo({ top: scrollPositionRef.current, behavior: 'auto' });
+    }
+  }, [isLoading, useServer]);
 
   const resolveSummary = useCallback(
     (entry: HistoryEntry) => {
