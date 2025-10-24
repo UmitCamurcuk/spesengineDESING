@@ -16,6 +16,7 @@
     "previous": "Önceki",
     "submit": "Gönder",
     "reset": "Sıfırla",
+    "retry": "Tekrar dene",
     "loading": "Yükleniyor...",
     "error": "Hata",
     "success": "Başarılı",
@@ -471,7 +472,12 @@
     "add_translation": "Çeviri Ekle",
     "remove_translation": "Çeviri Kaldır",
     "select_language": "Dil Seç",
-    "translation_text": "Çeviri Metni",
+    "translation_text": "{{language}} çevirisi",
+    "no_translation": "Henüz çeviri yok",
+    "messages": {
+      "create_success": "Yerelleştirme başarıyla oluşturuldu.",
+      "update_success": "Yerelleştirme başarıyla güncellendi."
+    },
     "settings": {
       "title": "Sistem Çeviri Ayarları",
       "subtitle": "Bu ayarlar tüm kullanıcılar için geçerlidir.",
@@ -484,7 +490,9 @@
       "enabled": "Aktif",
       "disabled": "Pasif",
       "manage": "Yönet",
-      "updated": "{{value}} güncellendi"
+      "updated": "{{value}} güncellendi",
+      "optional_languages": "Opsiyonel diller",
+      "none": "Yok"
     }
   },
   "associations": {
@@ -567,9 +575,19 @@
       "auto_translate_help": "Tanımlı servisleri kullanarak eksik çevirileri otomatik doldurur.",
       "language_code": "Dil kodu",
       "custom_label": "Görünen ad",
+      "mark_required": "Yeni dili zorunlu olarak işaretle",
       "add_language": "Dil ekle",
       "quick_add": "Hızlı ekle:",
       "empty_state": "Henüz tanımlı bir dil yok.",
+      "labels": {
+        "default": "Varsayılan",
+        "fallback": "Yedek",
+        "required_badge": "Zorunlu"
+      },
+      "actions": {
+        "mark_required": "Zorunlu yap",
+        "mark_optional": "Opsiyonel yap"
+      },
       "messages": {
         "language_required": "Dil kodu ve adı zorunludur.",
         "language_exists": "Bu dil zaten listede.",
@@ -577,7 +595,9 @@
         "language_minimum": "En az bir dil kalmalıdır.",
         "language_remove_default": "Kaldırmadan önce varsayılan dili değiştirin.",
         "language_remove_fallback": "Kaldırmadan önce yedek dili değiştirin.",
-        "language_removed": "Dil kaldırıldı."
+        "language_removed": "Dil kaldırıldı.",
+        "required_core_language": "Varsayılan ve yedek diller zorunlu kalmalıdır.",
+        "required_minimum": "En az bir dil zorunlu kalmalıdır."
       }
     },
     "notifications": {

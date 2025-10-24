@@ -22,13 +22,18 @@ import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Tabs, TabPanel } from '../../components/ui/Tabs';
 import { ChangeConfirmDialog } from '../../components/ui/ChangeConfirmDialog';
+import { cn } from '../../utils/cn';
 import { useSettings } from '../../contexts/SettingsContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import type { AppSettings, UpdateSettingsPayload, SettingsPatchPayload, SettingsIntegrations, LanguageOption } from '../../api/types/api.types';
 import { HistoryTable } from '../../components/common/HistoryTable';
 
-interface LanguageDraft extends LanguageOption {}
+interface LanguageDraft {
+  code: string;
+  label: string;
+  required: boolean;
+}
 
 const timezoneOptions = [
   { value: 'UTC', label: 'UTC' },
@@ -58,7 +63,7 @@ const darkVariantOptions = [
   { value: 'true-black', label: 'True Black' },
 ];
 
-const suggestedLanguages: LanguageOption[] = [
+const suggestedLanguages: Array<Pick<LanguageOption, 'code' | 'label'>> = [
   { code: 'tr', label: 'Türkçe' },
   { code: 'en', label: 'English' },
   { code: 'de', label: 'Deutsch' },
@@ -87,9 +92,10 @@ const normalizeLanguageCode = (code: string) => {
   return `${lang.toLowerCase()}-${(region ?? '').toUpperCase()}`;
 };
 
-const sanitizeLanguageOption = (lang: LanguageOption): LanguageOption => ({
+const sanitizeLanguageOption = (lang: Pick<LanguageOption, 'code' | 'label' | 'required'>): LanguageOption => ({
   code: normalizeLanguageCode(lang.code),
   label: lang.label.trim() || lang.code.trim(),
+  required: Boolean(lang.required),
 });
 
 const prepareLanguageList = (languages: LanguageOption[]) => languages.map(sanitizeLanguageOption);
@@ -115,7 +121,8 @@ const formatChangeValue = (value: unknown): string | number | boolean => {
         }
         if (typeof item === 'object' && item && 'code' in item && 'label' in item) {
           const option = item as LanguageOption;
-          return `${option.label} (${option.code})`;
+          const requiredSuffix = 'required' in option && option.required ? ' [required]' : '';
+          return `${option.label} (${option.code})${requiredSuffix}`;
         }
         return String(item);
       })
@@ -424,7 +431,7 @@ export const Settings: React.FC = () => {
 
   const [form, setForm] = useState<UpdateSettingsPayload | null>(null);
   const [activeTab, setActiveTab] = useState<string>('general');
-  const [languageDraft, setLanguageDraft] = useState<LanguageDraft>({ code: '', label: '' });
+  const [languageDraft, setLanguageDraft] = useState<LanguageDraft>({ code: '', label: '', required: false });
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [confirmOpen, setConfirmOpen] = useState<boolean>(false);
   const [confirmLoading, setConfirmLoading] = useState<boolean>(false);
@@ -583,15 +590,17 @@ export const Settings: React.FC = () => {
       return;
     }
 
+    const draftRequired = Boolean(languageDraft.required);
+
     updateForm((draft) => {
       draft.localization.supportedLanguages = [
         ...draft.localization.supportedLanguages,
-        sanitizeLanguageOption({ code: draftCode, label: draftLabel }),
+        sanitizeLanguageOption({ code: draftCode, label: draftLabel, required: draftRequired }),
       ];
       return draft;
     });
 
-    setLanguageDraft({ code: '', label: '' });
+    setLanguageDraft({ code: '', label: '', required: false });
     success(t('settings.localization.messages.language_added'));
   };
 
@@ -617,6 +626,24 @@ export const Settings: React.FC = () => {
       return;
     }
 
+    const targetLanguage = form.localization.supportedLanguages.find(
+      (lang) => normalizeLanguageCode(lang.code) === normalized,
+    );
+
+    if (targetLanguage?.required) {
+      const otherRequired = form.localization.supportedLanguages.some((lang) => {
+        if (normalizeLanguageCode(lang.code) === normalized) {
+          return false;
+        }
+        return Boolean(lang.required);
+      });
+
+      if (!otherRequired) {
+        error(t('settings.localization.messages.required_minimum'));
+        return;
+      }
+    }
+
     updateForm((draft) => {
       draft.localization.supportedLanguages = draft.localization.supportedLanguages.filter(
         (lang) => normalizeLanguageCode(lang.code) !== normalized,
@@ -624,6 +651,48 @@ export const Settings: React.FC = () => {
       return draft;
     });
     success(t('settings.localization.messages.language_removed'));
+  };
+
+  const handleToggleLanguageRequired = (code: string, required: boolean) => {
+    if (!form || !isEditing) {
+      return;
+    }
+
+    const normalized = normalizeLanguageCode(code);
+    const defaultLanguage = normalizeLanguageCode(form.localization.defaultLanguage);
+    const fallbackLanguage = normalizeLanguageCode(form.localization.fallbackLanguage);
+
+    if (!required && (normalized === defaultLanguage || normalized === fallbackLanguage)) {
+      error(t('settings.localization.messages.required_core_language'));
+      return;
+    }
+
+    if (!required) {
+      const otherRequiredExists = form.localization.supportedLanguages.some((lang) => {
+        if (normalizeLanguageCode(lang.code) === normalized) {
+          return false;
+        }
+        return Boolean(lang.required);
+      });
+
+      if (!otherRequiredExists) {
+        error(t('settings.localization.messages.required_minimum'));
+        return;
+      }
+    }
+
+    updateForm((draft) => {
+      draft.localization.supportedLanguages = draft.localization.supportedLanguages.map((lang) => {
+        if (normalizeLanguageCode(lang.code) !== normalized) {
+          return lang;
+        }
+        return {
+          ...lang,
+          required,
+        };
+      });
+      return draft;
+    });
   };
 
   const handleReset = () => {
@@ -644,7 +713,7 @@ export const Settings: React.FC = () => {
       const result = await save(requestPatch, comment.trim());
       setForm(stripMetadata(result));
       setIsEditing(false);
-      setLanguageDraft({ code: '', label: '' });
+      setLanguageDraft({ code: '', label: '', required: false });
       setConfirmOpen(false);
       success(t('settings.messages.save_success'));
     } catch (err: any) {
@@ -668,7 +737,7 @@ export const Settings: React.FC = () => {
 
   const handleCancelEdit = () => {
     handleReset();
-    setLanguageDraft({ code: '', label: '' });
+    setLanguageDraft({ code: '', label: '', required: false });
     setConfirmOpen(false);
     setConfirmLoading(false);
     setIsEditing(false);
@@ -678,7 +747,7 @@ export const Settings: React.FC = () => {
     if (settings) {
       setForm(stripMetadata(settings));
     }
-    setLanguageDraft({ code: '', label: '' });
+    setLanguageDraft({ code: '', label: '', required: false });
     setConfirmOpen(false);
     setIsEditing(true);
   };
@@ -696,21 +765,86 @@ export const Settings: React.FC = () => {
       );
     }
 
+    const defaultCode = normalizeLanguageCode(form.localization.defaultLanguage);
+    const fallbackCode = normalizeLanguageCode(form.localization.fallbackLanguage);
+
     return (
-      <div className="flex flex-wrap gap-2">
-        {form.localization.supportedLanguages.map((lang) => (
-          <Badge key={lang.code} className="flex items-center space-x-2 py-1 pl-2 pr-1">
-            <span className="text-xs font-medium">{lang.label} ({lang.code})</span>
-            <button
-              type="button"
-              onClick={() => handleRemoveLanguage(lang.code)}
-              className="rounded-full p-1 hover:bg-muted transition disabled:opacity-50 disabled:hover:bg-transparent"
-              disabled={isLocked}
+      <div className="space-y-3">
+        {form.localization.supportedLanguages.map((lang) => {
+          const normalized = normalizeLanguageCode(lang.code);
+          const isDefault = normalized === defaultCode;
+          const isFallback = normalized === fallbackCode;
+          const otherRequiredExists = form.localization.supportedLanguages.some((other) => {
+            if (normalizeLanguageCode(other.code) === normalized) {
+              return false;
+            }
+            return Boolean(other.required);
+          });
+
+          const disableToggle = isLocked || isDefault || isFallback || (lang.required && !otherRequiredExists);
+          const disableRemoval =
+            isLocked
+            || isDefault
+            || isFallback
+            || form.localization.supportedLanguages.length <= 1
+            || (lang.required && !otherRequiredExists);
+
+          return (
+            <div
+              key={lang.code}
+              className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 px-3 py-2 md:flex-row md:items-center md:justify-between"
             >
-              <Trash2 className="h-3 w-3" />
-            </button>
-          </Badge>
-        ))}
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="primary" size="sm">{lang.label}</Badge>
+                <span className="text-xs font-mono text-muted-foreground">{normalized}</span>
+                {isDefault && (
+                  <Badge variant="success" size="sm">
+                    {t('settings.localization.labels.default')}
+                  </Badge>
+                )}
+                {isFallback && (
+                  <Badge variant="secondary" size="sm">
+                    {t('settings.localization.labels.fallback')}
+                  </Badge>
+                )}
+                {lang.required && (
+                  <Badge variant="warning" size="sm">
+                    {t('settings.localization.labels.required_badge')}
+                  </Badge>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleToggleLanguageRequired(lang.code, !lang.required)}
+                  className={cn(
+                    'px-3 py-1 text-xs font-medium rounded-full border transition-colors duration-200',
+                    lang.required
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-background text-muted-foreground border-border hover:text-primary hover:border-primary',
+                    disableToggle && 'opacity-50 cursor-not-allowed hover:text-muted-foreground hover:border-border',
+                  )}
+                  disabled={disableToggle}
+                >
+                  {lang.required
+                    ? t('settings.localization.actions.mark_optional')
+                    : t('settings.localization.actions.mark_required')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveLanguage(lang.code)}
+                  className={cn(
+                    'p-1 rounded-full border border-transparent text-muted-foreground transition-colors duration-200 hover:text-error hover:border-error/40',
+                    disableRemoval && 'opacity-50 cursor-not-allowed hover:text-muted-foreground hover:border-transparent',
+                  )}
+                  disabled={disableRemoval}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          );
+        })}
       </div>
     );
   };
@@ -950,6 +1084,15 @@ export const Settings: React.FC = () => {
                       placeholder="Türkçe"
                       disabled={isLocked}
                     />
+                    <div className="md:col-span-2">
+                      <Checkbox
+                        label={t('settings.localization.mark_required')}
+                        checked={languageDraft.required}
+                        onChange={(e) => setLanguageDraft((prev) => ({ ...prev, required: e.target.checked }))}
+                        size="sm"
+                        disabled={isLocked}
+                      />
+                    </div>
                   </div>
                   <div className="md:w-40 flex items-end">
                     <Button
@@ -974,7 +1117,7 @@ export const Settings: React.FC = () => {
                       variant="ghost"
                       size="sm"
                       className="px-2 py-1"
-                      onClick={() => setLanguageDraft({ code: lang.code, label: lang.label })}
+                      onClick={() => setLanguageDraft((prev) => ({ ...prev, code: lang.code, label: lang.label }))}
                       disabled={isLocked}
                     >
                       {lang.label}

@@ -340,6 +340,18 @@
   button {
     @apply text-sm font-medium;
   }
+
+  *:focus {
+    outline: none !important;
+    box-shadow: none !important;
+    --tw-ring-offset-shadow: 0 0 #0000;
+    --tw-ring-shadow: 0 0 #0000;
+  }
+
+  *:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+  }
 }
 
 @layer base {

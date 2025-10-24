@@ -16,6 +16,7 @@
     "previous": "Previous",
     "submit": "Submit",
     "reset": "Reset",
+    "retry": "Retry",
     "loading": "Loading...",
     "error": "Error",
     "success": "Success",
@@ -489,7 +490,12 @@
     "add_translation": "Add Translation",
     "remove_translation": "Remove Translation",
     "select_language": "Select Language",
-    "translation_text": "Translation Text",
+    "translation_text": "{{language}} translation",
+    "no_translation": "No translation available",
+    "messages": {
+      "create_success": "Localization created successfully.",
+      "update_success": "Localization updated successfully."
+    },
     "settings": {
       "title": "System Localization Settings",
       "subtitle": "These preferences are applied globally for every user.",
@@ -502,7 +508,9 @@
       "enabled": "Enabled",
       "disabled": "Disabled",
       "manage": "Manage",
-      "updated": "Updated {{value}}"
+      "updated": "Updated {{value}}",
+      "optional_languages": "Optional languages",
+      "none": "None"
     }
   },
   "associations": {
@@ -585,9 +593,19 @@
       "auto_translate_help": "Seed missing translations using your configured providers.",
       "language_code": "Language code",
       "custom_label": "Display name",
+      "mark_required": "Mark new language as required",
       "add_language": "Add language",
       "quick_add": "Quick add:",
       "empty_state": "No languages configured yet.",
+      "labels": {
+        "default": "Default",
+        "fallback": "Fallback",
+        "required_badge": "Required"
+      },
+      "actions": {
+        "mark_required": "Mark as required",
+        "mark_optional": "Mark as optional"
+      },
       "messages": {
         "language_required": "Language code and name are required.",
         "language_exists": "This language is already available.",
@@ -595,7 +613,9 @@
         "language_minimum": "At least one language must remain.",
         "language_remove_default": "Change the default language before removing it.",
         "language_remove_fallback": "Change the fallback language before removing it.",
-        "language_removed": "Language removed."
+        "language_removed": "Language removed.",
+        "required_core_language": "Default and fallback languages must stay required.",
+        "required_minimum": "At least one language must stay required."
       }
     },
     "notifications": {

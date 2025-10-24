@@ -1,143 +1,123 @@
-import React from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Globe, Languages, FileText } from 'lucide-react';
+import { Plus, Globe, Languages, FileText, RefreshCcw, AlertCircle } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
-import { DataTable, UserInfo } from '../../components/ui/DataTable';
+import { DataTable } from '../../components/ui/DataTable';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Card, CardHeader } from '../../components/ui/Card';
-import { Localization } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useSettings } from '../../contexts/SettingsContext';
+import { localizationsService } from '../../api';
+import type { ApiPagination, LocalizationRecord } from '../../api/types/api.types';
 
-// Mock data
-const mockLocalizations: Localization[] = [
-  {
-    id: '1',
-    key: 'common.save',
-    translations: {
-      en: 'Save',
-      tr: 'Kaydet',
-      es: 'Guardar',
-      fr: 'Enregistrer',
-    },
-    namespace: 'common',
-    description: 'Save button text',
-    createdAt: '2024-01-01T10:00:00Z',
-    updatedAt: '2024-01-25T10:30:00Z',
-  },
-  {
-    id: '2',
-    key: 'common.cancel',
-    translations: {
-      en: 'Cancel',
-      tr: 'İptal',
-      es: 'Cancelar',
-      fr: 'Annuler',
-    },
-    namespace: 'common',
-    description: 'Cancel button text',
-    createdAt: '2024-01-02T09:15:00Z',
-    updatedAt: '2024-01-24T15:45:00Z',
-  },
-  {
-    id: '3',
-    key: 'items.create_title',
-    translations: {
-      en: 'Create New Item',
-      tr: 'Yeni Öğe Oluştur',
-      es: 'Crear Nuevo Elemento',
-      fr: 'Créer un Nouvel Élément',
-    },
-    namespace: 'items',
-    description: 'Title for item creation page',
-    createdAt: '2024-01-03T11:20:00Z',
-    updatedAt: '2024-01-22T13:10:00Z',
-  },
-  {
-    id: '4',
-    key: 'validation.required',
-    translations: {
-      en: 'This field is required',
-      tr: 'Bu alan zorunludur',
-      es: 'Este campo es obligatorio',
-      fr: 'Ce champ est obligatoire',
-    },
-    namespace: 'validation',
-    description: 'Required field validation message',
-    createdAt: '2024-01-04T15:30:00Z',
-    updatedAt: '2024-01-21T10:20:00Z',
-  },
-];
+const normalizeLanguageCode = (code: string): string => {
+  const trimmed = code.trim();
+  if (!trimmed.includes('-')) {
+    return trimmed.toLowerCase();
+  }
+  const [language, region] = trimmed.split('-', 2);
+  return `${language.toLowerCase()}-${(region ?? '').toUpperCase()}`;
+};
 
-const localizationSettings = [
-  {
-    id: 'supported-languages',
-    feature: 'Supported Languages',
-    category: 'Availability',
-    description: 'Languages that are visible to end-users across the platform.',
-    value: ['Türkçe', 'English', 'Deutsch', 'Français'],
-    enabled: true,
-    updatedAt: '2 hours ago',
-  },
-  {
-    id: 'default-locale',
-    feature: 'Default Locale',
-    category: 'Behaviour',
-    description: 'Language used for onboarding, emails, and guests until a preference is saved.',
-    value: 'Türkçe',
-    enabled: true,
-    updatedAt: 'Yesterday',
-  },
-  {
-    id: 'fallback-strategy',
-    feature: 'Fallback Strategy',
-    category: 'Behaviour',
-    description: 'When a translation is missing, the system falls back to the selected language hierarchy.',
-    value: ['User preference', 'Tenant default', 'System default'],
-    enabled: true,
-    updatedAt: '3 days ago',
-  },
-  {
-    id: 'auto-machine-translate',
-    feature: 'Auto Machine Translation',
-    category: 'Automation',
-    description: 'Automatically seed missing translations using machine translation providers.',
-    value: 'DeepL + Google Translate',
-    enabled: false,
-    updatedAt: 'Last week',
-  },
-  {
-    id: 'missing-key-alerts',
-    feature: 'Missing Key Alerts',
-    category: 'Quality',
-    description: 'Notify system admins when a new translation key is required at runtime.',
-    value: 'Slack #localization-alerts',
-    enabled: true,
-    updatedAt: '4 hours ago',
-  },
-];
+const formatDateTime = (value: string) => {
+  if (!value) {
+    return '—';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleString();
+};
+
+const createEmptyPagination = (): ApiPagination => ({
+  page: 1,
+  pageSize: 10,
+  totalItems: 0,
+  totalPages: 1,
+  hasNext: false,
+  hasPrev: false,
+});
 
 export const LocalizationsList: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const { settings } = useSettings();
 
-  const columns = [
+  const [localizations, setLocalizations] = useState<LocalizationRecord[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
+  const [search, setSearch] = useState<string>('');
+  const [pagination, setPagination] = useState<ApiPagination>(createEmptyPagination);
+
+  const fetchLocalizations = useCallback(
+    async (nextPage: number, nextPageSize: number, nextSearch: string) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await localizationsService.list({
+          page: nextPage,
+          pageSize: nextPageSize,
+          search: nextSearch.trim() !== '' ? nextSearch.trim() : undefined,
+        });
+        setLocalizations(response.items);
+        setPagination(response.pagination);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : t('common.error');
+        setError(message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [t],
+  );
+
+  useEffect(() => {
+    void fetchLocalizations(page, pageSize, search);
+  }, [fetchLocalizations, page, pageSize, search]);
+
+  const defaultLanguageCode = useMemo(
+    () => normalizeLanguageCode(settings?.localization.defaultLanguage ?? 'en'),
+    [settings?.localization.defaultLanguage],
+  );
+
+  const defaultLanguageLabel = useMemo(() => {
+    const match = settings?.localization.supportedLanguages.find(
+      (lang) => normalizeLanguageCode(lang.code) === defaultLanguageCode,
+    );
+    return match?.label ?? defaultLanguageCode.toUpperCase();
+  }, [defaultLanguageCode, settings?.localization.supportedLanguages]);
+
+  const requiredLanguages = useMemo(
+    () => settings?.localization.supportedLanguages.filter((lang) => lang.required) ?? [],
+    [settings?.localization.supportedLanguages],
+  );
+
+  const optionalLanguages = useMemo(
+    () => settings?.localization.supportedLanguages.filter((lang) => !lang.required) ?? [],
+    [settings?.localization.supportedLanguages],
+  );
+
+  const columns = useMemo(() => [
     {
       key: 'key',
-      title: 'Translation Key',
-      sortable: true,
-      render: (value: string, localization: Localization) => (
+      title: t('localizations.key'),
+      sortable: false,
+      render: (value: string, localization: LocalizationRecord) => (
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-sm">
             <Globe className="h-5 w-5 text-white" />
           </div>
           <div>
             <div className="text-sm font-semibold text-foreground font-mono">{value}</div>
-            <div className="text-xs text-gray-500">ID: {localization.id}</div>
+            <div className="text-xs text-muted-foreground">ID: {localization.id}</div>
           </div>
         </div>
       ),
-      mobileRender: (localization: Localization) => (
+      mobileRender: (localization: LocalizationRecord) => (
         <div className="space-y-3">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-sm">
@@ -145,192 +125,234 @@ export const LocalizationsList: React.FC = () => {
             </div>
             <div className="flex-1">
               <div className="text-sm font-semibold text-foreground font-mono">{localization.key}</div>
-              <div className="text-xs text-gray-500">ID: {localization.id}</div>
+              <div className="text-xs text-muted-foreground">ID: {localization.id}</div>
             </div>
           </div>
-          
+
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Namespace</div>
+              <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">
+                {t('localizations.namespace')}
+              </div>
               <Badge variant="primary" size="sm">{localization.namespace}</Badge>
             </div>
             <div>
-              <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Languages</div>
+              <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">
+                {t('localizations.translations')}
+              </div>
               <div className="flex items-center space-x-1">
-                <Languages className="h-4 w-4 text-gray-400" />
-                <span className="text-sm text-gray-600">{Object.keys(localization.translations).length}</span>
+                <Languages className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">{Object.keys(localization.translations).length}</span>
               </div>
             </div>
           </div>
-          
+
           <div>
-            <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Description</div>
-            <div className="text-sm text-gray-600">{localization.description}</div>
+            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">
+              {t('localizations.description')}
+            </div>
+            <div className="text-sm text-foreground line-clamp-3">{localization.description ?? '—'}</div>
           </div>
-          
+
           <div>
-            <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">English Translation</div>
-            <div className="text-sm text-foreground italic">"{localization.translations.en}"</div>
+            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">
+              {t('localizations.updated_at')}
+            </div>
+            <div className="text-sm text-muted-foreground">{formatDateTime(localization.updatedAt)}</div>
           </div>
         </div>
       ),
     },
     {
       key: 'namespace',
-      title: 'Namespace',
-      sortable: true,
-      render: (value: string) => (
-        <Badge variant="primary" size="sm">{value}</Badge>
-      ),
+      title: t('localizations.namespace'),
+      render: (value: string) => <Badge variant="primary" size="sm">{value}</Badge>,
     },
     {
       key: 'translations',
-      title: 'Languages',
+      title: t('localizations.translations'),
       render: (value: Record<string, string>) => (
         <div className="flex items-center space-x-1">
-          <Languages className="h-4 w-4 text-gray-400" />
-          <span className="text-sm text-gray-600">{Object.keys(value).length}</span>
-          <span className="text-xs text-gray-400">languages</span>
+          <Languages className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">{Object.keys(value).length}</span>
         </div>
       ),
     },
     {
       key: 'description',
-      title: 'Description',
-      render: (value: string) => (
-        <span className="text-sm text-gray-600 line-clamp-2">{value}</span>
+      title: t('localizations.description'),
+      render: (value: string | null) => (
+        <span className="text-sm text-muted-foreground line-clamp-2">{value ?? '—'}</span>
       ),
     },
     {
-      key: 'translations.en',
-      title: 'English Text',
-      render: (_: any, localization: Localization) => (
-        <span className="text-sm text-foreground italic">"{localization.translations.en}"</span>
-      ),
+      key: `translations.${defaultLanguageCode}`,
+      title: t('localizations.translation_text', { language: defaultLanguageLabel }),
+      render: (_: unknown, localization: LocalizationRecord) => {
+        const translation = localization.translations[defaultLanguageCode];
+        return (
+          <span className="text-sm text-foreground italic">
+            {translation ? `"${translation}"` : t('localizations.no_translation')}
+          </span>
+        );
+      },
     },
     {
       key: 'updatedAt',
-      title: 'Last Updated',
-      sortable: true,
+      title: t('localizations.updated_at'),
+      sortable: false,
       render: (value: string) => (
-        <UserInfo
-          name="System Admin"
-          email="admin@company.com"
-          date={value}
-        />
+        <span className="text-sm text-muted-foreground">{formatDateTime(value)}</span>
       ),
     },
-  ];
+  ], [defaultLanguageCode, defaultLanguageLabel, t]);
 
-  const filters = [
-    {
-      key: 'namespace',
-      label: 'All Namespaces',
-      type: 'select' as const,
-      options: [
-        { value: 'common', label: 'Common' },
-        { value: 'items', label: 'Items' },
-        { value: 'validation', label: 'Validation' },
-        { value: 'navigation', label: 'Navigation' },
-      ]
+  const handleRefresh = () => {
+    void fetchLocalizations(page, pageSize, search);
+  };
+
+  const handlePageChange = (nextPage: number) => {
+    setPage(nextPage);
+  };
+
+  const handlePageSizeChange = (nextSize: number) => {
+    setPageSize(nextSize);
+    setPage(1);
+  };
+
+  const handleSearchChange = (value: string) => {
+    setPage(1);
+    setSearch(value);
+  };
+
+  const renderLanguageBadges = (languages: typeof requiredLanguages) => {
+    if (!languages.length) {
+      return <span className="text-xs text-muted-foreground">{t('localizations.settings.none')}</span>;
     }
-  ];
+    return (
+      <div className="flex flex-wrap gap-1">
+        {languages.map((lang) => (
+          <Badge key={lang.code} variant="secondary" size="sm">
+            {lang.label} ({normalizeLanguageCode(lang.code)})
+          </Badge>
+        ))}
+      </div>
+    );
+  };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col gap-6">
       <PageHeader
         title={t('localizations.title')}
         subtitle={t('localizations.subtitle')}
-        action={
-          <Button onClick={() => navigate('/localizations/create')}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create Translation
-          </Button>
-        }
+        action={(
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={loading}
+            >
+              <RefreshCcw className="h-4 w-4" />
+            </Button>
+            <Button type="button" onClick={() => navigate('/localizations/create')}>
+              <Plus className="h-4 w-4 mr-2" />
+              {t('localizations.create_title')}
+            </Button>
+          </div>
+        )}
       />
-      
-      <div className="flex-1 mt-6">
-        <DataTable
-          data={mockLocalizations}
-          columns={columns}
-          searchPlaceholder="Search translations..."
-          filters={filters}
-          onRowClick={(localization) => navigate(`/localizations/${localization.id}`)}
-          emptyState={{
-            icon: <Globe className="h-12 w-12" />,
-            title: 'No translations found',
-            description: 'Get started by creating your first translation',
-            action: (
-              <Button onClick={() => navigate('/localizations/create')}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Translation
-              </Button>
-            )
-          }}
-        />
-      </div>
 
-      <Card className="mb-6">
+      {error && localizations.length > 0 && (
+        <div className="flex items-center gap-2 rounded-lg border border-error/30 bg-error/5 px-3 py-2 text-sm text-error">
+          <AlertCircle className="h-4 w-4" />
+          <span>{error}</span>
+          <Button type="button" variant="ghost" size="sm" onClick={handleRefresh}>
+            {t('common.retry')}
+          </Button>
+        </div>
+      )}
+
+      <DataTable<LocalizationRecord>
+        data={localizations}
+        columns={columns}
+        loading={loading}
+        mode="server"
+        totalItems={pagination.totalItems}
+        currentPage={page}
+        currentPageSize={pageSize}
+        onPageChange={handlePageChange}
+        onPageSizeChange={handlePageSizeChange}
+        searchPlaceholder={t('localizations.search_placeholder')}
+        searchValue={search}
+        onSearchChange={handleSearchChange}
+        onRowClick={(item) => navigate(`/localizations/${item.id}`)}
+        emptyState={{
+          icon: error ? <AlertCircle className="h-10 w-10 text-error" /> : <FileText className="h-10 w-10 text-muted-foreground" />,
+          title: error ? t('localizations.list_title') : t('localizations.no_localizations'),
+          description: error ?? t('localizations.create_new_localization'),
+          action: (
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="outline" onClick={handleRefresh}>
+              <RefreshCcw className="h-4 w-4 mr-2" />
+              {t('common.retry')}
+            </Button>
+            <Button type="button" onClick={() => navigate('/localizations/create')}>
+              <Plus className="h-4 w-4 mr-2" />
+              {t('localizations.create_title')}
+            </Button>
+          </div>
+        ),
+      }}
+      />
+
+      <Card>
         <CardHeader
           title={t('localizations.settings.title')}
           subtitle={t('localizations.settings.subtitle')}
+          className="border-none mb-2"
         />
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-border text-sm">
-            <thead className="bg-muted text-xs uppercase text-muted-foreground">
-              <tr>
-                <th className="px-4 py-3 text-left w-1/5">{t('localizations.settings.columns.feature')}</th>
-                <th className="px-4 py-3 text-left w-2/5">{t('localizations.settings.columns.description')}</th>
-                <th className="px-4 py-3 text-left w-1/5">{t('localizations.settings.columns.value')}</th>
-                <th className="px-4 py-3 text-left w-1/5">{t('localizations.settings.columns.status')}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border bg-card">
-              {localizationSettings.map((setting) => (
-                <tr key={setting.id}>
-                  <td className="px-4 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-                        <FileText className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <div className="font-medium text-foreground">{setting.feature}</div>
-                        <div className="text-xs text-muted-foreground">{setting.category}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-4 text-sm text-muted-foreground">{setting.description}</td>
-                  <td className="px-4 py-4">
-                    {Array.isArray(setting.value) ? (
-                      <div className="flex flex-wrap gap-2">
-                        {setting.value.map((item) => (
-                          <Badge key={item} variant="secondary" size="sm">
-                            {item}
-                          </Badge>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-sm text-foreground">{setting.value}</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-4">
-                    <div className="flex items-center gap-3">
-                      <Badge variant={setting.enabled ? 'success' : 'secondary'} size="sm">
-                        {setting.enabled ? t('localizations.settings.enabled') : t('localizations.settings.disabled')}
-                      </Badge>
-                      <Button variant="outline" size="sm">
-                        {t('localizations.settings.manage')}
-                      </Button>
-                    </div>
-                    <div className="text-[11px] text-muted-foreground mt-1">
-                      {t('localizations.settings.updated', { value: setting.updatedAt })}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {settings ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                {t('settings.localization.labels.default')}
+              </p>
+              <Badge variant="success" size="sm">
+                {defaultLanguageLabel} ({defaultLanguageCode})
+              </Badge>
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                {t('settings.localization.labels.fallback')}
+              </p>
+              <Badge variant="secondary" size="sm">
+                {(() => {
+                  const fallbackCode = normalizeLanguageCode(settings.localization.fallbackLanguage);
+                  const fallbackLabel = settings.localization.supportedLanguages.find(
+                    (lang) => normalizeLanguageCode(lang.code) === fallbackCode,
+                  )?.label ?? fallbackCode.toUpperCase();
+                  return `${fallbackLabel} (${fallbackCode})`;
+                })()}
+              </Badge>
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                {t('settings.localization.labels.required_badge')}
+              </p>
+              {renderLanguageBadges(requiredLanguages)}
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                {t('localizations.settings.optional_languages')}
+              </p>
+              {renderLanguageBadges(optionalLanguages)}
+            </div>
+          </div>
+        ) : (
+          <div className="p-4 text-sm text-muted-foreground">{t('common.loading')}</div>
+        )}
       </Card>
     </div>
   );

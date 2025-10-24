@@ -43,6 +43,15 @@ export interface PaginatedResponse<T = any> extends ApiSuccessResponse<{
   };
 }> {}
 
+export interface ApiPagination {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+}
+
 // Normalized API error used in the app after interceptor processing
 export interface ApiError {
   message: string;
@@ -207,6 +216,7 @@ export interface PermissionGroup extends BaseEntity {
 export interface LanguageOption {
   code: string;
   label: string;
+  required: boolean;
 }
 
 export interface SettingsGeneral {
@@ -320,6 +330,44 @@ export type SettingsPatchRequest = SettingsPatchPayload & {
   comment: string;
 };
 
+export interface LocalizationRecord {
+  id: string;
+  tenantId: string;
+  namespace: string;
+  key: string;
+  description: string | null;
+  translations: Record<string, string>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LocalizationListResponse {
+  items: LocalizationRecord[];
+  pagination: ApiPagination;
+}
+
+export interface LocalizationListParams {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  namespace?: string;
+  language?: string;
+}
+
+export interface CreateLocalizationRequest {
+  namespace: string;
+  key: string;
+  description?: string | null;
+  translations: Record<string, string>;
+}
+
+export interface UpdateLocalizationRequest {
+  namespace?: string;
+  key?: string;
+  description?: string | null;
+  translations?: Record<string, string>;
+}
+
 // Auth Types
 export interface LoginRequest {
   email: string;
@@ -406,14 +454,7 @@ export interface HistoryApiItem {
   meta?: Record<string, unknown> | null;
 }
 
-export interface HistoryApiPagination {
-  page: number;
-  pageSize: number;
-  totalItems: number;
-  totalPages: number;
-  hasNext: boolean;
-  hasPrev: boolean;
-}
+export type HistoryApiPagination = ApiPagination;
 
 export interface HistoryResponseData {
   items: HistoryApiItem[];
