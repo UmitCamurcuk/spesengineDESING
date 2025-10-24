@@ -22,6 +22,7 @@ import { useServerTable } from '../../hooks';
 import { historyService } from '../../api/services/history.service';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { resolveAssetUrl } from '../../utils/url';
+import { formatHistoryFieldLabel, formatHistoryValue } from '../../utils/historyFormat';
 
 interface HistoryTableProps {
   entityType?: string;
@@ -92,22 +93,6 @@ const formatLabel = (value: string) =>
     .split('_')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
-
-const formatChangeValue = (value: unknown): string => {
-  if (value === null || value === undefined) {
-    return '—';
-  }
-
-  if (typeof value === 'object') {
-    try {
-      return JSON.stringify(value);
-    } catch (_error) {
-      return '[object]';
-    }
-  }
-
-  return String(value);
-};
 
 const isImageValue = (value: unknown): value is string => {
   if (typeof value !== 'string') {
@@ -183,47 +168,54 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
       const visibleChanges = changes.slice(0, MAX_VISIBLE);
 
       return (
-        <div className="space-y-2">
-          {visibleChanges.map((change) => (
-            <div key={change.field} className="text-xs">
+      <div className="space-y-2">
+        {visibleChanges.map((change, index) => {
+          const fieldLabel = formatHistoryFieldLabel(change.field, t);
+          const oldValue = formatHistoryValue(change.field, change.oldValue, t);
+          const newValue = formatHistoryValue(change.field, change.newValue, t);
+          const oldMedia = renderChangeMedia(change.oldValue, `${change.field}-before`);
+          const newMedia = renderChangeMedia(change.newValue, `${change.field}-after`);
+
+          return (
+            <div key={`${change.field}-${index}`} className="text-xs">
               <div className="font-medium text-foreground flex items-center gap-2">
-                <span className="truncate">{change.field}</span>
-                {renderChangeMedia(change.newValue, `${change.field}-after`)}
+                <span className="truncate">{fieldLabel}</span>
+                {newMedia}
               </div>
               <div className="mt-1 grid grid-cols-2 gap-2">
                 <div>
                   <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
                     {change.oldValue !== undefined ? t('profile.history_before_label') : ''}
                   </div>
-                  <div className="text-error line-through text-xs truncate">
-                    {renderChangeMedia(change.oldValue, `${change.field}-before`) || formatChangeValue(change.oldValue)}
+                  <div className="text-error line-through text-xs whitespace-pre-wrap">
+                    {oldMedia ?? oldValue}
                   </div>
                 </div>
                 <div>
                   <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
                     {change.newValue !== undefined ? t('profile.history_after_label') : ''}
                   </div>
-                  <div className="text-success text-xs truncate">
-                    {renderChangeMedia(change.newValue, `${change.field}-after`) || formatChangeValue(change.newValue)}
+                  <div className="text-success text-xs whitespace-pre-wrap">
+                    {newMedia ?? newValue}
                   </div>
                 </div>
               </div>
             </div>
-          ))}
-          
-          {/* Her zaman detayları gör butonu göster */}
-          <div className="flex justify-end mt-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleShowChanges(changes)}
-              className="h-6 px-2 text-xs"
-            >
-              <Eye className="h-3 w-3 mr-1" />
-              Detayları Gör
-            </Button>
-          </div>
+          );
+        })}
+
+        <div className="flex justify-end mt-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleShowChanges(changes)}
+            className="h-6 px-2 text-xs"
+          >
+            <Eye className="h-3 w-3 mr-1" />
+            {t('profile.history_view_details')}
+          </Button>
         </div>
+      </div>
       );
     },
     [t, handleShowChanges],

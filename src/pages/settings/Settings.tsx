@@ -22,6 +22,7 @@ import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Tabs, TabPanel } from '../../components/ui/Tabs';
 import { ChangeConfirmDialog } from '../../components/ui/ChangeConfirmDialog';
+import { Modal } from '../../components/ui/Modal';
 import { cn } from '../../utils/cn';
 import { useSettings } from '../../contexts/SettingsContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -61,19 +62,6 @@ const darkVariantOptions = [
   { value: 'slate', label: 'Slate' },
   { value: 'navy', label: 'Navy' },
   { value: 'true-black', label: 'True Black' },
-];
-
-const suggestedLanguages: Array<Pick<LanguageOption, 'code' | 'label'>> = [
-  { code: 'tr', label: 'Türkçe' },
-  { code: 'en', label: 'English' },
-  { code: 'de', label: 'Deutsch' },
-  { code: 'fr', label: 'Français' },
-  { code: 'es', label: 'Español' },
-  { code: 'it', label: 'Italiano' },
-  { code: 'ru', label: 'Русский' },
-  { code: 'ar', label: 'العربية' },
-  { code: 'fa', label: 'فارسی' },
-  { code: 'zh-CN', label: '中文 (简体)' },
 ];
 
 const clonePayload = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
@@ -432,6 +420,7 @@ export const Settings: React.FC = () => {
   const [form, setForm] = useState<UpdateSettingsPayload | null>(null);
   const [activeTab, setActiveTab] = useState<string>('general');
   const [languageDraft, setLanguageDraft] = useState<LanguageDraft>({ code: '', label: '', required: false });
+  const [isLanguageModalOpen, setLanguageModalOpen] = useState<boolean>(false);
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [confirmOpen, setConfirmOpen] = useState<boolean>(false);
   const [confirmLoading, setConfirmLoading] = useState<boolean>(false);
@@ -449,6 +438,8 @@ export const Settings: React.FC = () => {
 
   const hasChanges = changeList.length > 0;
   const isLocked = !isEditing || isSaving;
+  const isLanguageDraftValid =
+    languageDraft.code.trim().length > 0 && languageDraft.label.trim().length > 0;
 
   const updateForm = (updater: (draft: UpdateSettingsPayload) => UpdateSettingsPayload) => {
     setForm((prev) => {
@@ -572,36 +563,54 @@ export const Settings: React.FC = () => {
     });
   };
 
-  const handleAddLanguage = () => {
+  const addLanguage = (language: LanguageDraft): boolean => {
     if (!form || !isEditing) {
-      return;
+      return false;
     }
 
-    const draftCode = normalizeLanguageCode(languageDraft.code);
-    const draftLabel = languageDraft.label.trim();
+    const draftCode = normalizeLanguageCode(language.code);
+    const draftLabel = language.label.trim();
 
     if (!draftCode || !draftLabel) {
       error(t('settings.localization.messages.language_required'));
-      return;
+      return false;
     }
 
     if (form.localization.supportedLanguages.some((lang) => normalizeLanguageCode(lang.code) === draftCode)) {
       error(t('settings.localization.messages.language_exists'));
-      return;
+      return false;
     }
-
-    const draftRequired = Boolean(languageDraft.required);
 
     updateForm((draft) => {
       draft.localization.supportedLanguages = [
         ...draft.localization.supportedLanguages,
-        sanitizeLanguageOption({ code: draftCode, label: draftLabel, required: draftRequired }),
+        sanitizeLanguageOption({ code: draftCode, label: draftLabel, required: Boolean(language.required) }),
       ];
       return draft;
     });
 
-    setLanguageDraft({ code: '', label: '', required: false });
     success(t('settings.localization.messages.language_added'));
+    return true;
+  };
+
+  const handleOpenLanguageModal = () => {
+    if (isLocked) {
+      return;
+    }
+    setLanguageDraft({ code: '', label: '', required: false });
+    setLanguageModalOpen(true);
+  };
+
+  const handleCloseLanguageModal = () => {
+    setLanguageModalOpen(false);
+    setLanguageDraft({ code: '', label: '', required: false });
+  };
+
+  const handleLanguageSubmit = () => {
+    if (addLanguage(languageDraft)) {
+      setLanguageModalOpen(false);
+      setLanguageDraft({ code: '', label: '', required: false });
+    }
   };
 
   const handleRemoveLanguage = (code: string) => {
@@ -1026,6 +1035,17 @@ export const Settings: React.FC = () => {
               title={t('settings.localization.title')}
               subtitle={t('settings.localization.subtitle')}
               className="border-none mb-2"
+              action={
+                <Button
+                  type="button"
+                  variant="outline"
+                  leftIcon={<Plus className="h-4 w-4" />}
+                  onClick={handleOpenLanguageModal}
+                  disabled={isLocked}
+                >
+                  {t('settings.localization.add_language')}
+                </Button>
+              }
             />
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1067,66 +1087,7 @@ export const Settings: React.FC = () => {
                 />
               </div>
 
-              <div className="space-y-4">
-                <div className="flex flex-col md:flex-row gap-3">
-                  <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <Input
-                      label={t('settings.localization.language_code')}
-                      value={languageDraft.code}
-                      onChange={(e) => setLanguageDraft((prev) => ({ ...prev, code: e.target.value }))}
-                      placeholder="en"
-                      disabled={isLocked}
-                    />
-                    <Input
-                      label={t('settings.localization.custom_label')}
-                      value={languageDraft.label}
-                      onChange={(e) => setLanguageDraft((prev) => ({ ...prev, label: e.target.value }))}
-                      placeholder="Türkçe"
-                      disabled={isLocked}
-                    />
-                    <div className="md:col-span-2">
-                      <Checkbox
-                        label={t('settings.localization.mark_required')}
-                        checked={languageDraft.required}
-                        onChange={(e) => setLanguageDraft((prev) => ({ ...prev, required: e.target.checked }))}
-                        size="sm"
-                        disabled={isLocked}
-                      />
-                    </div>
-                  </div>
-                  <div className="md:w-40 flex items-end">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      leftIcon={<Plus className="h-4 w-4" />}
-                      onClick={handleAddLanguage}
-                      className="w-full"
-                      disabled={isLocked}
-                    >
-                      {t('settings.localization.add_language')}
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <span>{t('settings.localization.quick_add')}</span>
-                  {suggestedLanguages.map((lang) => (
-                    <Button
-                      key={lang.code}
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="px-2 py-1"
-                      onClick={() => setLanguageDraft((prev) => ({ ...prev, code: lang.code, label: lang.label }))}
-                      disabled={isLocked}
-                    >
-                      {lang.label}
-                    </Button>
-                  ))}
-                </div>
-
-                {renderSupportedLanguages()}
-              </div>
+              {renderSupportedLanguages()}
             </div>
           </Card>
         </TabPanel>
@@ -1417,6 +1378,54 @@ export const Settings: React.FC = () => {
         entityName={t('settings.page_title')}
         title={t('settings.history.title')}
       />
+
+      <Modal
+        isOpen={isLanguageModalOpen}
+        onClose={handleCloseLanguageModal}
+        size="sm"
+        title={t('settings.localization.modal_title')}
+      >
+        <div className="space-y-5">
+          <p className="text-sm text-muted-foreground">{t('settings.localization.modal_description')}</p>
+
+          <div className="space-y-4">
+            <Input
+              label={t('settings.localization.language_code')}
+              value={languageDraft.code}
+              onChange={(e) => setLanguageDraft((prev) => ({ ...prev, code: e.target.value }))}
+              placeholder="en"
+              required
+            />
+            <Input
+              label={t('settings.localization.custom_label')}
+              value={languageDraft.label}
+              onChange={(e) => setLanguageDraft((prev) => ({ ...prev, label: e.target.value }))}
+              placeholder="Türkçe"
+              required
+            />
+            <Checkbox
+              label={t('settings.localization.mark_required')}
+              checked={languageDraft.required}
+              onChange={(e) => setLanguageDraft((prev) => ({ ...prev, required: e.target.checked }))}
+              size="sm"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 border-t border-border pt-4">
+            <Button type="button" variant="outline" onClick={handleCloseLanguageModal}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              type="button"
+              onClick={handleLanguageSubmit}
+              disabled={!isLanguageDraftValid}
+              leftIcon={<Plus className="h-4 w-4" />}
+            >
+              {t('settings.localization.modal_submit')}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
     </div>
   );

@@ -3,6 +3,7 @@ import { Button } from './Button';
 import { Modal } from './Modal';
 import { HistoryChange } from '../../types/common';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { formatHistoryFieldLabel, formatHistoryValue } from '../../utils/historyFormat';
 
 interface ChangesModalProps {
   isOpen: boolean;
@@ -10,88 +11,6 @@ interface ChangesModalProps {
   changes: HistoryChange[];
   title?: string;
 }
-
-const formatChangeValue = (value: unknown, field: string, t: (key: string) => string): string => {
-  if (value === null || value === undefined) {
-    return '—';
-  }
-
-  if (typeof value === 'object') {
-    try {
-      const obj = value as Record<string, any>;
-      
-      // Özel alanlar için daha anlaşılır format
-      if (field === 'general' || field === 'appearance' || field === 'localization') {
-        return Object.entries(obj)
-          .map(([key, val]) => {
-            // Manuel çeviri mapping - hardcoded değerler
-            const fieldTranslations: Record<string, string> = {
-              'companyName': 'Şirket Adı',
-              'timezone': 'Saat Dilimi',
-              'dateFormat': 'Tarih Formatı',
-              'maintenanceMode': 'Bakım Modu',
-              'themeMode': 'Tema Modu',
-              'language': 'Dil',
-              'defaultLanguage': 'Varsayılan Dil',
-              'fallbackLanguage': 'Yedek Dil',
-              'supportedLanguages': 'Desteklenen Diller',
-              'allowUserLanguageSwitch': 'Kullanıcı Dil Değiştirme',
-              'autoTranslateNewContent': 'Otomatik Çeviri',
-              'emailNotifications': 'E-posta Bildirimleri',
-              'pushNotifications': 'Anlık Bildirimler',
-              'twoFactorAuth': 'İki Faktörlü Kimlik Doğrulama',
-              'sessionTimeout': 'Oturum Zaman Aşımı',
-              'apiRateLimit': 'API Hız Sınırı',
-              'backupFrequency': 'Yedekleme Sıklığı',
-              'logLevel': 'Log Seviyesi',
-              'debugMode': 'Hata Ayıklama Modu',
-              'autoSave': 'Otomatik Kaydetme',
-              'confirmChanges': 'Değişiklikleri Onayla',
-              'showTooltips': 'İpucu Göster',
-              'compactView': 'Kompakt Görünüm',
-              'sidebarCollapsed': 'Kenar Çubuğu Daraltılmış',
-              'gridDensity': 'Grid Yoğunluğu',
-              'defaultPageSize': 'Varsayılan Sayfa Boyutu',
-              'enableAnimations': 'Animasyonları Etkinleştir',
-              'showWelcomeMessage': 'Hoş Geldin Mesajını Göster',
-              'enableKeyboardShortcuts': 'Klavye Kısayollarını Etkinleştir',
-              'autoRefresh': 'Otomatik Yenileme',
-              'enableDarkMode': 'Karanlık Modu Etkinleştir',
-              'enableNotifications': 'Bildirimleri Etkinleştir',
-              'enableSounds': 'Sesleri Etkinleştir',
-              'enableVibrations': 'Titreşimi Etkinleştir'
-            };
-            
-            const displayKey = fieldTranslations[key] || key;
-            
-            // Array değerleri için özel format
-            if (Array.isArray(val)) {
-              const formattedArray = val.map(item => {
-                if (typeof item === 'object' && item !== null) {
-                  // Object array'i için özel format
-                  if (item.code && item.label) {
-                    return `${item.code} (${item.label})`;
-                  }
-                  return JSON.stringify(item);
-                }
-                return String(item);
-              }).join(', ');
-              return `${displayKey}: [${formattedArray}]`;
-            }
-            
-            return `${displayKey}: ${val}`;
-          })
-          .join('\n');
-      }
-      
-      return JSON.stringify(obj, null, 2);
-    } catch (_error) {
-      return '[object]';
-    }
-  }
-
-  return String(value);
-};
 
 const isImageValue = (value: unknown): value is string => {
   if (typeof value !== 'string') {
@@ -126,71 +45,77 @@ export const ChangesModal: React.FC<ChangesModalProps> = ({
   isOpen,
   onClose,
   changes,
-  title
+  title,
 }) => {
   const { t } = useLanguage();
+  const resolvedTitle = title ?? t('profile.history_modal_title');
 
   if (!changes || changes.length === 0) {
     return (
-      <Modal isOpen={isOpen} onClose={onClose} size="md">
-        <div className="p-6">
-          <div className="text-center py-8">
-            <p className="text-muted-foreground">Değişiklik bulunamadı</p>
-          </div>
+      <Modal isOpen={isOpen} onClose={onClose} size="md" title={resolvedTitle}>
+        <div className="py-6 text-center">
+          <p className="text-sm text-muted-foreground">{t('profile.history_modal_no_changes')}</p>
         </div>
       </Modal>
     );
   }
 
+  const changeCountLabel =
+    changes.length === 1
+      ? t('profile.history_modal_change_count_single')
+      : `${changes.length} ${t('profile.history_modal_change_count_multiple')}`;
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="lg">
-      <div className="p-6">
-        <div className="mb-6">
-          <h3 className="text-lg font-semibold text-foreground">{title || 'Değişiklik Detayları'}</h3>
-          <p className="text-sm text-muted-foreground">
-            {changes.length} değişiklik gösteriliyor
-          </p>
-        </div>
+    <Modal isOpen={isOpen} onClose={onClose} size="lg" title={resolvedTitle}>
+      <div className="space-y-6">
+        <p className="text-sm text-muted-foreground">{changeCountLabel}</p>
 
-        <div className="space-y-6 max-h-[70vh] overflow-y-auto">
-          {changes.map((change, index) => (
-            <div key={`${change.field}-${index}`} className="border border-border rounded-lg p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <h4 className="font-medium text-foreground">Alan: {change.field}</h4>
-                {renderChangeMedia(change.newValue, `${change.field}-after`)}
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
-                    Önce
+        <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-1">
+          {changes.map((change, index) => {
+            const fieldLabel = formatHistoryFieldLabel(change.field, t);
+            const beforeValue = formatHistoryValue(change.field, change.oldValue, t);
+            const afterValue = formatHistoryValue(change.field, change.newValue, t);
+            const beforeMedia = renderChangeMedia(change.oldValue, `${change.field}-before`);
+            const afterMedia = renderChangeMedia(change.newValue, `${change.field}-after`);
+
+            return (
+              <div key={`${change.field}-${index}`} className="border border-border rounded-lg p-4 space-y-4">
+                <div className="flex items-center gap-2">
+                  <h4 className="font-medium text-foreground">
+                    {t('profile.history_modal_field_prefix')}: {fieldLabel}
+                  </h4>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
+                      {t('profile.history_modal_before')}
+                    </div>
+                    <div className="bg-error/10 border border-error/20 rounded-md p-3">
+                      <div className="text-error line-through text-sm whitespace-pre-wrap break-words">
+                        {beforeMedia ?? beforeValue}
+                      </div>
+                    </div>
                   </div>
-                  <div className="bg-error/10 border border-error/20 rounded-md p-3">
-                    <div className="text-error line-through text-sm whitespace-pre-wrap">
-                      {renderChangeMedia(change.oldValue, `${change.field}-before`) || formatChangeValue(change.oldValue, change.field, t)}
+
+                  <div>
+                    <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
+                      {t('profile.history_modal_after')}
+                    </div>
+                    <div className="bg-success/10 border border-success/20 rounded-md p-3">
+                      <div className="text-success text-sm whitespace-pre-wrap break-words">
+                        {afterMedia ?? afterValue}
+                      </div>
                     </div>
                   </div>
                 </div>
-                
-                <div>
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
-                    Sonra
-                  </div>
-                  <div className="bg-success/10 border border-success/20 rounded-md p-3">
-                    <div className="text-success text-sm whitespace-pre-wrap">
-                      {renderChangeMedia(change.newValue, `${change.field}-after`) || formatChangeValue(change.newValue, change.field, t)}
-                    </div>
-                  </div>
-                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
-        <div className="flex justify-end mt-6 pt-4 border-t border-border">
-          <Button onClick={onClose}>
-            Kapat
-          </Button>
+        <div className="flex justify-end pt-4 border-t border-border">
+          <Button onClick={onClose}>{t('profile.history_modal_close')}</Button>
         </div>
       </div>
     </Modal>
