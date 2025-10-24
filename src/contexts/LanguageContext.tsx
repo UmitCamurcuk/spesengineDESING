@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 
-export type Language = 'tr' | 'en';
+export type Language = string;
 
 interface LanguageContextType {
   language: Language;
@@ -23,6 +23,9 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
     const loadTranslations = async () => {
       try {
         const response = await fetch(`/locales/${language}.json`);
+        if (!response.ok) {
+          throw new Error(`Translation file not found for ${language}`);
+        }
         const data = await response.json();
         setTranslations(data);
       } catch (error) {
@@ -37,16 +40,22 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
 
   // Load language from localStorage on mount
   useEffect(() => {
-    const savedLanguage = localStorage.getItem('language') as Language;
-    if (savedLanguage && (savedLanguage === 'tr' || savedLanguage === 'en')) {
+    const savedLanguage = localStorage.getItem('language');
+    if (savedLanguage) {
       setLanguageState(savedLanguage);
     }
   }, []);
 
-  const setLanguage = (lang: Language) => {
-    setLanguageState(lang);
-    localStorage.setItem('language', lang);
-  };
+  const setLanguage = useCallback((lang: Language) => {
+    const normalized = lang.trim() || 'tr';
+    setLanguageState((prev) => {
+      if (prev === normalized) {
+        return prev;
+      }
+      return normalized;
+    });
+    localStorage.setItem('language', normalized);
+  }, []);
 
   const t = (key: string): string => {
     const keys = key.split('.');
@@ -77,5 +86,3 @@ export const useLanguage = () => {
   }
   return context;
 };
-
-

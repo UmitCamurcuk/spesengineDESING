@@ -9,7 +9,7 @@ interface AppState {
   sidebarCollapsed: boolean;
   theme: 'light' | 'dark' | 'system';
   darkVariant: 'slate' | 'navy' | 'true-black';
-  language: 'en' | 'tr';
+  language: string;
   
   // User State
   user: User | null;
@@ -84,7 +84,7 @@ interface AppActions {
   setSidebarCollapsed: (collapsed: boolean) => void;
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
   setDarkVariant: (variant: 'slate' | 'navy' | 'true-black') => void;
-  setLanguage: (language: 'en' | 'tr') => void;
+  setLanguage: (language: string) => void;
   
   // User Actions
   setUser: (user: User | null) => void;
@@ -601,4 +601,3 @@ export const usePagination = () => useAppStore((state) => state.pagination);
 export const useSelectedItems = () => useAppStore((state) => state.selectedItems);
 export const useModals = () => useAppStore((state) => state.modals);
 export const useToasts = () => useAppStore((state) => state.toasts);
-

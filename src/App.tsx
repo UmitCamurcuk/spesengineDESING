@@ -9,6 +9,7 @@ import { ToastProvider } from './contexts/ToastContext';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { SettingsProvider } from './contexts/SettingsContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Items
@@ -405,9 +406,11 @@ function App() {
         <ThemeProvider>
           <LanguageProvider>
             <AuthProvider>
-              <ToastProvider>
-                <AppRouter />
-              </ToastProvider>
+              <SettingsProvider>
+                <ToastProvider>
+                  <AppRouter />
+                </ToastProvider>
+              </SettingsProvider>
             </AuthProvider>
           </LanguageProvider>
         </ThemeProvider>

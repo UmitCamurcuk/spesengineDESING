@@ -204,6 +204,118 @@ export interface PermissionGroup extends BaseEntity {
   isActive: boolean;
 }
 
+export interface LanguageOption {
+  code: string;
+  label: string;
+}
+
+export interface SettingsGeneral {
+  companyName: string;
+  timezone: string;
+  dateFormat: string;
+  maintenanceMode: boolean;
+}
+
+export type ThemeMode = 'light' | 'dark' | 'system';
+export type DarkVariant = 'slate' | 'navy' | 'true-black';
+
+export interface SettingsAppearance {
+  themeMode: ThemeMode;
+  darkVariant: DarkVariant;
+  compactMode: boolean;
+  showAvatars: boolean;
+}
+
+export interface SettingsLocalization {
+  defaultLanguage: string;
+  fallbackLanguage: string;
+  supportedLanguages: LanguageOption[];
+  allowUserLanguageSwitch: boolean;
+  autoTranslateNewContent: boolean;
+}
+
+export interface SettingsNotifications {
+  email: boolean;
+  push: boolean;
+  slack: boolean;
+  sms: boolean;
+  weeklyDigest: boolean;
+  anomalyAlerts: boolean;
+}
+
+export interface SettingsSlackIntegration {
+  enabled: boolean;
+  channel: string;
+  webhookUrl: string;
+  mentionAll: boolean;
+  sendDigest: boolean;
+}
+
+export interface SettingsTeamsIntegration {
+  enabled: boolean;
+  webhookUrl: string;
+  channel: string;
+}
+
+export interface SettingsWebhookIntegration {
+  enabled: boolean;
+  endpoint: string;
+  secret: string;
+}
+
+export interface SettingsIntegrations {
+  slack: SettingsSlackIntegration;
+  microsoftTeams: SettingsTeamsIntegration;
+  webhook: SettingsWebhookIntegration;
+}
+
+export interface SettingsSecurity {
+  sessionTimeoutMinutes: number;
+  passwordExpiryDays: number;
+  enforceTwoFactor: boolean;
+  requireTwoFactorForAdmins: boolean;
+  loginAlerts: boolean;
+  allowRememberDevice: boolean;
+}
+
+export interface SettingsData {
+  autoBackup: boolean;
+  retentionDays: number;
+  allowExport: boolean;
+}
+
+export interface AppSettings {
+  id: string | null;
+  tenantId: string;
+  general: SettingsGeneral;
+  appearance: SettingsAppearance;
+  localization: SettingsLocalization;
+  notifications: SettingsNotifications;
+  integrations: SettingsIntegrations;
+  security: SettingsSecurity;
+  data: SettingsData;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export type UpdateSettingsPayload = Omit<AppSettings, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>;
+
+export type SettingsPatchPayload = Partial<{
+  general: Partial<SettingsGeneral>;
+  appearance: Partial<SettingsAppearance>;
+  localization: Partial<Omit<SettingsLocalization, 'supportedLanguages'>> & {
+    supportedLanguages?: LanguageOption[];
+  };
+  notifications: Partial<SettingsNotifications>;
+  integrations: Partial<{
+    slack: Partial<SettingsIntegrations['slack']>;
+    microsoftTeams: Partial<SettingsIntegrations['microsoftTeams']>;
+    webhook: Partial<SettingsIntegrations['webhook']>;
+  }>;
+  security: Partial<SettingsSecurity>;
+  data: Partial<SettingsData>;
+}>;
+
 // Auth Types
 export interface LoginRequest {
   email: string;

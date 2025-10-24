@@ -1,34 +1,48 @@
-import React, { useState } from 'react';
-import { Save, Shield, AlertCircle, CheckCircle, Info, XCircle, Eye } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Save,
+  RotateCcw,
+  Plus,
+  Trash2,
+  Building2,
+  Languages,
+  Bell,
+  Plug,
+  Shield,
+  Database,
+  Palette,
+  History as HistoryIcon,
+} from 'lucide-react';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { Card, CardHeader } from '../../components/ui/Card';
-import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
-import { Badge } from '../../components/ui/Badge';
-import { Modal } from '../../components/ui/Modal';
 import { Checkbox } from '../../components/ui/Checkbox';
-import { Radio } from '../../components/ui/Radio';
-import { Textarea } from '../../components/ui/Textarea';
-import { FileInput } from '../../components/ui/FileInput';
-import { DatePicker } from '../../components/ui/DatePicker';
+import { Badge } from '../../components/ui/Badge';
+import { Button } from '../../components/ui/Button';
+import { Tabs, TabPanel } from '../../components/ui/Tabs';
+import { useSettings } from '../../contexts/SettingsContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { useTheme } from '../../contexts/ThemeContext';
-import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
-import { ChangeConfirmDialog } from '../../components/ui/ChangeConfirmDialog';
+import type { AppSettings, UpdateSettingsPayload, SettingsPatchPayload, LanguageOption } from '../../api/types/api.types';
+import { HistoryTable } from '../../components/common/HistoryTable';
 
-const languageOptions = [
-  { value: 'en', label: 'English' },
-  { value: 'tr', label: 'Türkçe' },
-  { value: 'es', label: 'Español' },
-  { value: 'fr', label: 'Français' },
-];
+interface LanguageDraft extends LanguageOption {}
 
 const timezoneOptions = [
   { value: 'UTC', label: 'UTC' },
   { value: 'Europe/Istanbul', label: 'Europe/Istanbul' },
+  { value: 'Europe/Berlin', label: 'Europe/Berlin' },
   { value: 'America/New_York', label: 'America/New_York' },
   { value: 'Asia/Tokyo', label: 'Asia/Tokyo' },
+  { value: 'Asia/Dubai', label: 'Asia/Dubai' },
+];
+
+const dateFormatOptions = [
+  { value: 'YYYY-MM-DD', label: 'YYYY-MM-DD' },
+  { value: 'DD.MM.YYYY', label: 'DD.MM.YYYY' },
+  { value: 'DD/MM/YYYY', label: 'DD/MM/YYYY' },
+  { value: 'MM/DD/YYYY', label: 'MM/DD/YYYY' },
 ];
 
 const themeModeOptions = [
@@ -38,496 +52,1084 @@ const themeModeOptions = [
 ];
 
 const darkVariantOptions = [
-  { value: 'slate', label: 'Slate (Default)' },
-  { value: 'navy', label: 'Navy (Deep Blue)' },
-  { value: 'true-black', label: 'True Black (OLED)' },
+  { value: 'slate', label: 'Slate' },
+  { value: 'navy', label: 'Navy' },
+  { value: 'true-black', label: 'True Black' },
 ];
 
-export const Settings: React.FC = () => {
-  const [loading, setLoading] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [changeDialogOpen, setChangeDialogOpen] = useState(false);
-  const [uiDemoOpen, setUiDemoOpen] = useState(false);
-  const { showToast } = useToast();
-  const { t, language, setLanguage } = useLanguage();
-  const { mode, darkVariant, setMode, setDarkVariant, effectiveTheme } = useTheme();
+const suggestedLanguages: LanguageOption[] = [
+  { code: 'tr', label: 'Türkçe' },
+  { code: 'en', label: 'English' },
+  { code: 'de', label: 'Deutsch' },
+  { code: 'fr', label: 'Français' },
+  { code: 'es', label: 'Español' },
+  { code: 'it', label: 'Italiano' },
+  { code: 'ru', label: 'Русский' },
+  { code: 'ar', label: 'العربية' },
+  { code: 'fa', label: 'فارسی' },
+  { code: 'zh-CN', label: '中文 (简体)' },
+];
 
-  const [settings, setSettings] = useState({
-    // General
-    companyName: 'SpesEngine',
-    language: language,
-    timezone: 'UTC',
-    dateFormat: 'MM/DD/YYYY',
+const clonePayload = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
 
-    // Appearance
-    theme: 'light',
-    compactMode: false,
+const stripMetadata = (settings: AppSettings): UpdateSettingsPayload => {
+  const { id, tenantId, createdAt, updatedAt, ...rest } = settings;
+  return clonePayload(rest);
+};
 
-    // Notifications
-    emailNotifications: true,
-    pushNotifications: false,
-    weeklyReports: true,
+const normalizeLanguageCode = (code: string) => {
+  const trimmed = code.trim();
+  if (!trimmed.includes('-')) {
+    return trimmed.toLowerCase();
+  }
+  const [lang, region] = trimmed.split('-', 2);
+  return `${lang.toLowerCase()}-${(region ?? '').toUpperCase()}`;
+};
 
-    // Security
-    sessionTimeout: '30',
-    twoFactorAuth: false,
-    passwordExpiry: '90',
+const sanitizeLanguageOption = (lang: LanguageOption): LanguageOption => ({
+  code: normalizeLanguageCode(lang.code),
+  label: lang.label.trim() || lang.code.trim(),
+});
+
+const prepareLanguageList = (languages: LanguageOption[]) => languages.map(sanitizeLanguageOption);
+
+const languagesEqual = (a: LanguageOption[], b: LanguageOption[]) =>
+  JSON.stringify(prepareLanguageList(a)) === JSON.stringify(prepareLanguageList(b));
+
+const buildSettingsPatch = (
+  base: UpdateSettingsPayload,
+  current: UpdateSettingsPayload,
+): SettingsPatchPayload => {
+  const patch: SettingsPatchPayload = {};
+
+  const general: Partial<typeof base.general> = {};
+  if (base.general.companyName !== current.general.companyName) {
+    general.companyName = current.general.companyName.trim();
+  }
+  if (base.general.timezone !== current.general.timezone) {
+    general.timezone = current.general.timezone.trim();
+  }
+  if (base.general.dateFormat !== current.general.dateFormat) {
+    general.dateFormat = current.general.dateFormat.trim();
+  }
+  if (base.general.maintenanceMode !== current.general.maintenanceMode) {
+    general.maintenanceMode = current.general.maintenanceMode;
+  }
+  if (Object.keys(general).length > 0) {
+    patch.general = general;
+  }
+
+  const appearance: Partial<typeof base.appearance> = {};
+  if (base.appearance.themeMode !== current.appearance.themeMode) {
+    appearance.themeMode = current.appearance.themeMode;
+  }
+  if (base.appearance.darkVariant !== current.appearance.darkVariant) {
+    appearance.darkVariant = current.appearance.darkVariant;
+  }
+  if (base.appearance.compactMode !== current.appearance.compactMode) {
+    appearance.compactMode = current.appearance.compactMode;
+  }
+  if (base.appearance.showAvatars !== current.appearance.showAvatars) {
+    appearance.showAvatars = current.appearance.showAvatars;
+  }
+  if (Object.keys(appearance).length > 0) {
+    patch.appearance = appearance;
+  }
+
+  const localization: Partial<Omit<typeof base.localization, 'supportedLanguages'>> & {
+    supportedLanguages?: LanguageOption[];
+  } = {};
+  if (base.localization.defaultLanguage !== current.localization.defaultLanguage) {
+    localization.defaultLanguage = normalizeLanguageCode(current.localization.defaultLanguage);
+  }
+  if (base.localization.fallbackLanguage !== current.localization.fallbackLanguage) {
+    localization.fallbackLanguage = normalizeLanguageCode(current.localization.fallbackLanguage);
+  }
+  if (!languagesEqual(base.localization.supportedLanguages, current.localization.supportedLanguages)) {
+    localization.supportedLanguages = prepareLanguageList(current.localization.supportedLanguages);
+  }
+  if (base.localization.allowUserLanguageSwitch !== current.localization.allowUserLanguageSwitch) {
+    localization.allowUserLanguageSwitch = current.localization.allowUserLanguageSwitch;
+  }
+  if (base.localization.autoTranslateNewContent !== current.localization.autoTranslateNewContent) {
+    localization.autoTranslateNewContent = current.localization.autoTranslateNewContent;
+  }
+  if (Object.keys(localization).length > 0) {
+    patch.localization = localization;
+  }
+
+  const notifications: Partial<typeof base.notifications> = {};
+  if (base.notifications.email !== current.notifications.email) {
+    notifications.email = current.notifications.email;
+  }
+  if (base.notifications.push !== current.notifications.push) {
+    notifications.push = current.notifications.push;
+  }
+  if (base.notifications.slack !== current.notifications.slack) {
+    notifications.slack = current.notifications.slack;
+  }
+  if (base.notifications.sms !== current.notifications.sms) {
+    notifications.sms = current.notifications.sms;
+  }
+  if (base.notifications.weeklyDigest !== current.notifications.weeklyDigest) {
+    notifications.weeklyDigest = current.notifications.weeklyDigest;
+  }
+  if (base.notifications.anomalyAlerts !== current.notifications.anomalyAlerts) {
+    notifications.anomalyAlerts = current.notifications.anomalyAlerts;
+  }
+  if (Object.keys(notifications).length > 0) {
+    patch.notifications = notifications;
+  }
+
+  const integrations: NonNullable<SettingsPatchPayload['integrations']> = {};
+  const slackChanges: Partial<typeof base.integrations.slack> = {};
+  if (base.integrations.slack.enabled !== current.integrations.slack.enabled) {
+    slackChanges.enabled = current.integrations.slack.enabled;
+  }
+  if (base.integrations.slack.channel !== current.integrations.slack.channel) {
+    slackChanges.channel = current.integrations.slack.channel.trim();
+  }
+  if (base.integrations.slack.webhookUrl !== current.integrations.slack.webhookUrl) {
+    slackChanges.webhookUrl = current.integrations.slack.webhookUrl.trim();
+  }
+  if (base.integrations.slack.mentionAll !== current.integrations.slack.mentionAll) {
+    slackChanges.mentionAll = current.integrations.slack.mentionAll;
+  }
+  if (base.integrations.slack.sendDigest !== current.integrations.slack.sendDigest) {
+    slackChanges.sendDigest = current.integrations.slack.sendDigest;
+  }
+  if (Object.keys(slackChanges).length > 0) {
+    integrations.slack = slackChanges;
+  }
+
+  const teamsChanges: Partial<typeof base.integrations.microsoftTeams> = {};
+  if (base.integrations.microsoftTeams.enabled !== current.integrations.microsoftTeams.enabled) {
+    teamsChanges.enabled = current.integrations.microsoftTeams.enabled;
+  }
+  if (base.integrations.microsoftTeams.channel !== current.integrations.microsoftTeams.channel) {
+    teamsChanges.channel = current.integrations.microsoftTeams.channel.trim();
+  }
+  if (base.integrations.microsoftTeams.webhookUrl !== current.integrations.microsoftTeams.webhookUrl) {
+    teamsChanges.webhookUrl = current.integrations.microsoftTeams.webhookUrl.trim();
+  }
+  if (Object.keys(teamsChanges).length > 0) {
+    integrations.microsoftTeams = teamsChanges;
+  }
+
+  const webhookChanges: Partial<typeof base.integrations.webhook> = {};
+  if (base.integrations.webhook.enabled !== current.integrations.webhook.enabled) {
+    webhookChanges.enabled = current.integrations.webhook.enabled;
+  }
+  if (base.integrations.webhook.endpoint !== current.integrations.webhook.endpoint) {
+    webhookChanges.endpoint = current.integrations.webhook.endpoint.trim();
+  }
+  if (base.integrations.webhook.secret !== current.integrations.webhook.secret) {
+    webhookChanges.secret = current.integrations.webhook.secret.trim();
+  }
+  if (Object.keys(webhookChanges).length > 0) {
+    integrations.webhook = webhookChanges;
+  }
+  if (Object.keys(integrations).length > 0) {
+    patch.integrations = integrations;
+  }
+
+  const security: Partial<typeof base.security> = {};
+  if (base.security.sessionTimeoutMinutes !== current.security.sessionTimeoutMinutes) {
+    security.sessionTimeoutMinutes = current.security.sessionTimeoutMinutes;
+  }
+  if (base.security.passwordExpiryDays !== current.security.passwordExpiryDays) {
+    security.passwordExpiryDays = current.security.passwordExpiryDays;
+  }
+  if (base.security.enforceTwoFactor !== current.security.enforceTwoFactor) {
+    security.enforceTwoFactor = current.security.enforceTwoFactor;
+  }
+  if (base.security.requireTwoFactorForAdmins !== current.security.requireTwoFactorForAdmins) {
+    security.requireTwoFactorForAdmins = current.security.requireTwoFactorForAdmins;
+  }
+  if (base.security.loginAlerts !== current.security.loginAlerts) {
+    security.loginAlerts = current.security.loginAlerts;
+  }
+  if (base.security.allowRememberDevice !== current.security.allowRememberDevice) {
+    security.allowRememberDevice = current.security.allowRememberDevice;
+  }
+  if (Object.keys(security).length > 0) {
+    patch.security = security;
+  }
+
+  const data: Partial<typeof base.data> = {};
+  if (base.data.autoBackup !== current.data.autoBackup) {
+    data.autoBackup = current.data.autoBackup;
+  }
+  if (base.data.retentionDays !== current.data.retentionDays) {
+    data.retentionDays = current.data.retentionDays;
+  }
+  if (base.data.allowExport !== current.data.allowExport) {
+    data.allowExport = current.data.allowExport;
+  }
+  if (Object.keys(data).length > 0) {
+    patch.data = data;
+  }
+
+  return patch;
+};
+
+const hasPatchChanges = (patch?: SettingsPatchPayload | null): boolean => {
+  if (!patch) {
+    return false;
+  }
+  return Object.values(patch).some((section) => {
+    if (!section) {
+      return false;
+    }
+    if (typeof section !== 'object') {
+      return true;
+    }
+    return Object.keys(section as Record<string, unknown>).length > 0;
   });
+};
 
-  const [originalSettings] = useState(settings);
+const formatTimestamp = (timestamp: string | null | undefined) => {
+  if (!timestamp) {
+    return '—';
+  }
+  try {
+    return new Date(timestamp).toLocaleString();
+  } catch (error) {
+    console.warn('Invalid timestamp', error);
+    return timestamp;
+  }
+};
+
+export const Settings: React.FC = () => {
+  const { settings, isLoading, isSaving, error: apiError, save } = useSettings();
+  const { success, error } = useToast();
+  const { t } = useLanguage();
+
+  const [form, setForm] = useState<UpdateSettingsPayload | null>(null);
+  const [activeTab, setActiveTab] = useState<string>('general');
+  const [languageDraft, setLanguageDraft] = useState<LanguageDraft>({ code: '', label: '' });
+  const [isEditing, setIsEditing] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (settings) {
+      setForm(stripMetadata(settings));
+      setIsEditing(false);
+    }
+  }, [settings]);
+
+  const baseline = useMemo(() => (settings ? stripMetadata(settings) : null), [settings]);
+
+  const changes = useMemo<SettingsPatchPayload | null>(() => {
+    if (!form || !baseline) {
+      return null;
+    }
+    return buildSettingsPatch(baseline, form);
+  }, [baseline, form]);
+
+  const hasChanges = useMemo(() => hasPatchChanges(changes), [changes]);
+  const isLocked = !isEditing || isSaving;
+
+  const updateForm = (updater: (draft: UpdateSettingsPayload) => UpdateSettingsPayload) => {
+    setForm((prev) => {
+      if (!prev) {
+        return prev;
+      }
+      const draft = clonePayload(prev);
+      return updater(draft);
+    });
+  };
+
+  const handleGeneralChange = (field: keyof UpdateSettingsPayload['general'], value: string | boolean) => {
+    if (!isEditing) {
+      return;
+    }
+    updateForm((draft) => {
+      draft.general[field] = value as never;
+      return draft;
+    });
+  };
+
+  const handleAppearanceChange = (field: keyof UpdateSettingsPayload['appearance'], value: string | boolean) => {
+    if (!isEditing) {
+      return;
+    }
+    updateForm((draft) => {
+      draft.appearance[field] = value as never;
+      return draft;
+    });
+  };
+
+  const handleLocalizationChange = (field: keyof UpdateSettingsPayload['localization'], value: string | boolean) => {
+    if (!isEditing) {
+      return;
+    }
+    updateForm((draft) => {
+      if (field === 'defaultLanguage' || field === 'fallbackLanguage') {
+        draft.localization[field] = normalizeLanguageCode(String(value)) as never;
+      } else {
+        draft.localization[field] = value as never;
+      }
+      return draft;
+    });
+  };
+
+  const handleNotificationChange = (field: keyof UpdateSettingsPayload['notifications'], checked: boolean) => {
+    if (!isEditing) {
+      return;
+    }
+    updateForm((draft) => {
+      draft.notifications[field] = checked;
+      return draft;
+    });
+  };
+
+  const handleSecurityChange = (field: keyof UpdateSettingsPayload['security'], value: string | boolean) => {
+    if (!isEditing) {
+      return;
+    }
+    updateForm((draft) => {
+      if (typeof draft.security[field] === 'number') {
+        const parsed = Number(value);
+        draft.security[field] = Number.isNaN(parsed) ? (draft.security[field] as number) : (parsed as never);
+      } else {
+        draft.security[field] = value as never;
+      }
+      return draft;
+    });
+  };
+
+  const handleDataChange = (field: keyof UpdateSettingsPayload['data'], value: string | boolean) => {
+    if (!isEditing) {
+      return;
+    }
+    updateForm((draft) => {
+      if (typeof draft.data[field] === 'number') {
+        const parsed = Number(value);
+        draft.data[field] = Number.isNaN(parsed) ? (draft.data[field] as number) : (parsed as never);
+      } else {
+        draft.data[field] = value as never;
+      }
+      return draft;
+    });
+  };
+
+  const handleSlackChange = (field: keyof UpdateSettingsPayload['integrations']['slack'], value: string | boolean) => {
+    if (!isEditing) {
+      return;
+    }
+    updateForm((draft) => {
+      if (typeof draft.integrations.slack[field] === 'boolean') {
+        draft.integrations.slack[field] = Boolean(value) as never;
+      } else {
+        draft.integrations.slack[field] = String(value);
+      }
+      return draft;
+    });
+  };
+
+  const handleTeamsChange = (field: keyof UpdateSettingsPayload['integrations']['microsoftTeams'], value: string | boolean) => {
+    if (!isEditing) {
+      return;
+    }
+    updateForm((draft) => {
+      draft.integrations.microsoftTeams[field] = typeof draft.integrations.microsoftTeams[field] === 'boolean'
+        ? Boolean(value)
+        : String(value);
+      return draft;
+    });
+  };
+
+  const handleWebhookChange = (field: keyof UpdateSettingsPayload['integrations']['webhook'], value: string | boolean) => {
+    if (!isEditing) {
+      return;
+    }
+    updateForm((draft) => {
+      draft.integrations.webhook[field] = typeof draft.integrations.webhook[field] === 'boolean'
+        ? Boolean(value)
+        : String(value);
+      return draft;
+    });
+  };
+
+  const handleAddLanguage = () => {
+    if (!form || !isEditing) {
+      return;
+    }
+
+    const draftCode = normalizeLanguageCode(languageDraft.code);
+    const draftLabel = languageDraft.label.trim();
+
+    if (!draftCode || !draftLabel) {
+      error(t('settings.localization.messages.language_required'));
+      return;
+    }
+
+    if (form.localization.supportedLanguages.some((lang) => normalizeLanguageCode(lang.code) === draftCode)) {
+      error(t('settings.localization.messages.language_exists'));
+      return;
+    }
+
+    updateForm((draft) => {
+      draft.localization.supportedLanguages = [
+        ...draft.localization.supportedLanguages,
+        sanitizeLanguageOption({ code: draftCode, label: draftLabel }),
+      ];
+      return draft;
+    });
+
+    setLanguageDraft({ code: '', label: '' });
+    success(t('settings.localization.messages.language_added'));
+  };
+
+  const handleRemoveLanguage = (code: string) => {
+    if (!form || !isEditing) {
+      return;
+    }
+
+    const normalized = normalizeLanguageCode(code);
+
+    if (form.localization.supportedLanguages.length <= 1) {
+      error(t('settings.localization.messages.language_minimum'));
+      return;
+    }
+
+    if (normalizeLanguageCode(form.localization.defaultLanguage) === normalized) {
+      error(t('settings.localization.messages.language_remove_default'));
+      return;
+    }
+
+    if (normalizeLanguageCode(form.localization.fallbackLanguage) === normalized) {
+      error(t('settings.localization.messages.language_remove_fallback'));
+      return;
+    }
+
+    updateForm((draft) => {
+      draft.localization.supportedLanguages = draft.localization.supportedLanguages.filter(
+        (lang) => normalizeLanguageCode(lang.code) !== normalized,
+      );
+      return draft;
+    });
+    success(t('settings.localization.messages.language_removed'));
+  };
 
   const handleSave = async () => {
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-    }, 1000);
+    if (!isEditing || !form || !baseline || !changes || !hasPatchChanges(changes)) {
+      return;
+    }
+    try {
+      const patch = clonePayload<SettingsPatchPayload>(changes);
+      const result = await save(patch);
+      setForm(stripMetadata(result));
+      setIsEditing(false);
+      success(t('settings.messages.save_success'));
+    } catch (err: any) {
+      const message = err?.message ?? t('settings.messages.save_error');
+      error(message);
+    }
   };
 
-  const handleShowChangeDialog = () => {
-    setChangeDialogOpen(true);
+  const handleReset = () => {
+    if (baseline) {
+      setForm(clonePayload(baseline));
+    }
   };
 
-  const handleSaveWithComment = (comment: string) => {
-    showToast('Settings saved successfully with comment: ' + comment, 'success');
-    setChangeDialogOpen(false);
+  const handleCancelEdit = () => {
+    handleReset();
+    setLanguageDraft({ code: '', label: '' });
+    setIsEditing(false);
   };
 
-  const handleDeleteConfirm = () => {
-    showToast('Item deleted successfully', 'success');
-    setDeleteDialogOpen(false);
+  const handleStartEdit = () => {
+    if (settings) {
+      setForm(stripMetadata(settings));
+    }
+    setLanguageDraft({ code: '', label: '' });
+    setIsEditing(true);
   };
 
-  const getChanges = () => {
-    const changes: Array<{ field: string; oldValue: any; newValue: any }> = [];
-
-    if (settings.companyName !== originalSettings.companyName) {
-      changes.push({
-        field: t('settings.company_name'),
-        oldValue: originalSettings.companyName,
-        newValue: settings.companyName
-      });
+  const renderSupportedLanguages = () => {
+    if (!form) {
+      return null;
     }
 
-    if (settings.language !== originalSettings.language) {
-      changes.push({
-        field: t('settings.language'),
-        oldValue: languageOptions.find(o => o.value === originalSettings.language)?.label,
-        newValue: languageOptions.find(o => o.value === settings.language)?.label
-      });
+    if (form.localization.supportedLanguages.length === 0) {
+      return (
+        <p className="text-sm text-muted-foreground">
+          {t('settings.localization.empty_state')}
+        </p>
+      );
     }
 
-    if (settings.theme !== originalSettings.theme) {
-      changes.push({
-        field: t('settings.theme_settings'),
-        oldValue: themeModeOptions.find(o => o.value === originalSettings.theme)?.label,
-        newValue: themeModeOptions.find(o => o.value === settings.theme)?.label
-      });
-    }
-
-    return changes;
+    return (
+      <div className="flex flex-wrap gap-2">
+        {form.localization.supportedLanguages.map((lang) => (
+          <Badge key={lang.code} className="flex items-center space-x-2 py-1 pl-2 pr-1">
+            <span className="text-xs font-medium">{lang.label} ({lang.code})</span>
+            <button
+              type="button"
+              onClick={() => handleRemoveLanguage(lang.code)}
+              className="rounded-full p-1 hover:bg-muted transition disabled:opacity-50 disabled:hover:bg-transparent"
+              disabled={isLocked}
+            >
+              <Trash2 className="h-3 w-3" />
+            </button>
+          </Badge>
+        ))}
+      </div>
+    );
   };
+
+  const tabs = [
+    { id: 'general', label: t('settings.tabs.general'), icon: <Building2 className="h-4 w-4" /> },
+    { id: 'localization', label: t('settings.tabs.localization'), icon: <Languages className="h-4 w-4" /> },
+    { id: 'notifications', label: t('settings.tabs.notifications'), icon: <Bell className="h-4 w-4" /> },
+    { id: 'integrations', label: t('settings.tabs.integrations'), icon: <Plug className="h-4 w-4" /> },
+    { id: 'security', label: t('settings.tabs.security'), icon: <Shield className="h-4 w-4" /> },
+    { id: 'data', label: t('settings.tabs.data'), icon: <Database className="h-4 w-4" /> },
+  ];
+
+  if ((isLoading && !form) || !form) {
+    return (
+      <div className="min-h-[40vh] flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-sm text-muted-foreground">{t('settings.loading')}</p>
+          {apiError && <p className="text-xs text-error">{apiError}</p>}
+        </div>
+      </div>
+    );
+  }
+
+  const lastUpdated = settings ? formatTimestamp(settings.updatedAt) : '—';
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* General Settings */}
-        <Card>
-          <CardHeader 
-            title={t('settings.general_settings')} 
-            subtitle={t('settings.basic_system_configuration')}
-          />
-          <div className="space-y-4">
-            <Input
-              label={t('settings.company_name')}
-              value={settings.companyName}
-              onChange={(e) => setSettings(prev => ({ ...prev, companyName: e.target.value }))}
-              placeholder={t('settings.enter_company_name')}
-            />
-            
-            <Select
-              label={t('settings.language')}
-              value={settings.language}
-              onChange={(e) => {
-                const newLanguage = e.target.value as 'tr' | 'en';
-                setSettings(prev => ({ ...prev, language: newLanguage }));
-                setLanguage(newLanguage);
-              }}
-              options={languageOptions}
-            />
-            
-            <Select
-              label={t('settings.timezone')}
-              value={settings.timezone}
-              onChange={(e) => setSettings(prev => ({ ...prev, timezone: e.target.value }))}
-              options={timezoneOptions}
-            />
-            
-            <Input
-              label={t('settings.date_format')}
-              value={settings.dateFormat}
-              onChange={(e) => setSettings(prev => ({ ...prev, dateFormat: e.target.value }))}
-              placeholder="MM/DD/YYYY"
-            />
-          </div>
-        </Card>
+    <div className="space-y-6">
+      <PageHeader
+        title={t('settings.page_title')}
+        subtitle={t('settings.page_subtitle')}
+        action={
+          !isEditing ? (
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={handleStartEdit}
+              disabled={isLoading}
+            >
+              {t('settings.actions.edit')}
+            </Button>
+          ) : (
+            <div className="flex items-center gap-2 w-full md:w-auto">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                leftIcon={<RotateCcw className="h-4 w-4" />}
+                onClick={handleCancelEdit}
+                disabled={isSaving}
+              >
+                {t('settings.actions.cancel')}
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                leftIcon={<Save className="h-4 w-4" />}
+                onClick={handleSave}
+                disabled={!hasChanges}
+                loading={isSaving}
+              >
+                {t('settings.actions.save')}
+              </Button>
+            </div>
+          )
+        }
+      >
+        <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
+          <span>{t('settings.meta.last_updated')}</span>
+          <span className="font-medium text-foreground">{lastUpdated}</span>
+          {isEditing && hasChanges && (
+            <Badge variant="warning" size="sm" className="uppercase tracking-wide">
+              {t('settings.meta.pending_changes')}
+            </Badge>
+          )}
+        </div>
+      </PageHeader>
 
-        {/* Appearance */}
-        <Card>
-          <CardHeader 
-            title={t('settings.appearance_settings')} 
-            subtitle={t('settings.theme_settings')}
-          />
-          <div className="space-y-4">
-            <Select
-              label={t('settings.theme_settings')}
-              value={mode}
-              onChange={(e) => setMode(e.target.value as 'light' | 'dark' | 'system')}
-              options={themeModeOptions}
-            />
-            
-            {/* Dark Variant Selection (show only when dark mode is active) */}
-            {effectiveTheme === 'dark' && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">
-                  {t('settings.dark_variant')}
-                </label>
-                <Select
-                  value={darkVariant}
-                  onChange={(e) => setDarkVariant(e.target.value as 'slate' | 'navy' | 'true-black')}
-                  options={darkVariantOptions}
+      {apiError && (
+        <div className="rounded-md border border-error/40 bg-error/10 px-4 py-3 text-sm text-error">
+          {apiError}
+        </div>
+      )}
+
+      <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} variant="underline" />
+
+      {activeTab === 'general' && (
+        <TabPanel>
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader
+                title={t('settings.general.title')}
+                subtitle={t('settings.general.subtitle')}
+                className="border-none mb-2"
+              />
+              <div className="space-y-4">
+                <Input
+                  label={t('settings.general.company_name')}
+                  value={form.general.companyName}
+                  onChange={(e) => handleGeneralChange('companyName', e.target.value)}
+                  placeholder="Spes Engine"
+                  required
+                  disabled={isLocked}
                 />
-                <p className="text-xs text-muted-foreground">
-                  {t('settings.dark_variant_description')}
-                </p>
+                <Select
+                  label={t('settings.general.timezone')}
+                  value={form.general.timezone}
+                  onChange={(e) => handleGeneralChange('timezone', e.target.value)}
+                  options={timezoneOptions}
+                  disabled={isLocked}
+                />
+                <Select
+                  label={t('settings.general.date_format')}
+                  value={form.general.dateFormat}
+                  onChange={(e) => handleGeneralChange('dateFormat', e.target.value)}
+                  options={dateFormatOptions}
+                  disabled={isLocked}
+                />
+                <Checkbox
+                  label={t('settings.general.maintenance_mode')}
+                  checked={form.general.maintenanceMode}
+                  onChange={(e) => handleGeneralChange('maintenanceMode', e.target.checked)}
+                  helperText={t('settings.general.maintenance_mode_help')}
+                  disabled={isLocked}
+                />
               </div>
-            )}
-            
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="compactMode"
-                checked={settings.compactMode}
-                onChange={(e) => setSettings(prev => ({ ...prev, compactMode: e.target.checked }))}
-                className="rounded border-input text-primary focus:ring-ring"
-              />
-              <label htmlFor="compactMode" className="text-sm font-medium text-foreground">
-                {t('settings.compact_mode')}
-              </label>
-            </div>
-          </div>
-        </Card>
+            </Card>
 
-        {/* Notifications */}
-        <Card>
-          <CardHeader 
-            title={t('settings.notifications')} 
-            subtitle={t('settings.notification_settings')}
-          />
-          <div className="space-y-4">
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="emailNotifications"
-                checked={settings.emailNotifications}
-                onChange={(e) => setSettings(prev => ({ ...prev, emailNotifications: e.target.checked }))}
-                className="rounded border-input text-primary focus:ring-ring"
+            <Card>
+              <CardHeader
+                title={t('settings.appearance.title')}
+                subtitle={t('settings.appearance.subtitle')}
+                className="border-none mb-2"
+                action={<Palette className="h-4 w-4 text-muted-foreground" />}
               />
-              <label htmlFor="emailNotifications" className="text-sm font-medium text-foreground">
-                {t('settings.email_notifications_label')}
-              </label>
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="pushNotifications"
-                checked={settings.pushNotifications}
-                onChange={(e) => setSettings(prev => ({ ...prev, pushNotifications: e.target.checked }))}
-                className="rounded border-input text-primary focus:ring-ring"
-              />
-              <label htmlFor="pushNotifications" className="text-sm font-medium text-foreground">
-                {t('settings.push_notifications_label')}
-              </label>
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="weeklyReports"
-                checked={settings.weeklyReports}
-                onChange={(e) => setSettings(prev => ({ ...prev, weeklyReports: e.target.checked }))}
-                className="rounded border-input text-primary focus:ring-ring"
-              />
-              <label htmlFor="weeklyReports" className="text-sm font-medium text-foreground">
-                {t('settings.weekly_reports_label')}
-              </label>
-            </div>
+              <div className="space-y-4">
+                <Select
+                  label={t('settings.appearance.theme_mode')}
+                  value={form.appearance.themeMode}
+                  onChange={(e) => handleAppearanceChange('themeMode', e.target.value)}
+                  options={themeModeOptions}
+                  disabled={isLocked}
+                />
+                {form.appearance.themeMode !== 'light' && (
+                  <Select
+                    label={t('settings.appearance.dark_variant')}
+                    value={form.appearance.darkVariant}
+                    onChange={(e) => handleAppearanceChange('darkVariant', e.target.value)}
+                    options={darkVariantOptions}
+                    disabled={isLocked}
+                  />
+                )}
+                <Checkbox
+                  label={t('settings.appearance.compact_mode')}
+                  checked={form.appearance.compactMode}
+                  onChange={(e) => handleAppearanceChange('compactMode', e.target.checked)}
+                  helperText={t('settings.appearance.compact_mode_help')}
+                  disabled={isLocked}
+                />
+                <Checkbox
+                  label={t('settings.appearance.show_avatars')}
+                  checked={form.appearance.showAvatars}
+                  onChange={(e) => handleAppearanceChange('showAvatars', e.target.checked)}
+                  disabled={isLocked}
+                />
+              </div>
+            </Card>
           </div>
-        </Card>
+        </TabPanel>
+      )}
 
-        {/* Security */}
-        <Card>
-          <CardHeader 
-            title={t('settings.security')} 
-            subtitle={t('settings.security_settings_title')}
-          />
-          <div className="space-y-4">
-            <Input
-              label="Session Timeout (minutes)"
-              type="number"
-              value={settings.sessionTimeout}
-              onChange={(e) => setSettings(prev => ({ ...prev, sessionTimeout: e.target.value }))}
-              placeholder="30"
-              leftIcon={<Shield className="h-4 w-4" />}
+      {activeTab === 'localization' && (
+        <TabPanel>
+          <Card>
+            <CardHeader
+              title={t('settings.localization.title')}
+              subtitle={t('settings.localization.subtitle')}
+              className="border-none mb-2"
             />
-            
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="twoFactorAuth"
-                checked={settings.twoFactorAuth}
-                onChange={(e) => setSettings(prev => ({ ...prev, twoFactorAuth: e.target.checked }))}
-                className="rounded border-input text-primary focus:ring-ring"
-              />
-              <label htmlFor="twoFactorAuth" className="text-sm font-medium text-foreground">
-                Enable two-factor authentication
-              </label>
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Select
+                  label={t('settings.localization.default_language')}
+                  value={form.localization.defaultLanguage}
+                  onChange={(e) => handleLocalizationChange('defaultLanguage', e.target.value)}
+                  options={form.localization.supportedLanguages.map((lang) => ({
+                    value: lang.code,
+                    label: `${lang.label} (${lang.code})`,
+                  }))}
+                  disabled={isLocked}
+                />
+                <Select
+                  label={t('settings.localization.fallback_language')}
+                  value={form.localization.fallbackLanguage}
+                  onChange={(e) => handleLocalizationChange('fallbackLanguage', e.target.value)}
+                  options={form.localization.supportedLanguages.map((lang) => ({
+                    value: lang.code,
+                    label: `${lang.label} (${lang.code})`,
+                  }))}
+                  disabled={isLocked}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Checkbox
+                  label={t('settings.localization.allow_user_switch')}
+                  checked={form.localization.allowUserLanguageSwitch}
+                  onChange={(e) => handleLocalizationChange('allowUserLanguageSwitch', e.target.checked)}
+                  disabled={isLocked}
+                />
+                <Checkbox
+                  label={t('settings.localization.auto_translate')}
+                  checked={form.localization.autoTranslateNewContent}
+                  onChange={(e) => handleLocalizationChange('autoTranslateNewContent', e.target.checked)}
+                  helperText={t('settings.localization.auto_translate_help')}
+                  disabled={isLocked}
+                />
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex flex-col md:flex-row gap-3">
+                  <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <Input
+                      label={t('settings.localization.language_code')}
+                      value={languageDraft.code}
+                      onChange={(e) => setLanguageDraft((prev) => ({ ...prev, code: e.target.value }))}
+                      placeholder="en"
+                      disabled={isLocked}
+                    />
+                    <Input
+                      label={t('settings.localization.custom_label')}
+                      value={languageDraft.label}
+                      onChange={(e) => setLanguageDraft((prev) => ({ ...prev, label: e.target.value }))}
+                      placeholder="Türkçe"
+                      disabled={isLocked}
+                    />
+                  </div>
+                  <div className="md:w-40 flex items-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      leftIcon={<Plus className="h-4 w-4" />}
+                      onClick={handleAddLanguage}
+                      className="w-full"
+                      disabled={isLocked}
+                    >
+                      {t('settings.localization.add_language')}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span>{t('settings.localization.quick_add')}</span>
+                  {suggestedLanguages.map((lang) => (
+                    <Button
+                      key={lang.code}
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="px-2 py-1"
+                      onClick={() => setLanguageDraft({ code: lang.code, label: lang.label })}
+                      disabled={isLocked}
+                    >
+                      {lang.label}
+                    </Button>
+                  ))}
+                </div>
+
+                {renderSupportedLanguages()}
+              </div>
             </div>
-            
-            <Input
-              label="Password Expiry (days)"
-              type="number"
-              value={settings.passwordExpiry}
-              onChange={(e) => setSettings(prev => ({ ...prev, passwordExpiry: e.target.value }))}
-              placeholder="90"
+          </Card>
+        </TabPanel>
+      )}
+
+      {activeTab === 'notifications' && (
+        <TabPanel>
+          <Card>
+            <CardHeader
+              title={t('settings.notifications.title')}
+              subtitle={t('settings.notifications.subtitle')}
+              className="border-none mb-2"
             />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Checkbox
+                label={t('settings.notifications.email')}
+                checked={form.notifications.email}
+                onChange={(e) => handleNotificationChange('email', e.target.checked)}
+                disabled={isLocked}
+              />
+              <Checkbox
+                label={t('settings.notifications.push')}
+                checked={form.notifications.push}
+                onChange={(e) => handleNotificationChange('push', e.target.checked)}
+                disabled={isLocked}
+              />
+              <Checkbox
+                label={t('settings.notifications.slack')}
+                checked={form.notifications.slack}
+                onChange={(e) => handleNotificationChange('slack', e.target.checked)}
+                disabled={isLocked}
+              />
+              <Checkbox
+                label={t('settings.notifications.sms')}
+                checked={form.notifications.sms}
+                onChange={(e) => handleNotificationChange('sms', e.target.checked)}
+                disabled={isLocked}
+              />
+              <Checkbox
+                label={t('settings.notifications.weekly_digest')}
+                checked={form.notifications.weeklyDigest}
+                onChange={(e) => handleNotificationChange('weeklyDigest', e.target.checked)}
+                disabled={isLocked}
+              />
+              <Checkbox
+                label={t('settings.notifications.anomaly_alerts')}
+                checked={form.notifications.anomalyAlerts}
+                onChange={(e) => handleNotificationChange('anomalyAlerts', e.target.checked)}
+                disabled={isLocked}
+              />
+            </div>
+          </Card>
+        </TabPanel>
+      )}
+
+      {activeTab === 'integrations' && (
+        <TabPanel>
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader
+                title={t('settings.integrations.slack.title')}
+                subtitle={t('settings.integrations.slack.subtitle')}
+                className="border-none mb-2"
+              />
+              <div className="space-y-4">
+                <Checkbox
+                  label={t('settings.integrations.slack.enable')}
+                  checked={form.integrations.slack.enabled}
+                  onChange={(e) => handleSlackChange('enabled', e.target.checked)}
+                  disabled={isLocked}
+                />
+                <Input
+                  label={t('settings.integrations.slack.channel')}
+                  value={form.integrations.slack.channel}
+                  onChange={(e) => handleSlackChange('channel', e.target.value)}
+                  placeholder="#spes-alerts"
+                  disabled={isLocked || !form.integrations.slack.enabled}
+                />
+                <Input
+                  label={t('settings.integrations.slack.webhook')}
+                  value={form.integrations.slack.webhookUrl}
+                  onChange={(e) => handleSlackChange('webhookUrl', e.target.value)}
+                  placeholder="https://hooks.slack.com/services/..."
+                  helperText={t('settings.integrations.slack.webhook_help')}
+                  disabled={isLocked || !form.integrations.slack.enabled}
+                />
+                <Checkbox
+                  label={t('settings.integrations.slack.mention_all')}
+                  checked={form.integrations.slack.mentionAll}
+                  onChange={(e) => handleSlackChange('mentionAll', e.target.checked)}
+                  disabled={isLocked || !form.integrations.slack.enabled}
+                />
+                <Checkbox
+                  label={t('settings.integrations.slack.send_digest')}
+                  checked={form.integrations.slack.sendDigest}
+                  onChange={(e) => handleSlackChange('sendDigest', e.target.checked)}
+                  disabled={isLocked || !form.integrations.slack.enabled}
+                />
+              </div>
+            </Card>
+
+            <Card>
+              <CardHeader
+                title={t('settings.integrations.teams.title')}
+                subtitle={t('settings.integrations.teams.subtitle')}
+                className="border-none mb-2"
+              />
+              <div className="space-y-4">
+                <Checkbox
+                  label={t('settings.integrations.teams.enable')}
+                  checked={form.integrations.microsoftTeams.enabled}
+                  onChange={(e) => handleTeamsChange('enabled', e.target.checked)}
+                  disabled={isLocked}
+                />
+                <Input
+                  label={t('settings.integrations.teams.channel')}
+                  value={form.integrations.microsoftTeams.channel}
+                  onChange={(e) => handleTeamsChange('channel', e.target.value)}
+                  placeholder="Operations"
+                  disabled={isLocked || !form.integrations.microsoftTeams.enabled}
+                />
+                <Input
+                  label={t('settings.integrations.teams.webhook')}
+                  value={form.integrations.microsoftTeams.webhookUrl}
+                  onChange={(e) => handleTeamsChange('webhookUrl', e.target.value)}
+                  placeholder="https://"
+                  helperText={t('settings.integrations.teams.webhook_help')}
+                  disabled={isLocked || !form.integrations.microsoftTeams.enabled}
+                />
+              </div>
+            </Card>
           </div>
-        </Card>
-      </div>
 
-      {/* Save Button */}
-      <div className="flex justify-end">
-        <Button
-          onClick={handleSave}
-          loading={loading}
-          leftIcon={<Save className="h-4 w-4" />}
-        >
-          Save Settings
-        </Button>
-      </div>
+          <Card className="mt-6">
+            <CardHeader
+              title={t('settings.integrations.webhook.title')}
+              subtitle={t('settings.integrations.webhook.subtitle')}
+              className="border-none mb-2"
+            />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Checkbox
+                label={t('settings.integrations.webhook.enable')}
+                checked={form.integrations.webhook.enabled}
+                onChange={(e) => handleWebhookChange('enabled', e.target.checked)}
+                disabled={isLocked}
+              />
+              <Input
+                label={t('settings.integrations.webhook.endpoint')}
+                value={form.integrations.webhook.endpoint}
+                onChange={(e) => handleWebhookChange('endpoint', e.target.value)}
+                placeholder="https://api.mycompany.com/hooks/settings"
+                disabled={isLocked || !form.integrations.webhook.enabled}
+              />
+              <Input
+                label={t('settings.integrations.webhook.secret')}
+                value={form.integrations.webhook.secret}
+                onChange={(e) => handleWebhookChange('secret', e.target.value)}
+                placeholder="••••••"
+                disabled={isLocked || !form.integrations.webhook.enabled}
+              />
+            </div>
+          </Card>
+        </TabPanel>
+      )}
 
-      {/* UI Components Demo Section */}
+      {activeTab === 'security' && (
+        <TabPanel>
+          <Card>
+            <CardHeader
+              title={t('settings.security.title')}
+              subtitle={t('settings.security.subtitle')}
+              className="border-none mb-2"
+            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input
+                type="number"
+                min={5}
+                max={720}
+                label={t('settings.security.session_timeout')}
+                value={form.security.sessionTimeoutMinutes}
+                onChange={(e) => handleSecurityChange('sessionTimeoutMinutes', e.target.value)}
+                helperText={t('settings.security.session_timeout_help')}
+                disabled={isLocked}
+              />
+              <Input
+                type="number"
+                min={0}
+                max={365}
+                label={t('settings.security.password_expiry')}
+                value={form.security.passwordExpiryDays}
+                onChange={(e) => handleSecurityChange('passwordExpiryDays', e.target.value)}
+                disabled={isLocked}
+              />
+              <Checkbox
+                label={t('settings.security.enforce_two_factor')}
+                checked={form.security.enforceTwoFactor}
+                onChange={(e) => handleSecurityChange('enforceTwoFactor', e.target.checked)}
+                disabled={isLocked}
+              />
+              <Checkbox
+                label={t('settings.security.require_two_factor_admins')}
+                checked={form.security.requireTwoFactorForAdmins}
+                onChange={(e) => handleSecurityChange('requireTwoFactorForAdmins', e.target.checked)}
+                disabled={isLocked}
+              />
+              <Checkbox
+                label={t('settings.security.login_alerts')}
+                checked={form.security.loginAlerts}
+                onChange={(e) => handleSecurityChange('loginAlerts', e.target.checked)}
+                disabled={isLocked}
+              />
+              <Checkbox
+                label={t('settings.security.allow_remember_device')}
+                checked={form.security.allowRememberDevice}
+                onChange={(e) => handleSecurityChange('allowRememberDevice', e.target.checked)}
+                disabled={isLocked}
+              />
+            </div>
+          </Card>
+        </TabPanel>
+      )}
+
+      {activeTab === 'data' && (
+        <TabPanel>
       <Card>
         <CardHeader
-          title="UI Components Demo"
-          subtitle="Test all toast notifications and dialogs"
+          title={t('settings.data.title')}
+          subtitle={t('settings.data.subtitle')}
+          className="border-none mb-2"
         />
-        <div className="space-y-6">
-          {/* Toast Notifications */}
-          <div>
-            <h3 className="text-sm font-semibold text-foreground mb-3">Toast Notifications</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                leftIcon={<CheckCircle className="h-4 w-4" />}
-                onClick={() => showToast('Operation completed successfully!', 'success')}
-              >
-                Success Toast
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                leftIcon={<XCircle className="h-4 w-4" />}
-                onClick={() => showToast('An error occurred. Please try again.', 'error')}
-              >
-                Error Toast
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                leftIcon={<AlertCircle className="h-4 w-4" />}
-                onClick={() => showToast('This is a warning message.', 'warning')}
-              >
-                Warning Toast
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                leftIcon={<Info className="h-4 w-4" />}
-                onClick={() => showToast('Here is some useful information.', 'info')}
-              >
-                Info Toast
-              </Button>
-            </div>
-          </div>
-
-          {/* Dialogs */}
-          <div>
-            <h3 className="text-sm font-semibold text-foreground mb-3">Confirmation Dialogs</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setDeleteDialogOpen(true)}
-              >
-                Delete Confirmation
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleShowChangeDialog}
-              >
-                Change with Comment
-              </Button>
-            </div>
-          </div>
-
-          {/* UI Components Demo */}
-          <div>
-            <h3 className="text-sm font-semibold text-foreground mb-3">{t('settings.ui_components_demo')}</h3>
-            <Button
-              variant="outline"
-              size="sm"
-              leftIcon={<Eye className="h-4 w-4" />}
-              onClick={() => setUiDemoOpen(true)}
-            >
-              {t('settings.view_ui_components')}
-            </Button>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Checkbox
+            label={t('settings.data.auto_backup')}
+            checked={form.data.autoBackup}
+            onChange={(e) => handleDataChange('autoBackup', e.target.checked)}
+            helperText={t('settings.data.auto_backup_help')}
+            disabled={isLocked}
+          />
+          <Input
+            type="number"
+            min={30}
+            max={1825}
+            label={t('settings.data.retention_days')}
+            value={form.data.retentionDays}
+            onChange={(e) => handleDataChange('retentionDays', e.target.value)}
+            disabled={isLocked}
+          />
+          <Checkbox
+            label={t('settings.data.allow_export')}
+            checked={form.data.allowExport}
+            onChange={(e) => handleDataChange('allowExport', e.target.checked)}
+            disabled={isLocked}
+          />
         </div>
       </Card>
+    </TabPanel>
+  )}
 
-      {/* Delete Confirmation Dialog */}
-      <ConfirmDialog
-        open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
-        onConfirm={handleDeleteConfirm}
-        title={t('settings.delete_confirmation')}
-        description={t('settings.delete_confirmation_description')}
-        type="danger"
-        confirmText={t('common.delete')}
-      />
-
-      {/* Change Confirmation Dialog */}
-      <ChangeConfirmDialog
-        open={changeDialogOpen}
-        onClose={() => setChangeDialogOpen(false)}
-        onConfirm={handleSaveWithComment}
-        title={t('settings.save_changes')}
-        changes={getChanges()}
-      />
-
-      {/* UI Components Demo Modal */}
-      <Modal
-        isOpen={uiDemoOpen}
-        onClose={() => setUiDemoOpen(false)}
-        title={t('settings.ui_components_demo')}
-        size="xl"
-      >
-        <div className="space-y-6">
-          {/* Buttons */}
-          <div>
-            <h3 className="text-lg font-semibold mb-4">{t('settings.buttons')}</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <Button variant="primary">{t('settings.primary')}</Button>
-              <Button variant="secondary">{t('settings.secondary')}</Button>
-              <Button variant="outline">{t('settings.outline')}</Button>
-              <Button variant="ghost">{t('settings.ghost')}</Button>
-              <Button variant="outline" className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground">{t('settings.destructive')}</Button>
-              <Button size="sm">{t('settings.small')}</Button>
-              <Button size="lg">{t('settings.large')}</Button>
-              <Button loading>{t('settings.loading')}</Button>
-            </div>
+      <Card padding="lg">
+        <CardHeader
+          title={t('settings.history.title')}
+          subtitle={t('settings.history.subtitle')}
+        >
+          <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
+            <HistoryIcon className="h-3.5 w-3.5" />
+            <span>{t('settings.history.hint')}</span>
           </div>
+        </CardHeader>
 
-          {/* Inputs */}
-          <div>
-            <h3 className="text-lg font-semibold mb-4">{t('settings.inputs')}</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input label={t('settings.text_input')} placeholder="Enter text..." />
-              <Input label={t('settings.email_input')} type="email" placeholder="Enter email..." />
-              <Input label={t('settings.password_input')} type="password" placeholder="Enter password..." />
-              <Input label={t('settings.number_input')} type="number" placeholder="Enter number..." />
-              <Textarea label={t('settings.textarea')} placeholder="Enter long text..." />
-              <FileInput label={t('settings.file_input')} accept="image/*" />
-            </div>
-          </div>
+        {settings?.id ? (
+          <HistoryTable
+            entityType="Settings"
+            entityId={settings.id ?? 'default'}
+            title={t('settings.history.title')}
+            description={t('settings.history.subtitle')}
+          />
+        ) : (
+          <p className="text-sm text-muted-foreground">{t('settings.history.empty')}</p>
+        )}
+      </Card>
 
-          {/* Form Controls */}
-          <div>
-            <h3 className="text-lg font-semibold mb-4">{t('settings.form_controls')}</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-3">
-                <Checkbox label={t('settings.checkbox_option_1')} />
-                <Checkbox label={t('settings.checkbox_option_2')} defaultChecked />
-                <Checkbox label={t('settings.disabled_checkbox')} disabled />
-              </div>
-              <div className="space-y-3">
-                <Radio name="radio-group" label={t('settings.radio_option_1')} options={[]} />
-                <Radio name="radio-group" label={t('settings.radio_option_2')} defaultChecked options={[]} />
-                <Radio name="radio-group" label={t('settings.disabled_radio')} disabled options={[]} />
-              </div>
-            </div>
-          </div>
-
-          {/* Selects */}
-          <div>
-            <h3 className="text-lg font-semibold mb-4">{t('settings.selects')}</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Select
-                label={t('settings.single_select')}
-                placeholder={t('settings.choose_option')}
-                options={[
-                  { value: 'option1', label: t('settings.option_1') },
-                  { value: 'option2', label: t('settings.option_2') },
-                  { value: 'option3', label: t('settings.option_3') },
-                ]}
-              />
-              <DatePicker label={t('settings.date_picker')} />
-            </div>
-          </div>
-
-          {/* Badges */}
-          <div>
-            <h3 className="text-lg font-semibold mb-4">{t('settings.badges')}</h3>
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="default">{t('settings.default')}</Badge>
-              <Badge variant="success">{t('settings.success')}</Badge>
-              <Badge variant="error">{t('settings.error')}</Badge>
-              <Badge variant="warning">{t('settings.warning')}</Badge>
-              <Badge variant="default">{t('settings.info')}</Badge>
-              <Badge size="sm">{t('settings.small')}</Badge>
-              <Badge size="lg">{t('settings.large')}</Badge>
-            </div>
-          </div>
-
-          {/* Cards */}
-          <div>
-            <h3 className="text-lg font-semibold mb-4">{t('settings.cards')}</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Card>
-                <CardHeader>
-                  <h4 className="font-semibold">{t('settings.default_card')}</h4>
-                  <p className="text-sm text-muted-foreground">{t('settings.this_is_default_card')}</p>
-                </CardHeader>
-                <div className="p-4">
-                  <p>{t('settings.card_content_goes_here')}</p>
-                </div>
-              </Card>
-              <Card variant="outlined">
-                <CardHeader>
-                  <h4 className="font-semibold">{t('settings.outline_card')}</h4>
-                  <p className="text-sm text-muted-foreground">{t('settings.this_is_outline_card')}</p>
-                </CardHeader>
-                <div className="p-4">
-                  <p>{t('settings.card_content_goes_here')}</p>
-                </div>
-              </Card>
-            </div>
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 };

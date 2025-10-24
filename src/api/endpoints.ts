@@ -22,6 +22,7 @@ export const API_ENDPOINTS = {
   },
   
   HISTORY: '/history',
+  SETTINGS: '/settings',
   
   // Role management
   ROLES: {

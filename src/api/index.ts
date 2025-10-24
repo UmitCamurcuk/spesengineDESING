@@ -3,6 +3,7 @@ export { authService } from './services/auth.service';
 export { itemsService } from './services/items.service';
 export { categoriesService } from './services/categories.service';
 export { usersService } from './services/users.service';
+export { settingsService } from './services/settings.service';
 
 // API Client Export
 export { default as apiClient } from './client/axios';
@@ -24,5 +25,7 @@ export type {
   User,
   Item,
   Category,
+  AppSettings,
+  UpdateSettingsPayload,
+  SettingsPatchPayload,
 } from './types/api.types';
-

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type DarkVariant = 'slate' | 'navy' | 'true-black';
@@ -93,23 +93,23 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     
   }, [effectiveTheme, darkVariant]);
 
-  const setMode = (newMode: ThemeMode) => {
+  const setMode = useCallback((newMode: ThemeMode) => {
     setModeState(newMode);
     localStorage.setItem('theme-mode', newMode);
-  };
+  }, []);
 
-  const setDarkVariant = (newVariant: DarkVariant) => {
+  const setDarkVariant = useCallback((newVariant: DarkVariant) => {
     setDarkVariantState(newVariant);
     localStorage.setItem('theme-dark-variant', newVariant);
-  };
+  }, []);
 
-  const toggleTheme = () => {
+  const toggleTheme = useCallback(() => {
     if (mode === 'system') {
       setMode(systemTheme === 'dark' ? 'light' : 'dark');
     } else {
       setMode(mode === 'light' ? 'dark' : 'light');
     }
-  };
+  }, [mode, setMode, systemTheme]);
 
   return (
     <ThemeContext.Provider
@@ -134,6 +134,5 @@ export const useTheme = () => {
   }
   return context;
 };
-
 
 

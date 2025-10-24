@@ -13,7 +13,7 @@ export const Card: React.FC<CardProps> = ({
   children,
   ...props
 }) => {
-  const baseClasses = 'bg-card rounded-lg transition-all duration-200';
+  const baseClasses = 'ui-card bg-card rounded-lg transition-all duration-200';
 
   const variantClasses = {
     default: 'shadow-sm border border-border',
@@ -60,7 +60,7 @@ export const CardHeader: React.FC<CardHeaderProps> = ({
   return (
     <div
       className={cn(
-        'flex items-start justify-between border-b border-border pb-3 mb-4',
+        'flex flex-col gap-3 md:flex-row md:items-start md:justify-between border-b border-border pb-3 mb-4',
         className
       )}
       {...props}
@@ -74,7 +74,7 @@ export const CardHeader: React.FC<CardHeaderProps> = ({
         )}
         {children}
       </div>
-      {action && <div className="ml-3">{action}</div>}
+      {action && <div className="md:ml-3 md:self-center w-full md:w-auto">{action}</div>}
     </div>
   );
 };

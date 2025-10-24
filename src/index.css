@@ -342,9 +342,54 @@
   }
 }
 
+@layer base {
+  :root.ui-compact-mode {
+    --compact-scale: 0.94;
+  }
+
+  .ui-compact-mode body {
+    font-size: calc(1rem * var(--compact-scale));
+  }
+
+  .ui-compact-mode .space-y-6 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: calc(1.5rem * var(--compact-scale));
+  }
+
+  .ui-compact-mode .space-y-4 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: calc(1rem * var(--compact-scale));
+  }
+
+  .ui-compact-mode input,
+  .ui-compact-mode select,
+  .ui-compact-mode textarea {
+    padding-top: 0.45rem;
+    padding-bottom: 0.45rem;
+  }
+
+  .ui-compact-mode .ui-card {
+    padding: 0.75rem;
+  }
+
+  .ui-compact-mode .ui-card .space-y-4 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.75rem;
+  }
+
+  .ui-compact-mode .ui-card .gap-4 {
+    gap: 0.75rem;
+  }
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
   }
 }
 

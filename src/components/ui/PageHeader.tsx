@@ -15,17 +15,17 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   children,
 }) => {
   return (
-    <div className="flex justify-between items-start mb-6">
-      <div className="flex-1">
-        <h1 className="text-3xl font-bold text-foreground">{title}</h1>
+    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between mb-6">
+      <div className="flex-1 min-w-0 space-y-2">
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground break-words">{title}</h1>
         {subtitle && (
-          <p className="text-muted-foreground mt-2">{subtitle}</p>
+          <p className="text-muted-foreground leading-relaxed">{subtitle}</p>
         )}
         {children}
       </div>
       {action && (
-        <div className="flex-shrink-0">
-          {action}
+        <div className="flex-shrink-0 w-full md:w-auto md:pl-6">
+          <div className="flex w-full md:w-auto md:justify-end">{action}</div>
         </div>
       )}
     </div>
