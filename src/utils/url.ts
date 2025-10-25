@@ -15,6 +15,11 @@ export const resolveAssetUrl = (
     return trimmed;
   }
 
+  // Eğer URL /uploads/ ile başlıyorsa, base URL ekleme
+  if (trimmed.startsWith('/uploads/')) {
+    return trimmed;
+  }
+
   const normalizedBase = (base || '').replace(/\/$/, '');
   const normalizedPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
 
