@@ -5,6 +5,9 @@ export { categoriesService } from './services/categories.service';
 export { usersService } from './services/users.service';
 export { settingsService } from './services/settings.service';
 export { localizationsService } from './services/localizations.service';
+export { permissionGroupsService } from './services/permission-groups.service';
+export { permissionsService } from './services/permissions.service';
+export { rolesService } from './services/roles.service';
 
 // API Client Export
 export { default as apiClient } from './client/axios';

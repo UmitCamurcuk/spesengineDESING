@@ -1,13 +1,129 @@
-import { useParams } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Edit, Trash2, Loader2 } from 'lucide-react';
+import { Card, CardHeader } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
+import { Badge } from '../../components/ui/Badge';
+import { useToast } from '../../contexts/ToastContext';
+import { permissionGroupsService } from '../../api/services/permission-groups.service';
+import type { PermissionGroupRecord } from '../../api/types/api.types';
 
 export function PermissionGroupsDetails() {
-  const { id } = useParams();
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { showToast } = useToast();
+  
+  const [group, setGroup] = useState<PermissionGroupRecord | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    if (id) loadGroup();
+  }, [id]);
+
+  const loadGroup = async () => {
+    try {
+      setLoading(true);
+      const result = await permissionGroupsService.getById(id!);
+      setGroup(result);
+    } catch (error: any) {
+      console.error('Failed to load group:', error);
+      showToast({ type: 'error', message: 'Failed to load permission group' });
+      navigate('/permission-groups');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm('Are you sure you want to delete this permission group?')) return;
+
+    try {
+      setDeleting(true);
+      await permissionGroupsService.delete(id!);
+      showToast({ type: 'success', message: 'Permission group deleted successfully' });
+      navigate('/permission-groups');
+    } catch (error: any) {
+      console.error('Failed to delete group:', error);
+      showToast({ type: 'error', message: error?.message || 'Failed to delete permission group' });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!group) return null;
 
   return (
-    <div className="container mx-auto p-6">
-      <h1 className="text-3xl font-bold mb-6">İzin Grubu Detayları</h1>
-      <p>ID: {id}</p>
-      <p className="text-muted-foreground mt-4">Bu sayfa geliştirilme aşamasındadır.</p>
+    <div className="max-w-4xl mx-auto p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-4">
+          <Button variant="ghost" onClick={() => navigate('/permission-groups')}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Permission Group Details</h1>
+          </div>
+        </div>
+        <div className="flex space-x-2">
+          <Button variant="outline" onClick={() => navigate(`/permission-groups/edit/${id}`)}>
+            <Edit className="h-4 w-4 mr-2" />
+            Edit
+          </Button>
+          <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+            {deleting ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Trash2 className="h-4 w-4 mr-2" />
+            )}
+            Delete
+          </Button>
+        </div>
+      </div>
+
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <h2 className="text-lg font-semibold">Basic Information</h2>
+          </CardHeader>
+          <div className="p-6 space-y-4">
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">ID</label>
+              <p className="text-sm text-foreground font-mono">{group.id}</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">Name Localization ID</label>
+              <p className="text-sm text-foreground">{group.nameLocalizationId}</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">Description Localization ID</label>
+              <p className="text-sm text-foreground">{group.descriptionLocalizationId}</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">Display Order</label>
+              <Badge variant="secondary">{group.displayOrder}</Badge>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Created</label>
+                <p className="text-sm text-foreground">{new Date(group.createdAt).toLocaleString()}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Updated</label>
+                <p className="text-sm text-foreground">{new Date(group.updatedAt).toLocaleString()}</p>
+              </div>
+            </div>
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }

@@ -509,17 +509,13 @@ export interface RoleRecord {
   nameLocalizationId: string;
   descriptionLocalizationId: string;
   isSystemRole: boolean;
+  permissions: string[]; // Array of enabled permission IDs
   createdAt: string;
   updatedAt: string;
 }
 
-export interface RolePermissionRecord {
-  permissionId: string;
-  enabled: boolean;
-}
-
 export interface RoleWithPermissions extends RoleRecord {
-  permissions: RolePermissionRecord[];
+  // permissions already in RoleRecord
 }
 
 export interface PermissionGroupCreateRequest {
@@ -557,13 +553,13 @@ export interface PermissionUpdateRequest {
 export interface RoleCreateRequest {
   name: Record<string, string>;
   description: Record<string, string>;
-  permissions?: Array<{ permissionId: string; enabled: boolean }>;
+  permissions?: string[]; // Array of enabled permission IDs
 }
 
 export interface RoleUpdateRequest {
   name?: Record<string, string>;
   description?: Record<string, string>;
-  permissions?: Array<{ permissionId: string; enabled: boolean }>;
+  permissions?: string[]; // Array of enabled permission IDs
 }
 
 export interface PermissionGroupListResponse {

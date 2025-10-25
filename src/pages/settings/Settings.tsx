@@ -669,9 +669,9 @@ export const Settings: React.FC = () => {
 
     const normalized = normalizeLanguageCode(code);
     const defaultLanguage = normalizeLanguageCode(form.localization.defaultLanguage);
-    const fallbackLanguage = normalizeLanguageCode(form.localization.fallbackLanguage);
 
-    if (!required && (normalized === defaultLanguage || normalized === fallbackLanguage)) {
+    // Only primary (default) language is required, secondary (fallback) is optional
+    if (!required && normalized === defaultLanguage) {
       error(t('settings.localization.messages.required_core_language'));
       return;
     }

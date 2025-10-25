@@ -10,11 +10,11 @@ import type {
 } from '../types/api.types';
 
 export const rolesService = {
-  async list(): Promise<RoleRecord[]> {
+  async list(): Promise<RoleListResponse> {
     const response = await apiClient.get<ApiSuccessResponse<RoleListResponse>>(
       API_ENDPOINTS.ROLES.BASE,
     );
-    return response.data.data.items;
+    return response.data.data;
   },
 
   async getById(id: string): Promise<RoleWithPermissions> {
@@ -38,6 +38,10 @@ export const rolesService = {
       payload,
     );
     return response.data.data;
+  },
+
+  async delete(id: string): Promise<void> {
+    await apiClient.delete(API_ENDPOINTS.ROLES.BY_ID(id));
   },
 
   async getPermissions(id: string): Promise<string[]> {
