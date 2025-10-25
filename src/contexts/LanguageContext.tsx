@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
+import { localizationsService } from '../api/services/localizations.service';
 
 export type Language = string;
 
@@ -15,36 +16,48 @@ interface LanguageProviderProps {
 }
 
 export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) => {
-  const [language, setLanguageState] = useState<Language>('tr');
+  // Load language from localStorage first (before any API calls)
+  const [language, setLanguageState] = useState<Language>(() => {
+    return localStorage.getItem('language') || 'tr';
+  });
   const [translations, setTranslations] = useState<Record<string, any>>({});
+  const loadingRef = useRef<boolean>(false);
 
-  // Load translations
+  // Load translations from database via API
   useEffect(() => {
+    // Prevent double calls
+    if (loadingRef.current) return;
+
     const loadTranslations = async () => {
+      loadingRef.current = true;
       try {
-        const response = await fetch(`/locales/${language}.json`);
-        if (!response.ok) {
-          throw new Error(`Translation file not found for ${language}`);
-        }
-        const data = await response.json();
+        // Try to load from API
+        const data = await localizationsService.export(language);
         setTranslations(data);
       } catch (error) {
-        console.error('Failed to load translations:', error);
-        // Fallback to empty object
-        setTranslations({});
+        console.error('Failed to load translations from database:', error);
+        
+        // Fallback to JSON files if API fails
+        try {
+          const response = await fetch(`/locales/${language}.json`);
+          if (response.ok) {
+            const data = await response.json();
+            setTranslations(data);
+            console.warn('Using fallback JSON translations');
+          } else {
+            setTranslations({});
+          }
+        } catch (fallbackError) {
+          console.error('Fallback to JSON also failed:', fallbackError);
+          setTranslations({});
+        }
+      } finally {
+        loadingRef.current = false;
       }
     };
 
     loadTranslations();
-  }, [language]);
-
-  // Load language from localStorage on mount
-  useEffect(() => {
-    const savedLanguage = localStorage.getItem('language');
-    if (savedLanguage) {
-      setLanguageState(savedLanguage);
-    }
-  }, []);
+  }, [language]); // Only trigger when language actually changes
 
   const setLanguage = useCallback((lang: Language) => {
     const normalized = lang.trim() || 'tr';

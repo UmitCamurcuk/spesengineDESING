@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useSettings } from '../../contexts/SettingsContext';
 
 const menuItems = [
   {
@@ -101,6 +102,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ className, isOpen, onClose }) => {
   const location = useLocation();
   const { t } = useLanguage();
+  const { settings } = useSettings();
 
   return (
     <aside className={cn('bg-sidebar border-r border-sidebar-border w-52 flex flex-col', className)}>
@@ -112,7 +114,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, isOpen, onClose }) 
             <Zap className="h-3.5 w-3.5 text-white" />
           </div>
           <div>
-            <h1 className="text-base font-semibold text-sidebar-foreground">SpesEngine</h1>
+            <h1 className="text-base font-semibold text-sidebar-foreground">
+              {settings?.general?.companyName || 'SpesEngine'}
+            </h1>
             <p className="text-xs text-muted-foreground">CDP • MDM • ERP</p>
           </div>
         </div>

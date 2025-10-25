@@ -40,4 +40,11 @@ export const localizationsService = {
     );
     return response.data.data;
   },
+
+  async export(language: string): Promise<Record<string, any>> {
+    const response = await apiClient.get<ApiSuccessResponse<Record<string, any>>>(
+      `${API_ENDPOINTS.LOCALIZATIONS.BASE}/export/${language}`,
+    );
+    return response.data.data;
+  },
 };
