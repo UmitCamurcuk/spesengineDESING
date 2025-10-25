@@ -521,6 +521,7 @@
     "loading": "Ayarlar yükleniyor...",
     "tabs": {
       "general": "Genel & Görünüm",
+      "appearance": "Görünüm",
       "localization": "Yerelleştirme",
       "notifications": "Bildirimler",
       "integrations": "Entegrasyonlar",
@@ -877,6 +878,7 @@
     "history_modal_before": "Önce",
     "history_modal_after": "Sonra",
     "history_modal_close": "Kapat",
+    "history_changes_label": "değişiklik",
     "history_source_label": "Kaynak",
     "history_source_api": "API",
     "history_source_system": "Sistem",
@@ -898,6 +900,7 @@
     "history_action_imported": "İçe aktarıldı",
     "history_action_exported": "Dışa aktarıldı",
     "history_entity_user": "Kullanıcı",
+    "history_entity_settings": "Ayarlar",
     "history_summary_user_created": "Kullanıcı oluşturuldu",
     "history_summary_user_updated": "Kullanıcı güncellendi",
     "history_summary_user_deleted": "Kullanıcı silindi",

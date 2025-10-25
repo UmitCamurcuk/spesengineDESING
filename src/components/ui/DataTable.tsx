@@ -165,9 +165,20 @@ interface UserInfoProps {
   avatarUrl?: string;
 }
 
+const formatUserInfoDate = (value: string): string => {
+  if (!value) {
+    return '—';
+  }
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleDateString();
+  }
+  return value;
+};
+
 const UserInfo: React.FC<UserInfoProps> = ({ name, email, date, avatarUrl }) => (
-  <div className="flex items-center space-x-2.5">
-    <div className="w-7 h-7 rounded-full flex items-center justify-center bg-gradient-to-br from-primary to-primary-hover overflow-hidden">
+  <div className="flex items-start space-x-2.5 text-left">
+    <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-br from-primary to-primary-hover overflow-hidden flex-shrink-0">
       {avatarUrl ? (
         <img
           src={avatarUrl}
@@ -176,15 +187,15 @@ const UserInfo: React.FC<UserInfoProps> = ({ name, email, date, avatarUrl }) => 
           referrerPolicy="no-referrer"
         />
       ) : (
-        <User className="h-3.5 w-3.5 text-white" />
+        <User className="h-4 w-4 text-white" />
       )}
     </div>
-    <div>
-      <div className="text-xs font-medium text-foreground">{name}</div>
-      <div className="text-xs text-muted-foreground">{email}</div>
-      <div className="flex items-center text-xs text-muted-foreground mt-0.5">
-        <Calendar className="h-3 w-3 mr-0.5" />
-        {new Date(date).toLocaleDateString()}
+    <div className="min-w-0">
+      <div className="text-xs font-medium text-foreground truncate">{name}</div>
+      <div className="text-xs text-muted-foreground break-all">{email}</div>
+      <div className="flex items-center text-xs text-muted-foreground mt-1">
+        <Calendar className="h-3 w-3 mr-1 flex-shrink-0" />
+        <span>{formatUserInfoDate(date)}</span>
       </div>
     </div>
   </div>

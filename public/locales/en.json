@@ -539,6 +539,7 @@
     "loading": "Loading settings...",
     "tabs": {
       "general": "General & Appearance",
+      "appearance": "Appearance",
       "localization": "Localization",
       "notifications": "Notifications",
       "integrations": "Integrations",
@@ -872,6 +873,7 @@
     "history_modal_before": "Before",
     "history_modal_after": "After",
     "history_modal_close": "Close",
+    "history_changes_label": "changes",
     "history_source_label": "Source",
     "history_source_api": "API",
     "history_source_system": "System",
@@ -893,6 +895,7 @@
     "history_action_imported": "Imported",
     "history_action_exported": "Exported",
     "history_entity_user": "User",
+    "history_entity_settings": "Settings",
     "history_summary_user_created": "User created",
     "history_summary_user_updated": "User updated",
     "history_summary_user_deleted": "User deleted",

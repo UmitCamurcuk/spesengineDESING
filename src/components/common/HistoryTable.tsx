@@ -21,6 +21,7 @@ import { HistoryEntry, HistoryChange } from '../../types/common';
 import { useServerTable } from '../../hooks';
 import { historyService } from '../../api/services/history.service';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useSettings } from '../../contexts/SettingsContext';
 import { resolveAssetUrl } from '../../utils/url';
 import { formatHistoryFieldLabel, formatHistoryValue } from '../../utils/historyFormat';
 
@@ -143,6 +144,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
   currentUserEmail,
 }) => {
   const { t, language } = useLanguage();
+  const { settings: tenantSettings } = useSettings();
   const useServer = !records;
   const scrollPositionRef = useRef(0);
   const [selectedChanges, setSelectedChanges] = useState<HistoryChange[] | null>(null);
@@ -164,58 +166,69 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
         return <span className="text-muted-foreground text-sm">—</span>;
       }
 
-      const MAX_VISIBLE = 1;
-      const visibleChanges = changes.slice(0, MAX_VISIBLE);
+      if (changes.length > 1) {
+        const summaryLabel = t('profile.history_changes_label');
+        return (
+          <div className="flex flex-col items-start gap-2 text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">
+              {`${changes.length} ${summaryLabel}`}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleShowChanges(changes)}
+              className="h-6 px-2 text-xs"
+            >
+              <Eye className="h-3 w-3 mr-1" />
+              {t('profile.history_view_details')}
+            </Button>
+          </div>
+        );
+      }
+
+      const change = changes[0];
+      const fieldLabel = formatHistoryFieldLabel(change.field, t);
+      const oldValue = formatHistoryValue(change.field, change.oldValue, t);
+      const newValue = formatHistoryValue(change.field, change.newValue, t);
+      const oldMedia = renderChangeMedia(change.oldValue, `${change.field}-before`);
+      const newMedia = renderChangeMedia(change.newValue, `${change.field}-after`);
 
       return (
-      <div className="space-y-2">
-        {visibleChanges.map((change, index) => {
-          const fieldLabel = formatHistoryFieldLabel(change.field, t);
-          const oldValue = formatHistoryValue(change.field, change.oldValue, t);
-          const newValue = formatHistoryValue(change.field, change.newValue, t);
-          const oldMedia = renderChangeMedia(change.oldValue, `${change.field}-before`);
-          const newMedia = renderChangeMedia(change.newValue, `${change.field}-after`);
-
-          return (
-            <div key={`${change.field}-${index}`} className="text-xs">
-              <div className="font-medium text-foreground flex items-center gap-2">
-                <span className="truncate">{fieldLabel}</span>
-                {newMedia}
+        <div className="space-y-2 text-xs text-left">
+          <div className="font-medium text-foreground flex items-center gap-2">
+            <span className="truncate">{fieldLabel}</span>
+            {newMedia}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                {change.oldValue !== undefined ? t('profile.history_before_label') : ''}
               </div>
-              <div className="mt-1 grid grid-cols-2 gap-2">
-                <div>
-                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                    {change.oldValue !== undefined ? t('profile.history_before_label') : ''}
-                  </div>
-                  <div className="text-error line-through text-xs whitespace-pre-wrap">
-                    {oldMedia ?? oldValue}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                    {change.newValue !== undefined ? t('profile.history_after_label') : ''}
-                  </div>
-                  <div className="text-success text-xs whitespace-pre-wrap">
-                    {newMedia ?? newValue}
-                  </div>
-                </div>
+              <div className="text-error line-through text-xs whitespace-pre-wrap break-words">
+                {oldMedia ?? oldValue}
               </div>
             </div>
-          );
-        })}
-
-        <div className="flex justify-end mt-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleShowChanges(changes)}
-            className="h-6 px-2 text-xs"
-          >
-            <Eye className="h-3 w-3 mr-1" />
-            {t('profile.history_view_details')}
-          </Button>
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                {change.newValue !== undefined ? t('profile.history_after_label') : ''}
+              </div>
+              <div className="text-success text-xs whitespace-pre-wrap break-words">
+                {newMedia ?? newValue}
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleShowChanges(changes)}
+              className="h-6 px-2 text-xs"
+            >
+              <Eye className="h-3 w-3 mr-1" />
+              {t('profile.history_view_details')}
+            </Button>
+          </div>
         </div>
-      </div>
       );
     },
     [t, handleShowChanges],
@@ -272,6 +285,90 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
   const dataset = useServer ? items : records ?? [];
   const isLoading = externalLoading || (useServer ? loading : false);
   const locale = language === 'tr' ? 'tr-TR' : language === 'en' ? 'en-US' : language;
+  const dateFormatSetting = tenantSettings?.general?.dateFormat;
+  const timeZone = tenantSettings?.general?.timezone;
+
+  const formatTimestamp = useCallback(
+    (value?: string | null) => {
+      if (!value) {
+        return '—';
+      }
+
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) {
+        return value;
+      }
+
+      const effectiveLocale = locale || 'en-US';
+      const baseOptions: Intl.DateTimeFormatOptions = {
+        timeZone: timeZone || undefined,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      };
+
+      let parts: Record<string, string> = {};
+      try {
+        parts = new Intl.DateTimeFormat(effectiveLocale, baseOptions)
+          .formatToParts(date)
+          .reduce<Record<string, string>>((acc, part) => {
+            if (part.type !== 'literal') {
+              acc[part.type] = part.value;
+            }
+            return acc;
+          }, {});
+      } catch (error) {
+        console.warn('Failed to format timestamp', error);
+      }
+
+      const year = parts.year;
+      const month = parts.month;
+      const day = parts.day;
+      const hour = parts.hour;
+      const minute = parts.minute;
+
+      let formattedDate: string | undefined;
+
+      if (year && month && day) {
+        switch (dateFormatSetting) {
+          case 'YYYY-MM-DD':
+            formattedDate = `${year}-${month}-${day}`;
+            break;
+          case 'DD.MM.YYYY':
+            formattedDate = `${day}.${month}.${year}`;
+            break;
+          case 'DD/MM/YYYY':
+            formattedDate = `${day}/${month}/${year}`;
+            break;
+          case 'MM/DD/YYYY':
+            formattedDate = `${month}/${day}/${year}`;
+            break;
+          default:
+            formattedDate = undefined;
+            break;
+        }
+      }
+
+      if (!formattedDate) {
+        try {
+          formattedDate = new Intl.DateTimeFormat(effectiveLocale, {
+            timeZone: timeZone || undefined,
+            dateStyle: 'medium',
+          }).format(date);
+        } catch (error) {
+          console.warn('Fallback date formatting failed', error);
+          formattedDate = date.toISOString();
+        }
+      }
+
+      const timePart = hour && minute ? `${hour}:${minute}` : '';
+      return timePart ? `${formattedDate} ${timePart}` : formattedDate;
+    },
+    [dateFormatSetting, locale, timeZone],
+  );
 
   const translateAction = useCallback(
     (action: string) => t(`profile.history_action_${action}`) || formatLabel(action),
@@ -431,6 +528,10 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
         entry.actor?.ip ??
         '—';
 
+      const assetBase = import.meta.env.VITE_ASSET_BASE_URL || import.meta.env.VITE_API_BASE_URL;
+      const rawAvatar = entry.actor?.profilePhotoUrl ?? entry.entityProfilePhotoUrl;
+      const avatarUrl = resolveAssetUrl(rawAvatar, assetBase);
+
       let displayName = baseName;
       if (currentUserId && entry.actor?.userId === currentUserId) {
         const youLabel = t('profile.history_actor_you');
@@ -443,7 +544,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
         name: displayName,
         email,
         identifier,
-        avatarUrl: entry.actor?.profilePhotoUrl,
+        avatarUrl,
       };
     },
     [currentUserId, t],
@@ -493,7 +594,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
               </div>
               <div className="flex items-center text-xs text-muted-foreground space-x-1">
                 <Clock className="h-3.5 w-3.5" />
-                <span>{new Date(entry.timestamp).toLocaleString(locale)}</span>
+                <span>{formatTimestamp(entry.timestamp)}</span>
               </div>
             </div>
 
@@ -604,15 +705,13 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
         ),
       },
       {
-       key: 'changes',
+        key: 'changes',
         title: t('profile.history_column_changes'),
-        align: 'center' as const,
+        align: 'left' as const,
         width: '40%',
         render: (_: HistoryChange[] | undefined, entry: HistoryEntry) => (
-          <div className="flex justify-center">
-            <div className="max-w-[360px] text-center">
-              {renderChanges(entry.changes)}
-            </div>
+          <div className="max-w-[360px] text-left">
+            {renderChanges(entry.changes)}
           </div>
         ),
       },
@@ -645,7 +744,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
                   name={actorInfo.name}
                   email={actorInfo.email ?? actorInfo.identifier}
                   avatarUrl={actorInfo.avatarUrl}
-                  date={new Date(entry.timestamp).toLocaleString(locale)}
+                  date={formatTimestamp(entry.timestamp)}
                 />
               </div>
             );
@@ -653,7 +752,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
         ),
       },
     ],
-    [getEntityInfo, locale, resolveActorInfo, resolveSourceLabel, resolveSummary, t, translateAction, translateTag],
+    [getEntityInfo, formatTimestamp, resolveActorInfo, resolveSourceLabel, resolveSummary, t, translateAction, translateTag],
   );
 
   return (
@@ -720,7 +819,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
         isOpen={changesModalOpen}
         onClose={handleCloseChangesModal}
         changes={selectedChanges || []}
-        title={t('changes_modal_title')}
+        title={t('profile.history_modal_title')}
       />
     </div>
   );
