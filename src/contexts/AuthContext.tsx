@@ -59,11 +59,39 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return profile;
   };
 
-  // Initialize auth state on mount
+  // Initialize auth state on mount - UNIFIED APPROACH (single /me API call)
   useEffect(() => {
+    const initializeAuth = async () => {
+      try {
+        setIsInitializing(true);
+
+        // No token, no need to call API
+        if (!authService.isAuthenticated() || !accessToken) {
+          setError(null);
+          setIsInitializing(false);
+          return;
+        }
+
+        // Already have user data, no need to fetch again
+        if (user) {
+          setIsInitializing(false);
+          return;
+        }
+
+        // Fetch user profile only once
+        const profile = await fetchAndSetProfile();
+        logger.info('User authenticated successfully', { email: profile.user.email });
+      } catch (error) {
+        logger.error('Failed to initialize auth', error);
+        dispatch(resetAuthState());
+        setError('Oturum başlatılamadı');
+      } finally {
+        setIsInitializing(false);
+      }
+    };
+
     initializeAuth();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [accessToken, user]); // Re-run only when accessToken or user changes
 
   // Auto-refresh token before expiry
   useEffect(() => {
@@ -76,58 +104,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, [isAuthenticated, user]);
 
-  // Initialize authentication
-  const initializeAuth = async () => {
-    try {
-      setIsInitializing(true);
-
-      if (!authService.isAuthenticated()) {
-        setError(null);
-        return;
-      }
-
-      const profile = await fetchAndSetProfile();
-      logger.info('User authenticated successfully', { email: profile.user.email });
-    } catch (error) {
-      logger.error('Failed to initialize auth', error);
-      dispatch(resetAuthState());
-      setError('Oturum başlatılamadı');
-    } finally {
-      setIsInitializing(false);
-    }
-  };
-
   // Keep local error in sync with auth slice error
   useEffect(() => {
     if (authError) {
       setError(authError);
     }
   }, [authError]);
-
-  // Load user profile whenever we have a token but no profile yet
-  useEffect(() => {
-    const loadUserProfile = async () => {
-      if (!accessToken || user || isProcessing) {
-        setIsInitializing(false);
-        return;
-      }
-
-      try {
-        setIsProcessing(true);
-        setIsInitializing(true);
-        const profile = await fetchAndSetProfile();
-        logger.info('User profile loaded', { email: profile.user.email });
-      } catch (profileError) {
-        logger.error('Failed to load user profile', profileError);
-        dispatch(resetAuthState());
-        setError('Profil bilgileri alınamadı');
-      } finally {
-        setIsProcessing(false);
-        setIsInitializing(false);
-      }
-    }
-    loadUserProfile();
-  }, [accessToken, user, dispatch, isProcessing]);
 
   // Login function
   const login = async (credentials: LoginRequest) => {

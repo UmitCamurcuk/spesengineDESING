@@ -474,3 +474,108 @@ export interface ApiClientConfig {
 export type ServiceResponse<T> = Promise<ApiResponse<T>>;
 export type ServicePaginatedResponse<T> = Promise<PaginatedResponse<T>>;
 export type ServiceError = ApiError;
+
+// ========================================
+// Permission System Types
+// ========================================
+
+export interface PermissionGroupRecord {
+  id: string;
+  tenantId: string;
+  nameLocalizationId: string;
+  descriptionLocalizationId: string;
+  logo: string | null;
+  displayOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PermissionRecord {
+  id: string;
+  tenantId: string;
+  code: string;
+  nameLocalizationId: string;
+  descriptionLocalizationId: string;
+  permissionGroupId: string;
+  logo: string | null;
+  displayOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RoleRecord {
+  id: string;
+  tenantId: string;
+  nameLocalizationId: string;
+  descriptionLocalizationId: string;
+  isSystemRole: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RolePermissionRecord {
+  permissionId: string;
+  enabled: boolean;
+}
+
+export interface RoleWithPermissions extends RoleRecord {
+  permissions: RolePermissionRecord[];
+}
+
+export interface PermissionGroupCreateRequest {
+  name: Record<string, string>;
+  description: Record<string, string>;
+  logo?: string | null;
+  displayOrder?: number;
+}
+
+export interface PermissionGroupUpdateRequest {
+  name?: Record<string, string>;
+  description?: Record<string, string>;
+  logo?: string | null;
+  displayOrder?: number;
+}
+
+export interface PermissionCreateRequest {
+  code: string;
+  name: Record<string, string>;
+  description: Record<string, string>;
+  permissionGroupId: string;
+  logo?: string | null;
+  displayOrder?: number;
+}
+
+export interface PermissionUpdateRequest {
+  code?: string;
+  name?: Record<string, string>;
+  description?: Record<string, string>;
+  permissionGroupId?: string;
+  logo?: string | null;
+  displayOrder?: number;
+}
+
+export interface RoleCreateRequest {
+  name: Record<string, string>;
+  description: Record<string, string>;
+  permissions?: Array<{ permissionId: string; enabled: boolean }>;
+}
+
+export interface RoleUpdateRequest {
+  name?: Record<string, string>;
+  description?: Record<string, string>;
+  permissions?: Array<{ permissionId: string; enabled: boolean }>;
+}
+
+export interface PermissionGroupListResponse {
+  items: PermissionGroupRecord[];
+  pagination: ApiPagination;
+}
+
+export interface PermissionListResponse {
+  items: PermissionRecord[];
+  pagination: ApiPagination;
+}
+
+export interface RoleListResponse {
+  items: RoleRecord[];
+}

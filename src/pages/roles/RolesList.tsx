@@ -1,204 +1,53 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Plus, Shield, Users, Key } from 'lucide-react';
-import { PageHeader } from '../../components/ui/PageHeader';
-import { DataTable, UserInfo } from '../../components/ui/DataTable';
-import { Button } from '../../components/ui/Button';
-import { Badge } from '../../components/ui/Badge';
-import { Role } from '../../types';
-import { useLanguage } from '../../contexts/LanguageContext';
+import { useState, useEffect } from 'react';
+import { rolesService } from '../../api/services/roles.service';
+import type { RoleRecord } from '../../api/types/api.types';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/Card';
 
-// Mock data
-const mockRoles: Role[] = [
-  {
-    id: '1',
-    name: 'Administrator',
-    description: 'Full system access with all permissions',
-    permissionGroups: ['group-1', 'group-2', 'group-3'],
-    permissions: ['perm-1', 'perm-2', 'perm-3'],
-    isSystem: true,
-    createdAt: '2024-01-01T10:00:00Z',
-    updatedAt: '2024-01-25T10:30:00Z',
-  },
-  {
-    id: '2',
-    name: 'Content Manager',
-    description: 'Manage items, categories, and attributes',
-    permissionGroups: ['group-1', 'group-2'],
-    permissions: ['perm-1', 'perm-4'],
-    isSystem: false,
-    createdAt: '2024-01-05T09:15:00Z',
-    updatedAt: '2024-01-24T15:45:00Z',
-  },
-  {
-    id: '3',
-    name: 'Viewer',
-    description: 'Read-only access to system data',
-    permissionGroups: ['group-3'],
-    permissions: ['perm-5'],
-    isSystem: true,
-    createdAt: '2024-01-10T11:20:00Z',
-    updatedAt: '2024-01-22T13:10:00Z',
-  },
-];
+export function RolesList() {
+  const [roles, setRoles] = useState<RoleRecord[]>([]);
+  const [loading, setLoading] = useState(true);
 
-export const RolesList: React.FC = () => {
-  const navigate = useNavigate();
-  const { t } = useLanguage();
+  useEffect(() => {
+    loadRoles();
+  }, []);
 
-  const columns = [
-    {
-      key: 'name',
-      title: 'Role',
-      sortable: true,
-      render: (value: string, role: Role) => (
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-sm">
-            <Shield className="h-5 w-5 text-white" />
-          </div>
-          <div>
-            <div className="flex items-center space-x-2">
-              <div className="text-sm font-semibold text-foreground">{value}</div>
-              {role.isSystem && (
-                <Badge variant="secondary" size="sm">System</Badge>
-              )}
-            </div>
-            <div className="text-xs text-gray-500">ID: {role.id}</div>
-          </div>
-        </div>
-      ),
-      mobileRender: (role: Role) => (
-        <div className="space-y-3">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center shadow-sm">
-              <Shield className="h-5 w-5 text-white" />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center space-x-2">
-                <div className="text-sm font-semibold text-foreground">{role.name}</div>
-                {role.isSystem && (
-                  <Badge variant="secondary" size="sm">System</Badge>
-                )}
-              </div>
-              <div className="text-xs text-gray-500">ID: {role.id}</div>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Permission Groups</div>
-              <div className="text-sm text-gray-600">{role.permissionGroups.length} groups</div>
-            </div>
-            <div>
-              <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Direct Permissions</div>
-              <div className="text-sm text-gray-600">{role.permissions.length} permissions</div>
-            </div>
-          </div>
-          
-          <div>
-            <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Description</div>
-            <div className="text-sm text-gray-600">{role.description}</div>
-          </div>
-        </div>
-      ),
-    },
-    {
-      key: 'description',
-      title: 'Description',
-      render: (value: string) => (
-        <span className="text-sm text-gray-600 line-clamp-2">{value}</span>
-      ),
-    },
-    {
-      key: 'permissionGroups',
-      title: 'Permission Groups',
-      render: (value: string[]) => (
-        <div className="flex items-center space-x-1">
-          <Users className="h-4 w-4 text-gray-400" />
-          <span className="text-sm text-gray-600">{value.length}</span>
-          <span className="text-xs text-gray-400">groups</span>
-        </div>
-      ),
-    },
-    {
-      key: 'permissions',
-      title: 'Direct Permissions',
-      render: (value: string[]) => (
-        <div className="flex items-center space-x-1">
-          <Key className="h-4 w-4 text-gray-400" />
-          <span className="text-sm text-gray-600">{value.length}</span>
-          <span className="text-xs text-gray-400">permissions</span>
-        </div>
-      ),
-    },
-    {
-      key: 'isSystem',
-      title: 'Type',
-      render: (value: boolean) => (
-        <Badge variant={value ? 'secondary' : 'primary'} size="sm">
-          {value ? 'System' : 'Custom'}
-        </Badge>
-      ),
-    },
-    {
-      key: 'updatedAt',
-      title: 'Last Updated',
-      sortable: true,
-      render: (value: string) => (
-        <UserInfo
-          name="System Admin"
-          email="admin@company.com"
-          date={value}
-        />
-      ),
-    },
-  ];
-
-  const filters = [
-    {
-      key: 'isSystem',
-      label: 'All Types',
-      type: 'select' as const,
-      options: [
-        { value: 'true', label: 'System Roles' },
-        { value: 'false', label: 'Custom Roles' },
-      ]
+  const loadRoles = async () => {
+    try {
+      setLoading(true);
+      const result = await rolesService.list();
+      setRoles(result);
+    } catch (error) {
+      console.error('Failed to load roles:', error);
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
+  if (loading) {
+    return <div className="p-8">Yükleniyor...</div>;
+  }
 
   return (
-    <div className="h-full flex flex-col">
-      <PageHeader
-        title={t('roles.title')}
-        subtitle={t('roles.subtitle')}
-        action={
-          <Button onClick={() => navigate('/roles/create')}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create Role
-          </Button>
-        }
-      />
-      
-      <div className="flex-1 mt-6">
-        <DataTable
-          data={mockRoles}
-          columns={columns}
-          searchPlaceholder="Search roles..."
-          filters={filters}
-          onRowClick={(role) => navigate(`/roles/${role.id}`)}
-          emptyState={{
-            icon: <Shield className="h-12 w-12" />,
-            title: 'No roles found',
-            description: 'Get started by creating your first role',
-            action: (
-              <Button onClick={() => navigate('/roles/create')}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Role
-              </Button>
-            )
-          }}
-        />
+    <div className="container mx-auto p-6">
+      <h1 className="text-3xl font-bold mb-6">Roller</h1>
+      <div className="grid gap-4">
+        {roles.map((role) => (
+          <Card key={role.id}>
+            <CardHeader>
+              <CardTitle>{role.nameLocalizationId}</CardTitle>
+              <CardDescription>
+                {role.isSystemRole && <span className="text-primary font-semibold">[Sistem Rolü] </span>}
+                {role.descriptionLocalizationId}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-sm text-muted-foreground">
+                Oluşturulma: {new Date(role.createdAt).toLocaleDateString('tr-TR')}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
     </div>
   );
-};
+}
