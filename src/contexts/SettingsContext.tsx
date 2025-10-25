@@ -12,6 +12,7 @@ import type { AppSettings, SettingsPatchPayload, SettingsPatchRequest } from '..
 import { useLanguage } from './LanguageContext';
 import { useTheme } from './ThemeContext';
 import { useAuth } from './AuthContext';
+import { savePreferences } from '../utils/preferences';
 
 interface SettingsContextValue {
   settings: AppSettings | null;
@@ -66,6 +67,11 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
           setDarkVariant(data.appearance.darkVariant);
         }
         updateCompactClass(Boolean(data.appearance?.compactMode));
+        savePreferences({
+          dateFormat: data.general?.dateFormat,
+          timeZone: data.general?.timezone,
+          locale: data.localization?.defaultLanguage,
+        });
       } catch (err) {
         console.warn('Settings apply error', err);
       }

@@ -21,9 +21,9 @@ import { HistoryEntry, HistoryChange } from '../../types/common';
 import { useServerTable } from '../../hooks';
 import { historyService } from '../../api/services/history.service';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { useSettings } from '../../contexts/SettingsContext';
 import { resolveAssetUrl } from '../../utils/url';
 import { formatHistoryFieldLabel, formatHistoryValue } from '../../utils/historyFormat';
+import { useDateFormatter } from '../../hooks/useDateFormatter';
 
 interface HistoryTableProps {
   entityType?: string;
@@ -144,7 +144,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
   currentUserEmail,
 }) => {
   const { t, language } = useLanguage();
-  const { settings: tenantSettings } = useSettings();
+  const { formatDateTime } = useDateFormatter();
   const useServer = !records;
   const scrollPositionRef = useRef(0);
   const [selectedChanges, setSelectedChanges] = useState<HistoryChange[] | null>(null);
@@ -284,90 +284,10 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
 
   const dataset = useServer ? items : records ?? [];
   const isLoading = externalLoading || (useServer ? loading : false);
-  const locale = language === 'tr' ? 'tr-TR' : language === 'en' ? 'en-US' : language;
-  const dateFormatSetting = tenantSettings?.general?.dateFormat;
-  const timeZone = tenantSettings?.general?.timezone;
 
   const formatTimestamp = useCallback(
-    (value?: string | null) => {
-      if (!value) {
-        return '—';
-      }
-
-      const date = new Date(value);
-      if (Number.isNaN(date.getTime())) {
-        return value;
-      }
-
-      const effectiveLocale = locale || 'en-US';
-      const baseOptions: Intl.DateTimeFormatOptions = {
-        timeZone: timeZone || undefined,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      };
-
-      let parts: Record<string, string> = {};
-      try {
-        parts = new Intl.DateTimeFormat(effectiveLocale, baseOptions)
-          .formatToParts(date)
-          .reduce<Record<string, string>>((acc, part) => {
-            if (part.type !== 'literal') {
-              acc[part.type] = part.value;
-            }
-            return acc;
-          }, {});
-      } catch (error) {
-        console.warn('Failed to format timestamp', error);
-      }
-
-      const year = parts.year;
-      const month = parts.month;
-      const day = parts.day;
-      const hour = parts.hour;
-      const minute = parts.minute;
-
-      let formattedDate: string | undefined;
-
-      if (year && month && day) {
-        switch (dateFormatSetting) {
-          case 'YYYY-MM-DD':
-            formattedDate = `${year}-${month}-${day}`;
-            break;
-          case 'DD.MM.YYYY':
-            formattedDate = `${day}.${month}.${year}`;
-            break;
-          case 'DD/MM/YYYY':
-            formattedDate = `${day}/${month}/${year}`;
-            break;
-          case 'MM/DD/YYYY':
-            formattedDate = `${month}/${day}/${year}`;
-            break;
-          default:
-            formattedDate = undefined;
-            break;
-        }
-      }
-
-      if (!formattedDate) {
-        try {
-          formattedDate = new Intl.DateTimeFormat(effectiveLocale, {
-            timeZone: timeZone || undefined,
-            dateStyle: 'medium',
-          }).format(date);
-        } catch (error) {
-          console.warn('Fallback date formatting failed', error);
-          formattedDate = date.toISOString();
-        }
-      }
-
-      const timePart = hour && minute ? `${hour}:${minute}` : '';
-      return timePart ? `${formattedDate} ${timePart}` : formattedDate;
-    },
-    [dateFormatSetting, locale, timeZone],
+    (value?: string | null) => formatDateTime(value ?? undefined, { includeTime: true }),
+    [formatDateTime],
   );
 
   const translateAction = useCallback(
