@@ -22,7 +22,6 @@ import { useServerTable } from '../../hooks';
 import { historyService } from '../../api/services/history.service';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { resolveAssetUrl } from '../../utils/url';
-import { formatHistoryFieldLabel, formatHistoryValue } from '../../utils/historyFormat';
 import { useDateFormatter } from '../../hooks/useDateFormatter';
 
 interface HistoryTableProps {
@@ -95,34 +94,7 @@ const formatLabel = (value: string) =>
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
 
-const isImageValue = (value: unknown): value is string => {
-  if (typeof value !== 'string') {
-    return false;
-  }
-  const normalized = value.trim().toLowerCase();
-  if (normalized.startsWith('data:')) {
-    return normalized.startsWith('data:image');
-  }
-  return /\.(png|jpe?g|gif|webp|svg)$/i.test(normalized) || normalized.startsWith('/uploads/');
-};
 
-const renderChangeMedia = (value: unknown, label: string) => {
-  if (!isImageValue(value)) {
-    return null;
-  }
-
-  const apiBase = import.meta.env.VITE_ASSET_BASE_URL || import.meta.env.VITE_API_BASE_URL;
-  const src = resolveAssetUrl(value, apiBase);
-
-  return (
-    <img
-      src={src}
-      alt={label}
-      className="h-12 w-12 rounded-md object-cover border border-border"
-      referrerPolicy="no-referrer"
-    />
-  );
-};
 
 const getActorName = (entry: HistoryEntry): string =>
   entry.actorName ??
@@ -166,68 +138,21 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
         return <span className="text-muted-foreground text-sm">—</span>;
       }
 
-      if (changes.length > 1) {
-        const summaryLabel = t('profile.history_changes_label');
-        return (
-          <div className="flex flex-col items-start gap-2 text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">
-              {`${changes.length} ${summaryLabel}`}
-            </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleShowChanges(changes)}
-              className="h-6 px-2 text-xs"
-            >
-              <Eye className="h-3 w-3 mr-1" />
-              {t('profile.history_view_details')}
-            </Button>
-          </div>
-        );
-      }
-
-      const change = changes[0];
-      const fieldLabel = formatHistoryFieldLabel(change.field, t);
-      const oldValue = formatHistoryValue(change.field, change.oldValue, t);
-      const newValue = formatHistoryValue(change.field, change.newValue, t);
-      const oldMedia = renderChangeMedia(change.oldValue, `${change.field}-before`);
-      const newMedia = renderChangeMedia(change.newValue, `${change.field}-after`);
-
+      const summaryLabel = t('profile.history_changes_label');
       return (
-        <div className="space-y-2 text-xs text-left">
-          <div className="font-medium text-foreground flex items-center gap-2">
-            <span className="truncate">{fieldLabel}</span>
-            {newMedia}
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                {change.oldValue !== undefined ? t('profile.history_before_label') : ''}
-              </div>
-              <div className="text-error line-through text-xs whitespace-pre-wrap break-words">
-                {oldMedia ?? oldValue}
-              </div>
-            </div>
-            <div>
-              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                {change.newValue !== undefined ? t('profile.history_after_label') : ''}
-              </div>
-              <div className="text-success text-xs whitespace-pre-wrap break-words">
-                {newMedia ?? newValue}
-              </div>
-            </div>
-          </div>
-          <div className="flex justify-end">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleShowChanges(changes)}
-              className="h-6 px-2 text-xs"
-            >
-              <Eye className="h-3 w-3 mr-1" />
-              {t('profile.history_view_details')}
-            </Button>
-          </div>
+        <div className="flex flex-col items-center gap-2 text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">
+            {`${changes.length} ${summaryLabel}`}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleShowChanges(changes)}
+            className="h-6 px-2 text-xs"
+          >
+            <Eye className="h-3 w-3 mr-1" />
+            {t('profile.history_view_details')}
+          </Button>
         </div>
       );
     },
@@ -627,10 +552,10 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
       {
         key: 'changes',
         title: t('profile.history_column_changes'),
-        align: 'left' as const,
+        align: 'center' as const,
         width: '40%',
         render: (_: HistoryChange[] | undefined, entry: HistoryEntry) => (
-          <div className="max-w-[360px] text-left">
+          <div className="max-w-[360px] text-center">
             {renderChanges(entry.changes)}
           </div>
         ),
