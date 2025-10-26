@@ -102,6 +102,7 @@ export interface User extends BaseEntity {
 export interface TenantMembership {
   tenantId: string;
   roleId: string | null;
+  roleName?: string | null;
 }
 
 export interface AuthUser {

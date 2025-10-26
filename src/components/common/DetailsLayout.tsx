@@ -81,25 +81,27 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
         </div>
 
         <div className="flex items-center space-x-3">
-          {!editMode ? (
-            <Button onClick={onEdit} size="sm">
-              <Edit className="h-4 w-4 mr-2" />
-              {t('common.edit')}
-            </Button>
-          ) : (
-            <div className="flex items-center space-x-2">
-              {hasChanges && (
-                <Button onClick={onSave} size="sm">
-                  <Save className="h-4 w-4 mr-2" />
-                  {t('common.save')}
-                </Button>
-              )}
-              <Button variant="outline" onClick={onCancel} size="sm">
-                <X className="h-4 w-4 mr-2" />
-                {t('common.cancel')}
+          {onEdit ? (
+            !editMode ? (
+              <Button onClick={onEdit} size="sm">
+                <Edit className="h-4 w-4 mr-2" />
+                {t('common.edit')}
               </Button>
-            </div>
-          )}
+            ) : (
+              <div className="flex items-center space-x-2">
+                {hasChanges && (
+                  <Button onClick={onSave} size="sm">
+                    <Save className="h-4 w-4 mr-2" />
+                    {t('common.save')}
+                  </Button>
+                )}
+                <Button variant="outline" onClick={onCancel} size="sm">
+                  <X className="h-4 w-4 mr-2" />
+                  {t('common.cancel')}
+                </Button>
+              </div>
+            )
+          ) : null}
           {headerActions}
         </div>
       </div>

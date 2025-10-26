@@ -1,24 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Key, Shield } from 'lucide-react';
+import { Key, Shield } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable, UserInfo } from '../../components/ui/DataTable';
-import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useToast } from '../../contexts/ToastContext';
 import { permissionsService } from '../../api/services/permissions.service';
 import { permissionGroupsService } from '../../api/services/permission-groups.service';
 import type { PermissionRecord, PermissionGroupRecord } from '../../api/types/api.types';
-import { useAuth } from '../../contexts/AuthContext';
-import { PERMISSIONS } from '../../config/permissions';
 
 export function PermissionsList() {
   const navigate = useNavigate();
   const { t, language } = useLanguage();
   const { showToast } = useToast();
-  const { hasPermission } = useAuth();
-  const canCreatePermission = hasPermission(PERMISSIONS.SYSTEM.PERMISSIONS.CREATE);
   const [permissions, setPermissions] = useState<PermissionRecord[]>([]);
   const [groups, setGroups] = useState<PermissionGroupRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,16 +27,17 @@ export function PermissionsList() {
   });
 
   useEffect(() => {
-    loadData();
-  }, [pagination.page, pagination.pageSize, language]);
+    loadData(1, pagination.pageSize);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [language]);
 
-  const loadData = async () => {
+  const loadData = async (page = pagination.page, pageSize = pagination.pageSize) => {
     try {
       setLoading(true);
       const [permResult, groupsResult] = await Promise.all([
         permissionsService.list({
-          page: pagination.page,
-          pageSize: pagination.pageSize,
+          page,
+          pageSize,
           language,
         }),
         permissionGroupsService.list({ language }),
@@ -168,27 +164,25 @@ export function PermissionsList() {
         title="Permissions"
         subtitle="Manage individual permissions across the system"
       />
-      
+
       <div className="flex-1 mt-6">
         <DataTable
           data={permissions}
           columns={columns}
+          loading={loading}
+          mode="server"
           searchPlaceholder="Search permissions..."
           filters={filters}
           onRowClick={(permission) => navigate(`/permissions/${permission.id}`)}
-          loading={loading}
+          totalItems={pagination.totalItems}
+          currentPage={pagination.page}
+          currentPageSize={pagination.pageSize}
+          onPageChange={(page) => loadData(page, pagination.pageSize)}
+          onPageSizeChange={(size) => loadData(1, size)}
           emptyState={{
             icon: <Shield className="h-12 w-12" />,
-            title: 'No permissions',
-            description: 'Create your first permission to control access',
-            action: canCreatePermission
-              ? (
-                  <Button onClick={() => navigate('/permissions/create')}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Permission
-                  </Button>
-                )
-              : undefined,
+            title: t('permissions.no_permissions'),
+            description: t('permissions.create_new_permission'),
           }}
         />
       </div>
