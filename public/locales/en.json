@@ -478,6 +478,20 @@
     "edit_title": "Edit Localization",
     "details_title": "Localization Details",
     "list_title": "Localizations List",
+    "details_subtitle": "Manage this translation key and its variations",
+    "details_tabs": {
+      "general": "General",
+      "history": "History"
+    },
+    "details_sections": {
+      "info_title": "Basic Information",
+      "info_subtitle": "Namespace, key and description of this localization entry",
+      "translations_title": "Translations",
+      "translations_subtitle": "Edit the text for each supported language",
+      "metadata_title": "Metadata",
+      "selected_languages_title": "Selected Languages",
+      "selected_languages_subtitle": "Languages currently defined for this key"
+    },
     "key": "Key",
     "namespace": "Namespace",
     "translations": "Translations",

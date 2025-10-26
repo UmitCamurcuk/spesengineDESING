@@ -460,6 +460,20 @@
     "edit_title": "Yerelleştirme Düzenle",
     "details_title": "Yerelleştirme Detayları",
     "list_title": "Yerelleştirme Listesi",
+    "details_subtitle": "Bu çeviri anahtarını ve varyasyonlarını yönetin",
+    "details_tabs": {
+      "general": "Genel",
+      "history": "Geçmiş"
+    },
+    "details_sections": {
+      "info_title": "Temel Bilgiler",
+      "info_subtitle": "Bu çeviri kaydının ad alanı, anahtar ve açıklaması",
+      "translations_title": "Çeviriler",
+      "translations_subtitle": "Desteklenen her dil için metni düzenleyin",
+      "metadata_title": "Meta Veriler",
+      "selected_languages_title": "Seçilen Diller",
+      "selected_languages_subtitle": "Bu anahtar için tanımlanmış diller"
+    },
     "key": "Anahtar",
     "namespace": "Ad Alanı",
     "translations": "Çeviriler",

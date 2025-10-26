@@ -374,22 +374,6 @@ export function PermissionsCreate() {
 
   return (
     <div className="space-y-6 flex flex-col" style={{ height: '-webkit-fill-available' }}>
-      {/* Header */}
-      <div className="flex items-center space-x-4">
-        <Button
-          variant="ghost"
-          onClick={() => navigate('/permissions')}
-          disabled={loading}
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to List
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Create Permission</h1>
-          <p className="text-sm text-muted-foreground">Create a new permission step by step</p>
-        </div>
-      </div>
-
       {/* Stepper */}
       <Card padding="lg">
         <Stepper steps={steps} currentStep={currentStep} />
