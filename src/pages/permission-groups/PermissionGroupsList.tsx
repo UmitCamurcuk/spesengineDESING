@@ -136,14 +136,6 @@ export function PermissionGroupsList() {
       <PageHeader
         title="Permission Groups"
         subtitle="Manage permission groups to organize permissions"
-        action={
-          canCreatePermissionGroup ? (
-            <Button onClick={() => navigate('/permission-groups/create')}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Permission Group
-            </Button>
-          ) : null
-        }
       />
       
       <div className="flex-1 mt-6">

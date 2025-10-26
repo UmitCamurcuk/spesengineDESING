@@ -6,29 +6,30 @@ type CrudPermissionSet = {
   HISTORY: string;
 };
 
-const createCrudPermissionSet = (module: string, resource: string): CrudPermissionSet => ({
-  READ: `${module}.${resource}.read`,
-  CREATE: `${module}.${resource}.create`,
-  UPDATE: `${module}.${resource}.update`,
-  DELETE: `${module}.${resource}.delete`,
-  HISTORY: `${module}.${resource}.history`,
+const createCrudPermissionSet = (resource: string): CrudPermissionSet => ({
+  READ: `${resource}.read`,
+  CREATE: `${resource}.create`,
+  UPDATE: `${resource}.update`,
+  DELETE: `${resource}.delete`,
+  HISTORY: `${resource}.history`,
 });
 
 export const PERMISSIONS = {
   CATALOG: {
-    ITEMS: createCrudPermissionSet('catalog', 'items'),
-    ITEM_TYPES: createCrudPermissionSet('catalog', 'itemtypes'),
-    CATEGORIES: createCrudPermissionSet('catalog', 'categories'),
-    FAMILIES: createCrudPermissionSet('catalog', 'families'),
-    ATTRIBUTE_GROUPS: createCrudPermissionSet('catalog', 'attributegroups'),
-    ATTRIBUTES: createCrudPermissionSet('catalog', 'attributes'),
+    ITEMS: createCrudPermissionSet('items'),
+    ITEM_TYPES: createCrudPermissionSet('itemTypes'),
+    CATEGORIES: createCrudPermissionSet('categories'),
+    FAMILIES: createCrudPermissionSet('families'),
+    ATTRIBUTE_GROUPS: createCrudPermissionSet('attributeGroups'),
+    ATTRIBUTES: createCrudPermissionSet('attributes'),
   },
   SYSTEM: {
-    SETTINGS: createCrudPermissionSet('system', 'settings'),
-    ROLES: createCrudPermissionSet('system', 'roles'),
-    PERMISSIONS: createCrudPermissionSet('system', 'permissions'),
-    PERMISSION_GROUPS: createCrudPermissionSet('system', 'permissiongroups'),
-    LOCALIZATIONS: createCrudPermissionSet('system', 'localizations'),
+    USERS: createCrudPermissionSet('users'),
+    SETTINGS: createCrudPermissionSet('settings'),
+    ROLES: createCrudPermissionSet('roles'),
+    PERMISSIONS: createCrudPermissionSet('permissions'),
+    PERMISSION_GROUPS: createCrudPermissionSet('permissionGroups'),
+    LOCALIZATIONS: createCrudPermissionSet('localizations'),
   },
 } as const;
 

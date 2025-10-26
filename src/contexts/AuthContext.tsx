@@ -39,7 +39,7 @@ interface AuthContextType {
   // Utilities
   clearError: () => void;
   hasPermission: (permission: string) => boolean;
-  hasRole: (role: string) => boolean;
+  hasRole: (roleId: string) => boolean;
 }
 
 // Create context
@@ -284,9 +284,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   );
 
   // Check if user has specific role
-  const hasRole = (role: string): boolean => {
+  const hasRole = (roleId: string): boolean => {
     if (!user) return false;
-    return (user.role || '').toLowerCase() === role.toLowerCase();
+    const normalized = roleId.trim();
+    if (!normalized) return false;
+
+    if (user.primaryRoleId && user.primaryRoleId === normalized) {
+      return true;
+    }
+
+    return user.tenants.some((tenant) => tenant.roleId === normalized);
   };
 
   // Context value

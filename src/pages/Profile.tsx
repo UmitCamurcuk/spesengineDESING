@@ -605,7 +605,9 @@ export const Profile: React.FC = () => {
                 )}
               </div>
               <h3 className="text-lg font-semibold text-foreground">{fullName}</h3>
-              <p className="text-sm text-muted-foreground">{profileUser.role || t('profile.role_unknown')}</p>
+              <p className="text-sm text-muted-foreground">
+                {profileUser.primaryRoleName || profileUser.primaryRoleId || t('profile.role_unknown')}
+              </p>
               <Badge variant="success" size="sm" className="mt-2">
                 {t('profile.active')}
               </Badge>
@@ -626,7 +628,9 @@ export const Profile: React.FC = () => {
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">{t('profile.role')}</span>
-                <Badge variant="default" size="sm">{profileUser.role || '-'}</Badge>
+                <Badge variant="default" size="sm">
+                  {profileUser.primaryRoleName || profileUser.primaryRoleId || '-'}
+                </Badge>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">{t('profile.tenant')}</span>

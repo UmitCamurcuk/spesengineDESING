@@ -128,14 +128,6 @@ export function RolesList() {
       <PageHeader
         title="Roles"
         subtitle="Manage user roles and their permissions"
-        action={
-          canCreateRole ? (
-            <Button onClick={() => navigate('/roles/create')}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Role
-            </Button>
-          ) : null
-        }
       />
       
       <div className="flex-1 mt-6">

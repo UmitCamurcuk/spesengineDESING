@@ -113,7 +113,8 @@ export interface AuthUser {
   location?: string;
   department?: string;
   about?: string;
-  role?: string;
+  primaryRoleId?: string | null;
+  primaryRoleName?: string | null;
   notificationsEnabled?: boolean;
   emailNotificationsEnabled?: boolean;
   profilePhotoUrl?: string;
@@ -530,6 +531,39 @@ export interface RoleRecord {
 
 export interface RoleWithPermissions extends RoleRecord {
   // permissions already in RoleRecord
+}
+
+export interface UserTenantSummary {
+  tenantId: string;
+  roleId: string | null;
+  roleName: string | null;
+}
+
+export interface UserSummary {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  location: string;
+  department: string;
+  primaryRoleId: string | null;
+  primaryRoleName: string | null;
+  activeRoleId: string | null;
+  tenants: UserTenantSummary[];
+  notificationsEnabled: boolean;
+  emailNotificationsEnabled: boolean;
+  profilePhotoUrl: string;
+  twoFactorEnabled: boolean;
+  authzVersion: number;
+  lastLoginAt: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface UserListResponse {
+  items: UserSummary[];
+  pagination: ApiPagination;
 }
 
 export interface PermissionGroupCreateRequest {

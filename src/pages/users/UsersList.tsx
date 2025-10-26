@@ -1,72 +1,86 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Users, Shield, Mail, Calendar } from 'lucide-react';
+import { Users, Shield, Mail, Calendar } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
-import { DataTable, UserInfo } from '../../components/ui/DataTable';
-import { Button } from '../../components/ui/Button';
+import { DataTable } from '../../components/ui/DataTable';
 import { Badge } from '../../components/ui/Badge';
-import { User } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { usersService } from '../../api/services/users.service';
+import type { UserSummary, UserListResponse } from '../../api/types/api.types';
 
-// Mock data
-const mockUsers: User[] = [
-  {
-    id: '1',
-    name: 'John Doe',
-    email: 'john.doe@company.com',
-    role: 'admin',
-    status: 'active',
-    lastLogin: '2024-01-25T10:30:00Z',
-    createdAt: '2024-01-01T10:00:00Z',
-    updatedAt: '2024-01-25T10:30:00Z',
-  },
-  {
-    id: '2',
-    name: 'Jane Smith',
-    email: 'jane.smith@company.com',
-    role: 'user',
-    status: 'active',
-    lastLogin: '2024-01-24T15:45:00Z',
-    createdAt: '2024-01-05T09:15:00Z',
-    updatedAt: '2024-01-24T15:45:00Z',
-  },
-  {
-    id: '3',
-    name: 'Mike Johnson',
-    email: 'mike.johnson@company.com',
-    role: 'viewer',
-    status: 'inactive',
-    lastLogin: '2024-01-20T08:20:00Z',
-    createdAt: '2024-01-10T11:20:00Z',
-    updatedAt: '2024-01-22T13:10:00Z',
-  },
-  {
-    id: '4',
-    name: 'Sarah Wilson',
-    email: 'sarah.wilson@company.com',
-    role: 'user',
-    status: 'pending',
-    createdAt: '2024-01-23T14:30:00Z',
-    updatedAt: '2024-01-23T14:30:00Z',
-  },
-];
+const deriveStatus = (user: UserSummary): { label: string; variant: 'success' | 'warning' | 'default' } => {
+  if (user.notificationsEnabled && user.emailNotificationsEnabled) {
+    return { label: 'active', variant: 'success' };
+  }
+  if (!user.notificationsEnabled && !user.emailNotificationsEnabled) {
+    return { label: 'inactive', variant: 'default' };
+  }
+  return { label: 'partial', variant: 'warning' };
+};
+
+const formatFullName = (user: UserSummary): string => {
+  return [user.firstName, user.lastName].filter(Boolean).join(' ').trim() || user.email;
+};
+
+const formatDate = (value: string | null | undefined): string => {
+  if (!value) {
+    return '—';
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  return parsed.toLocaleDateString();
+};
 
 export const UsersList: React.FC = () => {
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const [users, setUsers] = useState<UserSummary[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    pageSize: 25,
+    totalItems: 0,
+    totalPages: 1,
+    hasNext: false,
+    hasPrev: false,
+  });
+
+  const loadUsers = async (page = pagination.page, pageSize = pagination.pageSize) => {
+    try {
+      setLoading(true);
+      const response: UserListResponse = await usersService.list({
+        page,
+        pageSize,
+        language,
+      });
+      setUsers(response.items);
+      setPagination(response.pagination);
+    } catch (error) {
+      console.error('Failed to load users:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadUsers(1, pagination.pageSize);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [language]);
 
   const columns = [
     {
       key: 'name',
       title: 'User',
       sortable: true,
-      render: (value: string, user: User) => (
+      render: (_value: string, user: UserSummary) => (
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-sm">
             <Users className="h-5 w-5 text-white" />
           </div>
           <div>
-            <div className="text-sm font-semibold text-foreground">{value}</div>
+            <div className="text-sm font-semibold text-foreground">{formatFullName(user)}</div>
             <div className="flex items-center text-xs text-gray-500">
               <Mail className="h-3 w-3 mr-1" />
               {user.email}
@@ -74,68 +88,53 @@ export const UsersList: React.FC = () => {
           </div>
         </div>
       ),
-      mobileRender: (user: User) => (
-        <div className="space-y-3">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-sm">
-              <Users className="h-5 w-5 text-white" />
-            </div>
-            <div className="flex-1">
-              <div className="text-sm font-semibold text-foreground">{user.name}</div>
-              <div className="flex items-center text-xs text-gray-500">
-                <Mail className="h-3 w-3 mr-1" />
-                {user.email}
+      mobileRender: (user: UserSummary) => {
+        const status = deriveStatus(user);
+        return (
+          <div className="space-y-3">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-sm">
+                <Users className="h-5 w-5 text-white" />
               </div>
-            </div>
-            <Badge
-              variant={
-                user.status === 'active' ? 'success' :
-                user.status === 'pending' ? 'warning' : 'default'
-              }
-              size="sm"
-            >
-              {user.status}
-            </Badge>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Role</div>
-              <Badge 
-                variant={
-                  user.role === 'admin' ? 'error' :
-                  user.role === 'user' ? 'primary' : 'secondary'
-                }
-                size="sm"
-              >
-                <Shield className="h-3 w-3 mr-1" />
-                {user.role}
+              <div className="flex-1">
+                <div className="flex items-center space-x-2">
+                  <div className="text-sm font-semibold text-foreground">{formatFullName(user)}</div>
+                </div>
+                <div className="flex items-center text-xs text-gray-500">
+                  <Mail className="h-3 w-3 mr-1" />
+                  {user.email}
+                </div>
+              </div>
+              <Badge variant={status.variant} size="sm">
+                {status.label}
               </Badge>
             </div>
-            <div>
-              <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Last Login</div>
-              <div className="text-sm text-gray-600">
-                {user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'Never'}
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Role</div>
+                <Badge variant="secondary" size="sm">
+                  <Shield className="h-3 w-3 mr-1" />
+                  {user.primaryRoleName || user.primaryRoleId || '—'}
+                </Badge>
+              </div>
+              <div>
+                <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Last Login</div>
+                <div className="text-sm text-gray-600">{formatDate(user.lastLoginAt)}</div>
               </div>
             </div>
           </div>
-        </div>
-      ),
+        );
+      },
     },
     {
-      key: 'role',
+      key: 'primaryRoleName',
       title: 'Role',
       sortable: true,
-      render: (value: string) => (
-        <Badge 
-          variant={
-            value === 'admin' ? 'error' :
-            value === 'user' ? 'primary' : 'secondary'
-          }
-          size="sm"
-        >
+      render: (_value: string, user: UserSummary) => (
+        <Badge variant="secondary" size="sm">
           <Shield className="h-3 w-3 mr-1" />
-          {value}
+          {user.primaryRoleName || user.primaryRoleId || '—'}
         </Badge>
       ),
     },
@@ -143,96 +142,57 @@ export const UsersList: React.FC = () => {
       key: 'status',
       title: 'Status',
       sortable: true,
-      render: (value: string) => (
-        <Badge
-          variant={
-            value === 'active' ? 'success' :
-            value === 'pending' ? 'warning' : 'default'
-          }
-          size="sm"
-        >
-          {value}
-        </Badge>
-      ),
+      render: (_value: string, user: UserSummary) => {
+        const status = deriveStatus(user);
+        return (
+          <Badge variant={status.variant} size="sm">
+            {status.label}
+          </Badge>
+        );
+      },
     },
     {
-      key: 'lastLogin',
+      key: 'lastLoginAt',
       title: 'Last Login',
       sortable: true,
-      render: (value: string | undefined) => (
+      render: (value: string | null | undefined) => (
         <div className="flex items-center text-sm text-gray-600">
           <Calendar className="h-4 w-4 mr-2 text-gray-400" />
-          {value ? new Date(value).toLocaleDateString() : 'Never'}
+          {formatDate(value ?? null)}
         </div>
       ),
     },
     {
       key: 'updatedAt',
-      title: 'Last Updated',
+      title: 'Updated',
       sortable: true,
-      render: (value: string) => (
-        <UserInfo
-          name="System Admin"
-          email="admin@company.com"
-          date={value}
-        />
-      ),
+      render: (value: string | null | undefined) => formatDate(value),
     },
-  ];
-
-  const filters = [
-    {
-      key: 'status',
-      label: 'All Statuses',
-      type: 'select' as const,
-      options: [
-        { value: 'active', label: 'Active' },
-        { value: 'inactive', label: 'Inactive' },
-        { value: 'pending', label: 'Pending' },
-      ]
-    },
-    {
-      key: 'role',
-      label: 'All Roles',
-      type: 'select' as const,
-      options: [
-        { value: 'admin', label: 'Admin' },
-        { value: 'user', label: 'User' },
-        { value: 'viewer', label: 'Viewer' },
-      ]
-    }
   ];
 
   return (
     <div className="h-full flex flex-col">
       <PageHeader
-        title={t('users.title')}
-        subtitle={t('users.subtitle')}
-        action={
-          <Button onClick={() => navigate('/users/create')}>
-            <Plus className="h-4 w-4 mr-2" />
-            {t('users.create_title')}
-          </Button>
-        }
+        title="Users"
+        subtitle="Manage platform users"
       />
-      
+
       <div className="flex-1 mt-6">
         <DataTable
-          data={mockUsers}
+          data={users}
           columns={columns}
-          searchPlaceholder="Search users..."
-          filters={filters}
+          loading={loading}
+          mode="server"
           onRowClick={(user) => navigate(`/users/${user.id}`)}
+          totalItems={pagination.totalItems}
+          currentPage={pagination.page}
+          currentPageSize={pagination.pageSize}
+          onPageChange={(page) => loadUsers(page, pagination.pageSize)}
+          onPageSizeChange={(size) => loadUsers(1, size)}
           emptyState={{
             icon: <Users className="h-12 w-12" />,
-            title: 'No users found',
-            description: 'Get started by inviting your first user',
-            action: (
-              <Button onClick={() => navigate('/users/create')}>
-                <Plus className="h-4 w-4 mr-2" />
-                Invite User
-              </Button>
-            )
+            title: 'No users',
+            description: 'Users will appear here once created',
           }}
         />
       </div>

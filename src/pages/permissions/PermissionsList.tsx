@@ -167,14 +167,6 @@ export function PermissionsList() {
       <PageHeader
         title="Permissions"
         subtitle="Manage individual permissions across the system"
-        action={
-          canCreatePermission ? (
-            <Button onClick={() => navigate('/permissions/create')}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Permission
-            </Button>
-          ) : null
-        }
       />
       
       <div className="flex-1 mt-6">
