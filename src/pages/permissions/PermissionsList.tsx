@@ -15,7 +15,7 @@ import { PERMISSIONS } from '../../config/permissions';
 
 export function PermissionsList() {
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { showToast } = useToast();
   const { hasPermission } = useAuth();
   const canCreatePermission = hasPermission(PERMISSIONS.SYSTEM.PERMISSIONS.CREATE);
@@ -33,7 +33,7 @@ export function PermissionsList() {
 
   useEffect(() => {
     loadData();
-  }, [pagination.page, pagination.pageSize]);
+  }, [pagination.page, pagination.pageSize, language]);
 
   const loadData = async () => {
     try {
@@ -42,8 +42,9 @@ export function PermissionsList() {
         permissionsService.list({
           page: pagination.page,
           pageSize: pagination.pageSize,
+          language,
         }),
-        permissionGroupsService.list(),
+        permissionGroupsService.list({ language }),
       ]);
       setPermissions(permResult.items);
       setPagination(permResult.pagination);
@@ -60,8 +61,8 @@ export function PermissionsList() {
   };
 
   const getGroupName = (groupId: string) => {
-    const group = groups.find(g => g.id === groupId);
-    return group?.nameLocalizationId || 'Unknown Group';
+    const group = groups.find((g) => g.id === groupId);
+    return group?.name?.trim() || group?.nameLocalizationId || 'Unknown Group';
   };
 
   const columns = [
@@ -80,7 +81,7 @@ export function PermissionsList() {
             <div className="flex items-center space-x-2">
               <code className="text-sm font-mono font-semibold text-foreground bg-muted px-2 py-1 rounded">{value}</code>
             </div>
-            <div className="text-xs text-muted-foreground mt-1">{permission.nameLocalizationId}</div>
+            <div className="text-xs text-muted-foreground mt-1">{permission.name || permission.nameLocalizationId}</div>
           </div>
         </div>
       ),
@@ -92,12 +93,12 @@ export function PermissionsList() {
             </div>
             <div className="flex-1">
               <code className="text-sm font-mono font-semibold text-foreground">{permission.code}</code>
-              <div className="text-xs text-muted-foreground">{permission.nameLocalizationId}</div>
+              <div className="text-xs text-muted-foreground">{permission.name || permission.nameLocalizationId}</div>
             </div>
           </div>
           <div>
             <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Description</div>
-            <div className="text-sm text-gray-600">{permission.descriptionLocalizationId}</div>
+            <div className="text-sm text-gray-600">{permission.description || permission.descriptionLocalizationId}</div>
           </div>
           <div>
             <Badge variant="secondary" size="sm">
@@ -117,10 +118,12 @@ export function PermissionsList() {
       ),
     },
     {
-      key: 'descriptionLocalizationId',
+      key: 'description',
       title: 'Description',
-      render: (value: string) => (
-        <span className="text-sm text-gray-600 line-clamp-2">{value}</span>
+      render: (_value: string, permission: PermissionRecord) => (
+        <span className="text-sm text-gray-600 line-clamp-2">
+          {permission.description || permission.descriptionLocalizationId || '—'}
+        </span>
       ),
     },
     {
@@ -154,7 +157,7 @@ export function PermissionsList() {
       type: 'select' as const,
       options: groups.map(group => ({
         value: group.id,
-        label: group.nameLocalizationId
+        label: group.name?.trim() || group.nameLocalizationId
       }))
     },
   ];

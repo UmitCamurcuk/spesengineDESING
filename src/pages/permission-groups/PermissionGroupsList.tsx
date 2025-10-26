@@ -14,7 +14,7 @@ import { PERMISSIONS } from '../../config/permissions';
 
 export function PermissionGroupsList() {
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { showToast } = useToast();
   const { hasPermission } = useAuth();
   const canCreatePermissionGroup = hasPermission(PERMISSIONS.SYSTEM.PERMISSION_GROUPS.CREATE);
@@ -31,7 +31,7 @@ export function PermissionGroupsList() {
 
   useEffect(() => {
     loadGroups();
-  }, [pagination.page, pagination.pageSize]);
+  }, [pagination.page, pagination.pageSize, language]);
 
   const loadGroups = async () => {
     try {
@@ -39,6 +39,7 @@ export function PermissionGroupsList() {
       const result = await permissionGroupsService.list({
         page: pagination.page,
         pageSize: pagination.pageSize,
+        language,
       });
       setGroups(result.items);
       setPagination(result.pagination);
@@ -55,10 +56,10 @@ export function PermissionGroupsList() {
 
   const columns = [
     {
-      key: 'nameLocalizationId',
+      key: 'name',
       title: 'Group Name',
       sortable: true,
-      render: (value: string, group: PermissionGroupRecord) => (
+      render: (_value: string, group: PermissionGroupRecord) => (
         <div className="flex items-center space-x-3">
           <div className="flex flex-col items-center">
             <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center shadow-sm">
@@ -67,7 +68,9 @@ export function PermissionGroupsList() {
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <div className="text-sm font-semibold text-foreground">{value}</div>
+              <div className="text-sm font-semibold text-foreground">
+                {group.name?.trim() || group.nameLocalizationId}
+              </div>
             </div>
             <div className="text-xs text-muted-foreground">ID: {group.id}</div>
           </div>
@@ -80,22 +83,28 @@ export function PermissionGroupsList() {
               <Folder className="h-5 w-5 text-white" />
             </div>
             <div className="flex-1">
-              <div className="text-sm font-semibold text-foreground">{group.nameLocalizationId}</div>
+              <div className="text-sm font-semibold text-foreground">
+                {group.name?.trim() || group.nameLocalizationId}
+              </div>
               <div className="text-xs text-muted-foreground">ID: {group.id}</div>
             </div>
           </div>
           <div>
             <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Description</div>
-            <div className="text-sm text-gray-600">{group.descriptionLocalizationId}</div>
+            <div className="text-sm text-gray-600">
+              {group.description?.trim() || group.descriptionLocalizationId || '—'}
+            </div>
           </div>
         </div>
       ),
     },
     {
-      key: 'descriptionLocalizationId',
+      key: 'description',
       title: 'Description',
-      render: (value: string) => (
-        <span className="text-sm text-gray-600 line-clamp-2">{value}</span>
+      render: (_value: string, group: PermissionGroupRecord) => (
+        <span className="text-sm text-gray-600 line-clamp-2">
+          {group.description?.trim() || group.descriptionLocalizationId || '—'}
+        </span>
       ),
     },
     {

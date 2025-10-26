@@ -10,16 +10,18 @@ import type {
 } from '../types/api.types';
 
 export const rolesService = {
-  async list(): Promise<RoleListResponse> {
+  async list(params: { language?: string } = {}): Promise<RoleListResponse> {
     const response = await apiClient.get<ApiSuccessResponse<RoleListResponse>>(
       API_ENDPOINTS.ROLES.BASE,
+      { params },
     );
     return response.data.data;
   },
 
-  async getById(id: string): Promise<RoleWithPermissions> {
+  async getById(id: string, options: { language?: string } = {}): Promise<RoleWithPermissions> {
     const response = await apiClient.get<ApiSuccessResponse<RoleWithPermissions>>(
       API_ENDPOINTS.ROLES.BY_ID(id),
+      { params: options },
     );
     return response.data.data;
   },
@@ -51,4 +53,3 @@ export const rolesService = {
     return response.data.data.permissions;
   },
 };
-

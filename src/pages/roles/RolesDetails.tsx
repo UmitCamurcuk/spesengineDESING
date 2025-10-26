@@ -5,6 +5,7 @@ import { Card, CardHeader } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { useToast } from '../../contexts/ToastContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { rolesService } from '../../api/services/roles.service';
 import { permissionsService } from '../../api/services/permissions.service';
 import { permissionGroupsService } from '../../api/services/permission-groups.service';
@@ -20,6 +21,7 @@ export function RolesDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { language } = useLanguage();
   const { hasPermission } = useAuth();
   const canEditRole = hasPermission(PERMISSIONS.SYSTEM.ROLES.UPDATE);
   const canDeleteRole = hasPermission(PERMISSIONS.SYSTEM.ROLES.DELETE);
@@ -32,15 +34,15 @@ export function RolesDetails() {
 
   useEffect(() => {
     if (id) loadData();
-  }, [id]);
+  }, [id, language]);
 
   const loadData = async () => {
     try {
       setLoading(true);
       const [roleResult, permResult, groupsResult] = await Promise.all([
-        rolesService.getById(id!),
-        permissionsService.list({ pageSize: 1000 }),
-        permissionGroupsService.list({ pageSize: 1000 }),
+        rolesService.getById(id!, { language }),
+        permissionsService.list({ pageSize: 1000, language }),
+        permissionGroupsService.list({ pageSize: 1000, language }),
       ]);
       setRole(roleResult);
       setPermissions(permResult.items);
@@ -137,12 +139,24 @@ export function RolesDetails() {
               <p className="text-sm text-foreground font-mono">{role.id}</p>
             </div>
             <div>
-              <label className="text-sm font-medium text-muted-foreground">Name Localization ID</label>
-              <p className="text-sm text-foreground">{role.nameLocalizationId}</p>
+              <label className="text-sm font-medium text-muted-foreground">Name</label>
+              <p className="text-sm text-foreground">{role.name?.trim() || role.nameLocalizationId || '—'}</p>
+              {role.nameLocalizationId && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Localization ID: {role.nameLocalizationId}
+                </p>
+              )}
             </div>
             <div>
-              <label className="text-sm font-medium text-muted-foreground">Description Localization ID</label>
-              <p className="text-sm text-foreground">{role.descriptionLocalizationId}</p>
+              <label className="text-sm font-medium text-muted-foreground">Description</label>
+              <p className="text-sm text-foreground">
+                {role.description?.trim() || role.descriptionLocalizationId || '—'}
+              </p>
+              {role.descriptionLocalizationId && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Localization ID: {role.descriptionLocalizationId}
+                </p>
+              )}
             </div>
             <div>
               <label className="text-sm font-medium text-muted-foreground">Type</label>
@@ -185,8 +199,12 @@ export function RolesDetails() {
                     <div className="flex items-center space-x-3">
                       <Shield className="h-5 w-5 text-muted-foreground" />
                       <div>
-                        <div className="font-semibold text-foreground">{group.nameLocalizationId}</div>
-                        <div className="text-xs text-muted-foreground">{group.descriptionLocalizationId}</div>
+                        <div className="font-semibold text-foreground">
+                          {group.name?.trim() || group.nameLocalizationId}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {group.description?.trim() || group.descriptionLocalizationId || '—'}
+                        </div>
                       </div>
                     </div>
                     <Badge variant="secondary" size="sm">
@@ -209,7 +227,9 @@ export function RolesDetails() {
                             <div className={`w-2 h-2 rounded-full ${isEnabled ? 'bg-green-500' : 'bg-gray-300'}`} />
                             <div>
                               <code className="text-sm font-mono text-foreground">{permission.code}</code>
-                              <div className="text-xs text-muted-foreground">{permission.nameLocalizationId}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {permission.name?.trim() || permission.nameLocalizationId || '—'}
+                              </div>
                             </div>
                           </div>
                           <Badge variant={isEnabled ? 'success' : 'secondary'} size="sm">

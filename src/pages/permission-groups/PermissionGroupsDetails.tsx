@@ -7,11 +7,13 @@ import { Badge } from '../../components/ui/Badge';
 import { useToast } from '../../contexts/ToastContext';
 import { permissionGroupsService } from '../../api/services/permission-groups.service';
 import type { PermissionGroupRecord } from '../../api/types/api.types';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 export function PermissionGroupsDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { language } = useLanguage();
   
   const [group, setGroup] = useState<PermissionGroupRecord | null>(null);
   const [loading, setLoading] = useState(true);
@@ -19,12 +21,12 @@ export function PermissionGroupsDetails() {
 
   useEffect(() => {
     if (id) loadGroup();
-  }, [id]);
+  }, [id, language]);
 
   const loadGroup = async () => {
     try {
       setLoading(true);
-      const result = await permissionGroupsService.getById(id!);
+      const result = await permissionGroupsService.getById(id!, { language });
       setGroup(result);
     } catch (error: any) {
       console.error('Failed to load group:', error);
@@ -100,12 +102,24 @@ export function PermissionGroupsDetails() {
               <p className="text-sm text-foreground font-mono">{group.id}</p>
             </div>
             <div>
-              <label className="text-sm font-medium text-muted-foreground">Name Localization ID</label>
-              <p className="text-sm text-foreground">{group.nameLocalizationId}</p>
+              <label className="text-sm font-medium text-muted-foreground">Name</label>
+              <p className="text-sm text-foreground">{group.name?.trim() || group.nameLocalizationId || '—'}</p>
+              {group.nameLocalizationId && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Localization ID: {group.nameLocalizationId}
+                </p>
+              )}
             </div>
             <div>
-              <label className="text-sm font-medium text-muted-foreground">Description Localization ID</label>
-              <p className="text-sm text-foreground">{group.descriptionLocalizationId}</p>
+              <label className="text-sm font-medium text-muted-foreground">Description</label>
+              <p className="text-sm text-foreground">
+                {group.description?.trim() || group.descriptionLocalizationId || '—'}
+              </p>
+              {group.descriptionLocalizationId && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Localization ID: {group.descriptionLocalizationId}
+                </p>
+              )}
             </div>
             <div>
               <label className="text-sm font-medium text-muted-foreground">Display Order</label>

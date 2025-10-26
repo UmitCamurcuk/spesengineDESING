@@ -252,7 +252,7 @@ export function PermissionsCreate() {
                       <option value="">Select a group</option>
                       {groups.map((group) => (
                         <option key={group.id} value={group.id}>
-                          {group.nameLocalizationId}
+                          {group.name?.trim() || group.nameLocalizationId}
                         </option>
                       ))}
                     </select>
@@ -350,7 +350,7 @@ export function PermissionsCreate() {
                   <div className="flex justify-between items-center p-3 bg-muted rounded-lg">
                     <span className="text-sm font-medium text-foreground">Group</span>
                     <Badge variant="secondary" size="sm">
-                      {selectedGroup?.nameLocalizationId || 'Unknown'}
+                      {selectedGroup?.name?.trim() || selectedGroup?.nameLocalizationId || 'Unknown'}
                     </Badge>
                   </div>
                   <div className="flex justify-between items-center p-3 bg-muted rounded-lg">

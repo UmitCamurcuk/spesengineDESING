@@ -24,7 +24,7 @@ interface TranslationFields {
 
 export function RolesCreate() {
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { showToast } = useToast();
   
   const [currentStep, setCurrentStep] = useState(0);
@@ -48,14 +48,14 @@ export function RolesCreate() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [language]);
 
   const loadData = async () => {
     try {
       setLoadingData(true);
       const [permResult, groupsResult] = await Promise.all([
-        permissionsService.list({ pageSize: 1000 }),
-        permissionGroupsService.list({ pageSize: 1000 }),
+        permissionsService.list({ pageSize: 1000, language }),
+        permissionGroupsService.list({ pageSize: 1000, language }),
       ]);
       setPermissions(permResult.items);
       setGroups(groupsResult.items);
@@ -279,8 +279,12 @@ export function RolesCreate() {
                           <ChevronRight className="h-5 w-5 text-muted-foreground" />
                         )}
                         <div>
-                          <div className="font-semibold text-foreground">{group.nameLocalizationId}</div>
-                          <div className="text-xs text-muted-foreground">{group.descriptionLocalizationId}</div>
+                          <div className="font-semibold text-foreground">
+                            {group.name?.trim() || group.nameLocalizationId}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {group.description?.trim() || group.descriptionLocalizationId || '—'}
+                          </div>
                         </div>
                       </div>
                       <div className="flex items-center space-x-3">
@@ -320,7 +324,9 @@ export function RolesCreate() {
                                 <div className="flex items-center space-x-2">
                                   <code className="text-sm font-mono text-foreground">{permission.code}</code>
                                 </div>
-                                <div className="text-xs text-muted-foreground">{permission.nameLocalizationId}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {permission.name?.trim() || permission.nameLocalizationId || '—'}
+                                </div>
                               </div>
                             </label>
                           );
@@ -392,7 +398,9 @@ export function RolesCreate() {
                   return (
                     <div key={group.id} className="mb-4">
                       <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg mb-2">
-                        <span className="text-sm font-medium text-foreground">{group.nameLocalizationId}</span>
+                        <span className="text-sm font-medium text-foreground">
+                          {group.name?.trim() || group.nameLocalizationId}
+                        </span>
                         <Badge variant="secondary" size="sm">
                           {enabledPerms.length} / {groupPerms.length}
                         </Badge>
@@ -403,7 +411,7 @@ export function RolesCreate() {
                             <div className="w-2 h-2 rounded-full bg-green-500"></div>
                             <code className="font-mono text-xs">{permission.code}</code>
                             <span>-</span>
-                            <span>{permission.nameLocalizationId}</span>
+                            <span>{permission.name?.trim() || permission.nameLocalizationId || '—'}</span>
                           </div>
                         ))}
                       </div>
@@ -490,5 +498,3 @@ export function RolesCreate() {
     </div>
   );
 }
-
-

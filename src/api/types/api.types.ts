@@ -486,6 +486,10 @@ export interface PermissionGroupRecord {
   tenantId: string;
   nameLocalizationId: string;
   descriptionLocalizationId: string;
+  name: string;
+  nameLanguage: string | null;
+  description: string;
+  descriptionLanguage: string | null;
   logo: string | null;
   displayOrder: number;
   createdAt: string;
@@ -498,6 +502,10 @@ export interface PermissionRecord {
   code: string;
   nameLocalizationId: string;
   descriptionLocalizationId: string;
+  name: string;
+  nameLanguage: string | null;
+  description: string;
+  descriptionLanguage: string | null;
   permissionGroupId: string;
   logo: string | null;
   displayOrder: number;
@@ -510,6 +518,10 @@ export interface RoleRecord {
   tenantId: string;
   nameLocalizationId: string;
   descriptionLocalizationId: string;
+  name: string;
+  nameLanguage: string | null;
+  description: string;
+  descriptionLanguage: string | null;
   isSystemRole: boolean;
   permissions: string[]; // Array of enabled permission IDs
   createdAt: string;

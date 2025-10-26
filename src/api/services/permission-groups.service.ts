@@ -9,7 +9,9 @@ import type {
 } from '../types/api.types';
 
 export const permissionGroupsService = {
-  async list(params: { page?: number; pageSize?: number; search?: string } = {}): Promise<PermissionGroupListResponse> {
+  async list(
+    params: { page?: number; pageSize?: number; search?: string; language?: string } = {},
+  ): Promise<PermissionGroupListResponse> {
     const response = await apiClient.get<ApiSuccessResponse<PermissionGroupListResponse>>(
       API_ENDPOINTS.PERMISSION_GROUPS.BASE,
       { params },
@@ -17,9 +19,10 @@ export const permissionGroupsService = {
     return response.data.data;
   },
 
-  async getById(id: string): Promise<PermissionGroupRecord> {
+  async getById(id: string, options: { language?: string } = {}): Promise<PermissionGroupRecord> {
     const response = await apiClient.get<ApiSuccessResponse<PermissionGroupRecord>>(
       API_ENDPOINTS.PERMISSION_GROUPS.BY_ID(id),
+      { params: options },
     );
     return response.data.data;
   },
@@ -44,5 +47,4 @@ export const permissionGroupsService = {
     await apiClient.delete(API_ENDPOINTS.PERMISSION_GROUPS.BY_ID(id));
   },
 };
-
 

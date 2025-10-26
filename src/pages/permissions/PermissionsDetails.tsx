@@ -8,11 +8,13 @@ import { useToast } from '../../contexts/ToastContext';
 import { permissionsService } from '../../api/services/permissions.service';
 import { permissionGroupsService } from '../../api/services/permission-groups.service';
 import type { PermissionRecord, PermissionGroupRecord } from '../../api/types/api.types';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 export function PermissionsDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { language } = useLanguage();
   
   const [permission, setPermission] = useState<PermissionRecord | null>(null);
   const [group, setGroup] = useState<PermissionGroupRecord | null>(null);
@@ -21,16 +23,16 @@ export function PermissionsDetails() {
 
   useEffect(() => {
     if (id) loadPermission();
-  }, [id]);
+  }, [id, language]);
 
   const loadPermission = async () => {
     try {
       setLoading(true);
-      const result = await permissionsService.getById(id!);
+      const result = await permissionsService.getById(id!, { language });
       setPermission(result);
       
       // Load group
-      const groupResult = await permissionGroupsService.getById(result.permissionGroupId);
+      const groupResult = await permissionGroupsService.getById(result.permissionGroupId, { language });
       setGroup(groupResult);
     } catch (error: any) {
       console.error('Failed to load permission:', error);
@@ -106,16 +108,32 @@ export function PermissionsDetails() {
               <code className="text-sm text-foreground font-mono bg-muted px-2 py-1 rounded">{permission.code}</code>
             </div>
             <div>
-              <label className="text-sm font-medium text-muted-foreground">Name Localization ID</label>
-              <p className="text-sm text-foreground">{permission.nameLocalizationId}</p>
+              <label className="text-sm font-medium text-muted-foreground">Name</label>
+              <p className="text-sm text-foreground">
+                {permission.name?.trim() || permission.nameLocalizationId || '—'}
+              </p>
+              {permission.nameLocalizationId && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Localization ID: {permission.nameLocalizationId}
+                </p>
+              )}
             </div>
             <div>
-              <label className="text-sm font-medium text-muted-foreground">Description Localization ID</label>
-              <p className="text-sm text-foreground">{permission.descriptionLocalizationId}</p>
+              <label className="text-sm font-medium text-muted-foreground">Description</label>
+              <p className="text-sm text-foreground">
+                {permission.description?.trim() || permission.descriptionLocalizationId || '—'}
+              </p>
+              {permission.descriptionLocalizationId && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Localization ID: {permission.descriptionLocalizationId}
+                </p>
+              )}
             </div>
             <div>
               <label className="text-sm font-medium text-muted-foreground">Permission Group</label>
-              <Badge variant="secondary">{group?.nameLocalizationId || 'Unknown'}</Badge>
+              <Badge variant="secondary">
+                {group?.name?.trim() || group?.nameLocalizationId || 'Unknown'}
+              </Badge>
             </div>
             <div>
               <label className="text-sm font-medium text-muted-foreground">Display Order</label>

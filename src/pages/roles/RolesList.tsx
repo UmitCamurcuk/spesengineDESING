@@ -14,7 +14,7 @@ import { PERMISSIONS } from '../../config/permissions';
 
 export function RolesList() {
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { showToast } = useToast();
   const { hasPermission } = useAuth();
   const canCreateRole = hasPermission(PERMISSIONS.SYSTEM.ROLES.CREATE);
@@ -23,12 +23,12 @@ export function RolesList() {
 
   useEffect(() => {
     loadRoles();
-  }, []);
+  }, [language]);
 
   const loadRoles = async () => {
     try {
       setLoading(true);
-      const result = await rolesService.list();
+      const result = await rolesService.list({ language });
       setRoles(result.items);
     } catch (error: any) {
       console.error('Failed to load roles:', error);
@@ -43,10 +43,10 @@ export function RolesList() {
 
   const columns = [
     {
-      key: 'nameLocalizationId',
+      key: 'name',
       title: 'Role Name',
       sortable: true,
-      render: (value: string, role: RoleRecord) => (
+      render: (_value: string, role: RoleRecord) => (
         <div className="flex items-center space-x-3">
           <div className="flex flex-col items-center">
             <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-teal-600 rounded-xl flex items-center justify-center shadow-sm">
@@ -55,7 +55,9 @@ export function RolesList() {
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <div className="text-sm font-semibold text-foreground">{value}</div>
+              <div className="text-sm font-semibold text-foreground">
+                {role.name?.trim() || role.nameLocalizationId}
+              </div>
               {role.isSystemRole && (
                 <Badge variant="primary" size="sm">System</Badge>
               )}
@@ -72,7 +74,9 @@ export function RolesList() {
             </div>
             <div className="flex-1">
               <div className="flex items-center space-x-2">
-                <div className="text-sm font-semibold text-foreground">{role.nameLocalizationId}</div>
+                <div className="text-sm font-semibold text-foreground">
+                  {role.name?.trim() || role.nameLocalizationId}
+                </div>
                 {role.isSystemRole && <Badge variant="primary" size="sm">System</Badge>}
               </div>
               <div className="text-xs text-muted-foreground">ID: {role.id}</div>
@@ -80,16 +84,20 @@ export function RolesList() {
           </div>
           <div>
             <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Description</div>
-            <div className="text-sm text-gray-600">{role.descriptionLocalizationId}</div>
+            <div className="text-sm text-gray-600">
+              {role.description?.trim() || role.descriptionLocalizationId || '—'}
+            </div>
           </div>
         </div>
       ),
     },
     {
-      key: 'descriptionLocalizationId',
+      key: 'description',
       title: 'Description',
-      render: (value: string) => (
-        <span className="text-sm text-gray-600 line-clamp-2">{value}</span>
+      render: (_value: string, role: RoleRecord) => (
+        <span className="text-sm text-gray-600 line-clamp-2">
+          {role.description?.trim() || role.descriptionLocalizationId || '—'}
+        </span>
       ),
     },
     {
