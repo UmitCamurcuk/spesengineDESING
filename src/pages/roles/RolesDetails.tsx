@@ -8,6 +8,8 @@ import { useToast } from '../../contexts/ToastContext';
 import { rolesService } from '../../api/services/roles.service';
 import { permissionsService } from '../../api/services/permissions.service';
 import { permissionGroupsService } from '../../api/services/permission-groups.service';
+import { useAuth } from '../../contexts/AuthContext';
+import { PERMISSIONS } from '../../config/permissions';
 import type { 
   RoleWithPermissions, 
   PermissionRecord, 
@@ -18,6 +20,9 @@ export function RolesDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { hasPermission } = useAuth();
+  const canEditRole = hasPermission(PERMISSIONS.SYSTEM.ROLES.UPDATE);
+  const canDeleteRole = hasPermission(PERMISSIONS.SYSTEM.ROLES.DELETE);
   
   const [role, setRole] = useState<RoleWithPermissions | null>(null);
   const [permissions, setPermissions] = useState<PermissionRecord[]>([]);
@@ -50,6 +55,9 @@ export function RolesDetails() {
   };
 
   const handleDelete = async () => {
+    if (!canDeleteRole) {
+      return;
+    }
     if (!confirm('Are you sure you want to delete this role?')) return;
 
     try {
@@ -99,11 +107,13 @@ export function RolesDetails() {
           </div>
         </div>
         <div className="flex space-x-2">
-          <Button variant="outline" onClick={() => navigate(`/roles/edit/${id}`)}>
-            <Edit className="h-4 w-4 mr-2" />
-            Edit
-          </Button>
-          {!role.isSystemRole && (
+          {canEditRole && (
+            <Button variant="outline" onClick={() => navigate(`/roles/edit/${id}`)}>
+              <Edit className="h-4 w-4 mr-2" />
+              Edit
+            </Button>
+          )}
+          {!role.isSystemRole && canDeleteRole && (
             <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
               {deleting ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />

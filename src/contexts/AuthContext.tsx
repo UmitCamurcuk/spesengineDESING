@@ -1,4 +1,12 @@
-import React, { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  ReactNode,
+} from 'react';
 import { authService } from '../api/services/auth.service';
 import { ApiError, AuthUser, LoginRequest, TokenInfo } from '../api/types/api.types';
 import { env } from '../config/env';
@@ -52,6 +60,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const isAuthenticated = useMemo(() => Boolean(accessToken), [accessToken]);
   const isLoading = isInitializing || status === 'loading' || isProcessing;
+  const permissionSet = useMemo(() => new Set(user?.permissions ?? []), [user?.permissions]);
 
   const fetchAndSetProfile = async () => {
     const profile = await authService.getProfile();
@@ -264,14 +273,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   // Check if user has specific permission
-  const hasPermission = (permission: string): boolean => {
-    if (!user) return false;
-    
-    // This would typically check against user roles and permissions.
-    // For now, treat any role containing "admin" as elevated access.
-    const normalizedRole = (user.role || '').toLowerCase();
-    return normalizedRole.includes('admin');
-  };
+  const hasPermission = useCallback(
+    (permission: string): boolean => {
+      if (!user) {
+        return false;
+      }
+      return permissionSet.has(permission);
+    },
+    [permissionSet, user],
+  );
 
   // Check if user has specific role
   const hasRole = (role: string): boolean => {

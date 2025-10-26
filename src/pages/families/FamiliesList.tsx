@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { PERMISSIONS } from '../../config/permissions';
 import { Plus, Layers, ChevronRight } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable, UserInfo } from '../../components/ui/DataTable';
@@ -64,6 +66,8 @@ const mockCategories = [
 export const FamiliesList: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const { hasPermission } = useAuth();
+  const canCreateFamily = hasPermission(PERMISSIONS.CATALOG.FAMILIES.CREATE);
 
   const columns = [
     {
@@ -206,10 +210,12 @@ export const FamiliesList: React.FC = () => {
         title={t('families.title')}
         subtitle={t('families.subtitle')}
         action={
-          <Button onClick={() => navigate('/families/create')}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create Family
-          </Button>
+          canCreateFamily ? (
+            <Button onClick={() => navigate('/families/create')}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Family
+            </Button>
+          ) : null
         }
       />
       
@@ -224,12 +230,14 @@ export const FamiliesList: React.FC = () => {
             icon: <Layers className="h-12 w-12" />,
             title: 'No families found',
             description: 'Get started by creating your first family',
-            action: (
-              <Button onClick={() => navigate('/families/create')}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Family
-              </Button>
-            )
+            action: canCreateFamily
+              ? (
+                  <Button onClick={() => navigate('/families/create')}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Family
+                  </Button>
+                )
+              : undefined,
           }}
         />
       </div>

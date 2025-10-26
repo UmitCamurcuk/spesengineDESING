@@ -10,11 +10,15 @@ import { useToast } from '../../contexts/ToastContext';
 import { permissionsService } from '../../api/services/permissions.service';
 import { permissionGroupsService } from '../../api/services/permission-groups.service';
 import type { PermissionRecord, PermissionGroupRecord } from '../../api/types/api.types';
+import { useAuth } from '../../contexts/AuthContext';
+import { PERMISSIONS } from '../../config/permissions';
 
 export function PermissionsList() {
   const navigate = useNavigate();
   const { t } = useLanguage();
   const { showToast } = useToast();
+  const { hasPermission } = useAuth();
+  const canCreatePermission = hasPermission(PERMISSIONS.SYSTEM.PERMISSIONS.CREATE);
   const [permissions, setPermissions] = useState<PermissionRecord[]>([]);
   const [groups, setGroups] = useState<PermissionGroupRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -160,6 +164,14 @@ export function PermissionsList() {
       <PageHeader
         title="Permissions"
         subtitle="Manage individual permissions across the system"
+        action={
+          canCreatePermission ? (
+            <Button onClick={() => navigate('/permissions/create')}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Permission
+            </Button>
+          ) : null
+        }
       />
       
       <div className="flex-1 mt-6">
@@ -174,12 +186,14 @@ export function PermissionsList() {
             icon: <Shield className="h-12 w-12" />,
             title: 'No permissions',
             description: 'Create your first permission to control access',
-            action: (
-              <Button onClick={() => navigate('/permissions/create')}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Permission
-              </Button>
-            )
+            action: canCreatePermission
+              ? (
+                  <Button onClick={() => navigate('/permissions/create')}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Permission
+                  </Button>
+                )
+              : undefined,
           }}
         />
       </div>

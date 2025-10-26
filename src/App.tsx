@@ -1,16 +1,17 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Layout } from './components/layout/Layout';
 import { Login } from './pages/auth/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Button } from './components/ui/Button';
-import { Plus, Edit, Save, X } from 'lucide-react';
+import { Plus, Edit } from 'lucide-react';
 import { ToastProvider } from './contexts/ToastContext';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { ThemeProvider } from './contexts/ThemeContext';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { AuthProvider, useAuth, withPermission } from './contexts/AuthContext';
 import { SettingsProvider } from './contexts/SettingsContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { PERMISSIONS } from './config/permissions';
 
 // Items
 import { ItemsList } from './pages/items/ItemsList';
@@ -78,202 +79,186 @@ import { Settings } from './pages/settings/Settings';
 // Profile
 import { Profile } from './pages/Profile';
 
+const GuardedItemsList = withPermission(PERMISSIONS.CATALOG.ITEMS.READ)(ItemsList);
+const GuardedItemsDetails = withPermission(PERMISSIONS.CATALOG.ITEMS.READ)(ItemsDetails);
+const GuardedItemsCreate = withPermission(PERMISSIONS.CATALOG.ITEMS.CREATE)(ItemsCreate);
+
+const GuardedItemTypesList = withPermission(PERMISSIONS.CATALOG.ITEM_TYPES.READ)(ItemTypesList);
+const GuardedItemTypesDetails = withPermission(PERMISSIONS.CATALOG.ITEM_TYPES.READ)(ItemTypesDetails);
+const GuardedItemTypesCreate = withPermission(PERMISSIONS.CATALOG.ITEM_TYPES.CREATE)(ItemTypesCreate);
+
+const GuardedCategoriesList = withPermission(PERMISSIONS.CATALOG.CATEGORIES.READ)(CategoriesList);
+const GuardedCategoriesDetails = withPermission(PERMISSIONS.CATALOG.CATEGORIES.READ)(CategoriesDetails);
+const GuardedCategoriesCreate = withPermission(PERMISSIONS.CATALOG.CATEGORIES.CREATE)(CategoriesCreate);
+
+const GuardedFamiliesList = withPermission(PERMISSIONS.CATALOG.FAMILIES.READ)(FamiliesList);
+const GuardedFamiliesDetails = withPermission(PERMISSIONS.CATALOG.FAMILIES.READ)(FamiliesDetails);
+const GuardedFamiliesCreate = withPermission(PERMISSIONS.CATALOG.FAMILIES.CREATE)(FamiliesCreate);
+
+const GuardedAttributeGroupsList = withPermission(PERMISSIONS.CATALOG.ATTRIBUTE_GROUPS.READ)(AttributeGroupsList);
+const GuardedAttributeGroupsDetails = withPermission(PERMISSIONS.CATALOG.ATTRIBUTE_GROUPS.READ)(AttributeGroupsDetails);
+const GuardedAttributeGroupsCreate = withPermission(PERMISSIONS.CATALOG.ATTRIBUTE_GROUPS.CREATE)(AttributeGroupsCreate);
+
+const GuardedAttributesList = withPermission(PERMISSIONS.CATALOG.ATTRIBUTES.READ)(AttributesList);
+const GuardedAttributesDetails = withPermission(PERMISSIONS.CATALOG.ATTRIBUTES.READ)(AttributesDetails);
+const GuardedAttributesCreate = withPermission(PERMISSIONS.CATALOG.ATTRIBUTES.CREATE)(AttributesCreate);
+
+const GuardedRolesList = withPermission(PERMISSIONS.SYSTEM.ROLES.READ)(RolesList);
+const GuardedRolesDetails = withPermission(PERMISSIONS.SYSTEM.ROLES.READ)(RolesDetails);
+const GuardedRolesCreate = withPermission(PERMISSIONS.SYSTEM.ROLES.CREATE)(RolesCreate);
+
+const GuardedPermissionsList = withPermission(PERMISSIONS.SYSTEM.PERMISSIONS.READ)(PermissionsList);
+const GuardedPermissionsDetails = withPermission(PERMISSIONS.SYSTEM.PERMISSIONS.READ)(PermissionsDetails);
+const GuardedPermissionsCreate = withPermission(PERMISSIONS.SYSTEM.PERMISSIONS.CREATE)(PermissionsCreate);
+
+const GuardedPermissionGroupsList = withPermission(PERMISSIONS.SYSTEM.PERMISSION_GROUPS.READ)(PermissionGroupsList);
+const GuardedPermissionGroupsDetails = withPermission(PERMISSIONS.SYSTEM.PERMISSION_GROUPS.READ)(PermissionGroupsDetails);
+const GuardedPermissionGroupsCreate = withPermission(PERMISSIONS.SYSTEM.PERMISSION_GROUPS.CREATE)(PermissionGroupsCreate);
+
+const GuardedLocalizationsList = withPermission(PERMISSIONS.SYSTEM.LOCALIZATIONS.READ)(LocalizationsList);
+const GuardedLocalizationsDetails = withPermission(PERMISSIONS.SYSTEM.LOCALIZATIONS.READ)(LocalizationsDetails);
+const GuardedLocalizationsCreate = withPermission(PERMISSIONS.SYSTEM.LOCALIZATIONS.CREATE)(LocalizationsCreate);
+
+const GuardedSettings = withPermission(PERMISSIONS.SYSTEM.SETTINGS.READ)(Settings);
+
+type CreateActionConfig = {
+  basePath: string;
+  createPath: string;
+  labelKey: string;
+  permission?: string;
+};
+
+type EditActionConfig = {
+  basePath: string;
+  permission?: string;
+};
+
+const CREATE_ACTIONS: CreateActionConfig[] = [
+  {
+    basePath: '/items',
+    createPath: '/items/create',
+    labelKey: 'items.create_title',
+    permission: PERMISSIONS.CATALOG.ITEMS.CREATE,
+  },
+  {
+    basePath: '/item-types',
+    createPath: '/item-types/create',
+    labelKey: 'item_types.create_title',
+    permission: PERMISSIONS.CATALOG.ITEM_TYPES.CREATE,
+  },
+  {
+    basePath: '/categories',
+    createPath: '/categories/create',
+    labelKey: 'categories.create_title',
+    permission: PERMISSIONS.CATALOG.CATEGORIES.CREATE,
+  },
+  {
+    basePath: '/families',
+    createPath: '/families/create',
+    labelKey: 'families.create_title',
+    permission: PERMISSIONS.CATALOG.FAMILIES.CREATE,
+  },
+  {
+    basePath: '/attribute-groups',
+    createPath: '/attribute-groups/create',
+    labelKey: 'attribute_groups.create_title',
+    permission: PERMISSIONS.CATALOG.ATTRIBUTE_GROUPS.CREATE,
+  },
+  {
+    basePath: '/attributes',
+    createPath: '/attributes/create',
+    labelKey: 'attributes.create_title',
+    permission: PERMISSIONS.CATALOG.ATTRIBUTES.CREATE,
+  },
+  {
+    basePath: '/roles',
+    createPath: '/roles/create',
+    labelKey: 'roles.create_title',
+    permission: PERMISSIONS.SYSTEM.ROLES.CREATE,
+  },
+  {
+    basePath: '/permissions',
+    createPath: '/permissions/create',
+    labelKey: 'permissions.create_title',
+    permission: PERMISSIONS.SYSTEM.PERMISSIONS.CREATE,
+  },
+  {
+    basePath: '/permission-groups',
+    createPath: '/permission-groups/create',
+    labelKey: 'permission_groups.create_title',
+    permission: PERMISSIONS.SYSTEM.PERMISSION_GROUPS.CREATE,
+  },
+  {
+    basePath: '/localizations',
+    createPath: '/localizations/create',
+    labelKey: 'localizations.create_title',
+    permission: PERMISSIONS.SYSTEM.LOCALIZATIONS.CREATE,
+  },
+  {
+    basePath: '/users',
+    createPath: '/users/create',
+    labelKey: 'users.create_title',
+  },
+  {
+    basePath: '/associations',
+    createPath: '/associations/create',
+    labelKey: 'associations.create_title',
+  },
+];
+
+const EDIT_ACTIONS: EditActionConfig[] = [
+  { basePath: '/items', permission: PERMISSIONS.CATALOG.ITEMS.UPDATE },
+  { basePath: '/item-types', permission: PERMISSIONS.CATALOG.ITEM_TYPES.UPDATE },
+  { basePath: '/categories', permission: PERMISSIONS.CATALOG.CATEGORIES.UPDATE },
+  { basePath: '/families', permission: PERMISSIONS.CATALOG.FAMILIES.UPDATE },
+  { basePath: '/attribute-groups', permission: PERMISSIONS.CATALOG.ATTRIBUTE_GROUPS.UPDATE },
+  { basePath: '/attributes', permission: PERMISSIONS.CATALOG.ATTRIBUTES.UPDATE },
+  { basePath: '/roles', permission: PERMISSIONS.SYSTEM.ROLES.UPDATE },
+  { basePath: '/permissions', permission: PERMISSIONS.SYSTEM.PERMISSIONS.UPDATE },
+  { basePath: '/permission-groups', permission: PERMISSIONS.SYSTEM.PERMISSION_GROUPS.UPDATE },
+  { basePath: '/localizations', permission: PERMISSIONS.SYSTEM.LOCALIZATIONS.UPDATE },
+  { basePath: '/users' },
+  { basePath: '/associations' },
+];
+
+const isDetailPath = (basePath: string, pathname: string): boolean => {
+  if (!pathname.startsWith(`${basePath}/`)) {
+    return false;
+  }
+  if (pathname.endsWith('/create')) {
+    return false;
+  }
+  const baseSegments = basePath.split('/').filter(Boolean).length;
+  const pathSegments = pathname.split('/').filter(Boolean).length;
+  return pathSegments === baseSegments + 1;
+};
+
 const AppContent: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-
-const getHeaderActions = () => {
   const { t } = useLanguage();
   const pathname = location.pathname;
-  const [editMode, setEditMode] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
 
-    
-    // List pages - Create buttons
-    if (pathname === '/items') {
+  const headerAction = useMemo(() => {
+    const createConfig = CREATE_ACTIONS.find((config) => pathname === config.basePath);
+    if (createConfig && (!createConfig.permission || hasPermission(createConfig.permission))) {
       return (
-        <Button 
-          size="sm" 
-          onClick={(e) => {
-            e.preventDefault();
-            navigate('/items/create');
+        <Button
+          size="sm"
+          onClick={(event) => {
+            event.preventDefault();
+            navigate(createConfig.createPath);
           }}
         >
           <Plus className="h-4 w-4 mr-2" />
-          <span className="hidden sm:inline">{t('items.create_title')}</span>
+          <span className="hidden sm:inline">{t(createConfig.labelKey)}</span>
         </Button>
       );
     }
-    
-    if (pathname === '/item-types') {
-      return (
-        <Button 
-          size="sm" 
-          onClick={(e) => {
-            e.preventDefault();
-            navigate('/item-types/create');
-          }}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          <span className="hidden sm:inline">{t('item_types.create_title')}</span>
-        </Button>
-      );
-    }
-    
-    if (pathname === '/categories') {
-      return (
-        <Button 
-          size="sm" 
-          onClick={(e) => {
-            e.preventDefault();
-            navigate('/categories/create');
-          }}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          <span className="hidden sm:inline">{t('categories.create_title')}</span>
-        </Button>
-      );
-    }
-    
-    if (pathname === '/families') {
-      return (
-        <Button 
-          size="sm" 
-          onClick={(e) => {
-            e.preventDefault();
-            navigate('/families/create');
-          }}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          <span className="hidden sm:inline">{t('families.create_title')}</span>
-        </Button>
-      );
-    }
-    
-    if (pathname === '/attribute-groups') {
-      return (
-        <Button 
-          size="sm" 
-          onClick={(e) => {
-            e.preventDefault();
-            navigate('/attribute-groups/create');
-          }}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          <span className="hidden sm:inline">{t('attribute_groups.create_title')}</span>
-        </Button>
-      );
-    }
-    
-    if (pathname === '/attributes') {
-      return (
-        <Button 
-          size="sm" 
-          onClick={(e) => {
-            e.preventDefault();
-            navigate('/attributes/create');
-          }}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          <span className="hidden sm:inline">{t('attributes.create_title')}</span>
-        </Button>
-      );
-    }
-    
-    if (pathname === '/users') {
-      return (
-        <Button 
-          size="sm" 
-          onClick={(e) => {
-            e.preventDefault();
-            navigate('/users/create');
-          }}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          <span className="hidden sm:inline">{t('users.create_title')}</span>
-        </Button>
-      );
-    }
-    
-    if (pathname === '/permissions') {
-      return (
-        <Button 
-          size="sm" 
-          onClick={(e) => {
-            e.preventDefault();
-            navigate('/permissions/create');
-          }}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          <span className="hidden sm:inline">{t('permissions.create_title')}</span>
-        </Button>
-      );
-    }
-    
-    if (pathname === '/roles') {
-      return (
-        <Button 
-          size="sm" 
-          onClick={(e) => {
-            e.preventDefault();
-            navigate('/roles/create');
-          }}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          <span className="hidden sm:inline">{t('roles.create_title')}</span>
-        </Button>
-      );
-    }
-    
-    if (pathname === '/permission-groups') {
-      return (
-        <Button 
-          size="sm" 
-          onClick={(e) => {
-            e.preventDefault();
-            navigate('/permission-groups/create');
-          }}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          <span className="hidden sm:inline">{t('permission_groups.create_title')}</span>
-        </Button>
-      );
-    }
-    
-    if (pathname === '/localizations') {
-      return (
-        <Button 
-          size="sm" 
-          onClick={(e) => {
-            e.preventDefault();
-            navigate('/localizations/create');
-          }}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          <span className="hidden sm:inline">{t('localizations.create_title')}</span>
-        </Button>
-      );
-    }
-    
-    if (pathname === '/associations') {
-      return (
-        <Button 
-          size="sm" 
-          onClick={(e) => {
-            e.preventDefault();
-            navigate('/associations/create');
-          }}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          <span className="hidden sm:inline">{t('associations.create_title')}</span>
-        </Button>
-      );
-    }
-    
-    
-    // Detail pages - Edit buttons (excluding attributes and profile)
-    if (pathname.match(/\/(items|item-types|categories|families|attribute-groups|users|permissions|roles|permission-groups|localizations)\/[^\/]+$/) && !pathname.includes('/create')) {
+
+    const editConfig = EDIT_ACTIONS.find((config) => isDetailPath(config.basePath, pathname));
+    if (editConfig && (!editConfig.permission || hasPermission(editConfig.permission))) {
       return (
         <Button variant="outline" size="sm">
           <Edit className="h-4 w-4 mr-2" />
@@ -281,9 +266,9 @@ const getHeaderActions = () => {
         </Button>
       );
     }
-    
+
     return null;
-  };
+  }, [hasPermission, navigate, pathname, t]);
 
   const headerUser = useMemo(() => {
     if (!user) {
@@ -300,40 +285,40 @@ const getHeaderActions = () => {
   }, [user]);
 
   return (
-    <Layout user={headerUser} onLogout={logout} headerActions={getHeaderActions()}>
+    <Layout user={headerUser} onLogout={logout} headerActions={headerAction}>
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<Dashboard />} />
         
         {/* Items Routes */}
-        <Route path="/items" element={<ItemsList />} />
-        <Route path="/items/:id" element={<ItemsDetails />} />
-        <Route path="/items/create" element={<ItemsCreate />} />
+        <Route path="/items" element={<GuardedItemsList />} />
+        <Route path="/items/:id" element={<GuardedItemsDetails />} />
+        <Route path="/items/create" element={<GuardedItemsCreate />} />
         
         {/* Item Types Routes */}
-        <Route path="/item-types" element={<ItemTypesList />} />
-        <Route path="/item-types/:id" element={<ItemTypesDetails />} />
-        <Route path="/item-types/create" element={<ItemTypesCreate />} />
+        <Route path="/item-types" element={<GuardedItemTypesList />} />
+        <Route path="/item-types/:id" element={<GuardedItemTypesDetails />} />
+        <Route path="/item-types/create" element={<GuardedItemTypesCreate />} />
         
         {/* Categories Routes */}
-        <Route path="/categories" element={<CategoriesList />} />
-        <Route path="/categories/:id" element={<CategoriesDetails />} />
-        <Route path="/categories/create" element={<CategoriesCreate />} />
+        <Route path="/categories" element={<GuardedCategoriesList />} />
+        <Route path="/categories/:id" element={<GuardedCategoriesDetails />} />
+        <Route path="/categories/create" element={<GuardedCategoriesCreate />} />
         
         {/* Families Routes */}
-        <Route path="/families" element={<FamiliesList />} />
-        <Route path="/families/:id" element={<FamiliesDetails />} />
-        <Route path="/families/create" element={<FamiliesCreate />} />
+        <Route path="/families" element={<GuardedFamiliesList />} />
+        <Route path="/families/:id" element={<GuardedFamiliesDetails />} />
+        <Route path="/families/create" element={<GuardedFamiliesCreate />} />
         
         {/* Attribute Groups Routes */}
-        <Route path="/attribute-groups" element={<AttributeGroupsList />} />
-        <Route path="/attribute-groups/:id" element={<AttributeGroupsDetails />} />
-        <Route path="/attribute-groups/create" element={<AttributeGroupsCreate />} />
+        <Route path="/attribute-groups" element={<GuardedAttributeGroupsList />} />
+        <Route path="/attribute-groups/:id" element={<GuardedAttributeGroupsDetails />} />
+        <Route path="/attribute-groups/create" element={<GuardedAttributeGroupsCreate />} />
         
         {/* Attributes Routes */}
-        <Route path="/attributes" element={<AttributesList />} />
-        <Route path="/attributes/:id" element={<AttributesDetails />} />
-        <Route path="/attributes/create" element={<AttributesCreate />} />
+        <Route path="/attributes" element={<GuardedAttributesList />} />
+        <Route path="/attributes/:id" element={<GuardedAttributesDetails />} />
+        <Route path="/attributes/create" element={<GuardedAttributesCreate />} />
         
         {/* Users Routes */}
         <Route path="/users" element={<UsersList />} />
@@ -341,24 +326,24 @@ const getHeaderActions = () => {
         <Route path="/users/create" element={<UsersCreate />} />
         
         {/* Roles Routes */}
-        <Route path="/roles" element={<RolesList />} />
-        <Route path="/roles/:id" element={<RolesDetails />} />
-        <Route path="/roles/create" element={<RolesCreate />} />
+        <Route path="/roles" element={<GuardedRolesList />} />
+        <Route path="/roles/:id" element={<GuardedRolesDetails />} />
+        <Route path="/roles/create" element={<GuardedRolesCreate />} />
         
         {/* Permission Groups Routes */}
-        <Route path="/permission-groups" element={<PermissionGroupsList />} />
-        <Route path="/permission-groups/:id" element={<PermissionGroupsDetails />} />
-        <Route path="/permission-groups/create" element={<PermissionGroupsCreate />} />
+        <Route path="/permission-groups" element={<GuardedPermissionGroupsList />} />
+        <Route path="/permission-groups/:id" element={<GuardedPermissionGroupsDetails />} />
+        <Route path="/permission-groups/create" element={<GuardedPermissionGroupsCreate />} />
         
         {/* Permissions Routes */}
-        <Route path="/permissions" element={<PermissionsList />} />
-        <Route path="/permissions/:id" element={<PermissionsDetails />} />
-        <Route path="/permissions/create" element={<PermissionsCreate />} />
+        <Route path="/permissions" element={<GuardedPermissionsList />} />
+        <Route path="/permissions/:id" element={<GuardedPermissionsDetails />} />
+        <Route path="/permissions/create" element={<GuardedPermissionsCreate />} />
         
         {/* Localizations Routes */}
-        <Route path="/localizations" element={<LocalizationsList />} />
-        <Route path="/localizations/:id" element={<LocalizationsDetails />} />
-        <Route path="/localizations/create" element={<LocalizationsCreate />} />
+        <Route path="/localizations" element={<GuardedLocalizationsList />} />
+        <Route path="/localizations/:id" element={<GuardedLocalizationsDetails />} />
+        <Route path="/localizations/create" element={<GuardedLocalizationsCreate />} />
         
         {/* Associations Routes */}
         <Route path="/associations" element={<AssociationsList />} />
@@ -366,7 +351,7 @@ const getHeaderActions = () => {
         <Route path="/associations/create" element={<AssociationsCreate />} />
         
         {/* Settings Route */}
-        <Route path="/settings" element={<Settings />} />
+        <Route path="/settings" element={<GuardedSettings />} />
         
         {/* Profile Route */}
         <Route path="/profile" element={<Profile />} />

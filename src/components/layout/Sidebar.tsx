@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Home,
@@ -21,8 +21,17 @@ import {
 import { cn } from '../../utils/cn';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useSettings } from '../../contexts/SettingsContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { PERMISSIONS } from '../../config/permissions';
 
-const menuItems = [
+type MenuItem = {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  permission?: string;
+};
+
+const menuItems: MenuItem[] = [
   {
     name: 'navigation.dashboard',
     href: '/dashboard',
@@ -32,31 +41,37 @@ const menuItems = [
     name: 'navigation.items',
     href: '/items',
     icon: Package,
+    permission: PERMISSIONS.CATALOG.ITEMS.READ,
   },
   {
     name: 'navigation.item_types',
     href: '/item-types',
     icon: Database,
+    permission: PERMISSIONS.CATALOG.ITEM_TYPES.READ,
   },
   {
     name: 'navigation.categories',
     href: '/categories',
     icon: FolderTree,
+    permission: PERMISSIONS.CATALOG.CATEGORIES.READ,
   },
   {
     name: 'navigation.families',
     href: '/families',
     icon: Layers,
+    permission: PERMISSIONS.CATALOG.FAMILIES.READ,
   },
   {
     name: 'navigation.attribute_groups',
     href: '/attribute-groups',
     icon: Tags,
+    permission: PERMISSIONS.CATALOG.ATTRIBUTE_GROUPS.READ,
   },
   {
     name: 'navigation.attributes',
     href: '/attributes',
     icon: FileText,
+    permission: PERMISSIONS.CATALOG.ATTRIBUTES.READ,
   },
   {
     name: 'navigation.associations',
@@ -65,7 +80,7 @@ const menuItems = [
   },
 ];
 
-const systemMenuItems = [
+const systemMenuItems: MenuItem[] = [
   {
     name: 'navigation.users',
     href: '/users',
@@ -75,21 +90,25 @@ const systemMenuItems = [
     name: 'navigation.roles',
     href: '/roles',
     icon: Shield,
+    permission: PERMISSIONS.SYSTEM.ROLES.READ,
   },
   {
     name: 'navigation.permissions',
     href: '/permissions',
     icon: Key,
+    permission: PERMISSIONS.SYSTEM.PERMISSIONS.READ,
   },
   {
     name: 'navigation.permission_groups',
     href: '/permission-groups',
     icon: ShieldCheck,
+    permission: PERMISSIONS.SYSTEM.PERMISSION_GROUPS.READ,
   },
   {
     name: 'navigation.localizations',
     href: '/localizations',
     icon: Globe,
+    permission: PERMISSIONS.SYSTEM.LOCALIZATIONS.READ,
   },
 ];
 
@@ -103,6 +122,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, isOpen, onClose }) 
   const location = useLocation();
   const { t } = useLanguage();
   const { settings } = useSettings();
+  const { hasPermission } = useAuth();
+
+  const primaryMenu = useMemo(
+    () => menuItems.filter((item) => !item.permission || hasPermission(item.permission)),
+    [hasPermission],
+  );
+
+  const secondaryMenu = useMemo(
+    () => systemMenuItems.filter((item) => !item.permission || hasPermission(item.permission)),
+    [hasPermission],
+  );
 
   return (
     <aside className={cn('bg-sidebar border-r border-sidebar-border w-52 flex flex-col', className)}>
@@ -135,7 +165,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, isOpen, onClose }) 
           <div className="px-2.5 mb-1.5">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t('navigation.content')}</h3>
           </div>
-        {menuItems.map((item) => {
+        {primaryMenu.map((item) => {
           const isActive = location.pathname.startsWith(item.href);
           
           return (
@@ -171,7 +201,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, isOpen, onClose }) 
           <div className="px-2.5 mb-1.5">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t('navigation.system')}</h3>
           </div>
-          {systemMenuItems.map((item) => {
+          {secondaryMenu.map((item) => {
             const isActive = location.pathname.startsWith(item.href);
             
             return (
@@ -219,19 +249,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, isOpen, onClose }) 
           <User className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm font-medium">Profil</span>
         </Link>
-        <Link
-          to="/settings"
-          onClick={onClose}
-          className={cn(
-            'flex items-center space-x-2.5 px-3 py-2 rounded-md transition-colors duration-150',
-            location.pathname.startsWith('/settings')
-              ? 'bg-sidebar-active text-sidebar-active-foreground'
-              : 'text-sidebar-foreground hover:bg-muted hover:text-foreground'
-          )}
-        >
-          <Settings className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium">{t('common.settings')}</span>
-        </Link>
+        {hasPermission(PERMISSIONS.SYSTEM.SETTINGS.READ) && (
+          <Link
+            to="/settings"
+            onClick={onClose}
+            className={cn(
+              'flex items-center space-x-2.5 px-3 py-2 rounded-md transition-colors duration-150',
+              location.pathname.startsWith('/settings')
+                ? 'bg-sidebar-active text-sidebar-active-foreground'
+                : 'text-sidebar-foreground hover:bg-muted hover:text-foreground'
+            )}
+          >
+            <Settings className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium">{t('common.settings')}</span>
+          </Link>
+        )}
       </div>
     </aside>
   );

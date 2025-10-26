@@ -7,6 +7,8 @@ import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Item } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { PERMISSIONS } from '../../config/permissions';
 
 // Mock data
 const mockItems: Item[] = [
@@ -60,6 +62,8 @@ const mockItems: Item[] = [
 export const ItemsList: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const { hasPermission } = useAuth();
+  const canCreateItem = hasPermission(PERMISSIONS.CATALOG.ITEMS.CREATE);
 
   const columns = [
     {
@@ -207,10 +211,12 @@ export const ItemsList: React.FC = () => {
         title={t('items.title')}
         subtitle={t('items.subtitle')}
         action={
-          <Button onClick={() => navigate('/items/create')}>
-            <Plus className="h-4 w-4 mr-2" />
-            {t('items.create_title')}
-          </Button>
+          canCreateItem ? (
+            <Button onClick={() => navigate('/items/create')}>
+              <Plus className="h-4 w-4 mr-2" />
+              {t('items.create_title')}
+            </Button>
+          ) : null
         }
       />
       
@@ -225,12 +231,12 @@ export const ItemsList: React.FC = () => {
             icon: <Package className="h-12 w-12" />,
             title: t('items.no_items'),
             description: t('items.create_new_item'),
-            action: (
+            action: canCreateItem ? (
               <Button onClick={() => navigate('/items/create')}>
                 <Plus className="h-4 w-4 mr-2" />
                 {t('items.create_title')}
               </Button>
-            )
+            ) : undefined,
           }}
         />
       </div>

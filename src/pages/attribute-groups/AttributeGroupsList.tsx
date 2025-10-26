@@ -7,6 +7,8 @@ import { DataTable, UserInfo } from '../../components/ui/DataTable';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { AttributeGroup } from '../../types';
+import { useAuth } from '../../contexts/AuthContext';
+import { PERMISSIONS } from '../../config/permissions';
 
 // Mock data
 const mockAttributeGroups: AttributeGroup[] = [
@@ -51,6 +53,8 @@ const mockAttributeGroups: AttributeGroup[] = [
 export const AttributeGroupsList: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const { hasPermission } = useAuth();
+  const canCreateGroup = hasPermission(PERMISSIONS.CATALOG.ATTRIBUTE_GROUPS.CREATE);
 
   const columns = [
     {
@@ -156,10 +160,12 @@ export const AttributeGroupsList: React.FC = () => {
         title={t('attribute_groups.title')}
         subtitle={t('attribute_groups.subtitle')}
         action={
-          <Button onClick={() => navigate('/attribute-groups/create')}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create Attribute Group
-          </Button>
+          canCreateGroup ? (
+            <Button onClick={() => navigate('/attribute-groups/create')}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Attribute Group
+            </Button>
+          ) : null
         }
       />
       
@@ -174,12 +180,14 @@ export const AttributeGroupsList: React.FC = () => {
             icon: <Tags className="h-12 w-12" />,
             title: 'No attribute groups found',
             description: 'Get started by creating your first attribute group',
-            action: (
-              <Button onClick={() => navigate('/attribute-groups/create')}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Attribute Group
-              </Button>
-            )
+            action: canCreateGroup
+              ? (
+                  <Button onClick={() => navigate('/attribute-groups/create')}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Attribute Group
+                  </Button>
+                )
+              : undefined,
           }}
         />
       </div>

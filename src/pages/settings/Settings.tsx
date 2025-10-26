@@ -27,6 +27,8 @@ import { cn } from '../../utils/cn';
 import { useSettings } from '../../contexts/SettingsContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { PERMISSIONS } from '../../config/permissions';
 import type { AppSettings, UpdateSettingsPayload, SettingsPatchPayload, SettingsIntegrations, LanguageOption } from '../../api/types/api.types';
 import { HistoryTable } from '../../components/common/HistoryTable';
 
@@ -416,6 +418,9 @@ export const Settings: React.FC = () => {
   const { settings, isLoading, isSaving, error: apiError, save } = useSettings();
   const { success, error } = useToast();
   const { t } = useLanguage();
+  const { hasPermission } = useAuth();
+  const canEditSettings = hasPermission(PERMISSIONS.SYSTEM.SETTINGS.UPDATE);
+  const canViewHistory = hasPermission(PERMISSIONS.SYSTEM.SETTINGS.HISTORY);
 
   const [form, setForm] = useState<UpdateSettingsPayload | null>(null);
   const [activeTab, setActiveTab] = useState<string>('general');
@@ -437,7 +442,7 @@ export const Settings: React.FC = () => {
   const { patch, changes: changeList } = useMemo(() => computeSettingsChanges(baseline, form), [baseline, form]);
 
   const hasChanges = changeList.length > 0;
-  const isLocked = !isEditing || isSaving;
+  const isLocked = !canEditSettings || !isEditing || isSaving;
   const isLanguageDraftValid =
     languageDraft.code.trim().length > 0 && languageDraft.label.trim().length > 0;
 
@@ -711,7 +716,7 @@ export const Settings: React.FC = () => {
   };
 
   const performSave = async (comment: string) => {
-    if (!isEditing || !form || !baseline || !hasChanges) {
+    if (!canEditSettings || !isEditing || !form || !baseline || !hasChanges) {
       setConfirmOpen(false);
       return;
     }
@@ -734,7 +739,7 @@ export const Settings: React.FC = () => {
   };
 
   const handleSaveClick = () => {
-    if (!hasChanges || confirmLoading) {
+    if (!canEditSettings || !hasChanges || confirmLoading) {
       return;
     }
     setConfirmOpen(true);
@@ -753,6 +758,9 @@ export const Settings: React.FC = () => {
   };
 
   const handleStartEdit = () => {
+    if (!canEditSettings) {
+      return;
+    }
     if (settings) {
       setForm(stripMetadata(settings));
     }
@@ -887,41 +895,43 @@ export const Settings: React.FC = () => {
         title={t('settings.page_title')}
         subtitle={t('settings.page_subtitle')}
         action={
-          !isEditing ? (
-            <Button
-              type="button"
-              variant="primary"
-              size="sm"
-              onClick={handleStartEdit}
-              disabled={isLoading}
-            >
-              {t('settings.actions.edit')}
-            </Button>
-          ) : (
-            <div className="flex items-center gap-2 w-full md:w-auto">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                leftIcon={<RotateCcw className="h-4 w-4" />}
-                onClick={handleCancelEdit}
-                disabled={isSaving || confirmLoading}
-              >
-                {t('settings.actions.cancel')}
-              </Button>
-              <Button
-                type="button"
-                variant="primary"
-                size="sm"
-                leftIcon={<Save className="h-4 w-4" />}
-                onClick={handleSaveClick}
-                disabled={!hasChanges || isSaving || confirmLoading}
-                loading={isSaving || confirmLoading}
-              >
-                {t('settings.actions.save')}
-              </Button>
-            </div>
-          )
+          canEditSettings
+            ? (!isEditing ? (
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  onClick={handleStartEdit}
+                  disabled={isLoading}
+                >
+                  {t('settings.actions.edit')}
+                </Button>
+              ) : (
+                <div className="flex items-center gap-2 w-full md:w-auto">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    leftIcon={<RotateCcw className="h-4 w-4" />}
+                    onClick={handleCancelEdit}
+                    disabled={isSaving || confirmLoading}
+                  >
+                    {t('settings.actions.cancel')}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="sm"
+                    leftIcon={<Save className="h-4 w-4" />}
+                    onClick={handleSaveClick}
+                    disabled={!hasChanges || isSaving || confirmLoading}
+                    loading={isSaving || confirmLoading}
+                  >
+                    {t('settings.actions.save')}
+                  </Button>
+                </div>
+              ))
+            : null
         }
       >
         <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
@@ -1346,24 +1356,26 @@ export const Settings: React.FC = () => {
     </TabPanel>
   )}
 
-      <Card padding="lg">
-        <CardHeader
-          title={t('settings.history.title')}
-          subtitle={t('settings.history.subtitle')}
-        >
-          <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
-            <HistoryIcon className="h-3.5 w-3.5" />
-            <span>{t('settings.history.hint')}</span>
-          </div>
-        </CardHeader>
+      {canViewHistory && (
+        <Card padding="lg">
+          <CardHeader
+            title={t('settings.history.title')}
+            subtitle={t('settings.history.subtitle')}
+          >
+            <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
+              <HistoryIcon className="h-3.5 w-3.5" />
+              <span>{t('settings.history.hint')}</span>
+            </div>
+          </CardHeader>
 
-        <HistoryTable
-          entityType="Settings"
-          entityId={settings?.id ?? 'default'}
-          title={t('settings.history.title')}
-          description={t('settings.history.subtitle')}
-        />
-      </Card>
+          <HistoryTable
+            entityType="Settings"
+            entityId={settings?.id ?? 'default'}
+            title={t('settings.history.title')}
+            description={t('settings.history.subtitle')}
+          />
+        </Card>
+      )}
 
       <ChangeConfirmDialog
         open={confirmOpen}

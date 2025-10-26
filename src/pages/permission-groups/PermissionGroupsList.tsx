@@ -9,11 +9,15 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useToast } from '../../contexts/ToastContext';
 import { permissionGroupsService } from '../../api/services/permission-groups.service';
 import type { PermissionGroupRecord } from '../../api/types/api.types';
+import { useAuth } from '../../contexts/AuthContext';
+import { PERMISSIONS } from '../../config/permissions';
 
 export function PermissionGroupsList() {
   const navigate = useNavigate();
   const { t } = useLanguage();
   const { showToast } = useToast();
+  const { hasPermission } = useAuth();
+  const canCreatePermissionGroup = hasPermission(PERMISSIONS.SYSTEM.PERMISSION_GROUPS.CREATE);
   const [groups, setGroups] = useState<PermissionGroupRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({
@@ -123,6 +127,14 @@ export function PermissionGroupsList() {
       <PageHeader
         title="Permission Groups"
         subtitle="Manage permission groups to organize permissions"
+        action={
+          canCreatePermissionGroup ? (
+            <Button onClick={() => navigate('/permission-groups/create')}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Permission Group
+            </Button>
+          ) : null
+        }
       />
       
       <div className="flex-1 mt-6">
@@ -136,12 +148,14 @@ export function PermissionGroupsList() {
             icon: <Shield className="h-12 w-12" />,
             title: 'No permission groups',
             description: 'Create your first permission group to organize permissions',
-            action: (
-              <Button onClick={() => navigate('/permission-groups/create')}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Permission Group
-              </Button>
-            )
+            action: canCreatePermissionGroup
+              ? (
+                  <Button onClick={() => navigate('/permission-groups/create')}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Permission Group
+                  </Button>
+                )
+              : undefined,
           }}
         />
       </div>

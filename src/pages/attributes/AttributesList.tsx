@@ -7,6 +7,8 @@ import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Attribute, AttributeType } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { PERMISSIONS } from '../../config/permissions';
 
 // Mock data
 const mockAttributes: Attribute[] = [
@@ -352,6 +354,8 @@ const getAttributeTypeName = (type: AttributeType, t: (key: string) => string) =
 export const AttributesList: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const { hasPermission } = useAuth();
+  const canCreateAttribute = hasPermission(PERMISSIONS.CATALOG.ATTRIBUTES.CREATE);
 
   const columns = [
     {
@@ -531,12 +535,14 @@ export const AttributesList: React.FC = () => {
             icon: <Package className="h-12 w-12" />,
             title: t('attributes.no_attributes'),
             description: t('attributes.create_new_attribute'),
-            action: (
-              <Button onClick={() => navigate('/attributes/create')}>
-                <Plus className="h-4 w-4 mr-2" />
-                {t('attributes.create_title')}
-              </Button>
-            )
+            action: canCreateAttribute
+              ? (
+                  <Button onClick={() => navigate('/attributes/create')}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    {t('attributes.create_title')}
+                  </Button>
+                )
+              : undefined,
           }}
         />
       </div>

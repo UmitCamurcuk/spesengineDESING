@@ -7,6 +7,8 @@ import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { ItemType } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { PERMISSIONS } from '../../config/permissions';
 
 // Mock data
 const mockItemTypes: ItemType[] = [
@@ -42,6 +44,8 @@ const mockItemTypes: ItemType[] = [
 export const ItemTypesList: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const { hasPermission } = useAuth();
+  const canCreateItemType = hasPermission(PERMISSIONS.CATALOG.ITEM_TYPES.CREATE);
 
   const columns = [
     {
@@ -157,10 +161,12 @@ export const ItemTypesList: React.FC = () => {
         title={t('item_types.title')}
         subtitle={t('item_types.subtitle')}
         action={
-          <Button onClick={() => navigate('/item-types/create')}>
-            <Plus className="h-4 w-4 mr-2" />
-            {t('item_types.create_title')}
-          </Button>
+          canCreateItemType ? (
+            <Button onClick={() => navigate('/item-types/create')}>
+              <Plus className="h-4 w-4 mr-2" />
+              {t('item_types.create_title')}
+            </Button>
+          ) : null
         }
       />
       
@@ -175,12 +181,14 @@ export const ItemTypesList: React.FC = () => {
             icon: <Database className="h-12 w-12" />,
             title: 'No item types found',
             description: 'Get started by creating your first item type',
-            action: (
-              <Button onClick={() => navigate('/item-types/create')}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Item Type
-              </Button>
-            )
+            action: canCreateItemType
+              ? (
+                  <Button onClick={() => navigate('/item-types/create')}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Item Type
+                  </Button>
+                )
+              : undefined,
           }}
         />
       </div>

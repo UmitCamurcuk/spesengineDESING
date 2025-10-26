@@ -9,11 +9,15 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useToast } from '../../contexts/ToastContext';
 import { rolesService } from '../../api/services/roles.service';
 import type { RoleRecord } from '../../api/types/api.types';
+import { useAuth } from '../../contexts/AuthContext';
+import { PERMISSIONS } from '../../config/permissions';
 
 export function RolesList() {
   const navigate = useNavigate();
   const { t } = useLanguage();
   const { showToast } = useToast();
+  const { hasPermission } = useAuth();
+  const canCreateRole = hasPermission(PERMISSIONS.SYSTEM.ROLES.CREATE);
   const [roles, setRoles] = useState<RoleRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -116,6 +120,14 @@ export function RolesList() {
       <PageHeader
         title="Roles"
         subtitle="Manage user roles and their permissions"
+        action={
+          canCreateRole ? (
+            <Button onClick={() => navigate('/roles/create')}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Role
+            </Button>
+          ) : null
+        }
       />
       
       <div className="flex-1 mt-6">
@@ -129,12 +141,14 @@ export function RolesList() {
             icon: <Users className="h-12 w-12" />,
             title: 'No roles',
             description: 'Create your first role to assign permissions to users',
-            action: (
-              <Button onClick={() => navigate('/roles/create')}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Role
-              </Button>
-            )
+            action: canCreateRole
+              ? (
+                  <Button onClick={() => navigate('/roles/create')}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Role
+                  </Button>
+                )
+              : undefined,
           }}
         />
       </div>

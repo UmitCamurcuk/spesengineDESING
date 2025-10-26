@@ -101,7 +101,7 @@ export interface User extends BaseEntity {
 
 export interface TenantMembership {
   tenantId: string;
-  roles: string[];
+  roleId: string | null;
 }
 
 export interface AuthUser {
@@ -120,6 +120,8 @@ export interface AuthUser {
   twoFactorEnabled?: boolean;
   tenants: TenantMembership[];
   authzVersion: number;
+  permissions: string[];
+  activeRoleId?: string | null;
 }
 
 export interface Item extends BaseEntity {

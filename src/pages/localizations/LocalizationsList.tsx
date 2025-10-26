@@ -10,6 +10,8 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useSettings } from '../../contexts/SettingsContext';
 import { localizationsService } from '../../api';
 import type { ApiPagination, LocalizationRecord } from '../../api/types/api.types';
+import { useAuth } from '../../contexts/AuthContext';
+import { PERMISSIONS } from '../../config/permissions';
 
 const normalizeLanguageCode = (code: string): string => {
   const trimmed = code.trim();
@@ -44,6 +46,8 @@ export const LocalizationsList: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useLanguage();
   const { settings } = useSettings();
+  const { hasPermission } = useAuth();
+  const canCreateLocalization = hasPermission(PERMISSIONS.SYSTEM.LOCALIZATIONS.CREATE);
 
   const [localizations, setLocalizations] = useState<LocalizationRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -256,10 +260,12 @@ export const LocalizationsList: React.FC = () => {
             >
               <RefreshCcw className="h-4 w-4" />
             </Button>
-            <Button type="button" onClick={() => navigate('/localizations/create')}>
-              <Plus className="h-4 w-4 mr-2" />
-              {t('localizations.create_title')}
-            </Button>
+            {canCreateLocalization && (
+              <Button type="button" onClick={() => navigate('/localizations/create')}>
+                <Plus className="h-4 w-4 mr-2" />
+                {t('localizations.create_title')}
+              </Button>
+            )}
           </div>
         )}
       />
@@ -293,18 +299,20 @@ export const LocalizationsList: React.FC = () => {
           title: error ? t('localizations.list_title') : t('localizations.no_localizations'),
           description: error ?? t('localizations.create_new_localization'),
           action: (
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" onClick={handleRefresh}>
-              <RefreshCcw className="h-4 w-4 mr-2" />
-              {t('common.retry')}
-            </Button>
-            <Button type="button" onClick={() => navigate('/localizations/create')}>
-              <Plus className="h-4 w-4 mr-2" />
-              {t('localizations.create_title')}
-            </Button>
-          </div>
-        ),
-      }}
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="outline" onClick={handleRefresh}>
+                <RefreshCcw className="h-4 w-4 mr-2" />
+                {t('common.retry')}
+              </Button>
+              {canCreateLocalization && (
+                <Button type="button" onClick={() => navigate('/localizations/create')}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  {t('localizations.create_title')}
+                </Button>
+              )}
+            </div>
+          ),
+        }}
       />
 
       <Card>

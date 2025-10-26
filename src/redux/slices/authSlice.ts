@@ -69,6 +69,8 @@ const normalizeUserProfile = (user: AuthUser | null): AuthUser | null => {
   return {
     ...user,
     profilePhotoUrl: normalizedPhotoUrl,
+    permissions: Array.isArray(user.permissions) ? user.permissions : [],
+    activeRoleId: user.activeRoleId ?? null,
   };
 };
 
