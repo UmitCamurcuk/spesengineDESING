@@ -1,9 +1,17 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import { Toast } from '../components/ui/Toast';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
-interface Toast {
+export interface ToastOptions {
+  id?: string;
+  type?: ToastType;
+  title?: string;
+  message?: string;
+  duration?: number;
+}
+
+interface ToastRecord {
   id: string;
   type: ToastType;
   title: string;
@@ -11,50 +19,78 @@ interface Toast {
   duration?: number;
 }
 
+type ShowToastFn = {
+  (message: string, type?: ToastType, duration?: number): string;
+  (options: ToastOptions): string;
+};
+
 interface ToastContextType {
-  showToast: (message: string, type: ToastType, duration?: number) => void;
-  success: (message: string, duration?: number) => void;
-  error: (message: string, duration?: number) => void;
-  warning: (message: string, duration?: number) => void;
-  info: (message: string, duration?: number) => void;
+  showToast: ShowToastFn;
+  success: (message: string, duration?: number) => string;
+  error: (message: string, duration?: number) => string;
+  warning: (message: string, duration?: number) => string;
+  info: (message: string, duration?: number) => string;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [toasts, setToasts] = useState<ToastRecord[]>([]);
 
   const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
   }, []);
 
-  const showToast = useCallback((message: string, type: ToastType, duration?: number) => {
-    const id = Math.random().toString(36).substr(2, 9);
-    const newToast: Toast = {
-      id,
-      type,
-      title: message,
-      duration,
-    };
+  const buildToastRecord = useCallback((input: string | ToastOptions, fallbackType?: ToastType, fallbackDuration?: number): ToastRecord => {
+    const baseId = typeof input === 'object' && input.id ? input.id : Math.random().toString(36).slice(2, 11);
 
-    setToasts((prev) => [...prev, newToast]);
-    return id;
+    if (typeof input === 'string') {
+      return {
+        id: baseId,
+        type: fallbackType ?? 'info',
+        title: input,
+        duration: fallbackDuration,
+      };
+    }
+
+    const resolvedType = input.type ?? fallbackType ?? 'info';
+    const resolvedTitle = input.title ?? input.message ?? 'Notification';
+    const resolvedMessage = input.title ? input.message : undefined;
+
+    return {
+      id: baseId,
+      type: resolvedType,
+      title: resolvedTitle,
+      message: resolvedMessage,
+      duration: input.duration ?? fallbackDuration,
+    };
   }, []);
 
+  const showToastImpl = useCallback((arg1: string | ToastOptions, arg2?: ToastType, arg3?: number) => {
+    const toast = buildToastRecord(arg1, arg2, arg3);
+    setToasts((prev) => [...prev, toast]);
+    return toast.id;
+  }, [buildToastRecord]);
+
+  const showToast = useMemo<ShowToastFn>(() => {
+    const fn = ((arg1: string | ToastOptions, arg2?: ToastType, arg3?: number) => showToastImpl(arg1, arg2, arg3)) as ShowToastFn;
+    return fn;
+  }, [showToastImpl]);
+
   const success = useCallback((message: string, duration?: number) => {
-    return showToast(message, 'success', duration);
+    return showToast({ message, type: 'success', duration });
   }, [showToast]);
 
   const error = useCallback((message: string, duration?: number) => {
-    return showToast(message, 'error', duration);
+    return showToast({ message, type: 'error', duration });
   }, [showToast]);
 
   const warning = useCallback((message: string, duration?: number) => {
-    return showToast(message, 'warning', duration);
+    return showToast({ message, type: 'warning', duration });
   }, [showToast]);
 
   const info = useCallback((message: string, duration?: number) => {
-    return showToast(message, 'info', duration);
+    return showToast({ message, type: 'info', duration });
   }, [showToast]);
 
   return (

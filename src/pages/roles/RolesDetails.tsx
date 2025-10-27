@@ -293,12 +293,6 @@ const RoleDetailsTab: React.FC<RoleDetailsTabProps> = ({
             </span>
             <span className="mt-1 block">{new Date(metadata.updatedAt).toLocaleString()}</span>
           </div>
-          <div>
-            <span className="font-medium text-foreground block">{t('roles.fields.role_type')}</span>
-            <Badge variant={metadata.isSystemRole ? 'primary' : 'secondary'} className="mt-1">
-              {metadata.isSystemRole ? t('roles.labels.system_role') : t('roles.labels.custom_role')}
-            </Badge>
-          </div>
         </div>
       </Card>
     </div>
@@ -439,7 +433,7 @@ export function RolesDetails() {
   const { settings } = useSettings();
   const { hasPermission } = useAuth();
 
-  const canReadRole = hasPermission(PERMISSIONS.SYSTEM.ROLES.READ);
+  const canReadRole = hasPermission(PERMISSIONS.SYSTEM.ROLES.VIEW);
   const canUpdateRole = hasPermission(PERMISSIONS.SYSTEM.ROLES.UPDATE);
   const canViewRoleHistory = hasPermission(PERMISSIONS.SYSTEM.ROLES.HISTORY);
 
@@ -691,17 +685,6 @@ export function RolesDetails() {
     }
   };
 
-  const headerBadge = useMemo(() => {
-    if (!role) {
-      return null;
-    }
-    return (
-      <Badge variant={role.isSystemRole ? 'primary' : 'secondary'} size="sm">
-        {role.isSystemRole ? t('roles.labels.system_role') : t('roles.labels.custom_role')}
-      </Badge>
-    );
-  }, [role, t]);
-
   const tabs = useMemo<TabConfig[]>(() => {
     if (!formState || !role) {
       return [];
@@ -832,7 +815,7 @@ export function RolesDetails() {
         onEdit={canUpdateRole ? handleEnterEdit : undefined}
         onSave={canUpdateRole ? handleSave : undefined}
         onCancel={handleCancel}
-        headerActions={headerBadge}
+        inlineActions={false}
       />
 
       <ChangeConfirmDialog

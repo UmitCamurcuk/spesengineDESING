@@ -739,6 +739,7 @@ export const ItemsDetails: React.FC = () => {
       defaultTab="details"
       onSave={handleSave}
       backUrl="/items"
+      inlineActions={false}
     />
   );
 };

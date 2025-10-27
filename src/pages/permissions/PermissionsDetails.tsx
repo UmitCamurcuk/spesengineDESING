@@ -478,10 +478,10 @@ export function PermissionsDetails() {
   const { settings } = useSettings();
   const { hasPermission } = useAuth();
 
-  const canReadPermission = hasPermission(PERMISSIONS.SYSTEM.PERMISSIONS.READ);
+  const canReadPermission = hasPermission(PERMISSIONS.SYSTEM.PERMISSIONS.VIEW);
   const canUpdatePermission = hasPermission(PERMISSIONS.SYSTEM.PERMISSIONS.UPDATE);
   const canViewPermissionHistory = hasPermission(PERMISSIONS.SYSTEM.PERMISSIONS.HISTORY);
-  const canReadPermissionGroups = hasPermission(PERMISSIONS.SYSTEM.PERMISSION_GROUPS.READ);
+  const canReadPermissionGroups = hasPermission(PERMISSIONS.SYSTEM.PERMISSION_GROUPS.VIEW);
 
   const supportedLanguages = useMemo<LanguageOption[]>(() => {
     const configured = settings?.localization?.supportedLanguages ?? [];
@@ -758,17 +758,6 @@ export function PermissionsDetails() {
     return groups.find((group) => group.id === formState.permissionGroupId) ?? null;
   }, [formState, groups]);
 
-  const headerBadge = useMemo(() => {
-    if (!permission) {
-      return null;
-    }
-    return (
-      <Badge variant="outline" size="sm">
-        {permission.code}
-      </Badge>
-    );
-  }, [permission]);
-
   const tabs = useMemo<TabConfig[]>(() => {
     if (!formState || !permission) {
       return [];
@@ -900,7 +889,7 @@ export function PermissionsDetails() {
         onEdit={canUpdatePermission ? handleEnterEdit : undefined}
         onSave={canUpdatePermission ? handleSave : undefined}
         onCancel={handleCancel}
-        headerActions={headerBadge}
+        inlineActions={false}
       />
 
       <ChangeConfirmDialog

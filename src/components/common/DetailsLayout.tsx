@@ -6,6 +6,7 @@ import { Card } from '../ui/Card';
 import { Tabs, TabPanel } from '../ui/Tabs';
 import { TabConfig } from '../../types/common';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useEditActionContext } from '../../contexts/EditActionContext';
 
 interface DetailsLayoutProps {
   title: string;
@@ -20,6 +21,7 @@ interface DetailsLayoutProps {
   onEdit?: () => void;
   onSave?: () => void;
   onCancel?: () => void;
+  inlineActions?: boolean;
 }
 
 export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
@@ -34,10 +36,12 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
   hasChanges = false,
   onEdit,
   onSave,
-  onCancel
+  onCancel,
+  inlineActions = false,
 }) => {
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const { register } = useEditActionContext();
   const visibleTabs = useMemo(() => tabs.filter((tab) => !tab.hidden), [tabs]);
   const initialTabId = useMemo(() => {
     if (defaultTab && visibleTabs.some((tab) => tab.id === defaultTab)) {
@@ -64,6 +68,24 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
     badge: tab.badge,
     disabled: tab.requiresEdit && !editMode && tab.id !== 'details'
   }));
+
+  useEffect(() => {
+    if (!onEdit) {
+      register(null);
+      return () => register(null);
+    }
+
+    register({
+      isEditing: editMode,
+      canEdit: !editMode,
+      canSave: Boolean(onSave) && Boolean(hasChanges),
+      onEdit,
+      onCancel: onCancel ?? (() => {}),
+      onSave,
+    });
+
+    return () => register(null);
+  }, [editMode, hasChanges, onCancel, onEdit, onSave, register]);
 
   return (
     <div className="space-y-6">
@@ -96,7 +118,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
 
         <div className="flex items-center space-x-3">
           {headerActions}
-          {onEdit ? (
+          {inlineActions && onEdit ? (
             !editMode ? (
               <Button
                 onClick={onEdit}
@@ -110,12 +132,12 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
               </Button>
             ) : (
               <div className="flex items-center space-x-2">
-                {hasChanges && (
-                  <Button onClick={onSave} size="sm">
+                {onSave ? (
+                  <Button onClick={onSave} size="sm" disabled={!hasChanges}>
                     <Save className="h-4 w-4 mr-2" />
                     {t('common.save')}
                   </Button>
-                )}
+                ) : null}
                 <Button variant="outline" onClick={onCancel} size="sm">
                   <X className="h-4 w-4 mr-2" />
                   {t('common.cancel')}

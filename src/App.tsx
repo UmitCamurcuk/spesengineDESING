@@ -4,7 +4,7 @@ import { Layout } from './components/layout/Layout';
 import { Login } from './pages/auth/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Button } from './components/ui/Button';
-import { Plus, Edit } from 'lucide-react';
+import { Plus, Edit, Save, X } from 'lucide-react';
 import { ToastProvider } from './contexts/ToastContext';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -12,6 +12,7 @@ import { AuthProvider, useAuth, withPermission } from './contexts/AuthContext';
 import { SettingsProvider } from './contexts/SettingsContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { PERMISSIONS } from './config/permissions';
+import { EditActionProvider, useEditActionContext } from './contexts/EditActionContext';
 
 // Items
 import { ItemsList } from './pages/items/ItemsList';
@@ -79,47 +80,51 @@ import { Settings } from './pages/settings/Settings';
 // Profile
 import { Profile } from './pages/Profile';
 
-const GuardedItemsList = withPermission(PERMISSIONS.CATALOG.ITEMS.READ)(ItemsList);
-const GuardedItemsDetails = withPermission(PERMISSIONS.CATALOG.ITEMS.READ)(ItemsDetails);
+const GuardedItemsList = withPermission(PERMISSIONS.CATALOG.ITEMS.LIST)(ItemsList);
+const GuardedItemsDetails = withPermission(PERMISSIONS.CATALOG.ITEMS.VIEW)(ItemsDetails);
 const GuardedItemsCreate = withPermission(PERMISSIONS.CATALOG.ITEMS.CREATE)(ItemsCreate);
 
-const GuardedItemTypesList = withPermission(PERMISSIONS.CATALOG.ITEM_TYPES.READ)(ItemTypesList);
-const GuardedItemTypesDetails = withPermission(PERMISSIONS.CATALOG.ITEM_TYPES.READ)(ItemTypesDetails);
+const GuardedItemTypesList = withPermission(PERMISSIONS.CATALOG.ITEM_TYPES.LIST)(ItemTypesList);
+const GuardedItemTypesDetails = withPermission(PERMISSIONS.CATALOG.ITEM_TYPES.VIEW)(ItemTypesDetails);
 const GuardedItemTypesCreate = withPermission(PERMISSIONS.CATALOG.ITEM_TYPES.CREATE)(ItemTypesCreate);
 
-const GuardedCategoriesList = withPermission(PERMISSIONS.CATALOG.CATEGORIES.READ)(CategoriesList);
-const GuardedCategoriesDetails = withPermission(PERMISSIONS.CATALOG.CATEGORIES.READ)(CategoriesDetails);
+const GuardedCategoriesList = withPermission(PERMISSIONS.CATALOG.CATEGORIES.LIST)(CategoriesList);
+const GuardedCategoriesDetails = withPermission(PERMISSIONS.CATALOG.CATEGORIES.VIEW)(CategoriesDetails);
 const GuardedCategoriesCreate = withPermission(PERMISSIONS.CATALOG.CATEGORIES.CREATE)(CategoriesCreate);
 
-const GuardedFamiliesList = withPermission(PERMISSIONS.CATALOG.FAMILIES.READ)(FamiliesList);
-const GuardedFamiliesDetails = withPermission(PERMISSIONS.CATALOG.FAMILIES.READ)(FamiliesDetails);
+const GuardedFamiliesList = withPermission(PERMISSIONS.CATALOG.FAMILIES.LIST)(FamiliesList);
+const GuardedFamiliesDetails = withPermission(PERMISSIONS.CATALOG.FAMILIES.VIEW)(FamiliesDetails);
 const GuardedFamiliesCreate = withPermission(PERMISSIONS.CATALOG.FAMILIES.CREATE)(FamiliesCreate);
 
-const GuardedAttributeGroupsList = withPermission(PERMISSIONS.CATALOG.ATTRIBUTE_GROUPS.READ)(AttributeGroupsList);
-const GuardedAttributeGroupsDetails = withPermission(PERMISSIONS.CATALOG.ATTRIBUTE_GROUPS.READ)(AttributeGroupsDetails);
+const GuardedAttributeGroupsList = withPermission(PERMISSIONS.CATALOG.ATTRIBUTE_GROUPS.LIST)(AttributeGroupsList);
+const GuardedAttributeGroupsDetails = withPermission(PERMISSIONS.CATALOG.ATTRIBUTE_GROUPS.VIEW)(AttributeGroupsDetails);
 const GuardedAttributeGroupsCreate = withPermission(PERMISSIONS.CATALOG.ATTRIBUTE_GROUPS.CREATE)(AttributeGroupsCreate);
 
-const GuardedAttributesList = withPermission(PERMISSIONS.CATALOG.ATTRIBUTES.READ)(AttributesList);
-const GuardedAttributesDetails = withPermission(PERMISSIONS.CATALOG.ATTRIBUTES.READ)(AttributesDetails);
+const GuardedAttributesList = withPermission(PERMISSIONS.CATALOG.ATTRIBUTES.LIST)(AttributesList);
+const GuardedAttributesDetails = withPermission(PERMISSIONS.CATALOG.ATTRIBUTES.VIEW)(AttributesDetails);
 const GuardedAttributesCreate = withPermission(PERMISSIONS.CATALOG.ATTRIBUTES.CREATE)(AttributesCreate);
 
-const GuardedRolesList = withPermission(PERMISSIONS.SYSTEM.ROLES.READ)(RolesList);
-const GuardedRolesDetails = withPermission(PERMISSIONS.SYSTEM.ROLES.READ)(RolesDetails);
+const GuardedUsersList = withPermission(PERMISSIONS.SYSTEM.USERS.LIST)(UsersList);
+const GuardedUsersDetails = withPermission(PERMISSIONS.SYSTEM.USERS.VIEW)(UsersDetails);
+const GuardedUsersCreate = withPermission(PERMISSIONS.SYSTEM.USERS.CREATE)(UsersCreate);
+
+const GuardedRolesList = withPermission(PERMISSIONS.SYSTEM.ROLES.LIST)(RolesList);
+const GuardedRolesDetails = withPermission(PERMISSIONS.SYSTEM.ROLES.VIEW)(RolesDetails);
 const GuardedRolesCreate = withPermission(PERMISSIONS.SYSTEM.ROLES.CREATE)(RolesCreate);
 
-const GuardedPermissionsList = withPermission(PERMISSIONS.SYSTEM.PERMISSIONS.READ)(PermissionsList);
-const GuardedPermissionsDetails = withPermission(PERMISSIONS.SYSTEM.PERMISSIONS.READ)(PermissionsDetails);
+const GuardedPermissionsList = withPermission(PERMISSIONS.SYSTEM.PERMISSIONS.LIST)(PermissionsList);
+const GuardedPermissionsDetails = withPermission(PERMISSIONS.SYSTEM.PERMISSIONS.VIEW)(PermissionsDetails);
 const GuardedPermissionsCreate = withPermission(PERMISSIONS.SYSTEM.PERMISSIONS.CREATE)(PermissionsCreate);
 
-const GuardedPermissionGroupsList = withPermission(PERMISSIONS.SYSTEM.PERMISSION_GROUPS.READ)(PermissionGroupsList);
-const GuardedPermissionGroupsDetails = withPermission(PERMISSIONS.SYSTEM.PERMISSION_GROUPS.READ)(PermissionGroupsDetails);
+const GuardedPermissionGroupsList = withPermission(PERMISSIONS.SYSTEM.PERMISSION_GROUPS.LIST)(PermissionGroupsList);
+const GuardedPermissionGroupsDetails = withPermission(PERMISSIONS.SYSTEM.PERMISSION_GROUPS.VIEW)(PermissionGroupsDetails);
 const GuardedPermissionGroupsCreate = withPermission(PERMISSIONS.SYSTEM.PERMISSION_GROUPS.CREATE)(PermissionGroupsCreate);
 
-const GuardedLocalizationsList = withPermission(PERMISSIONS.SYSTEM.LOCALIZATIONS.READ)(LocalizationsList);
-const GuardedLocalizationsDetails = withPermission(PERMISSIONS.SYSTEM.LOCALIZATIONS.READ)(LocalizationsDetails);
+const GuardedLocalizationsList = withPermission(PERMISSIONS.SYSTEM.LOCALIZATIONS.LIST)(LocalizationsList);
+const GuardedLocalizationsDetails = withPermission(PERMISSIONS.SYSTEM.LOCALIZATIONS.VIEW)(LocalizationsDetails);
 const GuardedLocalizationsCreate = withPermission(PERMISSIONS.SYSTEM.LOCALIZATIONS.CREATE)(LocalizationsCreate);
 
-const GuardedSettings = withPermission(PERMISSIONS.SYSTEM.SETTINGS.READ)(Settings);
+const GuardedSettings = withPermission(PERMISSIONS.SYSTEM.SETTINGS.VIEW)(Settings);
 
 type CreateActionConfig = {
   basePath: string;
@@ -217,7 +222,7 @@ const EDIT_ACTIONS: EditActionConfig[] = [
   { basePath: '/permissions', permission: PERMISSIONS.SYSTEM.PERMISSIONS.UPDATE },
   { basePath: '/permission-groups', permission: PERMISSIONS.SYSTEM.PERMISSION_GROUPS.UPDATE },
   { basePath: '/localizations', permission: PERMISSIONS.SYSTEM.LOCALIZATIONS.UPDATE },
-  { basePath: '/users' },
+  { basePath: '/users', permission: PERMISSIONS.SYSTEM.USERS.UPDATE },
   { basePath: '/associations' },
 ];
 
@@ -233,12 +238,13 @@ const isDetailPath = (basePath: string, pathname: string): boolean => {
   return pathSegments === baseSegments + 1;
 };
 
-const AppContent: React.FC = () => {
+const AppContentInner: React.FC = () => {
   const { user, logout, hasPermission } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useLanguage();
   const pathname = location.pathname;
+  const { handlers } = useEditActionContext();
 
   const headerAction = useMemo(() => {
     const createConfig = CREATE_ACTIONS.find((config) => pathname === config.basePath);
@@ -258,9 +264,35 @@ const AppContent: React.FC = () => {
     }
 
     const editConfig = EDIT_ACTIONS.find((config) => isDetailPath(config.basePath, pathname));
-    if (editConfig && (!editConfig.permission || hasPermission(editConfig.permission))) {
+    if (
+      editConfig &&
+      handlers &&
+      (!editConfig.permission || hasPermission(editConfig.permission))
+    ) {
+      if (handlers.isEditing) {
+        return (
+          <div className="flex items-center gap-2">
+            {handlers.onSave ? (
+              <Button size="sm" onClick={handlers.onSave} disabled={!handlers.canSave}>
+                <Save className="h-4 w-4 mr-2" />
+                <span className="hidden sm:inline">{t('common.save')}</span>
+              </Button>
+            ) : null}
+            <Button variant="outline" size="sm" onClick={handlers.onCancel}>
+              <X className="h-4 w-4 mr-2" />
+              <span className="hidden sm:inline">{t('common.cancel')}</span>
+            </Button>
+          </div>
+        );
+      }
+
       return (
-        <Button variant="outline" size="sm">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handlers.onEdit}
+          disabled={!handlers.canEdit}
+        >
           <Edit className="h-4 w-4 mr-2" />
           <span className="hidden sm:inline">{t('common.edit')}</span>
         </Button>
@@ -268,7 +300,7 @@ const AppContent: React.FC = () => {
     }
 
     return null;
-  }, [hasPermission, navigate, pathname, t]);
+  }, [handlers, hasPermission, navigate, pathname, t]);
 
   const headerUser = useMemo(() => {
     if (!user) {
@@ -321,9 +353,9 @@ const AppContent: React.FC = () => {
         <Route path="/attributes/create" element={<GuardedAttributesCreate />} />
         
         {/* Users Routes */}
-        <Route path="/users" element={<UsersList />} />
-        <Route path="/users/:id" element={<UsersDetails />} />
-        <Route path="/users/create" element={<UsersCreate />} />
+        <Route path="/users" element={<GuardedUsersList />} />
+        <Route path="/users/:id" element={<GuardedUsersDetails />} />
+        <Route path="/users/create" element={<GuardedUsersCreate />} />
         
         {/* Roles Routes */}
         <Route path="/roles" element={<GuardedRolesList />} />
@@ -362,6 +394,12 @@ const AppContent: React.FC = () => {
     </Layout>
   );
 };
+
+const AppContent: React.FC = () => (
+  <EditActionProvider>
+    <AppContentInner />
+  </EditActionProvider>
+);
 
 const AppRouter: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();

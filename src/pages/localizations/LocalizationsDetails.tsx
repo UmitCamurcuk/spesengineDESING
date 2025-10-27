@@ -9,12 +9,14 @@ import { Badge } from '../../components/ui/Badge';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { useSettings } from '../../contexts/SettingsContext';
 import { useToast } from '../../contexts/ToastContext';
 import { localizationsService } from '../../api';
 import type { LocalizationRecord, UpdateLocalizationRequest } from '../../api/types/api.types';
 import { useDateFormatter } from '../../hooks/useDateFormatter';
 import { HistoryTable } from '../../components/common/HistoryTable';
+import { PERMISSIONS } from '../../config/permissions';
 
 const namespaceOptions = [
   { value: 'common', label: 'Common' },
@@ -43,6 +45,8 @@ export const LocalizationsDetails: React.FC = () => {
   const { settings } = useSettings();
   const { formatDateTime } = useDateFormatter();
   const { success: showSuccess, error: showError } = useToast();
+  const { hasPermission } = useAuth();
+  const canUpdateLocalization = hasPermission(PERMISSIONS.SYSTEM.LOCALIZATIONS.UPDATE);
 
   const [activeTab, setActiveTab] = useState<string>('general');
   const [localization, setLocalization] = useState<LocalizationRecord | null>(null);
@@ -183,6 +187,9 @@ export const LocalizationsDetails: React.FC = () => {
   };
 
   const handleStartEdit = () => {
+    if (!canUpdateLocalization) {
+      return;
+    }
     if (localization) {
       setFormData(localization);
     }
@@ -197,6 +204,10 @@ export const LocalizationsDetails: React.FC = () => {
   };
 
   const handleSave = async () => {
+    if (!canUpdateLocalization) {
+      return;
+    }
+
     if (!formData || !localization || !id) {
       return;
     }
@@ -360,20 +371,24 @@ export const LocalizationsDetails: React.FC = () => {
     { id: 'history', label: t('localizations.details_tabs.history'), icon: <Languages className="h-4 w-4" /> },
   ];
 
-  const headerAction = !editMode ? (
-    <Button type="button" onClick={handleStartEdit} leftIcon={<Edit2 className="h-4 w-4" />}>
-      {t('common.edit')}
-    </Button>
-  ) : (
-    <div className="flex items-center gap-2">
-      <Button type="button" variant="outline" onClick={handleCancelEdit} disabled={saving}>
-        {t('common.cancel')}
-      </Button>
-      <Button type="button" onClick={handleSave} loading={saving} leftIcon={<Save className="h-4 w-4" />}>
-        {t('common.save')}
-      </Button>
-    </div>
-  );
+  const headerAction = canUpdateLocalization
+    ? (!editMode
+        ? (
+          <Button type="button" onClick={handleStartEdit} leftIcon={<Edit2 className="h-4 w-4" />}>
+            {t('common.edit')}
+          </Button>
+        )
+        : (
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="outline" onClick={handleCancelEdit} disabled={saving}>
+              {t('common.cancel')}
+            </Button>
+            <Button type="button" onClick={handleSave} loading={saving} leftIcon={<Save className="h-4 w-4" />}>
+              {t('common.save')}
+            </Button>
+          </div>
+        ))
+    : null;
 
   return (
     <div className="p-6 space-y-6">

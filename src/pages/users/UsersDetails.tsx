@@ -84,15 +84,6 @@ const generalFormsEqual = (a: GeneralForm, b: GeneralForm): boolean => {
   );
 };
 
-const deriveStatusBadge = (user: GeneralForm): { label: string; variant: 'success' | 'warning' | 'default' } => {
-  if (user.notificationsEnabled && user.emailNotificationsEnabled) {
-    return { label: 'Active', variant: 'success' };
-  }
-  if (!user.notificationsEnabled && !user.emailNotificationsEnabled) {
-    return { label: 'Inactive', variant: 'default' };
-  }
-  return { label: 'Partial', variant: 'warning' };
-};
 
 interface UserDetailsTabProps {
   form: GeneralForm;
@@ -109,8 +100,6 @@ const UserDetailsTab: React.FC<UserDetailsTabProps> = ({ form, editMode, onChang
       [field]: value,
     }));
   };
-
-  const status = deriveStatusBadge(form);
 
   return (
     <div className="space-y-6">
@@ -177,7 +166,6 @@ const UserDetailsTab: React.FC<UserDetailsTabProps> = ({ form, editMode, onChang
         <CardHeader
           title={t('users.details.preferences')}
           subtitle={t('users.details.preferences_subtitle')}
-          endContent={<Badge variant={status.variant}>{status.label}</Badge>}
         />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[
@@ -389,9 +377,11 @@ export function UsersDetails() {
   const { showToast } = useToast();
   const { session, hasPermission } = useAuth();
 
-  const canReadUser = hasPermission(PERMISSIONS.SYSTEM.USERS.READ);
+  const canReadUser = hasPermission(PERMISSIONS.SYSTEM.USERS.VIEW);
   const canUpdateGeneral = hasPermission(PERMISSIONS.SYSTEM.USERS.UPDATE);
-  const canUpdateRole = hasPermission(PERMISSIONS.SYSTEM.USERS.ROLE_EDIT);
+  const canUpdateRole = hasPermission(PERMISSIONS.SYSTEM.USERS.ROLE_ASSIGN);
+  const canViewRoles = hasPermission(PERMISSIONS.SYSTEM.USERS.ROLE_VIEW);
+  const canListRoles = hasPermission(PERMISSIONS.SYSTEM.ROLES.LIST);
   const canViewUserHistory = hasPermission(PERMISSIONS.SYSTEM.USERS.HISTORY);
   const currentTenantId = session?.tenantId ?? null;
 
@@ -440,7 +430,9 @@ export function UsersDetails() {
 
       const [userResponse, rolesResponse] = await Promise.all([
         usersService.getById(id, { language }),
-        rolesService.list({ language }),
+        canListRoles
+          ? rolesService.list({ language })
+          : Promise.resolve<{ items: RoleRecord[] }>({ items: [] }),
       ]);
 
       const general: GeneralForm = {
@@ -630,18 +622,6 @@ export function UsersDetails() {
     }
   };
 
-  const headerBadge = useMemo(() => {
-    if (!generalForm) {
-      return null;
-    }
-    const status = deriveStatusBadge(generalForm);
-    return (
-      <Badge variant={status.variant} size="sm">
-        {t(`users.status.${status.label.toLowerCase()}`)}
-      </Badge>
-    );
-  }, [generalForm, t]);
-
   const tabs = useMemo<TabConfig[]>(() => {
     if (!generalForm || !user) {
       return [];
@@ -657,7 +637,7 @@ export function UsersDetails() {
           editMode: isGeneralEditing,
           onChange: updateGeneralForm,
         },
-        hidden: !canReadUser,
+        hidden: !canViewRoles,
       },
       {
         id: 'roles',
@@ -780,7 +760,7 @@ export function UsersDetails() {
         onEdit={canUpdateGeneral ? handleEnterGeneralEdit : undefined}
         onSave={canUpdateGeneral ? handleGeneralSave : undefined}
         onCancel={handleCancelGeneralEdit}
-        headerActions={headerBadge}
+        inlineActions={false}
       />
 
       <ChangeConfirmDialog

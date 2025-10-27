@@ -420,10 +420,10 @@ export function PermissionGroupsDetails() {
     }));
   }, [settings?.localization?.supportedLanguages]);
 
-  const canReadGroup = hasPermission(PERMISSIONS.SYSTEM.PERMISSION_GROUPS.READ);
+  const canReadGroup = hasPermission(PERMISSIONS.SYSTEM.PERMISSION_GROUPS.VIEW);
   const canUpdateGroup = hasPermission(PERMISSIONS.SYSTEM.PERMISSION_GROUPS.UPDATE);
   const canViewGroupHistory = hasPermission(PERMISSIONS.SYSTEM.PERMISSION_GROUPS.HISTORY);
-  const canReadPermissions = hasPermission(PERMISSIONS.SYSTEM.PERMISSIONS.READ);
+  const canReadPermissions = hasPermission(PERMISSIONS.SYSTEM.PERMISSIONS.VIEW);
 
   const [loading, setLoading] = useState(true);
   const [group, setGroup] = useState<PermissionGroupRecord | null>(null);
@@ -903,14 +903,6 @@ export function PermissionGroupsDetails() {
     );
   }
 
-  const headerBadge = (
-    <Badge variant="outline" size="sm">
-      {permissionsChanged
-        ? t('permissionGroups.badges.pending_changes')
-        : t('permissionGroups.badges.stable')}
-    </Badge>
-  );
-
   return (
     <>
       <DetailsLayout
@@ -924,7 +916,7 @@ export function PermissionGroupsDetails() {
         onEdit={canUpdateGroup ? handleEnterEdit : undefined}
         onSave={canUpdateGroup ? handleSave : undefined}
         onCancel={handleCancel}
-        headerActions={headerBadge}
+        inlineActions={false}
       />
 
       <ChangeConfirmDialog

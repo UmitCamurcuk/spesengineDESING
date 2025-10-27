@@ -41,37 +41,37 @@ const menuItems: MenuItem[] = [
     name: 'navigation.items',
     href: '/items',
     icon: Package,
-    permission: PERMISSIONS.CATALOG.ITEMS.READ,
+    permission: PERMISSIONS.CATALOG.ITEMS.LIST,
   },
   {
     name: 'navigation.item_types',
     href: '/item-types',
     icon: Database,
-    permission: PERMISSIONS.CATALOG.ITEM_TYPES.READ,
+    permission: PERMISSIONS.CATALOG.ITEM_TYPES.LIST,
   },
   {
     name: 'navigation.categories',
     href: '/categories',
     icon: FolderTree,
-    permission: PERMISSIONS.CATALOG.CATEGORIES.READ,
+    permission: PERMISSIONS.CATALOG.CATEGORIES.LIST,
   },
   {
     name: 'navigation.families',
     href: '/families',
     icon: Layers,
-    permission: PERMISSIONS.CATALOG.FAMILIES.READ,
+    permission: PERMISSIONS.CATALOG.FAMILIES.LIST,
   },
   {
     name: 'navigation.attribute_groups',
     href: '/attribute-groups',
     icon: Tags,
-    permission: PERMISSIONS.CATALOG.ATTRIBUTE_GROUPS.READ,
+    permission: PERMISSIONS.CATALOG.ATTRIBUTE_GROUPS.LIST,
   },
   {
     name: 'navigation.attributes',
     href: '/attributes',
     icon: FileText,
-    permission: PERMISSIONS.CATALOG.ATTRIBUTES.READ,
+    permission: PERMISSIONS.CATALOG.ATTRIBUTES.LIST,
   },
   {
     name: 'navigation.associations',
@@ -90,25 +90,25 @@ const systemMenuItems: MenuItem[] = [
     name: 'navigation.roles',
     href: '/roles',
     icon: Shield,
-    permission: PERMISSIONS.SYSTEM.ROLES.READ,
+    permission: PERMISSIONS.SYSTEM.ROLES.LIST,
   },
   {
     name: 'navigation.permissions',
     href: '/permissions',
     icon: Key,
-    permission: PERMISSIONS.SYSTEM.PERMISSIONS.READ,
+    permission: PERMISSIONS.SYSTEM.PERMISSIONS.LIST,
   },
   {
     name: 'navigation.permission_groups',
     href: '/permission-groups',
     icon: ShieldCheck,
-    permission: PERMISSIONS.SYSTEM.PERMISSION_GROUPS.READ,
+    permission: PERMISSIONS.SYSTEM.PERMISSION_GROUPS.LIST,
   },
   {
     name: 'navigation.localizations',
     href: '/localizations',
     icon: Globe,
-    permission: PERMISSIONS.SYSTEM.LOCALIZATIONS.READ,
+    permission: PERMISSIONS.SYSTEM.LOCALIZATIONS.LIST,
   },
 ];
 
@@ -249,7 +249,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, isOpen, onClose }) 
           <User className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm font-medium">Profil</span>
         </Link>
-        {hasPermission(PERMISSIONS.SYSTEM.SETTINGS.READ) && (
+        {hasPermission(PERMISSIONS.SYSTEM.SETTINGS.VIEW) && (
           <Link
             to="/settings"
             onClick={onClose}

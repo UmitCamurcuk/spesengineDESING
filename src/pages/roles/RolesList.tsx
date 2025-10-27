@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Shield, Users } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -11,35 +11,52 @@ import { rolesService } from '../../api/services/roles.service';
 import type { RoleRecord } from '../../api/types/api.types';
 import { useAuth } from '../../contexts/AuthContext';
 import { PERMISSIONS } from '../../config/permissions';
+import { PermissionDenied } from '../../components/common/PermissionDenied';
 
 export function RolesList() {
   const navigate = useNavigate();
-  const { t, language } = useLanguage();
+  const { language } = useLanguage();
   const { showToast } = useToast();
   const { hasPermission } = useAuth();
+  const canReadRoles = hasPermission(PERMISSIONS.SYSTEM.ROLES.LIST);
   const canCreateRole = hasPermission(PERMISSIONS.SYSTEM.ROLES.CREATE);
   const [roles, setRoles] = useState<RoleRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [forbidden, setForbidden] = useState(!canReadRoles);
 
-  useEffect(() => {
-    loadRoles();
-  }, [language]);
+  const loadRoles = useCallback(async () => {
+    if (!canReadRoles) {
+      setForbidden(true);
+      setRoles([]);
+      setLoading(false);
+      return;
+    }
 
-  const loadRoles = async () => {
     try {
       setLoading(true);
       const result = await rolesService.list({ language });
       setRoles(result.items);
+      setForbidden(false);
     } catch (error: any) {
       console.error('Failed to load roles:', error);
-      showToast({
-        type: 'error',
-        message: error?.message || 'Failed to load roles',
-      });
+      const status = error?.status ?? error?.response?.status;
+
+      if (status === 403) {
+        setForbidden(true);
+        return;
+      }
+
+      showToast({ type: 'error', message: error?.message || 'Failed to load roles' });
     } finally {
       setLoading(false);
     }
-  };
+  }, [canReadRoles, language, showToast]);
+
+  useEffect(() => {
+    void loadRoles();
+  }, [loadRoles]);
+
+  const handleRowClick = canReadRoles ? (role: RoleRecord) => navigate(`/roles/${role.id}`) : undefined;
 
   const columns = [
     {
@@ -123,6 +140,18 @@ export function RolesList() {
     },
   ];
 
+  if (forbidden) {
+    return (
+      <div className="h-full flex flex-col">
+        <PageHeader
+          title="Roles"
+          subtitle="Manage user roles and their permissions"
+        />
+        <PermissionDenied />
+      </div>
+    );
+  }
+
   return (
     <div className="h-full flex flex-col">
       <PageHeader
@@ -135,7 +164,7 @@ export function RolesList() {
           data={roles}
           columns={columns}
           searchPlaceholder="Search roles..."
-          onRowClick={(role) => navigate(`/roles/${role.id}`)}
+          onRowClick={handleRowClick}
           loading={loading}
           emptyState={{
             icon: <Users className="h-12 w-12" />,

@@ -415,6 +415,7 @@ export const AttributeGroupsDetails: React.FC = () => {
       defaultTab="details"
       onSave={handleSave}
       backUrl="/attribute-groups"
+      inlineActions={false}
     />
   );
 };

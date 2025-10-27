@@ -1,39 +1,43 @@
 type CrudPermissionSet = {
-  READ: string;
+  LIST: string;
+  VIEW: string;
   CREATE: string;
   UPDATE: string;
   DELETE: string;
   HISTORY: string;
-  [key: string]: string;
 };
 
-const createCrudPermissionSet = (resource: string): CrudPermissionSet => ({
-  READ: `${resource}.read`,
-  CREATE: `${resource}.create`,
-  UPDATE: `${resource}.update`,
-  DELETE: `${resource}.delete`,
-  HISTORY: `${resource}.history`,
+const createCrudPermissionSet = (domain: string, resource: string): CrudPermissionSet => ({
+  LIST: `${domain}.${resource}.list`,
+  VIEW: `${domain}.${resource}.view`,
+  CREATE: `${domain}.${resource}.create`,
+  UPDATE: `${domain}.${resource}.update`,
+  DELETE: `${domain}.${resource}.delete`,
+  HISTORY: `${domain}.${resource}.history`,
 });
 
 export const PERMISSIONS = {
   CATALOG: {
-    ITEMS: createCrudPermissionSet('items'),
-    ITEM_TYPES: createCrudPermissionSet('itemTypes'),
-    CATEGORIES: createCrudPermissionSet('categories'),
-    FAMILIES: createCrudPermissionSet('families'),
-    ATTRIBUTE_GROUPS: createCrudPermissionSet('attributeGroups'),
-    ATTRIBUTES: createCrudPermissionSet('attributes'),
+    ITEMS: createCrudPermissionSet('catalog', 'items'),
+    ITEM_TYPES: createCrudPermissionSet('catalog', 'itemTypes'),
+    CATEGORIES: createCrudPermissionSet('catalog', 'categories'),
+    FAMILIES: createCrudPermissionSet('catalog', 'families'),
+    ATTRIBUTE_GROUPS: createCrudPermissionSet('catalog', 'attributeGroups'),
+    ATTRIBUTES: createCrudPermissionSet('catalog', 'attributes'),
   },
   SYSTEM: {
     USERS: {
-      ...createCrudPermissionSet('users'),
-      ROLE_EDIT: 'users.role.edit',
+      ...createCrudPermissionSet('users', 'accounts'),
+      ROLE_LIST: 'users.roles.list',
+      ROLE_VIEW: 'users.roles.view',
+      ROLE_ASSIGN: 'users.roles.assign',
+      ROLE_HISTORY: 'users.roles.history',
     },
-    SETTINGS: createCrudPermissionSet('settings'),
-    ROLES: createCrudPermissionSet('roles'),
-    PERMISSIONS: createCrudPermissionSet('permissions'),
-    PERMISSION_GROUPS: createCrudPermissionSet('permissionGroups'),
-    LOCALIZATIONS: createCrudPermissionSet('localizations'),
+    SETTINGS: createCrudPermissionSet('settings', 'settings'),
+    ROLES: createCrudPermissionSet('roles', 'roles'),
+    PERMISSIONS: createCrudPermissionSet('auth', 'permissions'),
+    PERMISSION_GROUPS: createCrudPermissionSet('auth', 'permissionGroups'),
+    LOCALIZATIONS: createCrudPermissionSet('settings', 'localization'),
   },
 } as const;
 

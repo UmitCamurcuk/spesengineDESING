@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { 
   FileText, 
   Tags, 
@@ -25,6 +26,7 @@ import { ChangeConfirmDialog } from '../../components/ui/ChangeConfirmDialog';
 import { useToast } from '../../contexts/ToastContext';
 import { Attribute, AttributeType } from '../../types';
 import { TabConfig } from '../../types/common';
+import { PERMISSIONS } from '../../config/permissions';
 
 // Mock data
 const mockAttribute: Attribute = {
@@ -352,6 +354,8 @@ export const AttributesDetails: React.FC = () => {
   const { t } = useLanguage();
   const { id } = useParams();
   const { showToast } = useToast();
+  const { hasPermission } = useAuth();
+  const canUpdateAttribute = hasPermission(PERMISSIONS.CATALOG.ATTRIBUTES.UPDATE);
   const [editMode, setEditMode] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [changeDialogOpen, setChangeDialogOpen] = useState(false);
@@ -371,10 +375,17 @@ export const AttributesDetails: React.FC = () => {
   };
 
   const handleSave = () => {
+    if (!canUpdateAttribute || !hasChanges) {
+      return;
+    }
     setChangeDialogOpen(true);
   };
 
   const handleSaveWithComment = (comment: string) => {
+    if (!canUpdateAttribute) {
+      setChangeDialogOpen(false);
+      return;
+    }
     showToast('Attribute saved successfully with comment: ' + comment, 'success');
     setChangeDialogOpen(false);
     setEditMode(false);
@@ -495,14 +506,15 @@ export const AttributesDetails: React.FC = () => {
         backUrl="/attributes"
         editMode={editMode}
         hasChanges={hasChanges}
-        onEdit={() => setEditMode(true)}
-        onSave={handleSave}
+        onEdit={canUpdateAttribute ? () => setEditMode(true) : undefined}
+        onSave={canUpdateAttribute ? handleSave : undefined}
         onCancel={handleCancel}
+        inlineActions={false}
       />
       
       {/* Change Confirmation Dialog */}
       <ChangeConfirmDialog
-        open={changeDialogOpen}
+        open={canUpdateAttribute && changeDialogOpen}
         onClose={() => setChangeDialogOpen(false)}
         onConfirm={handleSaveWithComment}
         title={t('attributes.save_changes')}
