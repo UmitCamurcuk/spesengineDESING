@@ -267,7 +267,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, isOpen, onClose }) 
                     )}
                   </button>
                   {isExpanded && (
-                    <div className="ml-6 mt-1 space-y-1">
+                    <div className="ml-4 mt-1 space-y-0.5">
                       {item.children.map((child) => {
                         if (!child.href) return null;
                         const isActive = location.pathname.startsWith(child.href);
@@ -278,7 +278,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, isOpen, onClose }) 
                             to={child.href}
                             onClick={onClose}
                             className={cn(
-                              'flex items-center space-x-2.5 px-3 py-1.5 rounded-md text-sm transition-colors duration-150 group',
+                              'flex items-center space-x-2 px-3 py-1.5 rounded-md text-xs transition-colors duration-150 group',
                               isActive
                                 ? 'bg-sidebar-active text-sidebar-active-foreground shadow-sm'
                                 : 'text-sidebar-foreground hover:bg-muted hover:text-foreground'
@@ -286,13 +286,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, isOpen, onClose }) 
                           >
                             <child.icon 
                               className={cn(
-                                'h-3.5 w-3.5 transition-colors duration-200', 
+                                'h-3 w-3 transition-colors duration-200', 
                                 isActive 
                                   ? 'text-sidebar-active-foreground' 
                                   : 'text-muted-foreground group-hover:text-foreground'
                               )} 
                             />
-                            <span>{t(child.name)}</span>
+                            <span className="text-xs">{t(child.name)}</span>
                             {isActive && (
                               <div className="ml-auto w-1.5 h-1.5 bg-sidebar-active-foreground rounded-full"></div>
                             )}
