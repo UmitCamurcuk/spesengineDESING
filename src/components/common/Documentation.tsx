@@ -168,14 +168,14 @@ export const Documentation: React.FC<DocumentationProps> = ({
   const renderMarkdown = (content: string) => {
     // Simple markdown rendering (in a real app, use a proper markdown library)
     return content
-      .replace(/^# (.*$)/gm, '<h1 class="text-2xl font-bold text-gray-900 mb-4">$1</h1>')
-      .replace(/^## (.*$)/gm, '<h2 class="text-xl font-semibold text-gray-800 mb-3 mt-6">$1</h2>')
-      .replace(/^### (.*$)/gm, '<h3 class="text-lg font-medium text-gray-700 mb-2 mt-4">$1</h3>')
+      .replace(/^# (.*$)/gm, '<h1 class="text-2xl font-bold text-foreground mb-4">$1</h1>')
+      .replace(/^## (.*$)/gm, '<h2 class="text-xl font-semibold text-foreground mb-3 mt-6">$1</h2>')
+      .replace(/^### (.*$)/gm, '<h3 class="text-lg font-medium text-foreground mb-2 mt-4">$1</h3>')
       .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
       .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
-      .replace(/`(.*?)`/g, '<code class="bg-gray-100 px-1 py-0.5 rounded text-sm font-mono">$1</code>')
-      .replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre class="bg-gray-900 text-green-400 p-4 rounded-lg overflow-x-auto my-4"><code>$2</code></pre>')
-      .replace(/^- (.*$)/gm, '<li class="ml-4">• $1</li>')
+      .replace(/`(.*?)`/g, '<code class="bg-muted px-1 py-0.5 rounded text-sm font-mono text-foreground">$1</code>')
+      .replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre class="bg-muted rounded-lg overflow-x-auto my-4 p-4"><code class="text-sm text-foreground">$2</code></pre>')
+      .replace(/^- (.*$)/gm, '<li class="ml-4 text-muted-foreground">• $1</li>')
       .replace(/\n/g, '<br>');
   };
 
@@ -183,8 +183,8 @@ export const Documentation: React.FC<DocumentationProps> = ({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">Documentation</h3>
-          <p className="text-sm text-gray-500">Comprehensive documentation for this {entityType}</p>
+          <h3 className="text-lg font-semibold text-foreground">Documentation</h3>
+          <p className="text-sm text-muted-foreground">Comprehensive documentation for this {entityType}</p>
         </div>
         {editMode && (
           <Button onClick={handleAddSection} size="sm">
@@ -206,18 +206,18 @@ export const Documentation: React.FC<DocumentationProps> = ({
                     onClick={() => setSelectedSection(section)}
                     className={`w-full p-3 text-left border rounded-lg transition-all duration-200 ${
                       selectedSection?.id === section.id
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                        ? 'border-primary bg-primary/5 text-primary'
+                        : 'border-border text-muted-foreground hover:border-border hover:bg-muted'
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
-                        <FileText className="h-4 w-4 text-gray-400" />
-                        <span className="text-sm font-medium text-gray-900">{section.title}</span>
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium text-foreground">{section.title}</span>
                       </div>
                       <Badge variant="outline" size="sm">{section.order}</Badge>
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-muted-foreground mt-1">
                       Updated {new Date(section.lastUpdated).toLocaleDateString()}
                     </p>
                   </button>
@@ -236,7 +236,7 @@ export const Documentation: React.FC<DocumentationProps> = ({
                         variant="ghost"
                         size="sm"
                         onClick={() => handleDeleteSection(section.id)}
-                        className="p-1 text-red-500 hover:text-red-700"
+                        className="p-1 text-error hover:text-error/80"
                       >
                         <Trash2 className="h-3 w-3" />
                       </Button>
@@ -299,14 +299,14 @@ export const Documentation: React.FC<DocumentationProps> = ({
                     />
                     
                     <div>
-                      <label className="text-sm font-medium text-gray-700 mb-2 block">
+                      <label className="text-sm font-medium text-foreground mb-2 block">
                         Content
                       </label>
                       <textarea
                         value={editingSection.content}
                         onChange={(e) => setEditingSection(prev => prev ? { ...prev, content: e.target.value } : null)}
                         rows={20}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                        className="w-full px-3 py-2 border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring font-mono text-sm bg-background"
                         placeholder="Enter content in Markdown format..."
                       />
                     </div>

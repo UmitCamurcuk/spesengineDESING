@@ -54,7 +54,7 @@ export function PermissionsCreate() {
   };
 
   const validateCode = (code: string): boolean => {
-    return /^[a-z0-9]+\.[a-z0-9]+\.[a-z0-9]+$/.test(code);
+    return /^[a-z0-9]+(?:\.[a-z0-9]+){1,2}$/.test(code);
   };
 
   const canProceed = () => {
@@ -146,15 +146,15 @@ export function PermissionsCreate() {
                     <Input
                       value={formData.code}
                       onChange={(e) => setFormData({ ...formData, code: e.target.value.toLowerCase() })}
-                      placeholder="users.users.create"
+                      placeholder="users.read"
                       required
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      Format: module.resource.action (e.g., users.users.create)
+                      Format: resource.action or module.resource.action (e.g., users.read)
                     </p>
                     {formData.code && !validateCode(formData.code) && (
                       <p className="text-xs text-red-500 mt-1">
-                        Invalid format! Use: module.resource.action
+                        Invalid format! Use: resource.action or module.resource.action
                       </p>
                     )}
                     {formData.code && validateCode(formData.code) && (

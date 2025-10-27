@@ -4,6 +4,7 @@ type CrudPermissionSet = {
   UPDATE: string;
   DELETE: string;
   HISTORY: string;
+  [key: string]: string;
 };
 
 const createCrudPermissionSet = (resource: string): CrudPermissionSet => ({
@@ -24,7 +25,10 @@ export const PERMISSIONS = {
     ATTRIBUTES: createCrudPermissionSet('attributes'),
   },
   SYSTEM: {
-    USERS: createCrudPermissionSet('users'),
+    USERS: {
+      ...createCrudPermissionSet('users'),
+      ROLE_EDIT: 'users.role.edit',
+    },
     SETTINGS: createCrudPermissionSet('settings'),
     ROLES: createCrudPermissionSet('roles'),
     PERMISSIONS: createCrudPermissionSet('permissions'),

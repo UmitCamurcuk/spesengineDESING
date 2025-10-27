@@ -548,6 +548,7 @@ export interface UserSummary {
   phone: string;
   location: string;
   department: string;
+  about?: string;
   primaryRoleId: string | null;
   primaryRoleName: string | null;
   activeRoleId: string | null;
@@ -560,6 +561,25 @@ export interface UserSummary {
   lastLoginAt: string | null;
   createdAt: string | null;
   updatedAt: string | null;
+}
+
+export interface UserUpdateRequest {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  location?: string;
+  department?: string;
+  about?: string;
+  notificationsEnabled?: boolean;
+  emailNotificationsEnabled?: boolean;
+  twoFactorEnabled?: boolean;
+  comment: string;
+}
+
+export interface UserRoleUpdateRequest {
+  roleId: string | null;
+  comment: string;
 }
 
 export interface UserListResponse {

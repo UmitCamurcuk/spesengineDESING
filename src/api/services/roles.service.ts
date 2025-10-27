@@ -34,16 +34,16 @@ export const rolesService = {
     return response.data.data;
   },
 
-  async update(id: string, payload: RoleUpdateRequest): Promise<RoleRecord> {
+  async update(id: string, payload: RoleUpdateRequest, comment: string): Promise<RoleRecord> {
     const response = await apiClient.put<ApiSuccessResponse<RoleRecord>>(
       API_ENDPOINTS.ROLES.BY_ID(id),
-      payload,
+      { ...payload, comment },
     );
     return response.data.data;
   },
 
-  async delete(id: string): Promise<void> {
-    await apiClient.delete(API_ENDPOINTS.ROLES.BY_ID(id));
+  async delete(id: string, comment: string): Promise<void> {
+    await apiClient.delete(API_ENDPOINTS.ROLES.BY_ID(id), { data: { comment } });
   },
 
   async getPermissions(id: string): Promise<string[]> {

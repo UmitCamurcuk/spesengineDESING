@@ -15,7 +15,7 @@ export const API_ENDPOINTS = {
     BASE: '/users',
     BY_ID: (id: string) => `/users/${id}`,
     PROFILE: (id: string) => `/users/${id}/profile`,
-    ROLES: (id: string) => `/users/${id}/roles`,
+    ROLE: (id: string) => `/users/${id}/role`,
     PERMISSIONS: (id: string) => `/users/${id}/permissions`,
     PROFILE_PHOTO: '/users/profile-photo',
     ME: '/users/me',

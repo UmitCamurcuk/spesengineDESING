@@ -1,90 +1,815 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit, Trash2, Loader2, Shield } from 'lucide-react';
-import { Card, CardHeader } from '../../components/ui/Card';
-import { Button } from '../../components/ui/Button';
-import { Badge } from '../../components/ui/Badge';
-import { useToast } from '../../contexts/ToastContext';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import {
+  Shield,
+  FileText,
+  Layers,
+  Bell,
+  BarChart3,
+  Code,
+  BookOpen,
+  History as HistoryIcon,
+  Loader2,
+} from 'lucide-react';
+import { DetailsLayout } from '../../components/common/DetailsLayout';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useToast } from '../../contexts/ToastContext';
+import { useSettings } from '../../contexts/SettingsContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { NotificationSettings } from '../../components/common/NotificationSettings';
+import { Statistics } from '../../components/common/Statistics';
+import { APITester } from '../../components/common/APITester';
+import { Documentation } from '../../components/common/Documentation';
+import { HistoryTable } from '../../components/common/HistoryTable';
+import { Card, CardHeader } from '../../components/ui/Card';
+import { Input } from '../../components/ui/Input';
+import { Badge } from '../../components/ui/Badge';
+import { ChangeConfirmDialog } from '../../components/ui/ChangeConfirmDialog';
 import { rolesService } from '../../api/services/roles.service';
 import { permissionsService } from '../../api/services/permissions.service';
 import { permissionGroupsService } from '../../api/services/permission-groups.service';
-import { useAuth } from '../../contexts/AuthContext';
+import { localizationsService } from '../../api/services/localizations.service';
 import { PERMISSIONS } from '../../config/permissions';
-import type { 
-  RoleWithPermissions, 
-  PermissionRecord, 
-  PermissionGroupRecord 
+import type {
+  RoleWithPermissions,
+  PermissionRecord,
+  PermissionGroupRecord,
+  LanguageOption,
+  RoleUpdateRequest,
+  LocalizationRecord,
 } from '../../api/types/api.types';
+import type { TabConfig } from '../../types/common';
+
+type RoleForm = {
+  translations: {
+    name: Record<string, string>;
+    description: Record<string, string>;
+  };
+  permissions: string[];
+};
+
+type ChangeItem = {
+  field: string;
+  oldValue: string | number | boolean;
+  newValue: string | number | boolean;
+};
+
+const fallbackLanguages: LanguageOption[] = [
+  { code: 'tr', label: 'Turkish', required: true },
+  { code: 'en', label: 'English', required: false },
+];
+
+const normalizeLanguageCode = (code: string): string => {
+  const trimmed = code.trim();
+  if (!trimmed.includes('-')) {
+    return trimmed.toLowerCase();
+  }
+  const [language, region] = trimmed.split('-', 2);
+  return `${language.toLowerCase()}-${(region ?? '').toUpperCase()}`;
+};
+
+const getTranslationValue = (record: LocalizationRecord | null, languageCode: string): string => {
+  if (!record) {
+    return '';
+  }
+  const normalized = normalizeLanguageCode(languageCode);
+  for (const [key, value] of Object.entries(record.translations ?? {})) {
+    if (normalizeLanguageCode(key) === normalized) {
+      return value;
+    }
+  }
+  return '';
+};
+
+const buildTranslationState = (
+  languages: LanguageOption[],
+  record: LocalizationRecord | null,
+): Record<string, string> => {
+  const result: Record<string, string> = {};
+  languages.forEach((language) => {
+    const normalized = normalizeLanguageCode(language.code);
+    result[normalized] = getTranslationValue(record, language.code);
+  });
+  return result;
+};
+
+const cloneForm = (form: RoleForm): RoleForm => ({
+  translations: {
+    name: { ...form.translations.name },
+    description: { ...form.translations.description },
+  },
+  permissions: [...form.permissions],
+});
+
+const trimTranslationMap = (map: Record<string, string>): Record<string, string> => {
+  const result: Record<string, string> = {};
+  for (const [code, value] of Object.entries(map)) {
+    result[code] = value.trim();
+  }
+  return result;
+};
+
+const translationMapsEqual = (a: Record<string, string>, b: Record<string, string>): boolean => {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const key of keys) {
+    if ((a[key] ?? '').trim() !== (b[key] ?? '').trim()) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const permissionsEqual = (a: string[], b: string[]): boolean => {
+  if (a.length !== b.length) {
+    return false;
+  }
+  const sortedA = [...a].sort();
+  const sortedB = [...b].sort();
+  return sortedA.every((value, index) => value === sortedB[index]);
+};
+
+const normalizeForm = (form: RoleForm): RoleForm => ({
+  translations: {
+    name: trimTranslationMap(form.translations.name),
+    description: trimTranslationMap(form.translations.description),
+  },
+  permissions: [...form.permissions].sort(),
+});
+
+const formsEqual = (a: RoleForm, b: RoleForm): boolean => {
+  const normalizedA = normalizeForm(a);
+  const normalizedB = normalizeForm(b);
+  return (
+    translationMapsEqual(normalizedA.translations.name, normalizedB.translations.name) &&
+    translationMapsEqual(
+      normalizedA.translations.description,
+      normalizedB.translations.description,
+    ) &&
+    permissionsEqual(normalizedA.permissions, normalizedB.permissions)
+  );
+};
+
+const buildUpdatePayload = (current: RoleForm, baseline: RoleForm): RoleUpdateRequest => {
+  const payload: RoleUpdateRequest = {};
+  const normalizedCurrent = normalizeForm(current);
+  const normalizedBaseline = normalizeForm(baseline);
+
+  if (!translationMapsEqual(normalizedCurrent.translations.name, normalizedBaseline.translations.name)) {
+    payload.name = normalizedCurrent.translations.name;
+  }
+
+  if (
+    !translationMapsEqual(
+      normalizedCurrent.translations.description,
+      normalizedBaseline.translations.description,
+    )
+  ) {
+    payload.description = normalizedCurrent.translations.description;
+  }
+
+  if (!permissionsEqual(normalizedCurrent.permissions, normalizedBaseline.permissions)) {
+    payload.permissions = normalizedCurrent.permissions;
+  }
+
+  return payload;
+};
+
+interface RoleDetailsTabProps {
+  form: RoleForm;
+  editMode: boolean;
+  onChange: (updater: (prev: RoleForm) => RoleForm) => void;
+  languages: LanguageOption[];
+  metadata: {
+    id: string;
+    createdAt: string;
+    updatedAt: string;
+    isSystemRole: boolean;
+  };
+}
+
+const RoleDetailsTab: React.FC<RoleDetailsTabProps> = ({
+  form,
+  editMode,
+  onChange,
+  languages,
+  metadata,
+}) => {
+  const { t } = useLanguage();
+
+  const handleTranslationChange = (
+    field: 'name' | 'description',
+    languageCode: string,
+    value: string,
+  ) => {
+    const normalized = normalizeLanguageCode(languageCode);
+    onChange((prev) => ({
+      ...prev,
+      translations: {
+        ...prev.translations,
+        [field]: {
+          ...prev.translations[field],
+          [normalized]: value,
+        },
+      },
+    }));
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card padding="lg">
+        <CardHeader
+          title={t('roles.details.name_translations')}
+          subtitle={t('roles.details.name_translations_subtitle')}
+        />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {languages.map((language) => {
+            const normalized = normalizeLanguageCode(language.code);
+            return (
+              <Input
+                key={`name-${normalized}`}
+                label={`${t('roles.fields.name')} (${language.label})`}
+                value={form.translations.name[normalized] ?? ''}
+                onChange={(event) =>
+                  handleTranslationChange('name', language.code, event.target.value)
+                }
+                placeholder={t('roles.placeholders.name', { language: language.label })}
+                disabled={!editMode}
+              />
+            );
+          })}
+        </div>
+      </Card>
+
+      <Card padding="lg">
+        <CardHeader
+          title={t('roles.details.description_translations')}
+          subtitle={t('roles.details.description_translations_subtitle')}
+        />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {languages.map((language) => {
+            const normalized = normalizeLanguageCode(language.code);
+            return (
+              <div key={`description-${normalized}`}>
+                <label className="text-sm font-medium text-foreground mb-2 block">
+                  {t('roles.fields.description')} ({language.label})
+                </label>
+                <textarea
+                  value={form.translations.description[normalized] ?? ''}
+                  onChange={(event) =>
+                    handleTranslationChange('description', language.code, event.target.value)
+                  }
+                  placeholder={t('roles.placeholders.description', { language: language.label })}
+                  rows={editMode ? 4 : 3}
+                  className="w-full px-3 py-2 text-sm bg-background text-foreground border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring/20 disabled:bg-muted resize-none"
+                  disabled={!editMode}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      <Card padding="lg">
+        <CardHeader
+          title={t('roles.details.metadata')}
+          subtitle={t('roles.details.metadata_subtitle')}
+        />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-muted-foreground">
+          <div>
+            <span className="font-medium text-foreground block">{t('roles.fields.identifier')}</span>
+            <code className="text-xs font-mono bg-muted px-2 py-1 rounded-lg mt-1 block">
+              {metadata.id}
+            </code>
+          </div>
+          <div>
+            <span className="font-medium text-foreground block">
+              {t('roles.fields.created_at')}
+            </span>
+            <span className="mt-1 block">{new Date(metadata.createdAt).toLocaleString()}</span>
+          </div>
+          <div>
+            <span className="font-medium text-foreground block">
+              {t('roles.fields.updated_at')}
+            </span>
+            <span className="mt-1 block">{new Date(metadata.updatedAt).toLocaleString()}</span>
+          </div>
+          <div>
+            <span className="font-medium text-foreground block">{t('roles.fields.role_type')}</span>
+            <Badge variant={metadata.isSystemRole ? 'primary' : 'secondary'} className="mt-1">
+              {metadata.isSystemRole ? t('roles.labels.system_role') : t('roles.labels.custom_role')}
+            </Badge>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+interface RolePermissionsTabProps {
+  editMode: boolean;
+  groups: PermissionGroupRecord[];
+  permissions: PermissionRecord[];
+  assignedPermissions: string[];
+  onToggle: (permissionId: string, enabled: boolean) => void;
+}
+
+const RolePermissionsTab: React.FC<RolePermissionsTabProps> = ({
+  editMode,
+  groups,
+  permissions,
+  assignedPermissions,
+  onToggle,
+}) => {
+  const { t } = useLanguage();
+  const assignedSet = useMemo(() => new Set(assignedPermissions), [assignedPermissions]);
+
+  const permissionsByGroup = useMemo(() => {
+    const map = new Map<string, PermissionRecord[]>();
+    permissions.forEach((permission) => {
+      const groupId = permission.permissionGroupId ?? 'ungrouped';
+      if (!map.has(groupId)) {
+        map.set(groupId, []);
+      }
+      map.get(groupId)!.push(permission);
+    });
+    return map;
+  }, [permissions]);
+
+  return (
+    <div className="space-y-6">
+      {groups.map((group) => {
+        const groupPermissions = permissionsByGroup.get(group.id) ?? [];
+        if (groupPermissions.length === 0) {
+          return null;
+        }
+        const enabledCount = groupPermissions.filter((permission) =>
+          assignedSet.has(permission.id),
+        ).length;
+
+        return (
+          <Card key={group.id} padding="lg">
+            <CardHeader
+              title={group.name?.trim() || group.nameLocalizationId || t('roles.labels.unknown_group')}
+              subtitle={
+                group.description?.trim() ||
+                group.descriptionLocalizationId ||
+                t('common.no_description')
+              }
+              endContent={
+                <Badge variant="secondary">
+                  {enabledCount} / {groupPermissions.length}
+                </Badge>
+              }
+            />
+            <div className="space-y-3">
+              {groupPermissions.map((permission) => {
+                const enabled = assignedSet.has(permission.id);
+                return (
+                  <div
+                    key={permission.id}
+                    className={`flex items-center justify-between p-4 border rounded-lg ${
+                      enabled ? 'border-primary/40 bg-primary/5' : 'border-border'
+                    }`}
+                  >
+                    <div className="flex flex-col space-y-1">
+                      <div className="flex items-center gap-3">
+                        <Badge variant={enabled ? 'primary' : 'secondary'} size="sm">
+                          {permission.code}
+                        </Badge>
+                        <span className="font-medium text-foreground">
+                          {permission.name?.trim() || permission.nameLocalizationId || '—'}
+                        </span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {permission.description?.trim() ||
+                          permission.descriptionLocalizationId ||
+                          t('common.no_description')}
+                      </span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={enabled}
+                        onChange={(event) => onToggle(permission.id, event.target.checked)}
+                        disabled={!editMode}
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/30 rounded-full peer peer-checked:bg-primary transition-colors peer-disabled:opacity-60" />
+                      <span className="sr-only">{t('roles.actions.toggle_permission')}</span>
+                      <div className="absolute left-0 top-0 ml-0.5 mt-0.5 h-5 w-5 bg-white rounded-full border border-border shadow-sm transition-transform duration-200 peer-checked:translate-x-full peer-checked:border-transparent" />
+                    </label>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        );
+      })}
+    </div>
+  );
+};
+
+const NotificationsTab: React.FC<{ entityId: string; editMode: boolean }> = ({
+  entityId,
+  editMode,
+}) => <NotificationSettings entityType='role' entityId={entityId} editMode={editMode} />;
+
+const StatisticsTab: React.FC<{ entityId: string; editMode: boolean }> = ({ entityId, editMode }) => (
+  <Statistics entityType="role" entityId={entityId} editMode={editMode} />
+);
+
+const ApiTab: React.FC<{ entityId: string; editMode: boolean }> = ({ entityId, editMode }) => (
+  <APITester entityType="role" entityId={entityId} editMode={editMode} />
+);
+
+const DocumentationTab: React.FC<{ entityId: string; editMode: boolean }> = ({
+  entityId,
+  editMode,
+}) => <Documentation entityType="role" entityId={entityId} editMode={editMode} />;
+
+const HistoryTab: React.FC<{ entityId: string }> = ({ entityId }) => (
+  <HistoryTable entityType="Role" entityId={entityId} />
+);
 
 export function RolesDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { t, language } = useLanguage();
   const { showToast } = useToast();
-  const { language } = useLanguage();
+  const { settings } = useSettings();
   const { hasPermission } = useAuth();
-  const canEditRole = hasPermission(PERMISSIONS.SYSTEM.ROLES.UPDATE);
-  const canDeleteRole = hasPermission(PERMISSIONS.SYSTEM.ROLES.DELETE);
-  
+
+  const canReadRole = hasPermission(PERMISSIONS.SYSTEM.ROLES.READ);
+  const canUpdateRole = hasPermission(PERMISSIONS.SYSTEM.ROLES.UPDATE);
+  const canViewRoleHistory = hasPermission(PERMISSIONS.SYSTEM.ROLES.HISTORY);
+
+  const supportedLanguages = useMemo<LanguageOption[]>(() => {
+    const configured = settings?.localization?.supportedLanguages ?? [];
+    if (configured.length === 0) {
+      return fallbackLanguages;
+    }
+    return configured.map((item) => ({
+      code: item.code,
+      label: item.label,
+      required: item.required,
+    }));
+  }, [settings?.localization?.supportedLanguages]);
+
+  const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<RoleWithPermissions | null>(null);
   const [permissions, setPermissions] = useState<PermissionRecord[]>([]);
-  const [groups, setGroups] = useState<PermissionGroupRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [deleting, setDeleting] = useState(false);
+  const [permissionGroups, setPermissionGroups] = useState<PermissionGroupRecord[]>([]);
+  const [formState, setFormState] = useState<RoleForm | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+  const [commentDialogOpen, setCommentDialogOpen] = useState(false);
+  const [pendingChanges, setPendingChanges] = useState<ChangeItem[]>([]);
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (id) loadData();
-  }, [id, language]);
+  const baselineRef = useRef<RoleForm | null>(null);
 
-  const loadData = async () => {
+  const updateFormState = useCallback(
+    (updater: (prev: RoleForm) => RoleForm) => {
+      setFormState((prev) => {
+        if (!prev) {
+          return prev;
+        }
+        const next = updater(prev);
+        if (baselineRef.current) {
+          setHasChanges(!formsEqual(next, baselineRef.current));
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
+  const fetchLocalizationSafely = useCallback(async (localizationId?: string | null) => {
+    if (!localizationId) {
+      return null;
+    }
+    try {
+      return await localizationsService.getById(localizationId);
+    } catch (error) {
+      console.warn('Failed to fetch localization', error);
+      showToast({
+        type: 'warning',
+        message: t('roles.messages.localization_fetch_failed'),
+      });
+      return null;
+    }
+  }, [showToast, t]);
+
+  const loadData = useCallback(async () => {
+    if (!id) {
+      return;
+    }
     try {
       setLoading(true);
-      const [roleResult, permResult, groupsResult] = await Promise.all([
-        rolesService.getById(id!, { language }),
-        permissionsService.list({ pageSize: 1000, language }),
-        permissionGroupsService.list({ pageSize: 1000, language }),
-      ]);
-      setRole(roleResult);
-      setPermissions(permResult.items);
-      setGroups(groupsResult.items);
+      setIsEditing(false);
+
+      const roleResponse = await rolesService.getById(id, { language });
+      const [permissionsResponse, permissionGroupsResponse, nameLocalization, descriptionLocalization] =
+        await Promise.all([
+          permissionsService.list({ pageSize: 1000, language }),
+          permissionGroupsService.list({ pageSize: 200, language }),
+          fetchLocalizationSafely(roleResponse.nameLocalizationId),
+          fetchLocalizationSafely(roleResponse.descriptionLocalizationId),
+        ]);
+
+      const form: RoleForm = {
+        translations: {
+          name: buildTranslationState(supportedLanguages, nameLocalization),
+          description: buildTranslationState(supportedLanguages, descriptionLocalization),
+        },
+        permissions: [...roleResponse.permissions],
+      };
+
+      baselineRef.current = cloneForm(form);
+      setFormState(cloneForm(form));
+      setHasChanges(false);
+      setRole(roleResponse);
+      setPermissions(permissionsResponse.items);
+      setPermissionGroups(permissionGroupsResponse.items);
     } catch (error: any) {
-      console.error('Failed to load role:', error);
-      showToast({ type: 'error', message: 'Failed to load role' });
+      console.error('Failed to load role details', error);
+      showToast({
+        type: 'error',
+        message: error?.message || t('roles.messages.load_failed'),
+      });
       navigate('/roles');
     } finally {
       setLoading(false);
     }
-  };
+  }, [
+    fetchLocalizationSafely,
+    id,
+    language,
+    navigate,
+    showToast,
+    supportedLanguages,
+    t,
+  ]);
 
-  const handleDelete = async () => {
-    if (!canDeleteRole) {
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  const handleEnterEdit = () => {
+    if (!canUpdateRole) {
       return;
     }
-    if (!confirm('Are you sure you want to delete this role?')) return;
+    setIsEditing(true);
+  };
 
+  const handleCancel = () => {
+    if (!baselineRef.current) {
+      return;
+    }
+    setFormState(cloneForm(baselineRef.current));
+    setHasChanges(false);
+    setIsEditing(false);
+  };
+
+  const handleTogglePermission = useCallback((permissionId: string, enabled: boolean) => {
+    updateFormState((prev) => {
+      const set = new Set(prev.permissions);
+      if (enabled) {
+        set.add(permissionId);
+      } else {
+        set.delete(permissionId);
+      }
+      return {
+        ...prev,
+        permissions: Array.from(set),
+      };
+    });
+  }, [updateFormState]);
+
+  const buildChangesList = (): ChangeItem[] => {
+    if (!formState || !baselineRef.current) {
+      return [];
+    }
+    const changes: ChangeItem[] = [];
+    const normalizedCurrent = normalizeForm(formState);
+    const normalizedBaseline = normalizeForm(baselineRef.current);
+
+    supportedLanguages.forEach((languageOption) => {
+      const code = normalizeLanguageCode(languageOption.code);
+      const label = `${t('roles.fields.name')} (${languageOption.label})`;
+      const oldValue = normalizedBaseline.translations.name[code] ?? '';
+      const newValue = normalizedCurrent.translations.name[code] ?? '';
+      if (oldValue !== newValue) {
+        changes.push({
+          field: label,
+          oldValue: oldValue || '—',
+          newValue: newValue || '—',
+        });
+      }
+    });
+
+    supportedLanguages.forEach((languageOption) => {
+      const code = normalizeLanguageCode(languageOption.code);
+      const label = `${t('roles.fields.description')} (${languageOption.label})`;
+      const oldValue = normalizedBaseline.translations.description[code] ?? '';
+      const newValue = normalizedCurrent.translations.description[code] ?? '';
+      if (oldValue !== newValue) {
+        changes.push({
+          field: label,
+          oldValue: oldValue || '—',
+          newValue: newValue || '—',
+        });
+      }
+    });
+
+    if (!permissionsEqual(normalizedCurrent.permissions, normalizedBaseline.permissions)) {
+      changes.push({
+        field: t('roles.fields.permissions'),
+        oldValue: normalizedBaseline.permissions.length,
+        newValue: normalizedCurrent.permissions.length,
+      });
+    }
+
+    return changes;
+  };
+
+  const handleSave = () => {
+    if (!formState || !baselineRef.current) {
+      return;
+    }
+    const changes = buildChangesList();
+    if (changes.length === 0) {
+      showToast({
+        type: 'info',
+        message: t('roles.messages.no_changes'),
+      });
+      return;
+    }
+    setPendingChanges(changes);
+    setCommentDialogOpen(true);
+  };
+
+  const handleConfirmSave = async (comment: string) => {
+    if (!formState || !baselineRef.current || !role || !id) {
+      return;
+    }
     try {
-      setDeleting(true);
-      await rolesService.delete(id!);
-      showToast({ type: 'success', message: 'Role deleted successfully' });
-      navigate('/roles');
+      setSaving(true);
+      const payload = buildUpdatePayload(formState, baselineRef.current);
+      if (Object.keys(payload).length === 0) {
+        showToast({
+          type: 'info',
+          message: t('roles.messages.no_changes'),
+        });
+        setCommentDialogOpen(false);
+        setPendingChanges([]);
+        return;
+      }
+      await rolesService.update(id, payload, comment);
+      showToast({
+        type: 'success',
+        message: t('roles.messages.updated'),
+      });
+      setCommentDialogOpen(false);
+      setPendingChanges([]);
+      await loadData();
     } catch (error: any) {
-      console.error('Failed to delete role:', error);
-      showToast({ type: 'error', message: error?.message || 'Failed to delete role' });
+      console.error('Failed to update role', error);
+      showToast({
+        type: 'error',
+        message: error?.message || t('roles.messages.update_failed'),
+      });
     } finally {
-      setDeleting(false);
+      setSaving(false);
     }
   };
 
-  const getGroupPermissions = (groupId: string) => {
-    return permissions.filter(p => p.permissionGroupId === groupId);
+  const handleCommentDialogClose = () => {
+    setCommentDialogOpen(false);
+    if (!saving) {
+      setPendingChanges([]);
+    }
   };
 
-  const getEnabledPermissions = (groupId: string) => {
-    const groupPerms = getGroupPermissions(groupId);
-    return groupPerms.filter(p => role?.permissions.includes(p.id));
-  };
+  const headerBadge = useMemo(() => {
+    if (!role) {
+      return null;
+    }
+    return (
+      <Badge variant={role.isSystemRole ? 'primary' : 'secondary'} size="sm">
+        {role.isSystemRole ? t('roles.labels.system_role') : t('roles.labels.custom_role')}
+      </Badge>
+    );
+  }, [role, t]);
 
-  if (loading) {
+  const tabs = useMemo<TabConfig[]>(() => {
+    if (!formState || !role) {
+      return [];
+    }
+    return [
+      {
+        id: 'details',
+        label: t('roles.tabs.details'),
+        icon: FileText,
+        component: RoleDetailsTab,
+        props: {
+          form: formState,
+          editMode: isEditing,
+          onChange: updateFormState,
+          languages: supportedLanguages,
+          metadata: {
+            id: role.id,
+            createdAt: role.createdAt,
+            updatedAt: role.updatedAt,
+            isSystemRole: role.isSystemRole,
+          },
+        },
+        hidden: !canReadRole,
+      },
+      {
+        id: 'permissions',
+        label: t('roles.tabs.permissions'),
+        icon: Layers,
+        component: RolePermissionsTab,
+        props: {
+          editMode: isEditing,
+          groups: permissionGroups,
+          permissions,
+          assignedPermissions: formState.permissions,
+          onToggle: handleTogglePermission,
+        },
+        hidden: !canReadRole,
+      },
+      {
+        id: 'notifications',
+        label: t('details.tabs.notifications'),
+        icon: Bell,
+        component: NotificationsTab,
+        props: {
+          entityId: role.id,
+          editMode: isEditing,
+        },
+        hidden: !canReadRole,
+      },
+      {
+        id: 'statistics',
+        label: t('details.tabs.statistics'),
+        icon: BarChart3,
+        component: StatisticsTab,
+        props: {
+          entityId: role.id,
+          editMode: isEditing,
+        },
+        hidden: !canReadRole,
+      },
+      {
+        id: 'api',
+        label: t('details.tabs.api'),
+        icon: Code,
+        component: ApiTab,
+        props: {
+          entityId: role.id,
+          editMode: isEditing,
+        },
+        hidden: !canReadRole,
+      },
+      {
+        id: 'documentation',
+        label: t('details.tabs.documentation'),
+        icon: BookOpen,
+        component: DocumentationTab,
+        props: {
+          entityId: role.id,
+          editMode: isEditing,
+        },
+        hidden: !canReadRole,
+      },
+      {
+        id: 'history',
+        label: t('details.tabs.history'),
+        icon: HistoryIcon,
+        component: HistoryTab,
+        props: {
+          entityId: role.id,
+        },
+        hidden: !canViewRoleHistory,
+      },
+    ];
+  }, [
+    canReadRole,
+    canViewRoleHistory,
+    formState,
+    handleTogglePermission,
+    isEditing,
+    permissionGroups,
+    permissions,
+    role,
+    supportedLanguages,
+    t,
+    updateFormState,
+  ]);
+
+  if (loading || !role || !formState) {
     return (
       <div className="flex items-center justify-center h-full">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -92,159 +817,32 @@ export function RolesDetails() {
     );
   }
 
-  if (!role) return null;
-
-  const totalEnabled = role.permissions.length;
-
   return (
-    <div className="max-w-5xl mx-auto p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center space-x-4">
-          <Button variant="ghost" onClick={() => navigate('/roles')}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Role Details</h1>
-          </div>
-        </div>
-        <div className="flex space-x-2">
-          {canEditRole && (
-            <Button variant="outline" onClick={() => navigate(`/roles/edit/${id}`)}>
-              <Edit className="h-4 w-4 mr-2" />
-              Edit
-            </Button>
-          )}
-          {!role.isSystemRole && canDeleteRole && (
-            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
-              {deleting ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Trash2 className="h-4 w-4 mr-2" />
-              )}
-              Delete
-            </Button>
-          )}
-        </div>
-      </div>
+    <>
+      <DetailsLayout
+        title={role.name?.trim() || role.nameLocalizationId || t('roles.details.title')}
+        subtitle={
+          role.description?.trim() || role.descriptionLocalizationId || t('roles.details.subtitle')
+        }
+        icon={<Shield className="h-6 w-6 text-white" />}
+        backUrl="/roles"
+        tabs={tabs}
+        editMode={isEditing}
+        hasChanges={hasChanges}
+        onEdit={canUpdateRole ? handleEnterEdit : undefined}
+        onSave={canUpdateRole ? handleSave : undefined}
+        onCancel={handleCancel}
+        headerActions={headerBadge}
+      />
 
-      <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <h2 className="text-lg font-semibold">Basic Information</h2>
-          </CardHeader>
-          <div className="p-6 space-y-4">
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">ID</label>
-              <p className="text-sm text-foreground font-mono">{role.id}</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">Name</label>
-              <p className="text-sm text-foreground">{role.name?.trim() || role.nameLocalizationId || '—'}</p>
-              {role.nameLocalizationId && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Localization ID: {role.nameLocalizationId}
-                </p>
-              )}
-            </div>
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">Description</label>
-              <p className="text-sm text-foreground">
-                {role.description?.trim() || role.descriptionLocalizationId || '—'}
-              </p>
-              {role.descriptionLocalizationId && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Localization ID: {role.descriptionLocalizationId}
-                </p>
-              )}
-            </div>
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">Type</label>
-              <Badge variant={role.isSystemRole ? 'primary' : 'secondary'}>
-                {role.isSystemRole ? 'System Role' : 'Custom Role'}
-              </Badge>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Created</label>
-                <p className="text-sm text-foreground">{new Date(role.createdAt).toLocaleString()}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Updated</label>
-                <p className="text-sm text-foreground">{new Date(role.updatedAt).toLocaleString()}</p>
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Permissions</h2>
-              <Badge variant="primary">
-                {totalEnabled} / {permissions.length} Enabled
-              </Badge>
-            </div>
-          </CardHeader>
-          <div className="p-6 space-y-4">
-            {groups.map((group) => {
-              const groupPerms = getGroupPermissions(group.id);
-              const enabledPerms = getEnabledPermissions(group.id);
-              
-              if (groupPerms.length === 0) return null;
-
-              return (
-                <div key={group.id} className="border border-border rounded-lg overflow-hidden">
-                  <div className="flex items-center justify-between p-4 bg-muted/50">
-                    <div className="flex items-center space-x-3">
-                      <Shield className="h-5 w-5 text-muted-foreground" />
-                      <div>
-                        <div className="font-semibold text-foreground">
-                          {group.name?.trim() || group.nameLocalizationId}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {group.description?.trim() || group.descriptionLocalizationId || '—'}
-                        </div>
-                      </div>
-                    </div>
-                    <Badge variant="secondary" size="sm">
-                      {enabledPerms.length} / {groupPerms.length}
-                    </Badge>
-                  </div>
-                  
-                  <div className="p-4 space-y-2 bg-background">
-                    {groupPerms.map((permission) => {
-                      const isEnabled = role.permissions.includes(permission.id);
-
-                      return (
-                        <div
-                          key={permission.id}
-                          className={`flex items-center justify-between p-3 rounded-lg ${
-                            isEnabled ? 'bg-green-50 dark:bg-green-900/10' : 'bg-muted/30'
-                          }`}
-                        >
-                          <div className="flex items-center space-x-3">
-                            <div className={`w-2 h-2 rounded-full ${isEnabled ? 'bg-green-500' : 'bg-gray-300'}`} />
-                            <div>
-                              <code className="text-sm font-mono text-foreground">{permission.code}</code>
-                              <div className="text-xs text-muted-foreground">
-                                {permission.name?.trim() || permission.nameLocalizationId || '—'}
-                              </div>
-                            </div>
-                          </div>
-                          <Badge variant={isEnabled ? 'success' : 'secondary'} size="sm">
-                            {isEnabled ? 'Enabled' : 'Disabled'}
-                          </Badge>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-      </div>
-    </div>
+      <ChangeConfirmDialog
+        open={commentDialogOpen}
+        onClose={handleCommentDialogClose}
+        onConfirm={handleConfirmSave}
+        changes={pendingChanges}
+        loading={saving}
+        entityName={role.name?.trim() || role.id}
+      />
+    </>
   );
 }

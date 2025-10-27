@@ -138,8 +138,8 @@ export const APITester: React.FC<APITesterProps> = ({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">API Testing</h3>
-          <p className="text-sm text-gray-500">Test API endpoints for this {entityType}</p>
+          <h3 className="text-lg font-semibold text-foreground">API Testing</h3>
+          <p className="text-sm text-muted-foreground">Test API endpoints for this {entityType}</p>
         </div>
         <Badge variant="primary" size="sm">
           <Globe className="h-3 w-3 mr-1" />
@@ -161,8 +161,8 @@ export const APITester: React.FC<APITesterProps> = ({
                 onClick={() => setSelectedEndpoint(endpoint)}
                 className={`w-full p-3 text-left border rounded-lg transition-all duration-200 ${
                   selectedEndpoint?.id === endpoint.id
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border hover:border-border hover:bg-muted'
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
@@ -170,7 +170,7 @@ export const APITester: React.FC<APITesterProps> = ({
                     <Badge variant={getMethodColor(endpoint.method) as any} size="sm">
                       {endpoint.method}
                     </Badge>
-                    <code className="text-sm font-mono text-gray-700">
+                    <code className="text-sm font-mono text-foreground">
                       {endpoint.path.replace('{id}', entityId)}
                     </code>
                   </div>
@@ -178,7 +178,7 @@ export const APITester: React.FC<APITesterProps> = ({
                     <Key className="h-4 w-4 text-amber-500" />
                   )}
                 </div>
-                <p className="text-sm text-gray-600">{endpoint.description}</p>
+                <p className="text-sm text-muted-foreground">{endpoint.description}</p>
               </button>
             ))}
           </div>
@@ -193,35 +193,35 @@ export const APITester: React.FC<APITesterProps> = ({
           {selectedEndpoint && (
             <div className="space-y-4">
               {/* Endpoint Info */}
-              <div className="p-3 bg-gray-50 rounded-lg">
+              <div className="p-3 bg-muted/60 rounded-lg">
                 <div className="flex items-center space-x-2 mb-2">
                   <Badge variant={getMethodColor(selectedEndpoint.method) as any} size="sm">
                     {selectedEndpoint.method}
                   </Badge>
-                  <code className="text-sm font-mono text-gray-700">
+                  <code className="text-sm font-mono text-foreground">
                     {selectedEndpoint.path.replace('{id}', entityId)}
                   </code>
                   <button
                     onClick={() => copyToClipboard(selectedEndpoint.path.replace('{id}', entityId))}
-                    className="p-1 hover:bg-gray-200 rounded"
+                    className="p-1 hover:bg-muted rounded"
                   >
-                    {copied ? <Check className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3 text-gray-500" />}
+                    {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3 text-muted-foreground" />}
                   </button>
                 </div>
-                <p className="text-sm text-gray-600">{selectedEndpoint.description}</p>
+                <p className="text-sm text-muted-foreground">{selectedEndpoint.description}</p>
               </div>
 
               {/* Parameters */}
               {selectedEndpoint.parameters && selectedEndpoint.parameters.length > 0 && (
                 <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">Parameters</h4>
+                  <h4 className="text-sm font-medium text-foreground mb-2">Parameters</h4>
                   <div className="space-y-2">
                     {selectedEndpoint.parameters.map((param, index) => (
-                      <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                      <div key={index} className="flex items-center justify-between p-2 bg-muted/60 rounded">
                         <div>
-                          <span className="text-sm font-medium text-gray-900">{param.name}</span>
-                          {param.required && <span className="text-red-500 ml-1">*</span>}
-                          <p className="text-xs text-gray-500">{param.description}</p>
+                          <span className="text-sm font-medium text-foreground">{param.name}</span>
+                          {param.required && <span className="text-error ml-1">*</span>}
+                          <p className="text-xs text-muted-foreground">{param.description}</p>
                         </div>
                         <Badge variant="outline" size="sm">{param.type}</Badge>
                       </div>
@@ -233,14 +233,14 @@ export const APITester: React.FC<APITesterProps> = ({
               {/* Request Body */}
               {selectedEndpoint.requestBody && (
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  <label className="text-sm font-medium text-foreground mb-2 block">
                     Request Body
                   </label>
                   <textarea
                     value={requestBody || JSON.stringify(selectedEndpoint.requestBody, null, 2)}
                     onChange={(e) => setRequestBody(e.target.value)}
                     rows={6}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                    className="w-full px-3 py-2 border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring font-mono text-sm bg-background"
                     placeholder="Enter request body (JSON)"
                   />
                 </div>
@@ -276,16 +276,16 @@ export const APITester: React.FC<APITesterProps> = ({
               >
                 {response.status} {response.statusText}
               </Badge>
-              <span className="text-sm text-gray-500">
+              <span className="text-sm text-muted-foreground">
                 Response time: {response.headers['x-response-time']}
               </span>
             </div>
 
             {/* Headers */}
             <div>
-              <h4 className="text-sm font-medium text-gray-700 mb-2">Response Headers</h4>
-              <div className="bg-gray-50 rounded-lg p-3">
-                <pre className="text-xs text-gray-700">
+              <h4 className="text-sm font-medium text-foreground mb-2">Response Headers</h4>
+              <div className="bg-muted/60 rounded-lg p-3">
+                <pre className="text-xs text-foreground">
                   {JSON.stringify(response.headers, null, 2)}
                 </pre>
               </div>
@@ -294,17 +294,17 @@ export const APITester: React.FC<APITesterProps> = ({
             {/* Body */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <h4 className="text-sm font-medium text-gray-700">Response Body</h4>
+                <h4 className="text-sm font-medium text-foreground">Response Body</h4>
                 <button
                   onClick={() => copyToClipboard(JSON.stringify(response.data, null, 2))}
-                  className="flex items-center space-x-1 text-sm text-gray-500 hover:text-gray-700"
+                  className="flex items-center space-x-1 text-sm text-muted-foreground hover:text-foreground"
                 >
                   {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                   <span>Copy</span>
                 </button>
               </div>
-              <div className="bg-gray-900 rounded-lg p-4 overflow-x-auto">
-                <pre className="text-sm text-green-400">
+              <div className="bg-muted rounded-lg p-4 overflow-x-auto">
+                <pre className="text-sm text-foreground">
                   {JSON.stringify(response.data, null, 2)}
                 </pre>
               </div>

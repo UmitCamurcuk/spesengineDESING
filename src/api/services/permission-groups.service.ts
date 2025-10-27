@@ -35,16 +35,19 @@ export const permissionGroupsService = {
     return response.data.data;
   },
 
-  async update(id: string, payload: PermissionGroupUpdateRequest): Promise<PermissionGroupRecord> {
+  async update(
+    id: string,
+    payload: PermissionGroupUpdateRequest,
+    comment: string,
+  ): Promise<PermissionGroupRecord> {
     const response = await apiClient.put<ApiSuccessResponse<PermissionGroupRecord>>(
       API_ENDPOINTS.PERMISSION_GROUPS.BY_ID(id),
-      payload,
+      { ...payload, comment },
     );
     return response.data.data;
   },
 
-  async delete(id: string): Promise<void> {
-    await apiClient.delete(API_ENDPOINTS.PERMISSION_GROUPS.BY_ID(id));
+  async delete(id: string, comment: string): Promise<void> {
+    await apiClient.delete(API_ENDPOINTS.PERMISSION_GROUPS.BY_ID(id), { data: { comment } });
   },
 };
-

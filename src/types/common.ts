@@ -134,4 +134,5 @@ export interface TabConfig {
   props?: Record<string, any>;
   requiresEdit?: boolean;
   badge?: string | number;
+  hidden?: boolean;
 }

@@ -66,10 +66,10 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = ({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">Notification Settings</h3>
-          <p className="text-sm text-gray-500">Configure when and how to receive notifications</p>
+          <h3 className="text-lg font-semibold text-foreground">Notification Settings</h3>
+          <p className="text-sm text-muted-foreground">Configure when and how to receive notifications</p>
         </div>
-        <Badge variant={settings.isActive ? 'success' : 'default'} size="sm">
+        <Badge variant={settings.isActive ? 'success' : 'secondary'} size="sm">
           {settings.isActive ? 'Active' : 'Inactive'}
         </Badge>
       </div>
@@ -88,12 +88,12 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = ({
               { key: 'onDelete', label: 'When deleted', icon: <Bell className="h-4 w-4" /> },
               { key: 'onView', label: 'When viewed', icon: <Bell className="h-4 w-4" /> },
             ].map(({ key, label, icon }) => (
-              <div key={key} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+              <div key={key} className="flex items-center justify-between p-3 border border-border rounded-lg bg-card/60">
                 <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-blue-100 rounded-lg">
+                  <div className="p-2 rounded-lg bg-primary/10 text-primary">
                     {icon}
                   </div>
-                  <span className="text-sm font-medium text-gray-900">{label}</span>
+                  <span className="text-sm font-medium text-foreground">{label}</span>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input
@@ -103,7 +103,7 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = ({
                     disabled={!editMode}
                     className="sr-only peer"
                   />
-                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/40 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-transparent after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-background after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                 </label>
               </div>
             ))}
@@ -121,12 +121,12 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = ({
               { key: 'emailNotifications', label: 'Email notifications', icon: <Mail className="h-4 w-4" /> },
               { key: 'pushNotifications', label: 'Push notifications', icon: <Smartphone className="h-4 w-4" /> },
             ].map(({ key, label, icon }) => (
-              <div key={key} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+              <div key={key} className="flex items-center justify-between p-3 border border-border rounded-lg bg-card/60">
                 <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-green-100 rounded-lg">
+                  <div className="p-2 rounded-lg bg-secondary/10 text-secondary-foreground">
                     {icon}
                   </div>
-                  <span className="text-sm font-medium text-gray-900">{label}</span>
+                  <span className="text-sm font-medium text-foreground">{label}</span>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input
@@ -136,14 +136,14 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = ({
                     disabled={!editMode}
                     className="sr-only peer"
                   />
-                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                  <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/40 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-transparent after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-background after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                 </label>
               </div>
             ))}
 
             {/* Webhook URL */}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700 flex items-center space-x-2">
+              <label className="text-sm font-medium text-foreground flex items-center space-x-2">
                 <Webhook className="h-4 w-4" />
                 <span>Webhook URL</span>
               </label>
@@ -166,13 +166,13 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = ({
           <div className="space-y-4">
             <div className="flex flex-wrap gap-2">
               {settings.recipients.map((email, index) => (
-                <div key={index} className="flex items-center space-x-1 bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
+                <div key={index} className="flex items-center space-x-1 bg-primary/10 text-primary px-3 py-1 rounded-full text-sm">
                   <Users className="h-3 w-3" />
                   <span>{email}</span>
                   {editMode && (
                     <button
                       onClick={() => removeRecipient(email)}
-                      className="ml-1 hover:bg-blue-200 rounded-full p-0.5"
+                      className="ml-1 hover:bg-muted rounded-full p-0.5"
                     >
                       <Settings className="h-3 w-3 rotate-45" />
                     </button>
@@ -218,7 +218,7 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = ({
           />
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-gray-700 mb-2 block">
+              <label className="text-sm font-medium text-foreground mb-2 block">
                 Message Template
               </label>
               <textarea
@@ -227,16 +227,16 @@ export const NotificationSettings: React.FC<NotificationSettingsProps> = ({
                 placeholder="Enter custom message template..."
                 rows={3}
                 disabled={!editMode}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50"
+                className="w-full px-3 py-2 border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring disabled:bg-muted"
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 Use {'{name}'} for entity name, {'{action}'} for action type
               </p>
             </div>
 
-            <div className="p-3 bg-gray-50 rounded-lg">
-              <p className="text-xs font-medium text-gray-700 mb-1">Preview:</p>
-              <p className="text-sm text-gray-600 italic">
+            <div className="p-3 rounded-lg bg-muted/60">
+              <p className="text-xs font-medium text-foreground mb-1">Preview:</p>
+              <p className="text-sm text-muted-foreground italic">
                 {settings.customMessage?.replace('{name}', 'Product Status').replace('{action}', 'updated') || 'No custom message set'}
               </p>
             </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Edit, Save, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/Button';
@@ -38,12 +38,26 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
 }) => {
   const navigate = useNavigate();
   const { t } = useLanguage();
-  const [activeTab, setActiveTab] = useState(defaultTab || tabs[0]?.id);
+  const visibleTabs = useMemo(() => tabs.filter((tab) => !tab.hidden), [tabs]);
+  const initialTabId = useMemo(() => {
+    if (defaultTab && visibleTabs.some((tab) => tab.id === defaultTab)) {
+      return defaultTab;
+    }
+    return visibleTabs[0]?.id;
+  }, [defaultTab, visibleTabs]);
 
-  const activeTabConfig = tabs.find(tab => tab.id === activeTab);
+  const [activeTab, setActiveTab] = useState(initialTabId);
+
+  useEffect(() => {
+    if (!visibleTabs.some((tab) => tab.id === activeTab)) {
+      setActiveTab(initialTabId);
+    }
+  }, [activeTab, initialTabId, visibleTabs]);
+
+  const activeTabConfig = visibleTabs.find(tab => tab.id === activeTab);
   const ActiveComponent = activeTabConfig?.component;
 
-  const tabsWithBadges = tabs.map(tab => ({
+  const tabsWithBadges = visibleTabs.map(tab => ({
     id: tab.id,
     label: tab.label,
     icon: <tab.icon className="h-4 w-4" />,
@@ -81,11 +95,18 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
         </div>
 
         <div className="flex items-center space-x-3">
+          {headerActions}
           {onEdit ? (
             !editMode ? (
-              <Button onClick={onEdit} size="sm">
-                <Edit className="h-4 w-4 mr-2" />
-                {t('common.edit')}
+              <Button
+                onClick={onEdit}
+                size="sm"
+                variant="outline"
+                className="p-2 h-9 w-9"
+                aria-label={t('common.edit')}
+              >
+                <Edit className="h-4 w-4" />
+                <span className="sr-only">{t('common.edit')}</span>
               </Button>
             ) : (
               <div className="flex items-center space-x-2">
@@ -102,30 +123,36 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
               </div>
             )
           ) : null}
-          {headerActions}
         </div>
       </div>
 
-      {/* Tabs */}
-      <Card padding="none" className="overflow-hidden">
-        <div className="px-6 pt-6">
-          <Tabs
-            tabs={tabsWithBadges}
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            variant="underline"
-          />
-        </div>
-
-        <TabPanel className="px-6 pb-6">
-          {ActiveComponent && (
-            <ActiveComponent
-              editMode={editMode}
-              {...activeTabConfig.props}
+      {tabsWithBadges.length > 0 ? (
+        <Card padding="none" className="overflow-hidden">
+          <div className="px-6 pt-6">
+            <Tabs
+              tabs={tabsWithBadges}
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              variant="underline"
             />
-          )}
-        </TabPanel>
-      </Card>
+          </div>
+
+          <TabPanel className="px-6 pb-6">
+            {ActiveComponent && (
+              <ActiveComponent
+                editMode={editMode}
+                {...activeTabConfig.props}
+              />
+            )}
+          </TabPanel>
+        </Card>
+      ) : (
+        <Card>
+          <div className="px-6 py-8 text-sm text-muted-foreground">
+            {t('common.no_results')}
+          </div>
+        </Card>
+      )}
     </div>
   );
 };

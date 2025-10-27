@@ -44,23 +44,23 @@ export const Statistics: React.FC<StatisticsProps> = ({
   const stats = mockStatistics;
 
   const getChangeIcon = (change: number) => {
-    if (change > 0) return <TrendingUp className="h-4 w-4 text-green-600" />;
-    if (change < 0) return <TrendingDown className="h-4 w-4 text-red-600" />;
-    return <Activity className="h-4 w-4 text-gray-400" />;
+    if (change > 0) return <TrendingUp className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />;
+    if (change < 0) return <TrendingDown className="h-4 w-4 text-rose-500 dark:text-rose-400" />;
+    return <Activity className="h-4 w-4 text-muted-foreground" />;
   };
 
   const getChangeColor = (change: number) => {
-    if (change > 0) return 'text-green-600';
-    if (change < 0) return 'text-red-600';
-    return 'text-gray-500';
+    if (change > 0) return 'text-emerald-500 dark:text-emerald-400';
+    if (change < 0) return 'text-rose-500 dark:text-rose-400';
+    return 'text-muted-foreground';
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">Statistics & Analytics</h3>
-          <p className="text-sm text-gray-500">Usage statistics and performance metrics</p>
+          <h3 className="text-lg font-semibold text-foreground">Statistics & Analytics</h3>
+          <p className="text-sm text-muted-foreground">Usage statistics and performance metrics</p>
         </div>
         <Badge variant="primary" size="sm">
           <BarChart3 className="h-3 w-3 mr-1" />
@@ -73,31 +73,31 @@ export const Statistics: React.FC<StatisticsProps> = ({
         <Card padding="md">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Usage</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.usageCount.toLocaleString()}</p>
+              <p className="text-sm font-medium text-muted-foreground">Total Usage</p>
+              <p className="text-2xl font-bold text-foreground">{stats.usageCount.toLocaleString()}</p>
             </div>
-            <div className="p-3 bg-blue-100 rounded-full">
-              <Activity className="h-6 w-6 text-blue-600" />
+            <div className="p-3 rounded-full bg-primary/10 text-primary">
+              <Activity className="h-6 w-6" />
             </div>
           </div>
           <div className="flex items-center mt-2">
-            <TrendingUp className="h-4 w-4 text-green-600 mr-1" />
-            <span className="text-sm text-green-600">+12% from last month</span>
+            <TrendingUp className="h-4 w-4 text-emerald-500 dark:text-emerald-400 mr-1" />
+            <span className="text-sm text-emerald-500 dark:text-emerald-400">+12% from last month</span>
           </div>
         </Card>
 
         <Card padding="md">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Active Items</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.activeCount.toLocaleString()}</p>
+              <p className="text-sm font-medium text-muted-foreground">Active Items</p>
+              <p className="text-2xl font-bold text-foreground">{stats.activeCount.toLocaleString()}</p>
             </div>
-            <div className="p-3 bg-green-100 rounded-full">
-              <Eye className="h-6 w-6 text-green-600" />
+            <div className="p-3 rounded-full bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
+              <Eye className="h-6 w-6" />
             </div>
           </div>
           <div className="flex items-center mt-2">
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-muted-foreground">
               {Math.round((stats.activeCount / stats.totalCount) * 100)}% of total
             </span>
           </div>
@@ -106,32 +106,32 @@ export const Statistics: React.FC<StatisticsProps> = ({
         <Card padding="md">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">This Month</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.updatedThisMonth}</p>
+              <p className="text-sm font-medium text-muted-foreground">This Month</p>
+              <p className="text-2xl font-bold text-foreground">{stats.updatedThisMonth}</p>
             </div>
-            <div className="p-3 bg-amber-100 rounded-full">
-              <Edit2 className="h-6 w-6 text-amber-600" />
+            <div className="p-3 rounded-full bg-amber-100 dark:bg-amber-500/10 text-amber-600 dark:text-amber-300">
+              <Edit2 className="h-6 w-6" />
             </div>
           </div>
           <div className="flex items-center mt-2">
-            <span className="text-sm text-gray-500">Updates made</span>
+            <span className="text-sm text-muted-foreground">Updates made</span>
           </div>
         </Card>
 
         <Card padding="md">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Last Used</p>
-              <p className="text-sm font-bold text-gray-900">
+              <p className="text-sm font-medium text-muted-foreground">Last Used</p>
+              <p className="text-sm font-bold text-foreground">
                 {stats.lastUsed ? new Date(stats.lastUsed).toLocaleDateString() : 'Never'}
               </p>
             </div>
-            <div className="p-3 bg-purple-100 rounded-full">
-              <Calendar className="h-6 w-6 text-purple-600" />
+            <div className="p-3 rounded-full bg-purple-100 dark:bg-purple-500/10 text-purple-600 dark:text-purple-300">
+              <Calendar className="h-6 w-6" />
             </div>
           </div>
           <div className="flex items-center mt-2">
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-muted-foreground">
               {stats.lastUsed ? `${Math.floor((Date.now() - new Date(stats.lastUsed).getTime()) / (1000 * 60 * 60 * 24))} days ago` : 'No usage recorded'}
             </span>
           </div>
@@ -147,17 +147,17 @@ export const Statistics: React.FC<StatisticsProps> = ({
           />
           <div className="space-y-4">
             {stats.trends.map((trend, index) => (
-              <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div key={index} className="flex items-center justify-between p-3 bg-muted/60 rounded-lg">
                 <div className="flex items-center space-x-3">
-                  <div className="w-12 h-8 bg-blue-200 rounded flex items-end justify-center">
-                    <div 
-                      className="w-2 bg-blue-600 rounded-t"
+                  <div className="w-12 h-8 bg-primary/10 rounded flex items-end justify-center">
+                    <div
+                      className="w-2 bg-primary rounded-t"
                       style={{ height: `${(trend.value / 200) * 100}%` }}
                     />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-900">{trend.period}</p>
-                    <p className="text-xs text-gray-500">{trend.value} uses</p>
+                    <p className="text-sm font-medium text-foreground">{trend.period}</p>
+                    <p className="text-xs text-muted-foreground">{trend.value} uses</p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-1">
@@ -179,7 +179,7 @@ export const Statistics: React.FC<StatisticsProps> = ({
           />
           <div className="space-y-3">
             {stats.topUsers.map((user, index) => (
-              <div key={user.userId} className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition-colors">
+              <div key={user.userId} className="flex items-center justify-between p-3 hover:bg-muted rounded-lg transition-colors">
                 <div className="flex items-center space-x-3">
                   <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
                     <span className="text-xs font-bold text-white">{index + 1}</span>
@@ -188,13 +188,13 @@ export const Statistics: React.FC<StatisticsProps> = ({
                     <Users className="h-4 w-4 text-white" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-900">{user.userName}</p>
-                    <p className="text-xs text-gray-500">User ID: {user.userId}</p>
+                    <p className="text-sm font-medium text-foreground">{user.userName}</p>
+                    <p className="text-xs text-muted-foreground">User ID: {user.userId}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-bold text-gray-900">{user.count}</p>
-                  <p className="text-xs text-gray-500">uses</p>
+                  <p className="text-sm font-bold text-foreground">{user.count}</p>
+                  <p className="text-xs text-muted-foreground">uses</p>
                 </div>
               </div>
             ))}
@@ -210,61 +210,61 @@ export const Statistics: React.FC<StatisticsProps> = ({
         />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="space-y-4">
-            <h4 className="text-sm font-medium text-gray-700">Status Distribution</h4>
+            <h4 className="text-sm font-medium text-foreground">Status Distribution</h4>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Active</span>
+                <span className="text-sm text-muted-foreground">Active</span>
                 <div className="flex items-center space-x-2">
-                  <div className="w-20 h-2 bg-gray-200 rounded-full">
+                  <div className="w-20 h-2 bg-muted rounded-full">
                     <div 
-                      className="h-2 bg-green-500 rounded-full"
+                      className="h-2 bg-emerald-500 rounded-full"
                       style={{ width: `${(stats.activeCount / stats.totalCount) * 100}%` }}
                     />
                   </div>
-                  <span className="text-sm font-medium text-gray-900">{stats.activeCount}</span>
+                  <span className="text-sm font-medium text-foreground">{stats.activeCount}</span>
                 </div>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Inactive</span>
+                <span className="text-sm text-muted-foreground">Inactive</span>
                 <div className="flex items-center space-x-2">
-                  <div className="w-20 h-2 bg-gray-200 rounded-full">
+                  <div className="w-20 h-2 bg-muted rounded-full">
                     <div 
-                      className="h-2 bg-red-500 rounded-full"
+                      className="h-2 bg-rose-500 rounded-full"
                       style={{ width: `${(stats.inactiveCount / stats.totalCount) * 100}%` }}
                     />
                   </div>
-                  <span className="text-sm font-medium text-gray-900">{stats.inactiveCount}</span>
+                  <span className="text-sm font-medium text-foreground">{stats.inactiveCount}</span>
                 </div>
               </div>
             </div>
           </div>
 
           <div className="space-y-4">
-            <h4 className="text-sm font-medium text-gray-700">Monthly Activity</h4>
+            <h4 className="text-sm font-medium text-foreground">Monthly Activity</h4>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Created</span>
+                <span className="text-sm text-muted-foreground">Created</span>
                 <Badge variant="success" size="sm">{stats.createdThisMonth}</Badge>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Updated</span>
+                <span className="text-sm text-muted-foreground">Updated</span>
                 <Badge variant="warning" size="sm">{stats.updatedThisMonth}</Badge>
               </div>
             </div>
           </div>
 
           <div className="space-y-4">
-            <h4 className="text-sm font-medium text-gray-700">Performance</h4>
+            <h4 className="text-sm font-medium text-foreground">Performance</h4>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Avg. Daily Usage</span>
-                <span className="text-sm font-medium text-gray-900">
+                <span className="text-sm text-muted-foreground">Avg. Daily Usage</span>
+                <span className="text-sm font-medium text-foreground">
                   {Math.round(stats.usageCount / 30)}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Peak Usage</span>
-                <span className="text-sm font-medium text-gray-900">
+                <span className="text-sm text-muted-foreground">Peak Usage</span>
+                <span className="text-sm font-medium text-foreground">
                   {Math.max(...stats.trends.map(t => t.value))}
                 </span>
               </div>

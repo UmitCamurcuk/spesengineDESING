@@ -35,16 +35,19 @@ export const permissionsService = {
     return response.data.data;
   },
 
-  async update(id: string, payload: PermissionUpdateRequest): Promise<PermissionRecord> {
+  async update(
+    id: string,
+    payload: PermissionUpdateRequest,
+    comment: string,
+  ): Promise<PermissionRecord> {
     const response = await apiClient.put<ApiSuccessResponse<PermissionRecord>>(
       API_ENDPOINTS.PERMISSIONS.BY_ID(id),
-      payload,
+      { ...payload, comment },
     );
     return response.data.data;
   },
 
-  async delete(id: string): Promise<void> {
-    await apiClient.delete(API_ENDPOINTS.PERMISSIONS.BY_ID(id));
+  async delete(id: string, comment: string): Promise<void> {
+    await apiClient.delete(API_ENDPOINTS.PERMISSIONS.BY_ID(id), { data: { comment } });
   },
 };
-
