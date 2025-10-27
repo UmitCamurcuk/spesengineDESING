@@ -77,6 +77,7 @@ const menuItems: MenuItem[] = [
     name: 'navigation.associations',
     href: '/associations',
     icon: Zap,
+    permission: PERMISSIONS.SYSTEM.ASSOCIATIONS.LIST,
   },
 ];
 
@@ -85,6 +86,7 @@ const systemMenuItems: MenuItem[] = [
     name: 'navigation.users',
     href: '/users',
     icon: Users,
+    permission: PERMISSIONS.SYSTEM.USERS.LIST,
   },
   {
     name: 'navigation.roles',

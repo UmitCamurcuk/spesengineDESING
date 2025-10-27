@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Globe, Languages, Plus, Edit2, Save, X } from 'lucide-react';
+import { Globe, Languages, Plus } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Tabs, TabPanel } from '../../components/ui/Tabs';
 import { Card, CardHeader } from '../../components/ui/Card';
@@ -17,6 +17,7 @@ import type { LocalizationRecord, UpdateLocalizationRequest } from '../../api/ty
 import { useDateFormatter } from '../../hooks/useDateFormatter';
 import { HistoryTable } from '../../components/common/HistoryTable';
 import { PERMISSIONS } from '../../config/permissions';
+import { useEditActionContext } from '../../contexts/EditActionContext';
 
 const namespaceOptions = [
   { value: 'common', label: 'Common' },
@@ -45,6 +46,7 @@ export const LocalizationsDetails: React.FC = () => {
   const { settings } = useSettings();
   const { formatDateTime } = useDateFormatter();
   const { success: showSuccess, error: showError } = useToast();
+  const { register } = useEditActionContext();
   const { hasPermission } = useAuth();
   const canUpdateLocalization = hasPermission(PERMISSIONS.SYSTEM.LOCALIZATIONS.UPDATE);
 
@@ -371,31 +373,29 @@ export const LocalizationsDetails: React.FC = () => {
     { id: 'history', label: t('localizations.details_tabs.history'), icon: <Languages className="h-4 w-4" /> },
   ];
 
-  const headerAction = canUpdateLocalization
-    ? (!editMode
-        ? (
-          <Button type="button" onClick={handleStartEdit} leftIcon={<Edit2 className="h-4 w-4" />}>
-            {t('common.edit')}
-          </Button>
-        )
-        : (
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" onClick={handleCancelEdit} disabled={saving}>
-              {t('common.cancel')}
-            </Button>
-            <Button type="button" onClick={handleSave} loading={saving} leftIcon={<Save className="h-4 w-4" />}>
-              {t('common.save')}
-            </Button>
-          </div>
-        ))
-    : null;
+  useEffect(() => {
+    if (!canUpdateLocalization) {
+      register(null);
+      return () => register(null);
+    }
+
+    register({
+      isEditing: editMode,
+      canEdit: !editMode,
+      canSave: editMode && !saving,
+      onEdit: handleStartEdit,
+      onCancel: handleCancelEdit,
+      onSave: handleSave,
+    });
+
+    return () => register(null);
+  }, [canUpdateLocalization, editMode, handleCancelEdit, handleSave, handleStartEdit, register, saving]);
 
   return (
     <div className="p-6 space-y-6">
       <PageHeader
         title={`${localization.namespace}.${localization.key}`}
         subtitle={t('localizations.details_subtitle')}
-        action={headerAction}
       />
 
       <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />

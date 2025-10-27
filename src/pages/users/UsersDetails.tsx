@@ -470,7 +470,7 @@ export function UsersDetails() {
     } finally {
       setLoading(false);
     }
-  }, [currentTenantId, id, language, navigate, showToast, t]);
+  }, [canListRoles, currentTenantId, id, language, navigate, showToast, t]);
 
   useEffect(() => {
     void loadData();
