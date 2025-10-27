@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Edit, Save, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/Button';
@@ -37,7 +37,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
   onEdit,
   onSave,
   onCancel,
-  inlineActions = false,
+  inlineActions = true,
 }) => {
   const navigate = useNavigate();
   const { t } = useLanguage();
@@ -61,31 +61,70 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
   const activeTabConfig = visibleTabs.find(tab => tab.id === activeTab);
   const ActiveComponent = activeTabConfig?.component;
 
-  const tabsWithBadges = visibleTabs.map(tab => ({
+  const tabsWithBadges = visibleTabs.map((tab) => ({
     id: tab.id,
     label: tab.label,
     icon: <tab.icon className="h-4 w-4" />,
     badge: tab.badge,
-    disabled: tab.requiresEdit && !editMode && tab.id !== 'details'
+    disabled: tab.requiresEdit && !editMode && tab.id !== 'details',
   }));
 
+  const editHandlerRef = useRef(onEdit);
+  const cancelHandlerRef = useRef(onCancel);
+  const saveHandlerRef = useRef(onSave);
+
   useEffect(() => {
-    if (!onEdit) {
+    editHandlerRef.current = onEdit;
+  }, [onEdit]);
+
+  useEffect(() => {
+    cancelHandlerRef.current = onCancel;
+  }, [onCancel]);
+
+  useEffect(() => {
+    saveHandlerRef.current = onSave;
+  }, [onSave]);
+
+  const triggerEdit = useCallback(() => {
+    editHandlerRef.current?.();
+  }, []);
+
+  const triggerCancel = useCallback(() => {
+    cancelHandlerRef.current?.();
+  }, []);
+
+  const triggerSave = useCallback(() => {
+    saveHandlerRef.current?.();
+  }, []);
+
+  useEffect(() => {
+    if (inlineActions || !onEdit) {
       register(null);
-      return () => register(null);
+      return;
     }
 
     register({
       isEditing: editMode,
       canEdit: !editMode,
-      canSave: Boolean(onSave) && Boolean(hasChanges),
-      onEdit,
-      onCancel: onCancel ?? (() => {}),
-      onSave,
+      canSave: Boolean(onSave) && hasChanges,
+      onEdit: triggerEdit,
+      onCancel: onCancel ? triggerCancel : undefined,
+      onSave: onSave ? triggerSave : undefined,
     });
+  }, [
+    editMode,
+    hasChanges,
+    inlineActions,
+    onEdit,
+    onSave,
+    onCancel,
+    register,
+    triggerCancel,
+    triggerEdit,
+    triggerSave,
+  ]);
 
-    return () => register(null);
-  }, [editMode, hasChanges, onCancel, onEdit, onSave, register]);
+  useEffect(() => () => register(null), [register]);
 
   return (
     <div className="space-y-6">

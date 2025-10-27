@@ -188,7 +188,7 @@ export const LocalizationsDetails: React.FC = () => {
     });
   };
 
-  const handleStartEdit = () => {
+  const handleStartEdit = useCallback(() => {
     if (!canUpdateLocalization) {
       return;
     }
@@ -196,16 +196,16 @@ export const LocalizationsDetails: React.FC = () => {
       setFormData(localization);
     }
     setEditMode(true);
-  };
+  }, [canUpdateLocalization, localization]);
 
-  const handleCancelEdit = () => {
+  const handleCancelEdit = useCallback(() => {
     if (localization) {
       setFormData(localization);
     }
     setEditMode(false);
-  };
+  }, [localization]);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (!canUpdateLocalization) {
       return;
     }
@@ -244,7 +244,16 @@ export const LocalizationsDetails: React.FC = () => {
     } finally {
       setSaving(false);
     }
-  };
+  }, [
+    canUpdateLocalization,
+    formData,
+    id,
+    localization,
+    requiredLanguageCodes,
+    showError,
+    showSuccess,
+    t,
+  ]);
 
   const defaultLanguageCode = useMemo(
     () => normalizeLanguageCode(settings?.localization.defaultLanguage ?? 'en'),

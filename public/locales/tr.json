@@ -59,6 +59,7 @@
     "attribute_groups": "Özellik Grupları",
     "attributes": "Özellikler",
     "associations": "İlişkiler",
+    "notifications": "Bildirimler",
     "users": "Kullanıcılar",
     "roles": "Roller",
     "permissions": "İzinler",
@@ -784,6 +785,68 @@
     "bulk_delete": "Toplu sil",
     "bulk_edit": "Toplu düzenle",
     "bulk_export": "Toplu dışa aktar"
+  },
+  "notifications": {
+    "channels": {
+      "title": "Bildirim Kanalları",
+      "subtitle": "Bildirim teslimat kanallarını yapılandırın",
+      "new": "Yeni Kanal",
+      "edit": "Kanalı Düzenle",
+      "search": "Kanal ara",
+      "empty_title": "Bildirim kanalı bulunmuyor",
+      "empty_description": "Bildirimleri göndermek için en az bir kanal ekleyin.",
+      "created": "Kanal oluşturuldu",
+      "updated": "Kanal güncellendi",
+      "columns": {
+        "name": "Kanal Adı",
+        "type": "Tür",
+        "status": "Durum",
+        "updated_at": "Güncellendi"
+      },
+      "fields": {
+        "type": "Kanal Türü",
+        "name": "Kanal Adı",
+        "isEnabled": "Etkin",
+        "workspace": "Workspace",
+        "webhookUrl": "Webhook URL",
+        "defaultChannel": "Varsayılan Kanal",
+        "botToken": "Bot Token",
+        "config": "Yapılandırma (JSON)",
+        "metadata": "Meta Veri (JSON)"
+      },
+      "types": {
+        "slack": "Slack",
+        "email": "Email",
+        "webhook": "Webhook"
+      },
+      "toggle_advanced": "Gelişmiş editör",
+      "slack_config": "Slack Yapılandırması"
+    },
+    "rules": {
+      "title": "Bildirim Kuralları",
+      "subtitle": "Olay bazlı bildirim kurallarını yönetin",
+      "new": "Yeni Kural",
+      "edit": "Kuralı Düzenle",
+      "search": "Kural ara",
+      "empty_title": "Bildirim kuralı bulunmuyor",
+      "empty_description": "Olaylara bağlı bildirimler göndermek için en az bir kural tanımlayın.",
+      "created": "Kural oluşturuldu",
+      "updated": "Kural güncellendi",
+      "columns": {
+        "name": "Adı",
+        "status": "Durum",
+        "updated_at": "Güncellendi"
+      },
+      "fields": {
+        "name": "Kural Adı",
+        "eventKey": "Olay Anahtarı",
+        "description": "Açıklama",
+        "isActive": "Aktif",
+        "filters": "Filtreler (JSON)",
+        "recipients": "Alıcılar (JSON)",
+        "channels": "Kanallar (JSON)"
+      }
+    }
   },
   "profile": {
     "title": "Profil",

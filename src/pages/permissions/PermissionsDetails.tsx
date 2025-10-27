@@ -304,7 +304,7 @@ const PermissionDetailsTab: React.FC<PermissionDetailsTabProps> = ({
                   onChange={(event) =>
                     handleTranslationChange('name', language.code, event.target.value)
                   }
-                  placeholder={t('permissions.placeholders.name', { language: language.label })}
+                  placeholder={`${t('permissions.fields.name')} - ${language.label}`}
                   disabled={!editMode}
                 />
               );
@@ -331,9 +331,7 @@ const PermissionDetailsTab: React.FC<PermissionDetailsTabProps> = ({
                   onChange={(event) =>
                     handleTranslationChange('description', language.code, event.target.value)
                   }
-                  placeholder={t('permissions.placeholders.description', {
-                    language: language.label,
-                  })}
+                  placeholder={`${t('permissions.fields.description')} - ${language.label}`}
                   rows={editMode ? 4 : 3}
                   className="w-full px-3 py-2 text-sm bg-background text-foreground border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring/20 disabled:bg-muted resize-none"
                   disabled={!editMode}
@@ -744,12 +742,12 @@ export function PermissionsDetails() {
     }
   };
 
-  const handleGroupSelect = (groupId: string) => {
+  const handleGroupSelect = useCallback((groupId: string) => {
     updateFormState((prev) => ({
       ...prev,
       permissionGroupId: groupId,
     }));
-  };
+  }, [updateFormState]);
 
   const currentGroup = useMemo(() => {
     if (!formState) {
@@ -854,6 +852,7 @@ export function PermissionsDetails() {
     currentGroup,
     formState,
     groups,
+    handleGroupSelect,
     isEditing,
     permission,
     canReadPermission,

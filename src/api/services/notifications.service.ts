@@ -1,0 +1,220 @@
+import apiClient from '../client/axios';
+import { API_ENDPOINTS } from '../endpoints';
+import type { ApiSuccessResponse } from '../types/api.types';
+
+export type NotificationRecipientType = 'user' | 'role' | 'email' | 'webhook';
+
+export interface NotificationRecipientPayload {
+  type: NotificationRecipientType;
+  value: string;
+  meta?: Record<string, unknown> | null;
+}
+
+export interface NotificationChannelTargetPayload {
+  channelType: string;
+  templateId?: string | null;
+  enabled?: boolean;
+  settingsOverride?: Record<string, unknown> | null;
+}
+
+export interface NotificationRulePayload {
+  name: string;
+  description?: string;
+  eventKey: string;
+  isActive?: boolean;
+  filters?: Record<string, unknown>;
+  recipients?: NotificationRecipientPayload[];
+  channels?: NotificationChannelTargetPayload[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface NotificationRule extends NotificationRulePayload {
+  id: string;
+  tenantId: string;
+  isActive: boolean;
+  recipients: NotificationRecipientPayload[];
+  channels: NotificationChannelTargetPayload[];
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NotificationChannelPayload {
+  type: string;
+  name: string;
+  isEnabled?: boolean;
+  config?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+}
+
+export interface NotificationChannel extends NotificationChannelPayload {
+  id: string;
+  tenantId: string;
+  isEnabled: boolean;
+  config: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NotificationTemplatePayload {
+  name: string;
+  description?: string;
+  channelType: string;
+  eventKey: string;
+  language: string;
+  subject?: string;
+  body: string;
+  isDefault?: boolean;
+  version?: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface NotificationTemplate extends NotificationTemplatePayload {
+  id: string;
+  tenantId: string;
+  isDefault: boolean;
+  version: number;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NotificationRuleQuery {
+  search?: string;
+  eventKey?: string;
+  isActive?: boolean;
+}
+
+export interface NotificationChannelQuery {
+  type?: string;
+  isEnabled?: boolean;
+}
+
+export interface NotificationTemplateQuery {
+  channelType?: string;
+  eventKey?: string;
+  language?: string;
+}
+
+export const notificationsService = {
+  async listRules(params: NotificationRuleQuery = {}): Promise<NotificationRule[]> {
+    const response = await apiClient.get<ApiSuccessResponse<{ items: NotificationRule[] }>>(
+      API_ENDPOINTS.NOTIFICATIONS.RULES.BASE,
+      { params },
+    );
+    return response.data.data.items;
+  },
+
+  async getRule(id: string): Promise<NotificationRule> {
+    const response = await apiClient.get<ApiSuccessResponse<NotificationRule>>(
+      API_ENDPOINTS.NOTIFICATIONS.RULES.BY_ID(id),
+    );
+    return response.data.data;
+  },
+
+  async createRule(payload: NotificationRulePayload): Promise<NotificationRule> {
+    const response = await apiClient.post<ApiSuccessResponse<NotificationRule>>(
+      API_ENDPOINTS.NOTIFICATIONS.RULES.BASE,
+      payload,
+    );
+    return response.data.data;
+  },
+
+  async updateRule(id: string, payload: Partial<NotificationRulePayload>): Promise<NotificationRule> {
+    const response = await apiClient.put<ApiSuccessResponse<NotificationRule>>(
+      API_ENDPOINTS.NOTIFICATIONS.RULES.BY_ID(id),
+      payload,
+    );
+    return response.data.data;
+  },
+
+  async deleteRule(id: string): Promise<void> {
+    await apiClient.delete(API_ENDPOINTS.NOTIFICATIONS.RULES.BY_ID(id));
+  },
+
+  async listChannels(params: NotificationChannelQuery = {}): Promise<NotificationChannel[]> {
+    const response = await apiClient.get<ApiSuccessResponse<{ items: NotificationChannel[] }>>(
+      API_ENDPOINTS.NOTIFICATIONS.CHANNELS.BASE,
+      { params },
+    );
+    return response.data.data.items;
+  },
+
+  async getChannel(id: string): Promise<NotificationChannel> {
+    const response = await apiClient.get<ApiSuccessResponse<NotificationChannel>>(
+      API_ENDPOINTS.NOTIFICATIONS.CHANNELS.BY_ID(id),
+    );
+    return response.data.data;
+  },
+
+  async createChannel(payload: NotificationChannelPayload): Promise<NotificationChannel> {
+    const response = await apiClient.post<ApiSuccessResponse<NotificationChannel>>(
+      API_ENDPOINTS.NOTIFICATIONS.CHANNELS.BASE,
+      payload,
+    );
+    return response.data.data;
+  },
+
+  async updateChannel(
+    id: string,
+    payload: Partial<NotificationChannelPayload>,
+  ): Promise<NotificationChannel> {
+    const response = await apiClient.put<ApiSuccessResponse<NotificationChannel>>(
+      API_ENDPOINTS.NOTIFICATIONS.CHANNELS.BY_ID(id),
+      payload,
+    );
+    return response.data.data;
+  },
+
+  async deleteChannel(id: string): Promise<void> {
+    await apiClient.delete(API_ENDPOINTS.NOTIFICATIONS.CHANNELS.BY_ID(id));
+  },
+
+  async listTemplates(params: NotificationTemplateQuery = {}): Promise<NotificationTemplate[]> {
+    const response = await apiClient.get<ApiSuccessResponse<{ items: NotificationTemplate[] }>>(
+      API_ENDPOINTS.NOTIFICATIONS.TEMPLATES.BASE,
+      { params },
+    );
+    return response.data.data.items;
+  },
+
+  async getTemplate(id: string): Promise<NotificationTemplate> {
+    const response = await apiClient.get<ApiSuccessResponse<NotificationTemplate>>(
+      API_ENDPOINTS.NOTIFICATIONS.TEMPLATES.BY_ID(id),
+    );
+    return response.data.data;
+  },
+
+  async createTemplate(payload: NotificationTemplatePayload): Promise<NotificationTemplate> {
+    const response = await apiClient.post<ApiSuccessResponse<NotificationTemplate>>(
+      API_ENDPOINTS.NOTIFICATIONS.TEMPLATES.BASE,
+      payload,
+    );
+    return response.data.data;
+  },
+
+  async updateTemplate(
+    id: string,
+    payload: Partial<NotificationTemplatePayload>,
+  ): Promise<NotificationTemplate> {
+    const response = await apiClient.put<ApiSuccessResponse<NotificationTemplate>>(
+      API_ENDPOINTS.NOTIFICATIONS.TEMPLATES.BY_ID(id),
+      payload,
+    );
+    return response.data.data;
+  },
+
+  async deleteTemplate(id: string): Promise<void> {
+    await apiClient.delete(API_ENDPOINTS.NOTIFICATIONS.TEMPLATES.BY_ID(id));
+  },
+};
+
+export type {
+  NotificationRule,
+  NotificationRulePayload,
+  NotificationChannel,
+  NotificationChannelPayload,
+  NotificationTemplate,
+  NotificationTemplatePayload,
+};

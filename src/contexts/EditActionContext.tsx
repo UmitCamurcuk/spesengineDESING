@@ -20,7 +20,31 @@ export const EditActionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [handlers, setHandlers] = useState<EditActionHandlers | null>(null);
 
   const register = useCallback((next: EditActionHandlers | null) => {
-    setHandlers(next);
+    setHandlers((previous) => {
+      if (previous === next) {
+        return previous;
+      }
+
+      if (previous && next) {
+        const same =
+          previous.isEditing === next.isEditing &&
+          previous.canEdit === next.canEdit &&
+          previous.canSave === next.canSave &&
+          previous.onEdit === next.onEdit &&
+          previous.onCancel === next.onCancel &&
+          previous.onSave === next.onSave;
+
+        if (same) {
+          return previous;
+        }
+      }
+
+      if (!previous && !next) {
+        return previous;
+      }
+
+      return next;
+    });
   }, []);
 
   return (

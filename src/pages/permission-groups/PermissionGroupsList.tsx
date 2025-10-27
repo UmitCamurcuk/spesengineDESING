@@ -29,16 +29,12 @@ export function PermissionGroupsList() {
     hasPrev: false,
   });
 
-  useEffect(() => {
-    loadGroups();
-  }, [pagination.page, pagination.pageSize, language]);
-
-  const loadGroups = async () => {
+  const loadGroups = async (page = pagination.page, pageSize = pagination.pageSize) => {
     try {
       setLoading(true);
       const result = await permissionGroupsService.list({
-        page: pagination.page,
-        pageSize: pagination.pageSize,
+        page,
+        pageSize,
         language,
       });
       setGroups(result.items);
@@ -53,6 +49,16 @@ export function PermissionGroupsList() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const abortController = new AbortController();
+    loadGroups(1, pagination.pageSize);
+    
+    return () => {
+      abortController.abort();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [language]);
 
   const columns = [
     {
@@ -145,6 +151,12 @@ export function PermissionGroupsList() {
           searchPlaceholder="Search permission groups..."
           onRowClick={(group) => navigate(`/permission-groups/${group.id}`)}
           loading={loading}
+          mode="server"
+          totalItems={pagination.totalItems}
+          currentPage={pagination.page}
+          currentPageSize={pagination.pageSize}
+          onPageChange={(page) => loadGroups(page, pagination.pageSize)}
+          onPageSizeChange={(size) => loadGroups(1, size)}
           emptyState={{
             icon: <Shield className="h-12 w-12" />,
             title: 'No permission groups',

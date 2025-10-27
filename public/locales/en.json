@@ -77,6 +77,7 @@
     "attribute_groups": "Attribute Groups",
     "attributes": "Attributes",
     "associations": "Associations",
+    "notifications": "Notifications",
     "users": "Users",
     "roles": "Roles",
     "permissions": "Permissions",
@@ -779,6 +780,68 @@
     "export": "Export",
     "import": "Import",
     "refresh": "Refresh"
+  },
+  "notifications": {
+    "channels": {
+      "title": "Notification Channels",
+      "subtitle": "Configure notification delivery channels",
+      "new": "New Channel",
+      "edit": "Edit Channel",
+      "search": "Search channels",
+      "empty_title": "No notification channels found",
+      "empty_description": "Add at least one channel to send notifications.",
+      "created": "Channel created",
+      "updated": "Channel updated",
+      "columns": {
+        "name": "Channel Name",
+        "type": "Type",
+        "status": "Status",
+        "updated_at": "Updated"
+      },
+      "fields": {
+        "type": "Channel Type",
+        "name": "Channel Name",
+        "isEnabled": "Enabled",
+        "workspace": "Workspace",
+        "webhookUrl": "Webhook URL",
+        "defaultChannel": "Default Channel",
+        "botToken": "Bot Token",
+        "config": "Configuration (JSON)",
+        "metadata": "Metadata (JSON)"
+      },
+      "types": {
+        "slack": "Slack",
+        "email": "Email",
+        "webhook": "Webhook"
+      },
+      "toggle_advanced": "Advanced editor",
+      "slack_config": "Slack Configuration"
+    },
+    "rules": {
+      "title": "Notification Rules",
+      "subtitle": "Manage event-based notification rules",
+      "new": "New Rule",
+      "edit": "Edit Rule",
+      "search": "Search rules",
+      "empty_title": "No notification rules found",
+      "empty_description": "Define at least one rule to send event-based notifications.",
+      "created": "Rule created",
+      "updated": "Rule updated",
+      "columns": {
+        "name": "Name",
+        "status": "Status",
+        "updated_at": "Updated"
+      },
+      "fields": {
+        "name": "Rule Name",
+        "eventKey": "Event Key",
+        "description": "Description",
+        "isActive": "Active",
+        "filters": "Filters (JSON)",
+        "recipients": "Recipients (JSON)",
+        "channels": "Channels (JSON)"
+      }
+    }
   },
   "profile": {
     "title": "Profile",

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Home,
@@ -17,6 +17,10 @@ import {
   ShieldCheck,
   Globe,
   User,
+  Bell,
+  ChevronDown,
+  ChevronRight,
+  FileStack,
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -26,9 +30,10 @@ import { PERMISSIONS } from '../../config/permissions';
 
 type MenuItem = {
   name: string;
-  href: string;
+  href?: string;
   icon: React.ComponentType<{ className?: string }>;
   permission?: string;
+  children?: MenuItem[];
 };
 
 const menuItems: MenuItem[] = [
@@ -83,6 +88,25 @@ const menuItems: MenuItem[] = [
 
 const systemMenuItems: MenuItem[] = [
   {
+    name: 'navigation.notifications',
+    icon: Bell,
+    permission: PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.LIST,
+    children: [
+      {
+        name: 'notifications.rules.title',
+        href: '/notifications/rules',
+        icon: Bell,
+        permission: PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.LIST,
+      },
+      {
+        name: 'notifications.templates.title',
+        href: '/notifications/templates',
+        icon: FileStack,
+        permission: PERMISSIONS.SYSTEM.NOTIFICATIONS.TEMPLATES.LIST,
+      },
+    ],
+  },
+  {
     name: 'navigation.users',
     href: '/users',
     icon: Users,
@@ -125,6 +149,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, isOpen, onClose }) 
   const { t } = useLanguage();
   const { settings } = useSettings();
   const { hasPermission } = useAuth();
+  const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({});
+
+  const toggleMenu = (menuName: string) => {
+    setExpandedMenus(prev => ({
+      ...prev,
+      [menuName]: !prev[menuName]
+    }));
+  };
 
   const primaryMenu = useMemo(
     () => menuItems.filter((item) => !item.permission || hasPermission(item.permission)),
@@ -204,12 +236,81 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, isOpen, onClose }) 
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t('navigation.system')}</h3>
           </div>
           {secondaryMenu.map((item) => {
-            const isActive = location.pathname.startsWith(item.href);
+            if (item.children) {
+              const isExpanded = expandedMenus[item.name] || false;
+              const hasActiveChild = item.children.some(child => child.href && location.pathname.startsWith(child.href));
+              
+              return (
+                <div key={item.name}>
+                  <button
+                    onClick={() => toggleMenu(item.name)}
+                    className={cn(
+                      'w-full flex items-center space-x-2.5 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 group',
+                      hasActiveChild
+                        ? 'text-sidebar-active-foreground'
+                        : 'text-sidebar-foreground hover:bg-muted hover:text-foreground'
+                    )}
+                  >
+                    <item.icon 
+                      className={cn(
+                        'h-4 w-4 transition-colors duration-200', 
+                        hasActiveChild
+                          ? 'text-sidebar-active-foreground' 
+                          : 'text-muted-foreground group-hover:text-foreground'
+                      )} 
+                    />
+                    <span className="flex-1 text-left">{t(item.name)}</span>
+                    {isExpanded ? (
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </button>
+                  {isExpanded && (
+                    <div className="ml-6 mt-1 space-y-1">
+                      {item.children.map((child) => {
+                        if (!child.href) return null;
+                        const isActive = location.pathname.startsWith(child.href);
+                        
+                        return (
+                          <Link
+                            key={child.name}
+                            to={child.href}
+                            onClick={onClose}
+                            className={cn(
+                              'flex items-center space-x-2.5 px-3 py-1.5 rounded-md text-sm transition-colors duration-150 group',
+                              isActive
+                                ? 'bg-sidebar-active text-sidebar-active-foreground shadow-sm'
+                                : 'text-sidebar-foreground hover:bg-muted hover:text-foreground'
+                            )}
+                          >
+                            <child.icon 
+                              className={cn(
+                                'h-3.5 w-3.5 transition-colors duration-200', 
+                                isActive 
+                                  ? 'text-sidebar-active-foreground' 
+                                  : 'text-muted-foreground group-hover:text-foreground'
+                              )} 
+                            />
+                            <span>{t(child.name)}</span>
+                            {isActive && (
+                              <div className="ml-auto w-1.5 h-1.5 bg-sidebar-active-foreground rounded-full"></div>
+                            )}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            const isActive = item.href ? location.pathname.startsWith(item.href) : false;
             
             return (
               <Link
                 key={item.name}
-                to={item.href}
+                to={item.href!}
                 onClick={onClose}
                 className={cn(
                   'flex items-center space-x-2.5 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 group',
@@ -220,7 +321,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, isOpen, onClose }) 
               >
                 <item.icon 
                   className={cn(
-                    'h-5 w-5 transition-colors duration-200', 
+                    'h-4 w-4 transition-colors duration-200', 
                     isActive 
                       ? 'text-sidebar-active-foreground' 
                       : 'text-muted-foreground group-hover:text-foreground'
@@ -228,7 +329,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, isOpen, onClose }) 
                 />
                 <span>{t(item.name)}</span>
                 {isActive && (
-                  <div className="ml-auto w-2 h-2 bg-sidebar-active-foreground rounded-full"></div>
+                  <div className="ml-auto w-1.5 h-1.5 bg-sidebar-active-foreground rounded-full"></div>
                 )}
               </Link>
             );

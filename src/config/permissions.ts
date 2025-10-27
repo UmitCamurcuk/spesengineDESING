@@ -38,6 +38,11 @@ export const PERMISSIONS = {
     LOCALIZATIONS: createCrudPermissionSet('settings', 'localization'),
     PROFILE: createCrudPermissionSet('profile', 'profile'),
     ASSOCIATIONS: createCrudPermissionSet('associations', 'association'),
+    NOTIFICATIONS: {
+      RULES: createCrudPermissionSet('notifications', 'rule'),
+      CHANNELS: createCrudPermissionSet('notifications', 'channel'),
+      TEMPLATES: createCrudPermissionSet('notifications', 'template'),
+    },
   },
 } as const;
 

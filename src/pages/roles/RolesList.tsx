@@ -53,7 +53,12 @@ export function RolesList() {
   }, [canReadRoles, language, showToast]);
 
   useEffect(() => {
+    const abortController = new AbortController();
     void loadRoles();
+    
+    return () => {
+      abortController.abort();
+    };
   }, [loadRoles]);
 
   const handleRowClick = canReadRoles ? (role: RoleRecord) => navigate(`/roles/${role.id}`) : undefined;

@@ -65,7 +65,12 @@ export const UsersList: React.FC = () => {
   };
 
   useEffect(() => {
+    const abortController = new AbortController();
     loadUsers(1, pagination.pageSize);
+    
+    return () => {
+      abortController.abort();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [language]);
 

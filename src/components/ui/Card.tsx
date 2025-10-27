@@ -60,12 +60,12 @@ export const CardHeader: React.FC<CardHeaderProps> = ({
   return (
     <div
       className={cn(
-        'flex flex-col space-y-1.5 p-6',
+        'flex flex-col space-y-1.5 py-2',
         className
       )}
       {...props}
     >
-      <div className="flex-1">
+      <div className="flex-1 mb-2">
         {title && (
           <h3 className="text-base font-semibold text-foreground">{title}</h3>
         )}

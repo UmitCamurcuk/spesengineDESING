@@ -22,6 +22,7 @@ import { APITester } from '../../components/common/APITester';
 import { Documentation } from '../../components/common/Documentation';
 import { HistoryTable } from '../../components/common/HistoryTable';
 import { Card, CardHeader } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
 import { ChangeConfirmDialog } from '../../components/ui/ChangeConfirmDialog';
@@ -30,6 +31,7 @@ import { permissionsService } from '../../api/services/permissions.service';
 import { permissionGroupsService } from '../../api/services/permission-groups.service';
 import { localizationsService } from '../../api/services/localizations.service';
 import { PERMISSIONS } from '../../config/permissions';
+import { cn } from '../../utils/cn';
 import type {
   RoleWithPermissions,
   PermissionRecord,
@@ -316,7 +318,6 @@ const RolePermissionsTab: React.FC<RolePermissionsTabProps> = ({
 }) => {
   const { t } = useLanguage();
   const assignedSet = useMemo(() => new Set(assignedPermissions), [assignedPermissions]);
-
   const permissionsByGroup = useMemo(() => {
     const map = new Map<string, PermissionRecord[]>();
     permissions.forEach((permission) => {
@@ -329,76 +330,166 @@ const RolePermissionsTab: React.FC<RolePermissionsTabProps> = ({
     return map;
   }, [permissions]);
 
-  return (
-    <div className="space-y-6">
-      {groups.map((group) => {
+  const groupList = useMemo(() => {
+    return groups
+      .map((group) => {
         const groupPermissions = permissionsByGroup.get(group.id) ?? [];
-        if (groupPermissions.length === 0) {
-          return null;
-        }
-        const enabledCount = groupPermissions.filter((permission) =>
-          assignedSet.has(permission.id),
-        ).length;
+        return {
+          group,
+          permissions: groupPermissions,
+          enabled: groupPermissions.filter((permission) => assignedSet.has(permission.id)).length,
+        };
+      })
+      .filter((entry) => entry.permissions.length > 0)
+      .sort(
+        (a, b) =>
+          (a.group.displayOrder ?? Number.MAX_SAFE_INTEGER) -
+          (b.group.displayOrder ?? Number.MAX_SAFE_INTEGER),
+      );
+  }, [assignedSet, groups, permissionsByGroup]);
 
-        return (
-          <Card key={group.id} padding="lg">
-            <CardHeader
-              title={group.name?.trim() || group.nameLocalizationId || t('roles.labels.unknown_group')}
-              subtitle={
-                group.description?.trim() ||
-                group.descriptionLocalizationId ||
-                t('common.no_description')
-              }
-              endContent={
-                <Badge variant="secondary">
-                  {enabledCount} / {groupPermissions.length}
-                </Badge>
-              }
-            />
-            <div className="space-y-3">
-              {groupPermissions.map((permission) => {
-                const enabled = assignedSet.has(permission.id);
-                return (
-                  <div
-                    key={permission.id}
-                    className={`flex items-center justify-between p-4 border rounded-lg ${
-                      enabled ? 'border-primary/40 bg-primary/5' : 'border-border'
-                    }`}
-                  >
-                    <div className="flex flex-col space-y-1">
-                      <div className="flex items-center gap-3">
-                        <Badge variant={enabled ? 'primary' : 'secondary'} size="sm">
-                          {permission.code}
-                        </Badge>
-                        <span className="font-medium text-foreground">
-                          {permission.name?.trim() || permission.nameLocalizationId || '—'}
-                        </span>
-                      </div>
-                      <span className="text-xs text-muted-foreground">
-                        {permission.description?.trim() ||
-                          permission.descriptionLocalizationId ||
-                          t('common.no_description')}
-                      </span>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="sr-only peer"
-                        checked={enabled}
-                        onChange={(event) => onToggle(permission.id, event.target.checked)}
-                        disabled={!editMode}
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/30 rounded-full peer peer-checked:bg-primary transition-colors peer-disabled:opacity-60" />
-                      <span className="sr-only">{t('roles.actions.toggle_permission')}</span>
-                      <div className="absolute left-0 top-0 ml-0.5 mt-0.5 h-5 w-5 bg-white rounded-full border border-border shadow-sm transition-transform duration-200 peer-checked:translate-x-full peer-checked:border-transparent" />
-                    </label>
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(() => groupList[0]?.group.id ?? null);
+
+  useEffect(() => {
+    if (!activeGroupId && groupList.length > 0) {
+      setActiveGroupId(groupList[0].group.id);
+    }
+  }, [activeGroupId, groupList]);
+
+  const activeGroup = useMemo(
+    () => groupList.find((entry) => entry.group.id === activeGroupId) ?? groupList[0] ?? null,
+    [activeGroupId, groupList],
+  );
+
+  const handleToggleAll = useCallback(
+    (enable: boolean) => {
+      if (!activeGroup || !editMode) {
+        return;
+      }
+
+      activeGroup.permissions.forEach((permission) => {
+        const currentlyEnabled = assignedSet.has(permission.id);
+        if (enable !== currentlyEnabled) {
+          onToggle(permission.id, enable);
+        }
+      });
+    },
+    [activeGroup, assignedSet, editMode, onToggle],
+  );
+
+  if (groupList.length === 0) {
+    return (
+      <div className="p-6 border border-dashed border-border rounded-lg text-sm text-muted-foreground">
+        {t('roles.messages.no_permissions')}
+      </div>
+    );
+  }
+
+  return (
+    <div className="md:flex md:items-start gap-6">
+      <div className="md:w-64 w-full">
+        <Card>
+          <CardHeader title={t('roles.permissions.groups_title')} subtitle={t('roles.permissions.groups_subtitle')} />
+          <div className="divide-y divide-border">
+            {groupList.map(({ group, permissions: groupPerms, enabled }) => {
+              const isActive = activeGroup?.group.id === group.id;
+              return (
+                <button
+                  key={group.id}
+                  type="button"
+                  onClick={() => setActiveGroupId(group.id)}
+                  className={cn(
+                    'w-full text-left px-4 py-3 transition-colors',
+                    isActive ? 'bg-primary/5 text-primary' : 'hover:bg-muted',
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">
+                      {group.name?.trim() || group.nameLocalizationId || t('roles.labels.unknown_group')}
+                    </span>
+                    <Badge variant={isActive ? 'primary' : 'secondary'} size="sm">
+                      {enabled}/{groupPerms.length}
+                    </Badge>
                   </div>
-                );
-              })}
-            </div>
-          </Card>
-        );
-      })}
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {group.description?.trim() ||
+                      group.descriptionLocalizationId ||
+                      t('common.no_description')}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        </Card>
+      </div>
+      <div className="flex-1 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">
+              {activeGroup?.group.name?.trim() ||
+                activeGroup?.group.nameLocalizationId ||
+                t('roles.labels.unknown_group')}
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              {activeGroup?.group.description?.trim() ||
+                activeGroup?.group.descriptionLocalizationId ||
+                t('common.no_description')}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleToggleAll(false)}
+              disabled={!editMode || !activeGroup}
+            >
+              {t('roles.permissions.disable_all')}
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => handleToggleAll(true)}
+              disabled={!editMode || !activeGroup}
+            >
+              {t('roles.permissions.enable_all')}
+            </Button>
+          </div>
+        </div>
+
+        <div className="border border-border rounded-lg divide-y divide-border">
+          {activeGroup?.permissions.map((permission) => {
+            const enabled = assignedSet.has(permission.id);
+            return (
+              <label
+                key={permission.id}
+                className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-muted/40 transition-colors"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Badge variant={enabled ? 'primary' : 'secondary'} size="sm">
+                      {permission.code}
+                    </Badge>
+                    <span className="text-sm font-medium text-foreground">
+                      {permission.name?.trim() || permission.nameLocalizationId || '—'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {permission.description?.trim() ||
+                      permission.descriptionLocalizationId ||
+                      t('common.no_description')}
+                  </p>
+                </div>
+                <input
+                  type="checkbox"
+                  className="h-5 w-5 rounded border-border text-primary focus:ring-primary disabled:opacity-50"
+                  checked={enabled}
+                  onChange={(event) => onToggle(permission.id, event.target.checked)}
+                  disabled={!editMode}
+                />
+              </label>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 };

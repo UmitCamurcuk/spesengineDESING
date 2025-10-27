@@ -27,7 +27,12 @@ export function PermissionsList() {
   });
 
   useEffect(() => {
+    const abortController = new AbortController();
     loadData(1, pagination.pageSize);
+    
+    return () => {
+      abortController.abort();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [language]);
 

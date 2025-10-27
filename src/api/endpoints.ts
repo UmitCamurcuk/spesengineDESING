@@ -107,6 +107,21 @@ export const API_ENDPOINTS = {
     BY_TYPE: (type: string) => `/associations/type/${type}`,
   },
   
+  NOTIFICATIONS: {
+    RULES: {
+      BASE: '/notifications/rules',
+      BY_ID: (id: string) => `/notifications/rules/${id}`,
+    },
+    CHANNELS: {
+      BASE: '/notifications/channels',
+      BY_ID: (id: string) => `/notifications/channels/${id}`,
+    },
+    TEMPLATES: {
+      BASE: '/notifications/templates',
+      BY_ID: (id: string) => `/notifications/templates/${id}`,
+    },
+  },
+  
   // Localizations management
   LOCALIZATIONS: {
     BASE: '/localizations',

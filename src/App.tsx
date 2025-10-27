@@ -74,6 +74,19 @@ import { AssociationsList } from './pages/associations/AssociationsList';
 import { AssociationsDetails } from './pages/associations/AssociationsDetails';
 import { AssociationsCreate } from './pages/associations/AssociationsCreate';
 
+// Notifications
+import { NotificationRulesList } from './pages/notifications/NotificationRulesList';
+import { NotificationRulesCreate } from './pages/notifications/NotificationRulesCreate';
+import { NotificationRulesDetails } from './pages/notifications/NotificationRulesDetails';
+
+import { NotificationChannelsList } from './pages/notifications/NotificationChannelsList';
+import { NotificationChannelsCreate } from './pages/notifications/NotificationChannelsCreate';
+import { NotificationChannelsDetails } from './pages/notifications/NotificationChannelsDetails';
+
+import { NotificationTemplatesList } from './pages/notifications/NotificationTemplatesList';
+import { NotificationTemplatesCreate } from './pages/notifications/NotificationTemplatesCreate';
+import { NotificationTemplatesDetails } from './pages/notifications/NotificationTemplatesDetails';
+
 // Settings
 import { Settings } from './pages/settings/Settings';
 
@@ -123,6 +136,22 @@ const GuardedPermissionGroupsCreate = withPermission(PERMISSIONS.SYSTEM.PERMISSI
 const GuardedLocalizationsList = withPermission(PERMISSIONS.SYSTEM.LOCALIZATIONS.LIST)(LocalizationsList);
 const GuardedLocalizationsDetails = withPermission(PERMISSIONS.SYSTEM.LOCALIZATIONS.VIEW)(LocalizationsDetails);
 const GuardedLocalizationsCreate = withPermission(PERMISSIONS.SYSTEM.LOCALIZATIONS.CREATE)(LocalizationsCreate);
+
+const GuardedAssociationsList = withPermission(PERMISSIONS.SYSTEM.ASSOCIATIONS.LIST)(AssociationsList);
+const GuardedAssociationsDetails = withPermission(PERMISSIONS.SYSTEM.ASSOCIATIONS.VIEW)(AssociationsDetails);
+const GuardedAssociationsCreate = withPermission(PERMISSIONS.SYSTEM.ASSOCIATIONS.CREATE)(AssociationsCreate);
+
+const GuardedNotificationRulesList = withPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.LIST)(NotificationRulesList);
+const GuardedNotificationRulesDetails = withPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.VIEW)(NotificationRulesDetails);
+const GuardedNotificationRulesCreate = withPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.CREATE)(NotificationRulesCreate);
+
+const GuardedNotificationChannelsList = withPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.CHANNELS.LIST)(NotificationChannelsList);
+const GuardedNotificationChannelsDetails = withPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.CHANNELS.VIEW)(NotificationChannelsDetails);
+const GuardedNotificationChannelsCreate = withPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.CHANNELS.CREATE)(NotificationChannelsCreate);
+
+const GuardedNotificationTemplatesList = withPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.TEMPLATES.LIST)(NotificationTemplatesList);
+const GuardedNotificationTemplatesDetails = withPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.TEMPLATES.VIEW)(NotificationTemplatesDetails);
+const GuardedNotificationTemplatesCreate = withPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.TEMPLATES.CREATE)(NotificationTemplatesCreate);
 
 const GuardedSettings = withPermission(PERMISSIONS.SYSTEM.SETTINGS.VIEW)(Settings);
 
@@ -209,6 +238,24 @@ const CREATE_ACTIONS: CreateActionConfig[] = [
     createPath: '/associations/create',
     labelKey: 'associations.create_title',
   },
+  {
+    basePath: '/notifications/rules',
+    createPath: '/notifications/rules/create',
+    labelKey: 'notifications.rules.new',
+    permission: PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.CREATE,
+  },
+  {
+    basePath: '/notifications/channels',
+    createPath: '/notifications/channels/create',
+    labelKey: 'notifications.channels.new',
+    permission: PERMISSIONS.SYSTEM.NOTIFICATIONS.CHANNELS.CREATE,
+  },
+  {
+    basePath: '/notifications/templates',
+    createPath: '/notifications/templates/create',
+    labelKey: 'Create Template',
+    permission: PERMISSIONS.SYSTEM.NOTIFICATIONS.TEMPLATES.CREATE,
+  },
 ];
 
 const EDIT_ACTIONS: EditActionConfig[] = [
@@ -224,6 +271,9 @@ const EDIT_ACTIONS: EditActionConfig[] = [
   { basePath: '/localizations', permission: PERMISSIONS.SYSTEM.LOCALIZATIONS.UPDATE },
   { basePath: '/users', permission: PERMISSIONS.SYSTEM.USERS.UPDATE },
   { basePath: '/associations' },
+  { basePath: '/notifications/rules', permission: PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.UPDATE },
+  { basePath: '/notifications/channels', permission: PERMISSIONS.SYSTEM.NOTIFICATIONS.CHANNELS.UPDATE },
+  { basePath: '/notifications/templates', permission: PERMISSIONS.SYSTEM.NOTIFICATIONS.TEMPLATES.UPDATE },
 ];
 
 const isDetailPath = (basePath: string, pathname: string): boolean => {
@@ -378,9 +428,22 @@ const AppContentInner: React.FC = () => {
         <Route path="/localizations/create" element={<GuardedLocalizationsCreate />} />
         
         {/* Associations Routes */}
-        <Route path="/associations" element={<AssociationsList />} />
-        <Route path="/associations/:id" element={<AssociationsDetails />} />
-        <Route path="/associations/create" element={<AssociationsCreate />} />
+        <Route path="/associations" element={<GuardedAssociationsList />} />
+        <Route path="/associations/:id" element={<GuardedAssociationsDetails />} />
+        <Route path="/associations/create" element={<GuardedAssociationsCreate />} />
+        
+        {/* Notifications Routes */}
+              <Route path="/notifications/rules" element={<GuardedNotificationRulesList />} />
+              <Route path="/notifications/rules/create" element={<GuardedNotificationRulesCreate />} />
+              <Route path="/notifications/rules/:id" element={<GuardedNotificationRulesDetails />} />
+              
+              <Route path="/notifications/channels" element={<GuardedNotificationChannelsList />} />
+              <Route path="/notifications/channels/create" element={<GuardedNotificationChannelsCreate />} />
+              <Route path="/notifications/channels/:id" element={<GuardedNotificationChannelsDetails />} />
+              
+              <Route path="/notifications/templates" element={<GuardedNotificationTemplatesList />} />
+              <Route path="/notifications/templates/create" element={<GuardedNotificationTemplatesCreate />} />
+              <Route path="/notifications/templates/:id" element={<GuardedNotificationTemplatesDetails />} />
         
         {/* Settings Route */}
         <Route path="/settings" element={<GuardedSettings />} />
