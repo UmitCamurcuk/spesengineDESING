@@ -137,8 +137,8 @@ export function RolesList() {
       sortable: true,
       render: (value: string) => (
         <UserInfo
-          name="System"
-          email="system@app.com"
+          name="Unknown User"
+          email="unknown@system.com"
           date={value}
         />
       ),
