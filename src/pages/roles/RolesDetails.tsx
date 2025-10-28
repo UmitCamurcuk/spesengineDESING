@@ -16,7 +16,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useSettings } from '../../contexts/SettingsContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { NotificationSettings } from '../../components/common/NotificationSettings';
+import { RoleNotificationsTab } from '../../components/notifications/RoleNotificationsTab';
 import { Statistics } from '../../components/common/Statistics';
 import { APITester } from '../../components/common/APITester';
 import { Documentation } from '../../components/common/Documentation';
@@ -218,7 +218,7 @@ const RoleDetailsTab: React.FC<RoleDetailsTabProps> = ({
 
   return (
     <div className="space-y-6">
-      <Card padding="lg">
+      <Card padding="lg" className="bg-card">
         <CardHeader
           title={t('roles.details.name_translations')}
           subtitle={t('roles.details.name_translations_subtitle')}
@@ -242,7 +242,7 @@ const RoleDetailsTab: React.FC<RoleDetailsTabProps> = ({
         </div>
       </Card>
 
-      <Card padding="lg">
+      <Card padding="lg" className="bg-card">
         <CardHeader
           title={t('roles.details.description_translations')}
           subtitle={t('roles.details.description_translations_subtitle')}
@@ -271,7 +271,7 @@ const RoleDetailsTab: React.FC<RoleDetailsTabProps> = ({
         </div>
       </Card>
 
-      <Card padding="lg">
+      <Card padding="lg" className="bg-card">
         <CardHeader
           title={t('roles.details.metadata')}
           subtitle={t('roles.details.metadata_subtitle')}
@@ -388,7 +388,7 @@ const RolePermissionsTab: React.FC<RolePermissionsTabProps> = ({
   return (
     <div className="md:flex md:items-start gap-6">
       <div className="md:w-64 w-full">
-        <Card>
+        <Card className="bg-card">
           <CardHeader title={t('roles.permissions.groups_title')} subtitle={t('roles.permissions.groups_subtitle')} />
           <div className="divide-y divide-border">
             {groupList.map(({ group, permissions: groupPerms, enabled }) => {
@@ -400,18 +400,18 @@ const RolePermissionsTab: React.FC<RolePermissionsTabProps> = ({
                   onClick={() => setActiveGroupId(group.id)}
                   className={cn(
                     'w-full text-left px-4 py-3 transition-colors',
-                    isActive ? 'bg-primary/5 text-primary' : 'hover:bg-muted',
+                    isActive ? 'bg-primary/10 text-primary border-l-4 border-primary' : 'hover:bg-muted/50 border-l-4 border-transparent',
                   )}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">
+                    <span className="text-sm font-semibold">
                       {group.name?.trim() || group.nameLocalizationId || t('roles.labels.unknown_group')}
                     </span>
-                    <Badge variant={isActive ? 'primary' : 'secondary'} size="sm">
+                    <Badge variant={isActive ? 'primary' : 'default'} size="sm">
                       {enabled}/{groupPerms.length}
                     </Badge>
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
                     {group.description?.trim() ||
                       group.descriptionLocalizationId ||
                       t('common.no_description')}
@@ -455,49 +455,83 @@ const RolePermissionsTab: React.FC<RolePermissionsTabProps> = ({
           </div>
         </div>
 
-        <div className="border border-border rounded-lg divide-y divide-border">
-          {activeGroup?.permissions.map((permission) => {
-            const enabled = assignedSet.has(permission.id);
-            return (
-              <label
-                key={permission.id}
-                className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-muted/40 transition-colors"
-              >
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <Badge variant={enabled ? 'primary' : 'secondary'} size="sm">
-                      {permission.code}
-                    </Badge>
-                    <span className="text-sm font-medium text-foreground">
-                      {permission.name?.trim() || permission.nameLocalizationId || '—'}
-                    </span>
+        <Card className="bg-card">
+          <div className="divide-y divide-border">
+            {activeGroup?.permissions.map((permission) => {
+              const enabled = assignedSet.has(permission.id);
+              return (
+                <label
+                  key={permission.id}
+                  className={cn(
+                    "flex items-center justify-between gap-4 px-5 py-4 transition-all cursor-pointer",
+                    enabled ? "bg-primary/5" : "hover:bg-muted/30",
+                    !editMode && "cursor-default"
+                  )}
+                >
+                  <div className="flex-1 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-foreground">
+                        {permission.name?.trim() || permission.nameLocalizationId || '—'}
+                      </span>
+                      <Badge 
+                        variant={enabled ? 'primary' : 'outline'} 
+                        size="sm"
+                        className="text-xs"
+                      >
+                        {permission.code}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      {permission.description?.trim() ||
+                        permission.descriptionLocalizationId ||
+                        t('common.no_description')}
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {permission.description?.trim() ||
-                      permission.descriptionLocalizationId ||
-                      t('common.no_description')}
-                  </p>
-                </div>
-                <input
-                  type="checkbox"
-                  className="h-5 w-5 rounded border-border text-primary focus:ring-primary disabled:opacity-50"
-                  checked={enabled}
-                  onChange={(event) => onToggle(permission.id, event.target.checked)}
-                  disabled={!editMode}
-                />
-              </label>
-            );
-          })}
-        </div>
+                  
+                  {/* iPhone-style Toggle */}
+                  <div className="flex-shrink-0">
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={enabled}
+                        onChange={(event) => onToggle(permission.id, event.target.checked)}
+                        disabled={!editMode}
+                      />
+                      <div className={cn(
+                        "w-11 h-6 rounded-full transition-colors duration-200",
+                        enabled 
+                          ? "bg-green-500" 
+                          : "bg-gray-300 dark:bg-gray-600",
+                        !editMode && "opacity-60"
+                      )}>
+                        <div className={cn(
+                          "absolute top-0.5 left-0.5 bg-white w-5 h-5 rounded-full transition-transform duration-200 shadow-sm",
+                          enabled && "translate-x-5"
+                        )} />
+                      </div>
+                    </label>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+        </Card>
       </div>
     </div>
   );
 };
 
-const NotificationsTab: React.FC<{ entityId: string; editMode: boolean }> = ({
-  entityId,
-  editMode,
-}) => <NotificationSettings entityType='role' entityId={entityId} editMode={editMode} />;
+const NotificationsTab: React.FC<{ 
+  entityId: string; 
+  editMode: boolean;
+  roleName: string;
+}> = ({ entityId, roleName }) => (
+  <RoleNotificationsTab 
+    roleId={entityId}
+    roleName={roleName}
+  />
+);
 
 const StatisticsTab: React.FC<{ entityId: string; editMode: boolean }> = ({ entityId, editMode }) => (
   <Statistics entityType="role" entityId={entityId} editMode={editMode} />
@@ -822,6 +856,7 @@ export function RolesDetails() {
         props: {
           entityId: role.id,
           editMode: isEditing,
+          roleName: role.name || 'Unknown Role',
         },
         hidden: !canReadRole,
       },

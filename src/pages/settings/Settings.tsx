@@ -295,9 +295,23 @@ const computeSettingsChanges = (
     pushIntegrationChange('slack', 'channel', base.integrations.slack.channel, slackChannel);
   }
 
-  const slackWebhook = normalizeString(current.integrations.slack.webhookUrl);
-  if (base.integrations.slack.webhookUrl !== slackWebhook) {
-    pushIntegrationChange('slack', 'webhookUrl', base.integrations.slack.webhookUrl, slackWebhook);
+  const slackDefaultChannel = normalizeString(current.integrations.slack.defaultChannel || '');
+  if ((base.integrations.slack.defaultChannel || '') !== slackDefaultChannel) {
+    pushIntegrationChange('slack', 'defaultChannel', base.integrations.slack.defaultChannel || '', slackDefaultChannel);
+  }
+
+  if (base.integrations.slack.useBotToken !== current.integrations.slack.useBotToken) {
+    pushIntegrationChange('slack', 'useBotToken', base.integrations.slack.useBotToken ?? false, current.integrations.slack.useBotToken ?? false);
+  }
+
+  const slackBotToken = normalizeString(current.integrations.slack.botToken || '');
+  if ((base.integrations.slack.botToken || '') !== slackBotToken) {
+    pushIntegrationChange('slack', 'botToken', '***', slackBotToken ? '***' : '');
+  }
+
+  const slackWebhook = normalizeString(current.integrations.slack.webhookUrl || '');
+  if ((base.integrations.slack.webhookUrl || '') !== slackWebhook) {
+    pushIntegrationChange('slack', 'webhookUrl', base.integrations.slack.webhookUrl || '', slackWebhook);
   }
 
   if (base.integrations.slack.mentionAll !== current.integrations.slack.mentionAll) {
@@ -1169,21 +1183,56 @@ export const Settings: React.FC = () => {
                   onChange={(e) => handleSlackChange('enabled', e.target.checked)}
                   disabled={isLocked}
                 />
-                <Input
-                  label={t('settings.integrations.slack.channel')}
-                  value={form.integrations.slack.channel}
-                  onChange={(e) => handleSlackChange('channel', e.target.value)}
-                  placeholder="#spes-alerts"
-                  disabled={isLocked || !form.integrations.slack.enabled}
-                />
-                <Input
-                  label={t('settings.integrations.slack.webhook')}
-                  value={form.integrations.slack.webhookUrl}
-                  onChange={(e) => handleSlackChange('webhookUrl', e.target.value)}
-                  placeholder="https://hooks.slack.com/services/..."
-                  helperText={t('settings.integrations.slack.webhook_help')}
-                  disabled={isLocked || !form.integrations.slack.enabled}
-                />
+                
+                <div className="pt-2 space-y-4">
+                  <Checkbox
+                    label={t('settings.integrations.slack.use_bot_token')}
+                    checked={form.integrations.slack.useBotToken ?? false}
+                    onChange={(e) => handleSlackChange('useBotToken', e.target.checked)}
+                    disabled={isLocked || !form.integrations.slack.enabled}
+                  />
+                  
+                  {form.integrations.slack.useBotToken ? (
+                    <>
+                      <Input
+                        label={t('settings.integrations.slack.bot_token')}
+                        value={form.integrations.slack.botToken || ''}
+                        onChange={(e) => handleSlackChange('botToken', e.target.value)}
+                        placeholder="xoxb-..."
+                        helperText={t('settings.integrations.slack.bot_token_help')}
+                        disabled={isLocked || !form.integrations.slack.enabled}
+                        type="password"
+                      />
+                      <Input
+                        label={t('settings.integrations.slack.default_channel')}
+                        value={form.integrations.slack.defaultChannel || ''}
+                        onChange={(e) => handleSlackChange('defaultChannel', e.target.value)}
+                        placeholder="#general"
+                        helperText={t('settings.integrations.slack.default_channel_help')}
+                        disabled={isLocked || !form.integrations.slack.enabled}
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <Input
+                        label={t('settings.integrations.slack.channel')}
+                        value={form.integrations.slack.channel}
+                        onChange={(e) => handleSlackChange('channel', e.target.value)}
+                        placeholder="#spes-alerts"
+                        disabled={isLocked || !form.integrations.slack.enabled}
+                      />
+                      <Input
+                        label={t('settings.integrations.slack.webhook')}
+                        value={form.integrations.slack.webhookUrl || ''}
+                        onChange={(e) => handleSlackChange('webhookUrl', e.target.value)}
+                        placeholder="https://hooks.slack.com/services/..."
+                        helperText={t('settings.integrations.slack.webhook_help')}
+                        disabled={isLocked || !form.integrations.slack.enabled}
+                      />
+                    </>
+                  )}
+                </div>
+
                 <Checkbox
                   label={t('settings.integrations.slack.mention_all')}
                   checked={form.integrations.slack.mentionAll}

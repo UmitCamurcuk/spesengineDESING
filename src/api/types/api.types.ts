@@ -260,7 +260,10 @@ export interface SettingsNotifications {
 export interface SettingsSlackIntegration {
   enabled: boolean;
   channel: string;
-  webhookUrl: string;
+  defaultChannel?: string;
+  webhookUrl?: string; // Optional (legacy)
+  botToken?: string; // Bot Token (xoxb-...)
+  useBotToken?: boolean; // Use Bot Token instead of webhook
   mentionAll: boolean;
   sendDigest: boolean;
 }

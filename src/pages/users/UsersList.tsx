@@ -79,20 +79,39 @@ export const UsersList: React.FC = () => {
       key: 'name',
       title: 'User',
       sortable: true,
-      render: (_value: string, user: UserSummary) => (
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-sm">
-            <Users className="h-5 w-5 text-white" />
-          </div>
-          <div>
-            <div className="text-sm font-semibold text-foreground">{formatFullName(user)}</div>
-            <div className="flex items-center text-xs text-gray-500">
-              <Mail className="h-3 w-3 mr-1" />
-              {user.email}
+      render: (_value: string, user: UserSummary) => {
+        const avatarUrl = user.profilePhotoUrl ? `${import.meta.env.VITE_API_URL || 'http://localhost:8080'}${user.profilePhotoUrl}` : null;
+        return (
+          <div className="flex items-center space-x-3">
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={formatFullName(user)}
+                className="w-10 h-10 rounded-full object-cover shadow-sm ring-2 ring-gray-200 dark:ring-gray-700"
+                onError={(e) => {
+                  // Fallback to icon if image fails to load
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  const fallback = target.nextElementSibling as HTMLElement;
+                  if (fallback) fallback.style.display = 'flex';
+                }}
+              />
+            ) : null}
+            <div
+              className={`w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-sm ${avatarUrl ? 'hidden' : ''}`}
+            >
+              <Users className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-foreground">{formatFullName(user)}</div>
+              <div className="flex items-center text-xs text-muted-foreground">
+                <Mail className="h-3 w-3 mr-1" />
+                {user.email}
+              </div>
             </div>
           </div>
-        </div>
-      ),
+        );
+      },
       mobileRender: (user: UserSummary) => {
         const status = deriveStatus(user);
         return (

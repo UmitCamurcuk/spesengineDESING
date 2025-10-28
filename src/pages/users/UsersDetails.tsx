@@ -10,6 +10,9 @@ import {
   BookOpen,
   History as HistoryIcon,
   Loader2,
+  Camera,
+  Upload,
+  Trash2,
 } from 'lucide-react';
 import { DetailsLayout } from '../../components/common/DetailsLayout';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -23,13 +26,16 @@ import { Card, CardHeader } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
 import { Select } from '../../components/ui/Select';
-import { NotificationSettings } from '../../components/common/NotificationSettings';
+import { Button } from '../../components/ui/Button';
+import { Modal } from '../../components/ui/Modal';
+import { UserNotificationsTab } from '../../components/notifications/UserNotificationsTab';
 import { Statistics } from '../../components/common/Statistics';
 import { APITester } from '../../components/common/APITester';
 import { Documentation } from '../../components/common/Documentation';
 import { HistoryTable } from '../../components/common/HistoryTable';
 import { ChangeConfirmDialog } from '../../components/ui/ChangeConfirmDialog';
 import { PERMISSIONS } from '../../config/permissions';
+import { apiClient } from '../../api/client/axios';
 
 type GeneralForm = {
   firstName: string;
@@ -89,10 +95,22 @@ interface UserDetailsTabProps {
   form: GeneralForm;
   editMode: boolean;
   onChange: (updater: (prev: GeneralForm) => GeneralForm) => void;
+  user: UserSummary;
+  onPhotoUpdate: () => void;
 }
 
-const UserDetailsTab: React.FC<UserDetailsTabProps> = ({ form, editMode, onChange }) => {
+const UserDetailsTab: React.FC<UserDetailsTabProps> = ({ form, editMode, onChange, user, onPhotoUpdate }) => {
   const { t } = useLanguage();
+  const { success: showSuccess, error: showError } = useToast();
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const avatarUrl = user.profilePhotoUrl 
+    ? `${import.meta.env.VITE_API_URL || 'http://localhost:8080'}${user.profilePhotoUrl}` 
+    : null;
 
   const handleFieldChange = (field: keyof GeneralForm, value: string | boolean) => {
     onChange((prev) => ({
@@ -101,9 +119,155 @@ const UserDetailsTab: React.FC<UserDetailsTabProps> = ({ form, editMode, onChang
     }));
   };
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        showError(t('profile.file_too_large'));
+        return;
+      }
+      setSelectedFile(file);
+      setPhotoPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handlePhotoUpload = async () => {
+    if (!selectedFile) return;
+
+    try {
+      setUploading(true);
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      await apiClient.post(`/users/${user.id}/profile-photo`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      showSuccess(t('users.photo_upload_success'));
+      setShowPhotoModal(false);
+      setSelectedFile(null);
+      setPhotoPreview(null);
+      onPhotoUpdate();
+    } catch (error: any) {
+      showError(error?.message || t('users.photo_upload_failed'));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleCancelPhotoUpload = () => {
+    setShowPhotoModal(false);
+    setSelectedFile(null);
+    if (photoPreview) {
+      URL.revokeObjectURL(photoPreview);
+      setPhotoPreview(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <Card padding="lg">
+      {/* Profile Photo Section */}
+      <Card padding="lg" className="bg-card">
+        <div className="flex items-center space-x-6">
+          <div className="relative group">
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={`${form.firstName} ${form.lastName}`}
+                className="w-24 h-24 rounded-full object-cover ring-4 ring-primary/20"
+              />
+            ) : (
+              <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center ring-4 ring-primary/20">
+                <UserIcon className="h-12 w-12 text-white" />
+              </div>
+            )}
+            {editMode && (
+              <button
+                type="button"
+                onClick={() => setShowPhotoModal(true)}
+                className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <Camera className="h-8 w-8 text-white" />
+              </button>
+            )}
+          </div>
+          <div className="flex-1">
+            <h3 className="text-xl font-semibold text-foreground">
+              {form.firstName} {form.lastName}
+            </h3>
+            <p className="text-sm text-muted-foreground">{form.email}</p>
+            {editMode && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                onClick={() => setShowPhotoModal(true)}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                {t('users.change_photo')}
+              </Button>
+            )}
+          </div>
+        </div>
+      </Card>
+
+      {/* Photo Upload Modal */}
+      <Modal
+        isOpen={showPhotoModal}
+        onClose={handleCancelPhotoUpload}
+        title={t('users.upload_photo')}
+      >
+        <div className="space-y-4">
+          <div className="flex flex-col items-center space-y-4">
+            {photoPreview ? (
+              <img
+                src={photoPreview}
+                alt="Preview"
+                className="w-48 h-48 rounded-full object-cover ring-4 ring-primary/20"
+              />
+            ) : (
+              <div className="w-48 h-48 rounded-full bg-muted flex items-center justify-center">
+                <Camera className="h-16 w-16 text-muted-foreground" />
+              </div>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+            <Button
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              {t('users.select_file')}
+            </Button>
+            {selectedFile && (
+              <p className="text-sm text-muted-foreground">
+                {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
+              </p>
+            )}
+          </div>
+          <div className="flex justify-end space-x-2 pt-4 border-t">
+            <Button variant="outline" onClick={handleCancelPhotoUpload} disabled={uploading}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              onClick={handlePhotoUpload}
+              disabled={!selectedFile || uploading}
+              loading={uploading}
+            >
+              {t('common.upload')}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Card padding="lg" className="bg-card">
         <CardHeader
           title={t('users.details.personal_information')}
           subtitle={t('users.details.personal_information_subtitle')}
@@ -162,7 +326,7 @@ const UserDetailsTab: React.FC<UserDetailsTabProps> = ({ form, editMode, onChang
         </div>
       </Card>
 
-      <Card padding="lg">
+      <Card padding="lg" className="bg-card">
         <CardHeader
           title={t('users.details.preferences')}
           subtitle={t('users.details.preferences_subtitle')}
@@ -247,92 +411,70 @@ const UserRolesTab: React.FC<UserRolesTabProps> = ({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold text-foreground">{t('users.roles.title')}</h3>
-          <p className="text-sm text-muted-foreground">{t('users.roles.subtitle')}</p>
-        </div>
-        {canEditRole && (
-          <div className="flex items-center gap-2">
-            {roleEditMode ? (
-              <>
-                <button
-                  type="button"
-                  onClick={onCancelEdit}
-                  className="px-3 py-2 text-sm border border-border rounded-lg hover:bg-muted"
-                >
-                  {t('common.cancel')}
-                </button>
-                <button
-                  type="button"
-                  onClick={onSave}
-                  disabled={!hasChanges}
-                  className="px-3 py-2 text-sm bg-primary text-white rounded-lg disabled:opacity-60"
-                >
-                  {t('common.save')}
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={onStartEdit}
-                className="px-3 py-2 text-sm bg-primary text-white rounded-lg"
-              >
-                {t('users.roles.edit_role')}
-              </button>
-            )}
+      <Card padding="lg" className="bg-card">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="text-lg font-semibold text-foreground">{t('users.roles.title')}</h3>
+            <p className="text-sm text-muted-foreground">{t('users.roles.subtitle')}</p>
           </div>
-        )}
-      </div>
+        </div>
 
-      <div className="overflow-hidden border border-border rounded-lg">
-        <table className="min-w-full divide-y divide-border">
-          <thead className="bg-muted">
-            <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                {t('users.roles.columns.tenant')}
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                {t('users.roles.columns.role')}
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                {t('users.roles.columns.actions')}
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border bg-background">
-            {user.tenants.map((tenant) => {
-              const isCurrentTenant = tenant.tenantId === currentTenantId;
-              const currentRoleId = isCurrentTenant ? selectedRoleId : tenant.roleId;
-              const currentRoleName = isCurrentTenant
-                ? roleOptions.find((option) => option.value === selectedRoleId)?.label ?? t('users.roles.unassigned')
-                : tenant.roleName || tenant.roleId || t('users.roles.unassigned');
+        <div className="overflow-hidden border border-border rounded-lg">
+          <table className="min-w-full divide-y divide-border">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  {t('users.roles.columns.tenant')}
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  {t('users.roles.columns.role')}
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  {t('users.roles.columns.status')}
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border bg-background">
+              {user.tenants.map((tenant) => {
+                const isCurrentTenant = tenant.tenantId === currentTenantId;
+                const currentRoleId = isCurrentTenant ? selectedRoleId : tenant.roleId;
+                const currentRoleName = isCurrentTenant
+                  ? roleOptions.find((option) => option.value === selectedRoleId)?.label ?? t('users.roles.unassigned')
+                  : tenant.roleName || tenant.roleId || t('users.roles.unassigned');
 
-              return (
-                <tr key={`${tenant.tenantId}-${tenant.roleId ?? 'none'}`}>
-                  <td className="px-4 py-3 text-sm text-foreground font-medium">
-                    {tenant.tenantId}
-                    {isCurrentTenant && (
-                      <Badge variant="outline" size="sm" className="ml-2">
-                        {t('users.roles.current_tenant')}
-                      </Badge>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-foreground">
-                    {isCurrentTenant && roleEditMode ? (
-                      <Select
-                        value={currentRoleId ?? ''}
-                        onChange={(event) => onRoleChange(event.target.value || null)}
-                        options={[{ value: '', label: t('users.roles.unassigned') }, ...roleOptions]}
-                      />
-                    ) : (
-                      <span>{currentRoleName}</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">
-                    {isCurrentTenant ? (
-                      canEditRole ? (
-                        roleEditMode ? t('users.roles.editing') : t('users.roles.click_edit')
+                return (
+                  <tr key={`${tenant.tenantId}-${tenant.roleId ?? 'none'}`} className="hover:bg-muted/30 transition-colors">
+                    <td className="px-4 py-3 text-sm text-foreground font-medium">
+                      <div className="flex items-center space-x-2">
+                        <Shield className="h-4 w-4 text-muted-foreground" />
+                        <span>{tenant.tenantId}</span>
+                        {isCurrentTenant && (
+                          <Badge variant="primary" size="sm">
+                            {t('users.roles.current_tenant')}
+                          </Badge>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-foreground">
+                      {isCurrentTenant && roleEditMode ? (
+                        <Select
+                          value={currentRoleId ?? ''}
+                          onChange={(event) => onRoleChange(event.target.value || null)}
+                          options={[{ value: '', label: t('users.roles.unassigned') }, ...roleOptions]}
+                          className="max-w-xs"
+                        />
+                      ) : (
+                        <span className="font-medium">{currentRoleName}</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">
+                      {isCurrentTenant ? (
+                        canEditRole ? (
+                          roleEditMode ? (
+                            <Badge variant="warning" size="sm">{t('users.roles.editing')}</Badge>
+                          ) : (
+                            <Badge variant="default" size="sm">{t('users.roles.click_edit')}</Badge>
+                          )
                       ) : (
                         t('users.roles.read_only')
                       )
@@ -346,12 +488,24 @@ const UserRolesTab: React.FC<UserRolesTabProps> = ({
           </tbody>
         </table>
       </div>
+      </Card>
     </div>
   );
 };
 
-const NotificationsTab: React.FC<{ entityId: string; editMode: boolean }> = ({ entityId, editMode }) => (
-  <NotificationSettings entityType="user" entityId={entityId} editMode={editMode} />
+const NotificationsTab: React.FC<{ 
+  entityId: string; 
+  editMode: boolean;
+  userEmail: string;
+  roleId: string | null;
+  roleName: string | null;
+}> = ({ entityId, userEmail, roleId, roleName }) => (
+  <UserNotificationsTab 
+    userId={entityId} 
+    userEmail={userEmail}
+    roleId={roleId}
+    roleName={roleName}
+  />
 );
 
 const StatisticsTab: React.FC<{ entityId: string; editMode: boolean }> = ({ entityId, editMode }) => (
@@ -399,7 +553,7 @@ export function UsersDetails() {
   const roleBaselineRef = useRef<string | null>(null);
 
   const [pendingChanges, setPendingChanges] = useState<ChangeItem[]>([]);
-  const [pendingAction, setPendingAction] = useState<'general' | 'role' | null>(null);
+  const [pendingAction, setPendingAction] = useState<'general' | 'role' | 'both' | null>(null);
   const [commentDialogOpen, setCommentDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -493,38 +647,53 @@ export function UsersDetails() {
   };
 
   const handleGeneralSave = () => {
-    if (!generalForm || !generalBaselineRef.current) {
-      return;
-    }
-    const normalizedCurrent = normalizeGeneralForm(generalForm);
-    const normalizedBaseline = normalizeGeneralForm(generalBaselineRef.current);
-
     const changes: ChangeItem[] = [];
-    (Object.keys(normalizedCurrent) as (keyof GeneralForm)[]).forEach((key) => {
-      if (typeof normalizedCurrent[key] === 'boolean') {
-        if (normalizedCurrent[key] !== normalizedBaseline[key]) {
+    
+    // Check general form changes
+    if (generalForm && generalBaselineRef.current) {
+      const normalizedCurrent = normalizeGeneralForm(generalForm);
+      const normalizedBaseline = normalizeGeneralForm(generalBaselineRef.current);
+
+      (Object.keys(normalizedCurrent) as (keyof GeneralForm)[]).forEach((key) => {
+        if (typeof normalizedCurrent[key] === 'boolean') {
+          if (normalizedCurrent[key] !== normalizedBaseline[key]) {
+            changes.push({
+              field: t(`users.fields.${String(key)}`),
+              oldValue: normalizedBaseline[key] as boolean,
+              newValue: normalizedCurrent[key] as boolean,
+            });
+          }
+        } else if ((normalizedCurrent[key] as string) !== (normalizedBaseline[key] as string)) {
           changes.push({
             field: t(`users.fields.${String(key)}`),
-            oldValue: normalizedBaseline[key] as boolean,
-            newValue: normalizedCurrent[key] as boolean,
+            oldValue: (normalizedBaseline[key] as string) || '—',
+            newValue: (normalizedCurrent[key] as string) || '—',
           });
         }
-      } else if ((normalizedCurrent[key] as string) !== (normalizedBaseline[key] as string)) {
-        changes.push({
-          field: t(`users.fields.${String(key)}`),
-          oldValue: (normalizedBaseline[key] as string) || '—',
-          newValue: (normalizedCurrent[key] as string) || '—',
-        });
-      }
-    });
+      });
+    }
+    
+    // Check role changes
+    if (roleHasChanges && selectedRoleId !== roleBaselineRef.current) {
+      const baselineRoleName = roles.find((role) => role.id === roleBaselineRef.current)?.name ?? roleBaselineRef.current ?? t('users.roles.unassigned');
+      const newRoleName = roles.find((role) => role.id === selectedRoleId)?.name ?? selectedRoleId ?? t('users.roles.unassigned');
+      changes.push({
+        field: t('users.roles.field'),
+        oldValue: baselineRoleName?.trim() || t('users.roles.unassigned'),
+        newValue: newRoleName?.trim() || t('users.roles.unassigned'),
+      });
+    }
 
     if (changes.length === 0) {
       showToast({ type: 'info', message: t('users.messages.no_changes') });
       return;
     }
 
+    const hasGeneralChanges = generalHasChanges;
+    const hasRoleChanges = roleHasChanges;
+    
     setPendingChanges(changes);
-    setPendingAction('general');
+    setPendingAction(hasGeneralChanges && hasRoleChanges ? 'both' : hasGeneralChanges ? 'general' : 'role');
     setCommentDialogOpen(true);
   };
 
@@ -583,22 +752,23 @@ export function UsersDetails() {
 
     try {
       setSaving(true);
-      if (pendingAction === 'general') {
-        if (!generalForm) {
-          return;
+      
+      if (pendingAction === 'general' || pendingAction === 'both') {
+        if (generalForm) {
+          const payload = {
+            ...normalizeGeneralForm(generalForm),
+            comment,
+          };
+          await usersService.update(id, payload, { language });
         }
-        const payload = {
-          ...normalizeGeneralForm(generalForm),
-          comment,
-        };
-        await usersService.update(id, payload, { language });
-        showToast({ type: 'success', message: t('users.messages.updated') });
-      } else if (pendingAction === 'role') {
+      }
+      
+      if (pendingAction === 'role' || pendingAction === 'both') {
         const payload = { roleId: selectedRoleId, comment };
         await usersService.updateRole(id, payload, { language });
-        showToast({ type: 'success', message: t('users.messages.role_updated') });
       }
 
+      showToast({ type: 'success', message: t('users.messages.updated') });
       setCommentDialogOpen(false);
       setPendingChanges([]);
       setPendingAction(null);
@@ -636,6 +806,8 @@ export function UsersDetails() {
           form: generalForm,
           editMode: isGeneralEditing,
           onChange: updateGeneralForm,
+          user: user,
+          onPhotoUpdate: loadData,
         },
         hidden: !canViewRoles,
       },
@@ -649,7 +821,7 @@ export function UsersDetails() {
           roles,
           currentTenantId,
           selectedRoleId,
-          roleEditMode: isRoleEditing,
+          roleEditMode: isGeneralEditing, // Use general edit mode for inline editing
           canEditRole: canUpdateRole,
           onStartEdit: handleRoleEditToggle,
           onCancelEdit: handleRoleCancel,
@@ -667,6 +839,9 @@ export function UsersDetails() {
         props: {
           entityId: user.id,
           editMode: isGeneralEditing,
+          userEmail: user.email,
+          roleId: user.tenant?.roleId || null,
+          roleName: user.tenant?.roleName || null,
         },
         hidden: !canReadUser,
       },
@@ -756,7 +931,7 @@ export function UsersDetails() {
         backUrl="/users"
         tabs={tabs}
         editMode={isGeneralEditing}
-        hasChanges={generalHasChanges}
+        hasChanges={generalHasChanges || roleHasChanges}
         onEdit={canUpdateGeneral ? handleEnterGeneralEdit : undefined}
         onSave={canUpdateGeneral ? handleGeneralSave : undefined}
         onCancel={handleCancelGeneralEdit}
