@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Globe, Languages, FileText, RefreshCcw, AlertCircle } from 'lucide-react';
+import { Globe, Languages, FileText } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable } from '../../components/ui/DataTable';
-import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Card, CardHeader } from '../../components/ui/Card';
+import { UserInfoWithRole } from '../../components/common/UserInfoWithRole';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useSettings } from '../../contexts/SettingsContext';
 import { localizationsService } from '../../api';
@@ -22,17 +22,6 @@ const normalizeLanguageCode = (code: string): string => {
   return `${language.toLowerCase()}-${(region ?? '').toUpperCase()}`;
 };
 
-const formatDateTime = (value: string) => {
-  if (!value) {
-    return '—';
-  }
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  return date.toLocaleString();
-};
-
 const createEmptyPagination = (): ApiPagination => ({
   page: 1,
   pageSize: 10,
@@ -46,8 +35,6 @@ export const LocalizationsList: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useLanguage();
   const { settings } = useSettings();
-  const { hasPermission } = useAuth();
-  const canCreateLocalization = hasPermission(PERMISSIONS.SYSTEM.LOCALIZATIONS.CREATE);
 
   const [localizations, setLocalizations] = useState<LocalizationRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -160,9 +147,18 @@ export const LocalizationsList: React.FC = () => {
 
           <div>
             <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">
-              {t('localizations.updated_at')}
+              {t('localizations.last_updated')}
             </div>
-            <div className="text-sm text-muted-foreground">{formatDateTime(localization.updatedAt)}</div>
+            <UserInfoWithRole
+              user={localization.updatedBy ? {
+                id: localization.updatedBy.id,
+                email: localization.updatedBy.email,
+                name: localization.updatedBy.name,
+                profilePhotoUrl: localization.updatedBy.profilePhotoUrl,
+                role: localization.updatedBy.role?.name || "Unknown Role"
+              } : undefined}
+              date={localization.updatedAt}
+            />
           </div>
         </div>
       ),
@@ -203,17 +199,22 @@ export const LocalizationsList: React.FC = () => {
     },
     {
       key: 'updatedAt',
-      title: t('localizations.updated_at'),
+      title: t('localizations.last_updated'),
       sortable: false,
-      render: (value: string) => (
-        <span className="text-sm text-muted-foreground">{formatDateTime(value)}</span>
+      render: (_value: string, localization: LocalizationRecord) => (
+        <UserInfoWithRole
+          user={localization.updatedBy ? {
+            id: localization.updatedBy.id,
+            email: localization.updatedBy.email,
+            name: localization.updatedBy.name,
+            profilePhotoUrl: localization.updatedBy.profilePhotoUrl,
+            role: localization.updatedBy.role?.name || "Unknown Role"
+          } : undefined}
+          date={localization.updatedAt}
+        />
       ),
     },
   ], [defaultLanguageCode, defaultLanguageLabel, t]);
-
-  const handleRefresh = () => {
-    void fetchLocalizations(page, pageSize, search);
-  };
 
   const handlePageChange = (nextPage: number) => {
     setPage(nextPage);
@@ -249,36 +250,7 @@ export const LocalizationsList: React.FC = () => {
       <PageHeader
         title={t('localizations.title')}
         subtitle={t('localizations.subtitle')}
-        action={(
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={loading}
-            >
-              <RefreshCcw className="h-4 w-4" />
-            </Button>
-            {canCreateLocalization && (
-              <Button type="button" onClick={() => navigate('/localizations/create')}>
-                <Plus className="h-4 w-4 mr-2" />
-                {t('localizations.create_title')}
-              </Button>
-            )}
-          </div>
-        )}
       />
-
-      {error && localizations.length > 0 && (
-        <div className="flex items-center gap-2 rounded-lg border border-error/30 bg-error/5 px-3 py-2 text-sm text-error">
-          <AlertCircle className="h-4 w-4" />
-          <span>{error}</span>
-          <Button type="button" variant="ghost" size="sm" onClick={handleRefresh}>
-            {t('common.retry')}
-          </Button>
-        </div>
-      )}
 
       <DataTable<LocalizationRecord>
         data={localizations}
@@ -295,23 +267,9 @@ export const LocalizationsList: React.FC = () => {
         onSearchChange={handleSearchChange}
         onRowClick={(item) => navigate(`/localizations/${item.id}`)}
         emptyState={{
-          icon: error ? <AlertCircle className="h-10 w-10 text-error" /> : <FileText className="h-10 w-10 text-muted-foreground" />,
-          title: error ? t('localizations.list_title') : t('localizations.no_localizations'),
-          description: error ?? t('localizations.create_new_localization'),
-          action: (
-            <div className="flex items-center gap-2">
-              <Button type="button" variant="outline" onClick={handleRefresh}>
-                <RefreshCcw className="h-4 w-4 mr-2" />
-                {t('common.retry')}
-              </Button>
-              {canCreateLocalization && (
-                <Button type="button" onClick={() => navigate('/localizations/create')}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  {t('localizations.create_title')}
-                </Button>
-              )}
-            </div>
-          ),
+          icon: <FileText className="h-10 w-10 text-muted-foreground" />,
+          title: t('localizations.no_localizations'),
+          description: t('localizations.create_new_localization'),
         }}
       />
 
