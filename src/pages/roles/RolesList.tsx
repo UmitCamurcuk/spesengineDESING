@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, Shield, Users } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable, UserInfo } from '../../components/ui/DataTable';
+import { UserInfoWithRole } from '../../components/common/UserInfoWithRole';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -136,10 +137,14 @@ export function RolesList() {
       title: 'Last Updated',
       sortable: true,
       render: (value: string, role: RoleRecord) => (
-        <UserInfo
-          name={role.updatedBy?.name || "Unknown User"}
-          email={role.updatedBy?.email || "unknown@system.com"}
-          avatarUrl={role.updatedBy?.profilePhotoUrl}
+        <UserInfoWithRole
+          user={role.updatedBy ? {
+            id: role.updatedBy.id,
+            email: role.updatedBy.email,
+            name: role.updatedBy.name,
+            profilePhotoUrl: role.updatedBy.profilePhotoUrl,
+            role: role.updatedBy.role?.name || "Unknown Role"
+          } : undefined}
           date={value}
         />
       ),

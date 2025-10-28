@@ -548,6 +548,11 @@ export interface RoleRecord {
     email: string;
     name: string;
     profilePhotoUrl?: string;
+    role?: {
+      id: string;
+      name: string;
+      isSystemRole: boolean;
+    };
   };
 }
 
