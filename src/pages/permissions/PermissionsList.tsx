@@ -141,10 +141,11 @@ export function PermissionsList() {
       key: 'updatedAt',
       title: 'Last Updated',
       sortable: true,
-      render: (value: string) => (
+      render: (value: string, permission: PermissionRecord) => (
         <UserInfo
-          name="Unknown User"
-          email="unknown@system.com"
+          name={permission.updatedBy?.name || "Unknown User"}
+          email={permission.updatedBy?.email || "unknown@system.com"}
+          avatarUrl={permission.updatedBy?.profilePhotoUrl}
           date={value}
         />
       ),

@@ -499,6 +499,12 @@ export interface PermissionGroupRecord {
   displayOrder: number;
   createdAt: string;
   updatedAt: string;
+  updatedBy?: {
+    id: string;
+    email: string;
+    name: string;
+    profilePhotoUrl?: string;
+  };
 }
 
 export interface PermissionRecord {
@@ -516,6 +522,12 @@ export interface PermissionRecord {
   displayOrder: number;
   createdAt: string;
   updatedAt: string;
+  updatedBy?: {
+    id: string;
+    email: string;
+    name: string;
+    profilePhotoUrl?: string;
+  };
 }
 
 export interface RoleRecord {
@@ -531,6 +543,12 @@ export interface RoleRecord {
   permissions: string[]; // Array of enabled permission IDs
   createdAt: string;
   updatedAt: string;
+  updatedBy?: {
+    id: string;
+    email: string;
+    name: string;
+    profilePhotoUrl?: string;
+  };
 }
 
 export interface RoleWithPermissions extends RoleRecord {

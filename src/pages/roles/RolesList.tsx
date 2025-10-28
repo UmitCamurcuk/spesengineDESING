@@ -135,10 +135,11 @@ export function RolesList() {
       key: 'updatedAt',
       title: 'Last Updated',
       sortable: true,
-      render: (value: string) => (
+      render: (value: string, role: RoleRecord) => (
         <UserInfo
-          name="Unknown User"
-          email="unknown@system.com"
+          name={role.updatedBy?.name || "Unknown User"}
+          email={role.updatedBy?.email || "unknown@system.com"}
+          avatarUrl={role.updatedBy?.profilePhotoUrl}
           date={value}
         />
       ),

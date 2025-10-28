@@ -127,10 +127,11 @@ export function PermissionGroupsList() {
       key: 'updatedAt',
       title: 'Last Updated',
       sortable: true,
-      render: (value: string) => (
+      render: (value: string, group: PermissionGroupRecord) => (
         <UserInfo
-          name="Unknown User"
-          email="unknown@system.com"
+          name={group.updatedBy?.name || "Unknown User"}
+          email={group.updatedBy?.email || "unknown@system.com"}
+          avatarUrl={group.updatedBy?.profilePhotoUrl}
           date={value}
         />
       ),
