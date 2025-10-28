@@ -373,6 +373,7 @@ export interface UpdateLocalizationRequest {
   key?: string;
   description?: string | null;
   translations?: Record<string, string>;
+  comment?: string;
 }
 
 // Auth Types

@@ -481,6 +481,7 @@
     "description": "Açıklama",
     "created_at": "Oluşturulma Tarihi",
     "updated_at": "Güncellenme Tarihi",
+    "last_updated": "Son Güncelleyen",
     "no_localizations": "Yerelleştirme bulunamadı",
     "create_new_localization": "Yeni yerelleştirme oluştur",
     "search_placeholder": "Yerelleştirme ara...",

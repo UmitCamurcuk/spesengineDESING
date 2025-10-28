@@ -499,6 +499,7 @@
     "description": "Description",
     "created_at": "Created At",
     "updated_at": "Updated At",
+    "last_updated": "Last Updated By",
     "no_localizations": "No localizations found",
     "create_new_localization": "Create new localization",
     "search_placeholder": "Search localizations...",

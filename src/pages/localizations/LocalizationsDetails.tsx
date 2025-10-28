@@ -18,6 +18,7 @@ import { useDateFormatter } from '../../hooks/useDateFormatter';
 import { HistoryTable } from '../../components/common/HistoryTable';
 import { PERMISSIONS } from '../../config/permissions';
 import { useEditActionContext } from '../../contexts/EditActionContext';
+import { ChangeConfirmDialog } from '../../components/ui/ChangeConfirmDialog';
 
 const namespaceOptions = [
   { value: 'common', label: 'Common' },
@@ -57,6 +58,8 @@ export const LocalizationsDetails: React.FC = () => {
   const [saving, setSaving] = useState<boolean>(false);
   const [editMode, setEditMode] = useState<boolean>(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [commentDialogOpen, setCommentDialogOpen] = useState(false);
+  const [pendingComment, setPendingComment] = useState<string>('');
 
   const supportedLanguages = settings?.localization.supportedLanguages ?? [];
 
@@ -205,7 +208,7 @@ export const LocalizationsDetails: React.FC = () => {
     setEditMode(false);
   }, [localization]);
 
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(() => {
     if (!canUpdateLocalization) {
       return;
     }
@@ -220,6 +223,15 @@ export const LocalizationsDetails: React.FC = () => {
       return;
     }
 
+    // Open comment dialog
+    setCommentDialogOpen(true);
+  }, [canUpdateLocalization, formData, localization, id, requiredLanguageCodes, showError, t]);
+
+  const handleConfirmSave = useCallback(async (comment: string) => {
+    if (!formData || !localization || !id) {
+      return;
+    }
+
     const preparedEntries = Object.entries(formData.translations)
       .map(([code, value]) => [code, value.trim()] as const)
       .filter(([code, value]) => (requiredLanguageCodes.includes(code) ? true : value.length > 0));
@@ -229,6 +241,7 @@ export const LocalizationsDetails: React.FC = () => {
       key: formData.key.trim(),
       description: formData.description?.trim() ?? null,
       translations: Object.fromEntries(preparedEntries),
+      comment: comment,
     };
 
     try {
@@ -237,6 +250,7 @@ export const LocalizationsDetails: React.FC = () => {
       setLocalization(updated);
       setFormData(updated);
       setEditMode(false);
+      setCommentDialogOpen(false);
       showSuccess(t('localizations.messages.update_success'));
     } catch (err) {
       const message = err instanceof Error ? err.message : t('common.error');
@@ -244,16 +258,12 @@ export const LocalizationsDetails: React.FC = () => {
     } finally {
       setSaving(false);
     }
-  }, [
-    canUpdateLocalization,
-    formData,
-    id,
-    localization,
-    requiredLanguageCodes,
-    showError,
-    showSuccess,
-    t,
-  ]);
+  }, [formData, localization, id, requiredLanguageCodes, showSuccess, showError, t]);
+
+  const handleCommentDialogClose = useCallback(() => {
+    setCommentDialogOpen(false);
+    setPendingComment('');
+  }, []);
 
   const defaultLanguageCode = useMemo(
     () => normalizeLanguageCode(settings?.localization.defaultLanguage ?? 'en'),
@@ -401,125 +411,136 @@ export const LocalizationsDetails: React.FC = () => {
   ];
 
   return (
-    <div className="p-6 space-y-6">
-      <PageHeader
-        title={`${localization.namespace}.${localization.key}`}
-        subtitle={t('localizations.details_subtitle')}
-      />
+    <>
+      <div className="p-6 space-y-6">
+        <PageHeader
+          title={`${localization.namespace}.${localization.key}`}
+          subtitle={t('localizations.details_subtitle')}
+        />
 
-      <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
+        <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
 
-      {activeTab === 'general' && (
-        <TabPanel>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-6">
-              <Card>
-                <CardHeader
-                  title={t('localizations.details_sections.info_title')}
-                  subtitle={t('localizations.details_sections.info_subtitle')}
-                />
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Select
-                    label={t('localizations.namespace')}
-                    value={formData.namespace}
-                    onChange={(e) => setFormData({ ...formData, namespace: e.target.value })}
-                    options={namespaceOptions}
-                    disabled={!editMode}
+        {activeTab === 'general' && (
+          <TabPanel>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 space-y-6">
+                <Card>
+                  <CardHeader
+                    title={t('localizations.details_sections.info_title')}
+                    subtitle={t('localizations.details_sections.info_subtitle')}
                   />
-                  <Input
-                    label={t('localizations.key')}
-                    value={formData.key}
-                    onChange={(e) => setFormData({ ...formData, key: e.target.value })}
-                    disabled={!editMode}
-                  />
-                  <div className="md:col-span-2">
-                    <Input
-                      label={t('localizations.description')}
-                      value={formData.description ?? ''}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Select
+                      label={t('localizations.namespace')}
+                      value={formData.namespace}
+                      onChange={(e) => setFormData({ ...formData, namespace: e.target.value })}
+                      options={namespaceOptions}
                       disabled={!editMode}
                     />
+                    <Input
+                      label={t('localizations.key')}
+                      value={formData.key}
+                      onChange={(e) => setFormData({ ...formData, key: e.target.value })}
+                      disabled={!editMode}
+                    />
+                    <div className="md:col-span-2">
+                      <Input
+                        label={t('localizations.description')}
+                        value={formData.description ?? ''}
+                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                        disabled={!editMode}
+                      />
+                    </div>
                   </div>
-                </div>
-              </Card>
+                </Card>
 
-              <Card>
-                <CardHeader
-                  title={t('localizations.details_sections.translations_title')}
-                  subtitle={t('localizations.details_sections.translations_subtitle')}
-                />
-                {renderTranslationsList()}
-              </Card>
+                <Card>
+                  <CardHeader
+                    title={t('localizations.details_sections.translations_title')}
+                    subtitle={t('localizations.details_sections.translations_subtitle')}
+                  />
+                  {renderTranslationsList()}
+                </Card>
+              </div>
+
+              <div className="space-y-6">
+                <Card>
+                  <CardHeader title={t('localizations.details_sections.metadata_title')} />
+                  <div className="space-y-3 text-sm">
+                    <div className="flex flex-col">
+                      <span className="text-muted-foreground">{t('settings.localization.labels.default')}</span>
+                      <span className="font-medium text-foreground">
+                        {resolveLanguageLabel(defaultLanguageCode)} ({defaultLanguageCode})
+                      </span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-muted-foreground">{t('settings.localization.labels.fallback')}</span>
+                      <span className="font-medium text-foreground">
+                        {resolveLanguageLabel(fallbackLanguageCode)} ({fallbackLanguageCode})
+                      </span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-muted-foreground">{t('localizations.created_at')}</span>
+                      <span className="font-medium text-foreground">
+                        {formatDateTime(localization.createdAt, { includeTime: true })}
+                      </span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-muted-foreground">{t('localizations.updated_at')}</span>
+                      <span className="font-medium text-foreground">
+                        {formatDateTime(localization.updatedAt, { includeTime: true })}
+                      </span>
+                    </div>
+                  </div>
+                </Card>
+
+                <Card>
+                  <CardHeader
+                    title={t('localizations.details_sections.selected_languages_title')}
+                    subtitle={t('localizations.details_sections.selected_languages_subtitle')}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    {orderedLanguages.map((lang) => (
+                      <Badge key={lang.code} variant={lang.required ? 'warning' : 'secondary'} size="sm">
+                        {resolveLanguageLabel(lang.code)} ({lang.code})
+                      </Badge>
+                    ))}
+                  </div>
+                </Card>
+              </div>
             </div>
+          </TabPanel>
+        )}
 
-            <div className="space-y-6">
-              <Card>
-                <CardHeader title={t('localizations.details_sections.metadata_title')} />
-                <div className="space-y-3 text-sm">
-                  <div className="flex flex-col">
-                    <span className="text-muted-foreground">{t('settings.localization.labels.default')}</span>
-                    <span className="font-medium text-foreground">
-                      {resolveLanguageLabel(defaultLanguageCode)} ({defaultLanguageCode})
-                    </span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-muted-foreground">{t('settings.localization.labels.fallback')}</span>
-                    <span className="font-medium text-foreground">
-                      {resolveLanguageLabel(fallbackLanguageCode)} ({fallbackLanguageCode})
-                    </span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-muted-foreground">{t('localizations.created_at')}</span>
-                    <span className="font-medium text-foreground">
-                      {formatDateTime(localization.createdAt, { includeTime: true })}
-                    </span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-muted-foreground">{t('localizations.updated_at')}</span>
-                    <span className="font-medium text-foreground">
-                      {formatDateTime(localization.updatedAt, { includeTime: true })}
-                    </span>
-                  </div>
-                </div>
-              </Card>
-
-              <Card>
-                <CardHeader
-                  title={t('localizations.details_sections.selected_languages_title')}
-                  subtitle={t('localizations.details_sections.selected_languages_subtitle')}
-                />
-                <div className="flex flex-wrap gap-2">
-                  {orderedLanguages.map((lang) => (
-                    <Badge key={lang.code} variant={lang.required ? 'warning' : 'secondary'} size="sm">
-                      {resolveLanguageLabel(lang.code)} ({lang.code})
-                    </Badge>
-                  ))}
-                </div>
-              </Card>
-            </div>
-          </div>
-        </TabPanel>
-      )}
-
-      {activeTab === 'history' && (
-        <TabPanel>
-          <Card>
-            <CardHeader
-              title={t('settings.history.title')}
-              subtitle={t('settings.history.subtitle')}
-              className="border-none mb-2"
-            />
-            <div className="p-4">
-              <HistoryTable
-                entityType="Localization"
-                entityId={localization.id}
+        {activeTab === 'history' && (
+          <TabPanel>
+            <Card>
+              <CardHeader
                 title={t('settings.history.title')}
-                description={t('settings.history.subtitle')}
+                subtitle={t('settings.history.subtitle')}
+                className="border-none mb-2"
               />
-            </div>
-          </Card>
-        </TabPanel>
-      )}
-    </div>
+              <div className="p-4">
+                <HistoryTable
+                  entityType="Localization"
+                  entityId={localization.id}
+                  title={t('settings.history.title')}
+                  description={t('settings.history.subtitle')}
+                />
+              </div>
+            </Card>
+          </TabPanel>
+        )}
+      </div>
+
+      <ChangeConfirmDialog
+        open={commentDialogOpen}
+        onClose={handleCommentDialogClose}
+        onConfirm={handleConfirmSave}
+        changes={[]}
+        loading={saving}
+        entityName={`${localization.namespace}.${localization.key}`}
+      />
+    </>
   );
 };
