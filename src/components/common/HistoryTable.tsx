@@ -13,7 +13,8 @@ import {
   User,
   MessageSquare,
 } from 'lucide-react';
-import { DataTable, UserInfo } from '../ui/DataTable';
+import { DataTable } from '../ui/DataTable';
+import { UserInfoWithRole } from './UserInfoWithRole';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { ChangesModal } from '../ui/ChangesModal';
@@ -477,24 +478,19 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
             <div>{renderChanges(entry.changes)}</div>
 
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <div className="w-7 h-7 rounded-full overflow-hidden bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center">
-                {actorInfo.avatarUrl ? (
-                  <img
-                    src={actorInfo.avatarUrl}
-                    alt={actorInfo.name}
-                    className="w-full h-full object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <User className="h-3.5 w-3.5 text-white" />
-                )}
-              </div>
-              <div className="flex flex-col">
-                <span className="text-xs font-medium text-foreground">{actorInfo.name}</span>
-                <span className="text-[10px] text-muted-foreground">
-                  {actorInfo.email ?? actorInfo.identifier}
-                </span>
-              </div>
+              <UserInfoWithRole
+                user={entry.actor?.userId ? {
+                  id: entry.actor.userId,
+                  email: actorInfo.email || '',
+                  name: actorInfo.name,
+                  profilePhotoUrl: actorInfo.avatarUrl,
+                  role: (() => {
+                    console.log('Debug - Mobile entry.actor.role:', entry.actor.role);
+                    return entry.actor.role?.name || "Unknown Role";
+                  })()
+                } : undefined}
+                date={formatTimestamp(entry.timestamp)}
+              />
             </div>
 
             {entry.comment && (
@@ -585,10 +581,17 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
             const actorInfo = resolveActorInfo(entry);
             return (
               <div className="flex justify-center w-full">
-                <UserInfo
-                  name={actorInfo.name}
-                  email={actorInfo.email ?? actorInfo.identifier}
-                  avatarUrl={actorInfo.avatarUrl}
+                <UserInfoWithRole
+                  user={entry.actor?.userId ? {
+                    id: entry.actor.userId,
+                    email: actorInfo.email || '',
+                    name: actorInfo.name,
+                    profilePhotoUrl: actorInfo.avatarUrl,
+                    role: (() => {
+                      console.log('Debug - entry.actor.role:', entry.actor.role);
+                      return entry.actor.role?.name || "Unknown Role";
+                    })()
+                  } : undefined}
                   date={formatTimestamp(entry.timestamp)}
                 />
               </div>

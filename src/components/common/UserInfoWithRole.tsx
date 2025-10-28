@@ -29,17 +29,22 @@ export const UserInfoWithRole: React.FC<UserInfoWithRoleProps> = ({
 
   return (
     <div className="flex items-start space-x-3 text-left">
-      <div className="w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-primary to-primary-hover overflow-hidden flex-shrink-0">
-        {user?.profilePhotoUrl ? (
-          <img
-            src={user.profilePhotoUrl}
-            alt={displayName}
-            className="w-full h-full object-cover"
-            referrerPolicy="no-referrer"
-          />
-        ) : (
-          <User className="h-5 w-5 text-white" />
-        )}
+      <div className="flex flex-col items-center">
+        <div className="w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-primary to-primary-hover overflow-hidden flex-shrink-0">
+          {user?.profilePhotoUrl ? (
+            <img
+              src={user.profilePhotoUrl}
+              alt={displayName}
+              className="w-full h-full object-cover"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <User className="h-5 w-5 text-white" />
+          )}
+        </div>
+        <div className="text-[10px] text-muted-foreground mt-1 text-center max-w-[60px] truncate">
+          {displayRole}
+        </div>
       </div>
       <div className="min-w-0 flex-1">
         <div className="text-sm font-medium text-foreground truncate">
@@ -47,10 +52,6 @@ export const UserInfoWithRole: React.FC<UserInfoWithRoleProps> = ({
         </div>
         <div className="text-xs text-muted-foreground truncate">
           {displayEmail}
-        </div>
-        <div className="flex items-center text-xs text-muted-foreground mt-1">
-          <Shield className="h-3 w-3 mr-1 flex-shrink-0" />
-          <span className="truncate">{displayRole}</span>
         </div>
         <div className="flex items-center text-xs text-muted-foreground mt-1">
           <Calendar className="h-3 w-3 mr-1 flex-shrink-0" />

@@ -21,6 +21,9 @@ export interface HistoryActor {
   ip?: string;
   userAgent?: string;
   profilePhotoUrl?: string;
+  role?: {
+    name?: string;
+  };
 }
 
 export interface HistoryDiff {

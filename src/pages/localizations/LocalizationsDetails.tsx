@@ -60,6 +60,7 @@ export const LocalizationsDetails: React.FC = () => {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [commentDialogOpen, setCommentDialogOpen] = useState(false);
   const [pendingComment, setPendingComment] = useState<string>('');
+  const [hasChanges, setHasChanges] = useState(false);
 
   const supportedLanguages = settings?.localization.supportedLanguages ?? [];
 
@@ -114,6 +115,23 @@ export const LocalizationsDetails: React.FC = () => {
       return changed ? { ...prev, translations: nextTranslations } : prev;
     });
   }, [requiredLanguageCodes, formData?.translations]);
+
+  // Check for changes
+  useEffect(() => {
+    if (!formData || !localization) {
+      setHasChanges(false);
+      return;
+    }
+
+    // Check if form data is different from original localization
+    const hasFormChanges = 
+      formData.namespace !== localization.namespace ||
+      formData.key !== localization.key ||
+      formData.description !== localization.description ||
+      JSON.stringify(formData.translations) !== JSON.stringify(localization.translations);
+
+    setHasChanges(hasFormChanges);
+  }, [formData, localization]);
 
   const orderedLanguages = useMemo(() => {
     if (!formData) {
@@ -199,6 +217,7 @@ export const LocalizationsDetails: React.FC = () => {
       setFormData(localization);
     }
     setEditMode(true);
+    setHasChanges(false);
   }, [canUpdateLocalization, localization]);
 
   const handleCancelEdit = useCallback(() => {
@@ -206,6 +225,7 @@ export const LocalizationsDetails: React.FC = () => {
       setFormData(localization);
     }
     setEditMode(false);
+    setHasChanges(false);
   }, [localization]);
 
   const handleSave = useCallback(() => {
@@ -251,6 +271,7 @@ export const LocalizationsDetails: React.FC = () => {
       setFormData(updated);
       setEditMode(false);
       setCommentDialogOpen(false);
+      setHasChanges(false);
       showSuccess(t('localizations.messages.update_success'));
     } catch (err) {
       const message = err instanceof Error ? err.message : t('common.error');
@@ -263,6 +284,7 @@ export const LocalizationsDetails: React.FC = () => {
   const handleCommentDialogClose = useCallback(() => {
     setCommentDialogOpen(false);
     setPendingComment('');
+    setHasChanges(false);
   }, []);
 
   const defaultLanguageCode = useMemo(
@@ -285,6 +307,59 @@ export const LocalizationsDetails: React.FC = () => {
     [supportedLanguages],
   );
 
+  const getChanges = useCallback(() => {
+    if (!formData || !localization) {
+      return [];
+    }
+
+    const changes = [];
+
+    if (formData.namespace !== localization.namespace) {
+      changes.push({
+        field: t('localizations.namespace'),
+        oldValue: localization.namespace,
+        newValue: formData.namespace,
+      });
+    }
+
+    if (formData.key !== localization.key) {
+      changes.push({
+        field: t('localizations.key'),
+        oldValue: localization.key,
+        newValue: formData.key,
+      });
+    }
+
+    if (formData.description !== localization.description) {
+      changes.push({
+        field: t('localizations.description'),
+        oldValue: localization.description || '',
+        newValue: formData.description || '',
+      });
+    }
+
+    // Check translation changes
+    const allLanguages = new Set([
+      ...Object.keys(formData.translations),
+      ...Object.keys(localization.translations)
+    ]);
+
+    for (const lang of allLanguages) {
+      const oldValue = localization.translations[lang] || '';
+      const newValue = formData.translations[lang] || '';
+      
+      if (oldValue !== newValue) {
+        changes.push({
+          field: `${t('localizations.translation_text', { language: resolveLanguageLabel(lang) })} (${lang})`,
+          oldValue: oldValue || '',
+          newValue: newValue || '',
+        });
+      }
+    }
+
+    return changes;
+  }, [formData, localization, t, resolveLanguageLabel]);
+
   useEffect(() => {
     if (!canUpdateLocalization) {
       register(null);
@@ -294,14 +369,14 @@ export const LocalizationsDetails: React.FC = () => {
     register({
       isEditing: editMode,
       canEdit: !editMode,
-      canSave: editMode && !saving,
+      canSave: editMode && !saving && hasChanges,
       onEdit: handleStartEdit,
       onCancel: handleCancelEdit,
       onSave: handleSave,
     });
 
     return () => register(null);
-  }, [canUpdateLocalization, editMode, handleCancelEdit, handleSave, handleStartEdit, register, saving]);
+  }, [canUpdateLocalization, editMode, handleCancelEdit, handleSave, handleStartEdit, register, saving, hasChanges]);
 
   const renderTranslationsList = () => {
     if (!formData) {
@@ -537,7 +612,7 @@ export const LocalizationsDetails: React.FC = () => {
         open={commentDialogOpen}
         onClose={handleCommentDialogClose}
         onConfirm={handleConfirmSave}
-        changes={[]}
+        changes={getChanges()}
         loading={saving}
         entityName={`${localization.namespace}.${localization.key}`}
       />

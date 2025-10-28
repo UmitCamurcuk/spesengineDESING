@@ -614,14 +614,14 @@ export function DataTable<T extends Record<string, any>>({
             {displayData.map((item, rowIndex) => (
               <tr
                 key={rowIndex}
-                className={cn('hover:bg-muted/60 transition-colors', onRowClick && 'cursor-pointer')}
+                className={cn('hover:bg-muted/60 transition-colors h-16', onRowClick && 'cursor-pointer')}
                 onClick={() => onRowClick?.(item)}
               >
                 {columns.map((column, colIndex) => (
                 <td
                   key={colIndex}
                   className={cn(
-                    'px-4 py-3 whitespace-nowrap text-sm text-foreground align-middle',
+                    'px-4 py-2 text-sm text-foreground align-top',
                     column.align === 'center' && 'text-center',
                     column.align === 'right' && 'text-right',
                   )}
