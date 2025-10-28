@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Globe, Languages, Plus } from 'lucide-react';
+import { Globe, Languages, Plus, X } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Tabs, TabPanel } from '../../components/ui/Tabs';
 import { Card, CardHeader } from '../../components/ui/Card';
@@ -275,6 +275,24 @@ export const LocalizationsDetails: React.FC = () => {
     [supportedLanguages],
   );
 
+  useEffect(() => {
+    if (!canUpdateLocalization) {
+      register(null);
+      return;
+    }
+
+    register({
+      isEditing: editMode,
+      canEdit: !editMode,
+      canSave: editMode && !saving,
+      onEdit: handleStartEdit,
+      onCancel: handleCancelEdit,
+      onSave: handleSave,
+    });
+
+    return () => register(null);
+  }, [canUpdateLocalization, editMode, handleCancelEdit, handleSave, handleStartEdit, register, saving]);
+
   const renderTranslationsList = () => {
     if (!formData) {
       return null;
@@ -381,24 +399,6 @@ export const LocalizationsDetails: React.FC = () => {
     { id: 'general', label: t('localizations.details_tabs.general'), icon: <Globe className="h-4 w-4" /> },
     { id: 'history', label: t('localizations.details_tabs.history'), icon: <Languages className="h-4 w-4" /> },
   ];
-
-  useEffect(() => {
-    if (!canUpdateLocalization) {
-      register(null);
-      return () => register(null);
-    }
-
-    register({
-      isEditing: editMode,
-      canEdit: !editMode,
-      canSave: editMode && !saving,
-      onEdit: handleStartEdit,
-      onCancel: handleCancelEdit,
-      onSave: handleSave,
-    });
-
-    return () => register(null);
-  }, [canUpdateLocalization, editMode, handleCancelEdit, handleSave, handleStartEdit, register, saving]);
 
   return (
     <div className="p-6 space-y-6">
