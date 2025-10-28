@@ -188,6 +188,7 @@ interface RoleDetailsTabProps {
     updatedAt: string;
     isSystemRole: boolean;
   };
+  formatDateTime: (value: string | number | Date | null | undefined, options?: { includeTime?: boolean }) => string;
 }
 
 const RoleDetailsTab: React.FC<RoleDetailsTabProps> = ({
@@ -196,6 +197,7 @@ const RoleDetailsTab: React.FC<RoleDetailsTabProps> = ({
   onChange,
   languages,
   metadata,
+  formatDateTime,
 }) => {
   const { t } = useLanguage();
 
@@ -833,6 +835,7 @@ export function RolesDetails() {
             updatedAt: role.updatedAt,
             isSystemRole: role.isSystemRole,
           },
+          formatDateTime,
         },
         hidden: !canReadRole,
       },
