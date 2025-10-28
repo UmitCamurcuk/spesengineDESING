@@ -16,6 +16,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useSettings } from '../../contexts/SettingsContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { useDateFormatter } from '../../hooks/useDateFormatter';
 import { RoleNotificationsTab } from '../../components/notifications/RoleNotificationsTab';
 import { Statistics } from '../../components/common/Statistics';
 import { APITester } from '../../components/common/APITester';
@@ -287,13 +288,13 @@ const RoleDetailsTab: React.FC<RoleDetailsTabProps> = ({
             <span className="font-medium text-foreground block">
               {t('roles.fields.created_at')}
             </span>
-            <span className="mt-1 block">{new Date(metadata.createdAt).toLocaleString()}</span>
+            <span className="mt-1 block">{formatDateTime(metadata.createdAt, { includeTime: true })}</span>
           </div>
           <div>
             <span className="font-medium text-foreground block">
               {t('roles.fields.updated_at')}
             </span>
-            <span className="mt-1 block">{new Date(metadata.updatedAt).toLocaleString()}</span>
+            <span className="mt-1 block">{formatDateTime(metadata.updatedAt, { includeTime: true })}</span>
           </div>
         </div>
       </Card>
@@ -557,6 +558,7 @@ export function RolesDetails() {
   const { showToast } = useToast();
   const { settings } = useSettings();
   const { hasPermission } = useAuth();
+  const { formatDateTime } = useDateFormatter();
 
   const canReadRole = hasPermission(PERMISSIONS.SYSTEM.ROLES.VIEW);
   const canUpdateRole = hasPermission(PERMISSIONS.SYSTEM.ROLES.UPDATE);

@@ -171,7 +171,7 @@ const formatUserInfoDate = (value: string): string => {
   }
   const parsed = new Date(value);
   if (!Number.isNaN(parsed.getTime())) {
-    return parsed.toLocaleDateString();
+    return parsed.toLocaleString();
   }
   return value;
 };
