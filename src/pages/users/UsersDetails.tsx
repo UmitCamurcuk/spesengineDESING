@@ -109,7 +109,9 @@ const UserDetailsTab: React.FC<UserDetailsTabProps> = ({ form, editMode, onChang
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const avatarUrl = user.profilePhotoUrl 
-    ? `${import.meta.env.VITE_API_URL || 'http://localhost:8080'}${user.profilePhotoUrl}` 
+    ? user.profilePhotoUrl.startsWith('/uploads') 
+      ? user.profilePhotoUrl 
+      : `/uploads${user.profilePhotoUrl}`
     : null;
 
   const handleFieldChange = (field: keyof GeneralForm, value: string | boolean) => {

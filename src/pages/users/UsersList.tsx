@@ -80,7 +80,11 @@ export const UsersList: React.FC = () => {
       title: 'User',
       sortable: true,
       render: (_value: string, user: UserSummary) => {
-        const avatarUrl = user.profilePhotoUrl ? `${import.meta.env.VITE_API_URL || 'http://localhost:8080'}${user.profilePhotoUrl}` : null;
+        const avatarUrl = user.profilePhotoUrl 
+          ? user.profilePhotoUrl.startsWith('/uploads') 
+            ? user.profilePhotoUrl 
+            : `/uploads${user.profilePhotoUrl}`
+          : null;
         return (
           <div className="flex items-center space-x-3">
             {avatarUrl ? (

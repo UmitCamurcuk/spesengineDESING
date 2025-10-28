@@ -51,3 +51,5 @@ export const permissionGroupsService = {
     await apiClient.delete(API_ENDPOINTS.PERMISSION_GROUPS.BY_ID(id), { data: { comment } });
   },
 };
+
+
