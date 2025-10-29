@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { localizationsService } from '../api/services/localizations.service';
+import { useReduxSelector } from '../redux/hooks';
 
 export type Language = string;
 
@@ -22,6 +23,10 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
   });
   const [translations, setTranslations] = useState<Record<string, any>>({});
   const loadingRef = useRef<boolean>(false);
+  
+  // Get tenant ID from session
+  const session = useReduxSelector((state) => state.auth.session);
+  const tenantId = session?.tenantId;
 
   // Load translations from database via API
   useEffect(() => {
@@ -31,33 +36,19 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
     const loadTranslations = async () => {
       loadingRef.current = true;
       try {
-        // Try to load from API
-        const data = await localizationsService.export(language);
+        // Load from API only, pass tenantId as query param
+        const data = await localizationsService.export(language, tenantId);
         setTranslations(data);
       } catch (error) {
         console.error('Failed to load translations from database:', error);
-        
-        // Fallback to JSON files if API fails
-        try {
-          const response = await fetch(`/locales/${language}.json`);
-          if (response.ok) {
-            const data = await response.json();
-            setTranslations(data);
-            console.warn('Using fallback JSON translations');
-          } else {
-            setTranslations({});
-          }
-        } catch (fallbackError) {
-          console.error('Fallback to JSON also failed:', fallbackError);
-          setTranslations({});
-        }
+        setTranslations({});
       } finally {
         loadingRef.current = false;
       }
     };
 
     loadTranslations();
-  }, [language]); // Only trigger when language actually changes
+  }, [language, tenantId]); // Trigger when language or tenantId changes
 
   const setLanguage = useCallback((lang: Language) => {
     const normalized = lang.trim() || 'tr';

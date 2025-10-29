@@ -41,9 +41,14 @@ export const localizationsService = {
     return response.data.data;
   },
 
-  async export(language: string): Promise<Record<string, any>> {
+  async export(language: string, tenantId?: string): Promise<Record<string, any>> {
+    const params: Record<string, string> = {};
+    if (tenantId) {
+      params.tenantId = tenantId;
+    }
     const response = await apiClient.get<ApiSuccessResponse<Record<string, any>>>(
       `${API_ENDPOINTS.LOCALIZATIONS.BASE}/export/${language}`,
+      { params },
     );
     return response.data.data;
   },
