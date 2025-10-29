@@ -406,6 +406,9 @@ const PermissionGroupTab: React.FC<PermissionGroupTabProps> = ({
                 </Badge>
                 <span className="text-xs text-muted-foreground">
                   {currentGroup?.description?.trim() ||
+                    (currentGroup?.descriptionLocalizationId
+                      ? resolveLocalization(currentGroup.descriptionLocalizationId)
+                      : '') ||
                     currentGroup?.descriptionLocalizationId ||
                     t('common.no_description')}
                 </span>
@@ -443,7 +446,10 @@ const PermissionGroupTab: React.FC<PermissionGroupTabProps> = ({
                   )}
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  {group.description?.trim() || group.descriptionLocalizationId || '—'}
+                  {group.description?.trim() ||
+                    resolveLocalization(group.descriptionLocalizationId) ||
+                    group.descriptionLocalizationId ||
+                    '—'}
                 </p>
               </div>
             ))}
@@ -481,7 +487,13 @@ const HistoryTab: React.FC<{ entityId: string }> = ({ entityId }) => (
 export function PermissionsDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { t, language, ensureTranslationsReady, getLocalization, resolveLocalization } = useLanguage();
+  const {
+    t,
+    language,
+    translationsReady,
+    getLocalization,
+    resolveLocalization,
+  } = useLanguage();
   const { showToast } = useToast();
   const { settings } = useSettings();
   const { hasPermission } = useAuth();
@@ -514,6 +526,16 @@ export function PermissionsDetails() {
   const [saving, setSaving] = useState(false);
 
   const baselineRef = useRef<PermissionForm | null>(null);
+  const translationFnRef = useRef(t);
+  const warnedLocalizationIdsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    warnedLocalizationIdsRef.current.clear();
+  }, [id]);
+
+  useEffect(() => {
+    translationFnRef.current = t;
+  }, [t]);
 
   const updateFormState = useCallback(
     (updater: (prev: PermissionForm) => PermissionForm) => {
@@ -544,8 +566,6 @@ export function PermissionsDetails() {
         permissionGroupsService.list({ pageSize: 200, language }),
       ]);
 
-      await ensureTranslationsReady();
-
       const nameLocalization = permissionResponse.nameLocalizationId
         ? getLocalization(permissionResponse.nameLocalizationId) ?? null
         : null;
@@ -553,17 +573,19 @@ export function PermissionsDetails() {
         ? getLocalization(permissionResponse.descriptionLocalizationId) ?? null
         : null;
 
-      if (permissionResponse.nameLocalizationId && !nameLocalization) {
+      if (permissionResponse.nameLocalizationId && !nameLocalization && !warnedLocalizationIdsRef.current.has(permissionResponse.nameLocalizationId)) {
+        warnedLocalizationIdsRef.current.add(permissionResponse.nameLocalizationId);
         showToast({
           type: 'warning',
-          message: t('permissions.messages.localization_fetch_failed'),
+          message: translationFnRef.current('permissions.messages.localization_fetch_failed'),
         });
       }
 
-      if (permissionResponse.descriptionLocalizationId && !descriptionLocalization) {
+      if (permissionResponse.descriptionLocalizationId && !descriptionLocalization && !warnedLocalizationIdsRef.current.has(permissionResponse.descriptionLocalizationId)) {
+        warnedLocalizationIdsRef.current.add(permissionResponse.descriptionLocalizationId);
         showToast({
           type: 'warning',
-          message: t('permissions.messages.localization_fetch_failed'),
+          message: translationFnRef.current('permissions.messages.localization_fetch_failed'),
         });
       }
 
@@ -587,26 +609,28 @@ export function PermissionsDetails() {
       console.error('Failed to load permission details', error);
       showToast({
         type: 'error',
-        message: error?.message || t('permissions.messages.load_failed'),
+        message:
+          error?.message || translationFnRef.current('permissions.messages.load_failed'),
       });
       navigate('/permissions');
     } finally {
       setLoading(false);
     }
   }, [
+    getLocalization,
     id,
     language,
     navigate,
     showToast,
     supportedLanguages,
-    ensureTranslationsReady,
-    getLocalization,
-    t,
   ]);
 
   useEffect(() => {
+    if (!translationsReady) {
+      return;
+    }
     void loadData();
-  }, [loadData]);
+  }, [loadData, translationsReady]);
 
   const handleEnterEdit = () => {
     if (!canUpdatePermission) {

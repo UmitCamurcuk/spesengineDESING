@@ -408,7 +408,13 @@ const HistoryTab: React.FC<{ entityId: string }> = ({ entityId }) => (
 export function PermissionGroupsDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { t, language, ensureTranslationsReady, getLocalization, resolveLocalization } = useLanguage();
+  const {
+    t,
+    language,
+    translationsReady,
+    getLocalization,
+    resolveLocalization,
+  } = useLanguage();
   const { showToast } = useToast();
 
   const { hasPermission } = useAuth();
@@ -449,6 +455,12 @@ export function PermissionGroupsDetails() {
   const [pendingChanges, setPendingChanges] = useState<ChangeItem[]>([]);
   const [commentDialogOpen, setCommentDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const translationFnRef = useRef(t);
+
+  useEffect(() => {
+    translationFnRef.current = t;
+  }, [t]);
 
   const updateFormState = useCallback(
     (updater: (prev: GroupForm) => GroupForm) => {
@@ -498,8 +510,6 @@ export function PermissionGroupsDetails() {
         permissionGroupsService.list({ pageSize: 200, language }),
       ]);
 
-      await ensureTranslationsReady();
-
       const nameLocalization = groupResponse.nameLocalizationId
         ? getLocalization(groupResponse.nameLocalizationId) ?? null
         : null;
@@ -510,14 +520,14 @@ export function PermissionGroupsDetails() {
       if (groupResponse.nameLocalizationId && !nameLocalization) {
         showToast({
           type: 'warning',
-          message: t('permissionGroups.messages.localization_fetch_failed'),
+          message: translationFnRef.current('permissionGroups.messages.localization_fetch_failed'),
         });
       }
 
       if (groupResponse.descriptionLocalizationId && !descriptionLocalization) {
         showToast({
           type: 'warning',
-          message: t('permissionGroups.messages.localization_fetch_failed'),
+          message: translationFnRef.current('permissionGroups.messages.localization_fetch_failed'),
         });
       }
 
@@ -550,26 +560,28 @@ export function PermissionGroupsDetails() {
       console.error('Failed to load permission group details', error);
       showToast({
         type: 'error',
-        message: error?.message || t('permissionGroups.messages.load_failed'),
+        message:
+          error?.message || translationFnRef.current('permissionGroups.messages.load_failed'),
       });
       navigate('/permission-groups');
     } finally {
       setLoading(false);
     }
   }, [
-    ensureTranslationsReady,
     getLocalization,
     id,
     language,
     navigate,
     showToast,
     supportedLanguages,
-    t,
   ]);
 
   useEffect(() => {
+    if (!translationsReady) {
+      return;
+    }
     void loadData();
-  }, [loadData]);
+  }, [loadData, translationsReady]);
 
   const handleTogglePermission = useCallback((permission: PermissionRecord, enabled: boolean) => {
     setAssignedPermissions((prev) => {
@@ -940,7 +952,14 @@ export function PermissionGroupsDetails() {
           group.nameLocalizationId ||
           t('permissionGroups.details.title')
         }
-        subtitle={group.description?.trim() || group.descriptionLocalizationId || t('permissionGroups.details.subtitle')}
+        subtitle={
+          group.description?.trim() ||
+          (group.descriptionLocalizationId
+            ? resolveLocalization(group.descriptionLocalizationId)
+            : '') ||
+          group.descriptionLocalizationId ||
+          t('permissionGroups.details.subtitle')
+        }
         icon={<FolderTree className="h-6 w-6 text-white" />}
         backUrl="/permission-groups"
         tabs={tabs}
@@ -958,7 +977,12 @@ export function PermissionGroupsDetails() {
         onConfirm={handleConfirmSave}
         changes={pendingChanges}
         loading={saving}
-        entityName={group.name?.trim() || group.id}
+        entityName={
+          group.name?.trim() ||
+          resolveLocalization(group.nameLocalizationId) ||
+          group.nameLocalizationId ||
+          group.id
+        }
       />
     </>
   );

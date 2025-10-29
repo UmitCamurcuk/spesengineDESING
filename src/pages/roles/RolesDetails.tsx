@@ -418,6 +418,7 @@ const RolePermissionsTab: React.FC<RolePermissionsTabProps> = ({
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
                     {group.description?.trim() ||
+                      resolveLocalization(group.descriptionLocalizationId) ||
                       group.descriptionLocalizationId ||
                       t('common.no_description')}
                   </p>
@@ -440,6 +441,9 @@ const RolePermissionsTab: React.FC<RolePermissionsTabProps> = ({
             </h3>
             <p className="text-xs text-muted-foreground">
               {activeGroup?.group.description?.trim() ||
+                (activeGroup?.group.descriptionLocalizationId
+                  ? resolveLocalization(activeGroup.group.descriptionLocalizationId)
+                  : '') ||
                 activeGroup?.group.descriptionLocalizationId ||
                 t('common.no_description')}
             </p>
@@ -494,6 +498,7 @@ const RolePermissionsTab: React.FC<RolePermissionsTabProps> = ({
                     </div>
                     <p className="text-xs text-muted-foreground leading-relaxed">
                       {permission.description?.trim() ||
+                        resolveLocalization(permission.descriptionLocalizationId) ||
                         permission.descriptionLocalizationId ||
                         t('common.no_description')}
                     </p>
@@ -564,7 +569,13 @@ const HistoryTab: React.FC<{ entityId: string }> = ({ entityId }) => (
 export function RolesDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { t, language, ensureTranslationsReady, getLocalization, resolveLocalization } = useLanguage();
+  const {
+    t,
+    language,
+    translationsReady,
+    getLocalization,
+    resolveLocalization,
+  } = useLanguage();
   const { showToast } = useToast();
   const { settings } = useSettings();
   const { hasPermission } = useAuth();
@@ -598,6 +609,16 @@ export function RolesDetails() {
   const [saving, setSaving] = useState(false);
 
   const baselineRef = useRef<RoleForm | null>(null);
+  const translationFnRef = useRef(t);
+  const warnedLocalizationIdsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    warnedLocalizationIdsRef.current.clear();
+  }, [id]);
+
+  useEffect(() => {
+    translationFnRef.current = t;
+  }, [t]);
 
   const updateFormState = useCallback(
     (updater: (prev: RoleForm) => RoleForm) => {
@@ -629,8 +650,6 @@ export function RolesDetails() {
         permissionGroupsService.list({ pageSize: 200, language }),
       ]);
 
-      await ensureTranslationsReady();
-
       const nameLocalization = roleResponse.nameLocalizationId
         ? getLocalization(roleResponse.nameLocalizationId) ?? null
         : null;
@@ -638,17 +657,19 @@ export function RolesDetails() {
         ? getLocalization(roleResponse.descriptionLocalizationId) ?? null
         : null;
 
-      if (roleResponse.nameLocalizationId && !nameLocalization) {
+      if (roleResponse.nameLocalizationId && !nameLocalization && !warnedLocalizationIdsRef.current.has(roleResponse.nameLocalizationId)) {
+        warnedLocalizationIdsRef.current.add(roleResponse.nameLocalizationId);
         showToast({
           type: 'warning',
-          message: t('roles.messages.localization_fetch_failed'),
+          message: translationFnRef.current('roles.messages.localization_fetch_failed'),
         });
       }
 
-      if (roleResponse.descriptionLocalizationId && !descriptionLocalization) {
+      if (roleResponse.descriptionLocalizationId && !descriptionLocalization && !warnedLocalizationIdsRef.current.has(roleResponse.descriptionLocalizationId)) {
+        warnedLocalizationIdsRef.current.add(roleResponse.descriptionLocalizationId);
         showToast({
           type: 'warning',
-          message: t('roles.messages.localization_fetch_failed'),
+          message: translationFnRef.current('roles.messages.localization_fetch_failed'),
         });
       }
 
@@ -670,26 +691,27 @@ export function RolesDetails() {
       console.error('Failed to load role details', error);
       showToast({
         type: 'error',
-        message: error?.message || t('roles.messages.load_failed'),
+        message: error?.message || translationFnRef.current('roles.messages.load_failed'),
       });
       navigate('/roles');
     } finally {
       setLoading(false);
     }
   }, [
-    ensureTranslationsReady,
     getLocalization,
     id,
     language,
     navigate,
     showToast,
     supportedLanguages,
-    t,
   ]);
 
   useEffect(() => {
+    if (!translationsReady) {
+      return;
+    }
     void loadData();
-  }, [loadData]);
+  }, [loadData, translationsReady]);
 
   const handleEnterEdit = () => {
     if (!canUpdateRole) {
