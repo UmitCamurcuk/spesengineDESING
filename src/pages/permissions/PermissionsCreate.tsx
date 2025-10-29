@@ -19,7 +19,7 @@ interface TranslationFields {
 
 export function PermissionsCreate() {
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { t, resolveLocalization } = useLanguage();
   const { showToast } = useToast();
   
   const [currentStep, setCurrentStep] = useState(0);
@@ -252,7 +252,9 @@ export function PermissionsCreate() {
                       <option value="">Select a group</option>
                       {groups.map((group) => (
                         <option key={group.id} value={group.id}>
-                          {group.name?.trim() || group.nameLocalizationId}
+                          {group.name?.trim() ||
+                            resolveLocalization(group.nameLocalizationId) ||
+                            group.nameLocalizationId}
                         </option>
                       ))}
                     </select>
@@ -350,7 +352,12 @@ export function PermissionsCreate() {
                   <div className="flex justify-between items-center p-3 bg-muted rounded-lg">
                     <span className="text-sm font-medium text-foreground">Group</span>
                     <Badge variant="secondary" size="sm">
-                      {selectedGroup?.name?.trim() || selectedGroup?.nameLocalizationId || 'Unknown'}
+                      {selectedGroup?.name?.trim() ||
+                        (selectedGroup?.nameLocalizationId
+                          ? resolveLocalization(selectedGroup.nameLocalizationId)
+                          : '') ||
+                        selectedGroup?.nameLocalizationId ||
+                        'Unknown'}
                     </Badge>
                   </div>
                   <div className="flex justify-between items-center p-3 bg-muted rounded-lg">

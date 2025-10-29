@@ -16,7 +16,7 @@ import { PermissionDenied } from '../../components/common/PermissionDenied';
 
 export function RolesList() {
   const navigate = useNavigate();
-  const { language } = useLanguage();
+  const { language, resolveLocalization } = useLanguage();
   const { showToast } = useToast();
   const { hasPermission } = useAuth();
   const canReadRoles = hasPermission(PERMISSIONS.SYSTEM.ROLES.LIST);
@@ -79,7 +79,9 @@ export function RolesList() {
           <div>
             <div className="flex items-center space-x-2">
               <div className="text-sm font-semibold text-foreground">
-                {role.name?.trim() || role.nameLocalizationId}
+                {role.name?.trim() ||
+                  resolveLocalization(role.nameLocalizationId) ||
+                  role.nameLocalizationId}
               </div>
               {role.isSystemRole && (
                 <Badge variant="primary" size="sm">System</Badge>
@@ -98,7 +100,9 @@ export function RolesList() {
             <div className="flex-1">
               <div className="flex items-center space-x-2">
                 <div className="text-sm font-semibold text-foreground">
-                  {role.name?.trim() || role.nameLocalizationId}
+                  {role.name?.trim() ||
+                    resolveLocalization(role.nameLocalizationId) ||
+                    role.nameLocalizationId}
                 </div>
                 {role.isSystemRole && <Badge variant="primary" size="sm">System</Badge>}
               </div>
@@ -108,7 +112,10 @@ export function RolesList() {
           <div>
             <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Description</div>
             <div className="text-sm text-gray-600">
-              {role.description?.trim() || role.descriptionLocalizationId || '—'}
+              {role.description?.trim() ||
+                resolveLocalization(role.descriptionLocalizationId) ||
+                role.descriptionLocalizationId ||
+                '—'}
             </div>
           </div>
         </div>
@@ -119,7 +126,10 @@ export function RolesList() {
       title: 'Description',
       render: (_value: string, role: RoleRecord) => (
         <span className="text-sm text-gray-600 line-clamp-2">
-          {role.description?.trim() || role.descriptionLocalizationId || '—'}
+          {role.description?.trim() ||
+            resolveLocalization(role.descriptionLocalizationId) ||
+            role.descriptionLocalizationId ||
+            '—'}
         </span>
       ),
     },

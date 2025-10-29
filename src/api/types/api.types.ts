@@ -348,6 +348,11 @@ export interface LocalizationRecord {
   updatedAt: string;
 }
 
+export interface LocalizationExportBundle {
+  translations: Record<string, any>;
+  localizations: Record<string, LocalizationRecord>;
+}
+
 export interface LocalizationListResponse {
   items: LocalizationRecord[];
   pagination: ApiPagination;

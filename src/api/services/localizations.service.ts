@@ -7,6 +7,7 @@ import type {
   LocalizationRecord,
   CreateLocalizationRequest,
   UpdateLocalizationRequest,
+  LocalizationExportBundle,
 } from '../types/api.types';
 
 export const localizationsService = {
@@ -41,12 +42,12 @@ export const localizationsService = {
     return response.data.data;
   },
 
-  async export(language: string, tenantId?: string): Promise<Record<string, any>> {
+  async export(language: string, tenantId?: string): Promise<LocalizationExportBundle> {
     const params: Record<string, string> = {};
     if (tenantId) {
       params.tenantId = tenantId;
     }
-    const response = await apiClient.get<ApiSuccessResponse<Record<string, any>>>(
+    const response = await apiClient.get<ApiSuccessResponse<LocalizationExportBundle>>(
       `${API_ENDPOINTS.LOCALIZATIONS.BASE}/export/${language}`,
       { params },
     );

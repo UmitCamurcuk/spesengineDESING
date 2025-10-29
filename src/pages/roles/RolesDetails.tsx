@@ -30,7 +30,6 @@ import { ChangeConfirmDialog } from '../../components/ui/ChangeConfirmDialog';
 import { rolesService } from '../../api/services/roles.service';
 import { permissionsService } from '../../api/services/permissions.service';
 import { permissionGroupsService } from '../../api/services/permission-groups.service';
-import { localizationsService } from '../../api/services/localizations.service';
 import { PERMISSIONS } from '../../config/permissions';
 import { cn } from '../../utils/cn';
 import type {
@@ -408,7 +407,10 @@ const RolePermissionsTab: React.FC<RolePermissionsTabProps> = ({
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-semibold">
-                      {group.name?.trim() || group.nameLocalizationId || t('roles.labels.unknown_group')}
+                      {group.name?.trim() ||
+                        resolveLocalization(group.nameLocalizationId) ||
+                        group.nameLocalizationId ||
+                        t('roles.labels.unknown_group')}
                     </span>
                     <Badge variant={isActive ? 'primary' : 'default'} size="sm">
                       {enabled}/{groupPerms.length}
@@ -430,6 +432,9 @@ const RolePermissionsTab: React.FC<RolePermissionsTabProps> = ({
           <div>
             <h3 className="text-sm font-semibold text-foreground">
               {activeGroup?.group.name?.trim() ||
+                (activeGroup?.group.nameLocalizationId
+                  ? resolveLocalization(activeGroup.group.nameLocalizationId)
+                  : '') ||
                 activeGroup?.group.nameLocalizationId ||
                 t('roles.labels.unknown_group')}
             </h3>
@@ -474,7 +479,10 @@ const RolePermissionsTab: React.FC<RolePermissionsTabProps> = ({
                   <div className="flex-1 space-y-1.5">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-semibold text-foreground">
-                        {permission.name?.trim() || permission.nameLocalizationId || '—'}
+                        {permission.name?.trim() ||
+                          resolveLocalization(permission.nameLocalizationId) ||
+                          permission.nameLocalizationId ||
+                          '—'}
                       </span>
                       <Badge 
                         variant={enabled ? 'primary' : 'outline'} 
@@ -556,7 +564,7 @@ const HistoryTab: React.FC<{ entityId: string }> = ({ entityId }) => (
 export function RolesDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { t, language } = useLanguage();
+  const { t, language, ensureTranslationsReady, getLocalization, resolveLocalization } = useLanguage();
   const { showToast } = useToast();
   const { settings } = useSettings();
   const { hasPermission } = useAuth();
@@ -607,22 +615,6 @@ export function RolesDetails() {
     [],
   );
 
-  const fetchLocalizationSafely = useCallback(async (localizationId?: string | null) => {
-    if (!localizationId) {
-      return null;
-    }
-    try {
-      return await localizationsService.getById(localizationId);
-    } catch (error) {
-      console.warn('Failed to fetch localization', error);
-      showToast({
-        type: 'warning',
-        message: t('roles.messages.localization_fetch_failed'),
-      });
-      return null;
-    }
-  }, [showToast, t]);
-
   const loadData = useCallback(async () => {
     if (!id) {
       return;
@@ -631,14 +623,34 @@ export function RolesDetails() {
       setLoading(true);
       setIsEditing(false);
 
-      const roleResponse = await rolesService.getById(id, { language });
-      const [permissionsResponse, permissionGroupsResponse, nameLocalization, descriptionLocalization] =
-        await Promise.all([
-          permissionsService.list({ pageSize: 1000, language }),
-          permissionGroupsService.list({ pageSize: 200, language }),
-          fetchLocalizationSafely(roleResponse.nameLocalizationId),
-          fetchLocalizationSafely(roleResponse.descriptionLocalizationId),
-        ]);
+      const [roleResponse, permissionsResponse, permissionGroupsResponse] = await Promise.all([
+        rolesService.getById(id, { language }),
+        permissionsService.list({ pageSize: 1000, language }),
+        permissionGroupsService.list({ pageSize: 200, language }),
+      ]);
+
+      await ensureTranslationsReady();
+
+      const nameLocalization = roleResponse.nameLocalizationId
+        ? getLocalization(roleResponse.nameLocalizationId) ?? null
+        : null;
+      const descriptionLocalization = roleResponse.descriptionLocalizationId
+        ? getLocalization(roleResponse.descriptionLocalizationId) ?? null
+        : null;
+
+      if (roleResponse.nameLocalizationId && !nameLocalization) {
+        showToast({
+          type: 'warning',
+          message: t('roles.messages.localization_fetch_failed'),
+        });
+      }
+
+      if (roleResponse.descriptionLocalizationId && !descriptionLocalization) {
+        showToast({
+          type: 'warning',
+          message: t('roles.messages.localization_fetch_failed'),
+        });
+      }
 
       const form: RoleForm = {
         translations: {
@@ -665,7 +677,8 @@ export function RolesDetails() {
       setLoading(false);
     }
   }, [
-    fetchLocalizationSafely,
+    ensureTranslationsReady,
+    getLocalization,
     id,
     language,
     navigate,
@@ -934,9 +947,17 @@ export function RolesDetails() {
   return (
     <>
       <DetailsLayout
-        title={role.name?.trim() || role.nameLocalizationId || t('roles.details.title')}
+        title={
+          role.name?.trim() ||
+          resolveLocalization(role.nameLocalizationId) ||
+          role.nameLocalizationId ||
+          t('roles.details.title')
+        }
         subtitle={
-          role.description?.trim() || role.descriptionLocalizationId || t('roles.details.subtitle')
+          role.description?.trim() ||
+          resolveLocalization(role.descriptionLocalizationId) ||
+          role.descriptionLocalizationId ||
+          t('roles.details.subtitle')
         }
         icon={<Shield className="h-6 w-6 text-white" />}
         backUrl="/roles"
@@ -955,7 +976,12 @@ export function RolesDetails() {
         onConfirm={handleConfirmSave}
         changes={pendingChanges}
         loading={saving}
-        entityName={role.name?.trim() || role.id}
+        entityName={
+          role.name?.trim() ||
+          resolveLocalization(role.nameLocalizationId) ||
+          role.nameLocalizationId ||
+          role.id
+        }
       />
     </>
   );

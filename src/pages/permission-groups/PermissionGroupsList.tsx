@@ -14,7 +14,7 @@ import { PERMISSIONS } from '../../config/permissions';
 
 export function PermissionGroupsList() {
   const navigate = useNavigate();
-  const { t, language } = useLanguage();
+  const { t, language, resolveLocalization } = useLanguage();
   const { showToast } = useToast();
   const { hasPermission } = useAuth();
   const canCreatePermissionGroup = hasPermission(PERMISSIONS.SYSTEM.PERMISSION_GROUPS.CREATE);
@@ -75,7 +75,7 @@ export function PermissionGroupsList() {
           <div>
             <div className="flex items-center space-x-2">
               <div className="text-sm font-semibold text-foreground">
-                {group.name?.trim() || group.nameLocalizationId}
+                {group.name?.trim() || resolveLocalization(group.nameLocalizationId) || group.nameLocalizationId}
               </div>
             </div>
             <div className="text-xs text-muted-foreground">ID: {group.id}</div>
@@ -90,7 +90,7 @@ export function PermissionGroupsList() {
             </div>
             <div className="flex-1">
               <div className="text-sm font-semibold text-foreground">
-                {group.name?.trim() || group.nameLocalizationId}
+                {group.name?.trim() || resolveLocalization(group.nameLocalizationId) || group.nameLocalizationId}
               </div>
               <div className="text-xs text-muted-foreground">ID: {group.id}</div>
             </div>
@@ -98,7 +98,10 @@ export function PermissionGroupsList() {
           <div>
             <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Description</div>
             <div className="text-sm text-gray-600">
-              {group.description?.trim() || group.descriptionLocalizationId || '—'}
+              {group.description?.trim() ||
+                resolveLocalization(group.descriptionLocalizationId) ||
+                group.descriptionLocalizationId ||
+                '—'}
             </div>
           </div>
         </div>
@@ -109,7 +112,10 @@ export function PermissionGroupsList() {
       title: 'Description',
       render: (_value: string, group: PermissionGroupRecord) => (
         <span className="text-sm text-gray-600 line-clamp-2">
-          {group.description?.trim() || group.descriptionLocalizationId || '—'}
+          {group.description?.trim() ||
+            resolveLocalization(group.descriptionLocalizationId) ||
+            group.descriptionLocalizationId ||
+            '—'}
         </span>
       ),
     },

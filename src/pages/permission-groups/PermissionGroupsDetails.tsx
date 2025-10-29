@@ -16,7 +16,6 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useToast } from '../../contexts/ToastContext';
 import { permissionGroupsService } from '../../api/services/permission-groups.service';
 import { permissionsService } from '../../api/services/permissions.service';
-import { localizationsService } from '../../api/services/localizations.service';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSettings } from '../../contexts/SettingsContext';
 import { PERMISSIONS } from '../../config/permissions';
@@ -334,7 +333,10 @@ const GroupPermissionsTab: React.FC<GroupPermissionsTabProps> = ({
               <div className="flex flex-col">
                 <span className="text-sm font-medium text-foreground">{permission.code}</span>
                 <span className="text-xs text-muted-foreground">
-                  {permission.name?.trim() || permission.nameLocalizationId || '—'}
+                  {permission.name?.trim() ||
+                    resolveLocalization(permission.nameLocalizationId) ||
+                    permission.nameLocalizationId ||
+                    '—'}
                 </span>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
@@ -358,7 +360,11 @@ const GroupPermissionsTab: React.FC<GroupPermissionsTabProps> = ({
                   onChange={(event) => onReassign(permission.id, event.target.value)}
                   options={otherGroups.map((group) => ({
                     value: group.id,
-                    label: group.name?.trim() || group.nameLocalizationId || group.id,
+                    label:
+                      group.name?.trim() ||
+                      resolveLocalization(group.nameLocalizationId) ||
+                      group.nameLocalizationId ||
+                      group.id,
                   }))}
                 />
                 <Badge variant="secondary" className="self-center">
@@ -402,7 +408,7 @@ const HistoryTab: React.FC<{ entityId: string }> = ({ entityId }) => (
 export function PermissionGroupsDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { t, language } = useLanguage();
+  const { t, language, ensureTranslationsReady, getLocalization, resolveLocalization } = useLanguage();
   const { showToast } = useToast();
 
   const { hasPermission } = useAuth();
@@ -486,26 +492,39 @@ export function PermissionGroupsDetails() {
     }
     try {
       setLoading(true);
-      const groupResponse = await permissionGroupsService.getById(id, { language });
-      const [permissionsResponse, groupsResponse, nameLocalization, descriptionLocalization] =
-        await Promise.all([
-          permissionsService.list({ pageSize: 1000, language }),
-          permissionGroupsService.list({ pageSize: 200, language }),
-          localizationsService
-            .getById(groupResponse.nameLocalizationId)
-            .catch(() => null),
-          localizationsService
-            .getById(groupResponse.descriptionLocalizationId)
-            .catch(() => null),
-        ]);
+      const [groupResponse, permissionsResponse, groupsResponse] = await Promise.all([
+        permissionGroupsService.getById(id, { language }),
+        permissionsService.list({ pageSize: 1000, language }),
+        permissionGroupsService.list({ pageSize: 200, language }),
+      ]);
+
+      await ensureTranslationsReady();
+
+      const nameLocalization = groupResponse.nameLocalizationId
+        ? getLocalization(groupResponse.nameLocalizationId) ?? null
+        : null;
+      const descriptionLocalization = groupResponse.descriptionLocalizationId
+        ? getLocalization(groupResponse.descriptionLocalizationId) ?? null
+        : null;
+
+      if (groupResponse.nameLocalizationId && !nameLocalization) {
+        showToast({
+          type: 'warning',
+          message: t('permissionGroups.messages.localization_fetch_failed'),
+        });
+      }
+
+      if (groupResponse.descriptionLocalizationId && !descriptionLocalization) {
+        showToast({
+          type: 'warning',
+          message: t('permissionGroups.messages.localization_fetch_failed'),
+        });
+      }
 
       const form: GroupForm = {
         translations: {
           name: buildTranslationState(supportedLanguages, nameLocalization as LocalizationRecord | null),
-          description: buildTranslationState(
-            supportedLanguages,
-            descriptionLocalization as LocalizationRecord | null,
-          ),
+          description: buildTranslationState(supportedLanguages, descriptionLocalization as LocalizationRecord | null),
         },
         displayOrder: groupResponse.displayOrder ?? 0,
         logo: groupResponse.logo ?? '',
@@ -537,7 +556,16 @@ export function PermissionGroupsDetails() {
     } finally {
       setLoading(false);
     }
-  }, [id, language, navigate, showToast, supportedLanguages, t]);
+  }, [
+    ensureTranslationsReady,
+    getLocalization,
+    id,
+    language,
+    navigate,
+    showToast,
+    supportedLanguages,
+    t,
+  ]);
 
   useEffect(() => {
     void loadData();
@@ -906,7 +934,12 @@ export function PermissionGroupsDetails() {
   return (
     <>
       <DetailsLayout
-        title={group.name?.trim() || group.nameLocalizationId || t('permissionGroups.details.title')}
+        title={
+          group.name?.trim() ||
+          resolveLocalization(group.nameLocalizationId) ||
+          group.nameLocalizationId ||
+          t('permissionGroups.details.title')
+        }
         subtitle={group.description?.trim() || group.descriptionLocalizationId || t('permissionGroups.details.subtitle')}
         icon={<FolderTree className="h-6 w-6 text-white" />}
         backUrl="/permission-groups"

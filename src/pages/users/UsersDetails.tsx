@@ -401,14 +401,18 @@ const UserRolesTab: React.FC<UserRolesTabProps> = ({
   onSave,
   hasChanges,
 }) => {
-  const { t } = useLanguage();
+  const { t, resolveLocalization } = useLanguage();
   const roleOptions = useMemo(
     () =>
       roles.map((role) => ({
         value: role.id,
-        label: role.name?.trim() || role.nameLocalizationId || role.id,
+        label:
+          role.name?.trim() ||
+          resolveLocalization(role.nameLocalizationId) ||
+          role.nameLocalizationId ||
+          role.id,
       })),
-    [roles],
+    [resolveLocalization, roles],
   );
 
   return (

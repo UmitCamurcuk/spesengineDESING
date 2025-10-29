@@ -28,7 +28,6 @@ import { Badge } from '../../components/ui/Badge';
 import { ChangeConfirmDialog } from '../../components/ui/ChangeConfirmDialog';
 import { permissionsService } from '../../api/services/permissions.service';
 import { permissionGroupsService } from '../../api/services/permission-groups.service';
-import { localizationsService } from '../../api/services/localizations.service';
 import { PERMISSIONS } from '../../config/permissions';
 import type {
   PermissionRecord,
@@ -360,15 +359,18 @@ const PermissionGroupTab: React.FC<PermissionGroupTabProps> = ({
   onSelect,
   currentGroup,
 }) => {
-  const { t } = useLanguage();
+  const { t, resolveLocalization } = useLanguage();
 
   const groupOptions = useMemo(
     () =>
       groups.map((group) => ({
         value: group.id,
-        label: group.name?.trim() || group.nameLocalizationId,
+        label:
+          group.name?.trim() ||
+          resolveLocalization(group.nameLocalizationId) ||
+          group.nameLocalizationId,
       })),
-    [groups],
+    [groups, resolveLocalization],
   );
 
   return (
@@ -395,7 +397,12 @@ const PermissionGroupTab: React.FC<PermissionGroupTabProps> = ({
               </span>
               <div className="flex items-center gap-3">
                 <Badge variant="secondary">
-                  {currentGroup?.name?.trim() || currentGroup?.nameLocalizationId || '—'}
+                  {currentGroup?.name?.trim() ||
+                    (currentGroup?.nameLocalizationId
+                      ? resolveLocalization(currentGroup.nameLocalizationId)
+                      : '') ||
+                    currentGroup?.nameLocalizationId ||
+                    '—'}
                 </Badge>
                 <span className="text-xs text-muted-foreground">
                   {currentGroup?.description?.trim() ||
@@ -424,7 +431,10 @@ const PermissionGroupTab: React.FC<PermissionGroupTabProps> = ({
               >
                 <div className="flex items-center justify-between">
                   <span className="font-medium text-foreground">
-                    {group.name?.trim() || group.nameLocalizationId || '—'}
+                    {group.name?.trim() ||
+                      resolveLocalization(group.nameLocalizationId) ||
+                      group.nameLocalizationId ||
+                      '—'}
                   </span>
                   {group.id === selectedGroupId && (
                     <Badge variant="primary" size="sm">
@@ -471,7 +481,7 @@ const HistoryTab: React.FC<{ entityId: string }> = ({ entityId }) => (
 export function PermissionsDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { t, language } = useLanguage();
+  const { t, language, ensureTranslationsReady, getLocalization, resolveLocalization } = useLanguage();
   const { showToast } = useToast();
   const { settings } = useSettings();
   const { hasPermission } = useAuth();
@@ -521,22 +531,6 @@ export function PermissionsDetails() {
     [],
   );
 
-  const fetchLocalizationSafely = useCallback(async (localizationId?: string | null) => {
-    if (!localizationId) {
-      return null;
-    }
-    try {
-      return await localizationsService.getById(localizationId);
-    } catch (error) {
-      console.warn('Failed to fetch localization', error);
-      showToast({
-        type: 'warning',
-        message: t('permissions.messages.localization_fetch_failed'),
-      });
-      return null;
-    }
-  }, [showToast, t]);
-
   const loadData = useCallback(async () => {
     if (!id) {
       return;
@@ -545,13 +539,33 @@ export function PermissionsDetails() {
       setLoading(true);
       setIsEditing(false);
 
-      const permissionResponse = await permissionsService.getById(id, { language });
-
-      const [groupsResponse, nameLocalization, descriptionLocalization] = await Promise.all([
+      const [permissionResponse, groupsResponse] = await Promise.all([
+        permissionsService.getById(id, { language }),
         permissionGroupsService.list({ pageSize: 200, language }),
-        fetchLocalizationSafely(permissionResponse.nameLocalizationId),
-        fetchLocalizationSafely(permissionResponse.descriptionLocalizationId),
       ]);
+
+      await ensureTranslationsReady();
+
+      const nameLocalization = permissionResponse.nameLocalizationId
+        ? getLocalization(permissionResponse.nameLocalizationId) ?? null
+        : null;
+      const descriptionLocalization = permissionResponse.descriptionLocalizationId
+        ? getLocalization(permissionResponse.descriptionLocalizationId) ?? null
+        : null;
+
+      if (permissionResponse.nameLocalizationId && !nameLocalization) {
+        showToast({
+          type: 'warning',
+          message: t('permissions.messages.localization_fetch_failed'),
+        });
+      }
+
+      if (permissionResponse.descriptionLocalizationId && !descriptionLocalization) {
+        showToast({
+          type: 'warning',
+          message: t('permissions.messages.localization_fetch_failed'),
+        });
+      }
 
       const form: PermissionForm = {
         code: permissionResponse.code,
@@ -580,12 +594,13 @@ export function PermissionsDetails() {
       setLoading(false);
     }
   }, [
-    fetchLocalizationSafely,
     id,
     language,
     navigate,
     showToast,
     supportedLanguages,
+    ensureTranslationsReady,
+    getLocalization,
     t,
   ]);
 
@@ -648,8 +663,18 @@ export function PermissionsDetails() {
       const current = groups.find((group) => group.id === normalizedCurrent.permissionGroupId);
       changes.push({
         field: t('permissions.fields.permission_group'),
-        oldValue: previous?.name?.trim() || previous?.nameLocalizationId || '—',
-        newValue: current?.name?.trim() || current?.nameLocalizationId || '—',
+        oldValue:
+          previous?.name?.trim() ||
+          (previous?.nameLocalizationId
+            ? resolveLocalization(previous.nameLocalizationId)
+            : '') ||
+          previous?.nameLocalizationId ||
+          '—',
+        newValue:
+          current?.name?.trim() ||
+          (current?.nameLocalizationId ? resolveLocalization(current.nameLocalizationId) : '') ||
+          current?.nameLocalizationId ||
+          '—',
       });
     }
 
@@ -874,9 +899,17 @@ export function PermissionsDetails() {
   return (
     <>
       <DetailsLayout
-        title={permission.name?.trim() || permission.nameLocalizationId || t('permissions.details.title')}
+        title={
+          permission.name?.trim() ||
+          resolveLocalization(permission.nameLocalizationId) ||
+          permission.nameLocalizationId ||
+          t('permissions.details.title')
+        }
         subtitle={
           currentGroup?.name?.trim() ||
+          (currentGroup?.nameLocalizationId
+            ? resolveLocalization(currentGroup.nameLocalizationId)
+            : '') ||
           currentGroup?.nameLocalizationId ||
           t('permissions.details.subtitle')
         }
