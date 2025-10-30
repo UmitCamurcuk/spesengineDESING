@@ -10,7 +10,7 @@ import type {
 } from '../types/api.types';
 
 export const rolesService = {
-  async list(params: { language?: string } = {}): Promise<RoleListResponse> {
+  async list(params: { search?: string; isSystemRole?: boolean; language?: string } = {}): Promise<RoleListResponse> {
     const response = await apiClient.get<ApiSuccessResponse<RoleListResponse>>(
       API_ENDPOINTS.ROLES.BASE,
       { params },

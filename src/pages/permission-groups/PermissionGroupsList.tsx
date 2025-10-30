@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Shield, Folder } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -20,6 +20,9 @@ export function PermissionGroupsList() {
   const canCreatePermissionGroup = hasPermission(PERMISSIONS.SYSTEM.PERMISSION_GROUPS.CREATE);
   const [groups, setGroups] = useState<PermissionGroupRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [search, setSearch] = useState('');
   const [pagination, setPagination] = useState({
     page: 1,
     pageSize: 25,
@@ -29,12 +32,13 @@ export function PermissionGroupsList() {
     hasPrev: false,
   });
 
-  const loadGroups = async (page = pagination.page, pageSize = pagination.pageSize) => {
+  const loadGroups = useCallback(async (nextPage: number, nextPageSize: number, nextSearch: string) => {
     try {
       setLoading(true);
       const result = await permissionGroupsService.list({
-        page,
-        pageSize,
+        page: nextPage,
+        pageSize: nextPageSize,
+        search: nextSearch.trim() !== '' ? nextSearch.trim() : undefined,
         language,
       });
       setGroups(result.items);
@@ -48,22 +52,16 @@ export function PermissionGroupsList() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [language, showToast]);
 
   useEffect(() => {
-    const abortController = new AbortController();
-    loadGroups(1, pagination.pageSize);
-    
-    return () => {
-      abortController.abort();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [language]);
+    void loadGroups(page, pageSize, search);
+  }, [loadGroups, page, pageSize, search]);
 
   const columns = [
     {
       key: 'name',
-      title: 'Group Name',
+      title: t('permissionGroups.list.column_group_name'),
       sortable: true,
       render: (_value: string, group: PermissionGroupRecord) => (
         <div className="flex items-center space-x-3">
@@ -96,7 +94,7 @@ export function PermissionGroupsList() {
             </div>
           </div>
           <div>
-            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Description</div>
+            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">{t('permissionGroups.list.column_description')}</div>
             <div className="text-sm text-gray-600">
               {group.description?.trim() ||
                 resolveLocalization(group.descriptionLocalizationId) ||
@@ -109,7 +107,7 @@ export function PermissionGroupsList() {
     },
     {
       key: 'description',
-      title: 'Description',
+      title: t('permissionGroups.list.column_description'),
       render: (_value: string, group: PermissionGroupRecord) => (
         <span className="text-sm text-gray-600 line-clamp-2">
           {group.description?.trim() ||
@@ -121,7 +119,7 @@ export function PermissionGroupsList() {
     },
     {
       key: 'displayOrder',
-      title: 'Display Order',
+      title: t('permissionGroups.list.column_display_order'),
       sortable: true,
       render: (value: number) => (
         <Badge variant="secondary" size="sm">
@@ -131,12 +129,12 @@ export function PermissionGroupsList() {
     },
     {
       key: 'updatedAt',
-      title: 'Last Updated',
+      title: t('permissionGroups.list.column_last_updated'),
       sortable: true,
       render: (value: string, group: PermissionGroupRecord) => (
         <UserInfo
-          name={group.updatedBy?.name || "Unknown User"}
-          email={group.updatedBy?.email || "unknown@system.com"}
+          name={group.updatedBy?.name || t('common.unknown_user')}
+          email={group.updatedBy?.email || t('common.unknown_user_email')}
           avatarUrl={group.updatedBy?.profilePhotoUrl}
           date={value}
         />
@@ -144,35 +142,51 @@ export function PermissionGroupsList() {
     },
   ];
 
+  const handlePageChange = (nextPage: number) => {
+    setPage(nextPage);
+  };
+
+  const handlePageSizeChange = (nextSize: number) => {
+    setPageSize(nextSize);
+    setPage(1);
+  };
+
+  const handleSearchChange = (value: string) => {
+    setPage(1);
+    setSearch(value);
+  };
+
   return (
     <div className="h-full flex flex-col">
       <PageHeader
-        title="Permission Groups"
-        subtitle="Manage permission groups to organize permissions"
+        title={t('permissionGroups.list.title')}
+        subtitle={t('permissionGroups.list.subtitle')}
       />
       
       <div className="flex-1 mt-6">
         <DataTable
           data={groups}
           columns={columns}
-          searchPlaceholder="Search permission groups..."
+          searchPlaceholder={t('permissionGroups.list.search_placeholder')}
+          searchValue={search}
+          onSearchChange={handleSearchChange}
           onRowClick={(group) => navigate(`/permission-groups/${group.id}`)}
           loading={loading}
           mode="server"
           totalItems={pagination.totalItems}
-          currentPage={pagination.page}
-          currentPageSize={pagination.pageSize}
-          onPageChange={(page) => loadGroups(page, pagination.pageSize)}
-          onPageSizeChange={(size) => loadGroups(1, size)}
+          currentPage={page}
+          currentPageSize={pageSize}
+          onPageChange={handlePageChange}
+          onPageSizeChange={handlePageSizeChange}
           emptyState={{
             icon: <Shield className="h-12 w-12" />,
-            title: 'No permission groups',
-            description: 'Create your first permission group to organize permissions',
+            title: t('permissionGroups.list.empty_state_title'),
+            description: t('permissionGroups.list.empty_state_description'),
             action: canCreatePermissionGroup
               ? (
                   <Button onClick={() => navigate('/permission-groups/create')}>
                     <Plus className="h-4 w-4 mr-2" />
-                    Create Permission Group
+                    {t('permissionGroups.list.create_button')}
                   </Button>
                 )
               : undefined,

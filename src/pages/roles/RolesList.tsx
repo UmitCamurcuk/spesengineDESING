@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Shield, Users } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -16,7 +16,7 @@ import { PermissionDenied } from '../../components/common/PermissionDenied';
 
 export function RolesList() {
   const navigate = useNavigate();
-  const { language, resolveLocalization } = useLanguage();
+  const { t, language, resolveLocalization } = useLanguage();
   const { showToast } = useToast();
   const { hasPermission } = useAuth();
   const canReadRoles = hasPermission(PERMISSIONS.SYSTEM.ROLES.LIST);
@@ -24,8 +24,10 @@ export function RolesList() {
   const [roles, setRoles] = useState<RoleRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(!canReadRoles);
+  const [search, setSearch] = useState('');
+  const [filters, setFilters] = useState<{ isSystemRole?: string }>({});
 
-  const loadRoles = useCallback(async () => {
+  const loadRoles = useCallback(async (nextSearch: string, nextFilters: { isSystemRole?: string }) => {
     if (!canReadRoles) {
       setForbidden(true);
       setRoles([]);
@@ -35,7 +37,11 @@ export function RolesList() {
 
     try {
       setLoading(true);
-      const result = await rolesService.list({ language });
+      const result = await rolesService.list({
+        language,
+        search: nextSearch.trim() !== '' ? nextSearch.trim() : undefined,
+        isSystemRole: nextFilters.isSystemRole ? nextFilters.isSystemRole === 'true' : undefined,
+      });
       setRoles(result.items);
       setForbidden(false);
     } catch (error: any) {
@@ -54,20 +60,15 @@ export function RolesList() {
   }, [canReadRoles, language, showToast]);
 
   useEffect(() => {
-    const abortController = new AbortController();
-    void loadRoles();
-    
-    return () => {
-      abortController.abort();
-    };
-  }, [loadRoles]);
+    void loadRoles(search, filters);
+  }, [loadRoles, search, filters]);
 
   const handleRowClick = canReadRoles ? (role: RoleRecord) => navigate(`/roles/${role.id}`) : undefined;
 
   const columns = [
     {
       key: 'name',
-      title: 'Role Name',
+      title: t('roles.list.column_role_name'),
       sortable: true,
       render: (_value: string, role: RoleRecord) => (
         <div className="flex items-center space-x-3">
@@ -84,7 +85,7 @@ export function RolesList() {
                   role.nameLocalizationId}
               </div>
               {role.isSystemRole && (
-                <Badge variant="primary" size="sm">System</Badge>
+                <Badge variant="primary" size="sm">{t('roles.list.system_role')}</Badge>
               )}
             </div>
             <div className="text-xs text-muted-foreground">ID: {role.id}</div>
@@ -104,13 +105,13 @@ export function RolesList() {
                     resolveLocalization(role.nameLocalizationId) ||
                     role.nameLocalizationId}
                 </div>
-                {role.isSystemRole && <Badge variant="primary" size="sm">System</Badge>}
+                {role.isSystemRole && <Badge variant="primary" size="sm">{t('roles.list.system_role')}</Badge>}
               </div>
               <div className="text-xs text-muted-foreground">ID: {role.id}</div>
             </div>
           </div>
           <div>
-            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Description</div>
+            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">{t('roles.list.column_description')}</div>
             <div className="text-sm text-gray-600">
               {role.description?.trim() ||
                 resolveLocalization(role.descriptionLocalizationId) ||
@@ -123,7 +124,7 @@ export function RolesList() {
     },
     {
       key: 'description',
-      title: 'Description',
+      title: t('roles.list.column_description'),
       render: (_value: string, role: RoleRecord) => (
         <span className="text-sm text-gray-600 line-clamp-2">
           {role.description?.trim() ||
@@ -135,16 +136,16 @@ export function RolesList() {
     },
     {
       key: 'isSystemRole',
-      title: 'Type',
+      title: t('roles.list.column_type'),
       render: (value: boolean) => (
         <Badge variant={value ? 'primary' : 'secondary'} size="sm">
-          {value ? 'System Role' : 'Custom Role'}
+          {value ? t('roles.list.system_role') : t('roles.list.custom_role')}
         </Badge>
       ),
     },
     {
       key: 'updatedAt',
-      title: 'Last Updated',
+      title: t('roles.list.column_last_updated'),
       sortable: true,
       render: (value: string, role: RoleRecord) => (
         <UserInfoWithRole
@@ -153,7 +154,7 @@ export function RolesList() {
             email: role.updatedBy.email,
             name: role.updatedBy.name,
             profilePhotoUrl: role.updatedBy.profilePhotoUrl,
-            role: role.updatedBy.role?.name || "Unknown Role"
+            role: role.updatedBy.role?.name || t('common.unknown_role')
           } : undefined}
           date={value}
         />
@@ -161,12 +162,36 @@ export function RolesList() {
     },
   ];
 
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+  };
+
+  const handleFilterChange = (key: string, value: string) => {
+    setFilters(prev => ({
+      ...prev,
+      [key]: value || undefined,
+    }));
+  };
+
+  const tableFilters = useMemo(() => [
+    {
+      key: 'isSystemRole',
+      label: t('roles.list.filter_type_label'),
+      type: 'select' as const,
+      options: [
+        { value: '', label: t('common.all') || 'Tümü' },
+        { value: 'true', label: t('roles.list.system_role') },
+        { value: 'false', label: t('roles.list.custom_role') },
+      ],
+    },
+  ], [t]);
+
   if (forbidden) {
     return (
       <div className="h-full flex flex-col">
         <PageHeader
-          title="Roles"
-          subtitle="Manage user roles and their permissions"
+          title={t('roles.list.title')}
+          subtitle={t('roles.list.subtitle')}
         />
         <PermissionDenied />
       </div>
@@ -176,26 +201,31 @@ export function RolesList() {
   return (
     <div className="h-full flex flex-col">
       <PageHeader
-        title="Roles"
-        subtitle="Manage user roles and their permissions"
+        title={t('roles.list.title')}
+        subtitle={t('roles.list.subtitle')}
       />
       
       <div className="flex-1 mt-6">
         <DataTable
           data={roles}
           columns={columns}
-          searchPlaceholder="Search roles..."
+          searchPlaceholder={t('roles.list.search_placeholder')}
+          searchValue={search}
+          onSearchChange={handleSearchChange}
+          filters={tableFilters}
+          filterValues={filters}
+          onFilterChange={handleFilterChange}
           onRowClick={handleRowClick}
           loading={loading}
           emptyState={{
             icon: <Users className="h-12 w-12" />,
-            title: 'No roles',
-            description: 'Create your first role to assign permissions to users',
+            title: t('roles.list.empty_state_title'),
+            description: t('roles.list.empty_state_description'),
             action: canCreateRole
               ? (
                   <Button onClick={() => navigate('/roles/create')}>
                     <Plus className="h-4 w-4 mr-2" />
-                    Create Role
+                    {t('roles.list.create_button')}
                   </Button>
                 )
               : undefined,

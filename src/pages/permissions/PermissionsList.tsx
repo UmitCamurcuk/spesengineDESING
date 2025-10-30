@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Key, Shield } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -17,6 +17,10 @@ export function PermissionsList() {
   const [permissions, setPermissions] = useState<PermissionRecord[]>([]);
   const [groups, setGroups] = useState<PermissionGroupRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [search, setSearch] = useState('');
+  const [filters, setFilters] = useState<{ permissionGroupId?: string }>({});
   const [pagination, setPagination] = useState({
     page: 1,
     pageSize: 25,
@@ -26,23 +30,20 @@ export function PermissionsList() {
     hasPrev: false,
   });
 
-  useEffect(() => {
-    const abortController = new AbortController();
-    loadData(1, pagination.pageSize);
-    
-    return () => {
-      abortController.abort();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [language]);
-
-  const loadData = async (page = pagination.page, pageSize = pagination.pageSize) => {
+  const loadData = useCallback(async (
+    nextPage: number,
+    nextPageSize: number,
+    nextSearch: string,
+    nextFilters: { permissionGroupId?: string }
+  ) => {
     try {
       setLoading(true);
       const [permResult, groupsResult] = await Promise.all([
         permissionsService.list({
-          page,
-          pageSize,
+          page: nextPage,
+          pageSize: nextPageSize,
+          search: nextSearch.trim() !== '' ? nextSearch.trim() : undefined,
+          permissionGroupId: nextFilters.permissionGroupId || undefined,
           language,
         }),
         permissionGroupsService.list({ language }),
@@ -59,7 +60,11 @@ export function PermissionsList() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [language, showToast]);
+
+  useEffect(() => {
+    void loadData(page, pageSize, search, filters);
+  }, [loadData, page, pageSize, search, filters]);
 
   const getGroupName = (groupId: string) => {
     const group = groups.find((g) => g.id === groupId);
@@ -67,14 +72,14 @@ export function PermissionsList() {
       group?.name?.trim() ||
       (group?.nameLocalizationId ? resolveLocalization(group.nameLocalizationId) : '') ||
       group?.nameLocalizationId ||
-      'Unknown Group'
+      t('permissions.list.unknown_group')
     );
   };
 
   const columns = [
     {
       key: 'code',
-      title: 'Permission Code',
+      title: t('permissions.list.column_permission_code'),
       sortable: true,
       render: (value: string, permission: PermissionRecord) => (
         <div className="flex items-center space-x-3">
@@ -111,7 +116,7 @@ export function PermissionsList() {
             </div>
           </div>
           <div>
-            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Description</div>
+            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">{t('permissions.list.column_description')}</div>
             <div className="text-sm text-gray-600">
               {permission.description?.trim() ||
                 resolveLocalization(permission.descriptionLocalizationId) ||
@@ -129,7 +134,7 @@ export function PermissionsList() {
     },
     {
       key: 'permissionGroupId',
-      title: 'Group',
+      title: t('permissions.list.column_group'),
       render: (value: string) => (
         <Badge variant="secondary" size="sm">
           {getGroupName(value)}
@@ -138,7 +143,7 @@ export function PermissionsList() {
     },
     {
       key: 'description',
-      title: 'Description',
+      title: t('permissions.list.column_description'),
       render: (_value: string, permission: PermissionRecord) => (
         <span className="text-sm text-gray-600 line-clamp-2">
           {permission.description?.trim() ||
@@ -150,7 +155,7 @@ export function PermissionsList() {
     },
     {
       key: 'displayOrder',
-      title: 'Order',
+      title: t('permissions.list.column_order'),
       sortable: true,
       render: (value: number) => (
         <Badge variant="secondary" size="sm">
@@ -160,12 +165,12 @@ export function PermissionsList() {
     },
     {
       key: 'updatedAt',
-      title: 'Last Updated',
+      title: t('permissions.list.column_last_updated'),
       sortable: true,
       render: (value: string, permission: PermissionRecord) => (
         <UserInfo
-          name={permission.updatedBy?.name || "Unknown User"}
-          email={permission.updatedBy?.email || "unknown@system.com"}
+          name={permission.updatedBy?.name || t('common.unknown_user')}
+          email={permission.updatedBy?.email || t('common.unknown_user_email')}
           avatarUrl={permission.updatedBy?.profilePhotoUrl}
           date={value}
         />
@@ -173,26 +178,51 @@ export function PermissionsList() {
     },
   ];
 
-  const filters = [
+  const handlePageChange = (nextPage: number) => {
+    setPage(nextPage);
+  };
+
+  const handlePageSizeChange = (nextSize: number) => {
+    setPageSize(nextSize);
+    setPage(1);
+  };
+
+  const handleSearchChange = (value: string) => {
+    setPage(1);
+    setSearch(value);
+  };
+
+  const handleFilterChange = (key: string, value: string) => {
+    setPage(1);
+    setFilters(prev => ({
+      ...prev,
+      [key]: value || undefined,
+    }));
+  };
+
+  const tableFilters = useMemo(() => [
     {
       key: 'permissionGroupId',
-      label: 'Group',
+      label: t('permissions.list.column_group'),
       type: 'select' as const,
-      options: groups.map((group) => ({
-        value: group.id,
-        label:
-          group.name?.trim() ||
-          resolveLocalization(group.nameLocalizationId) ||
-          group.nameLocalizationId,
-      }))
+      options: [
+        { value: '', label: t('common.all') || 'Tümü' },
+        ...groups.map((group) => ({
+          value: group.id,
+          label:
+            group.name?.trim() ||
+            resolveLocalization(group.nameLocalizationId) ||
+            group.nameLocalizationId,
+        })),
+      ],
     },
-  ];
+  ], [groups, resolveLocalization, t]);
 
   return (
     <div className="h-full flex flex-col">
       <PageHeader
-        title="Permissions"
-        subtitle="Manage individual permissions across the system"
+        title={t('permissions.list.title')}
+        subtitle={t('permissions.list.subtitle')}
       />
 
       <div className="flex-1 mt-6">
@@ -201,14 +231,18 @@ export function PermissionsList() {
           columns={columns}
           loading={loading}
           mode="server"
-          searchPlaceholder="Search permissions..."
-          filters={filters}
+          searchPlaceholder={t('permissions.list.search_placeholder')}
+          searchValue={search}
+          onSearchChange={handleSearchChange}
+          filters={tableFilters}
+          filterValues={filters}
+          onFilterChange={handleFilterChange}
           onRowClick={(permission) => navigate(`/permissions/${permission.id}`)}
           totalItems={pagination.totalItems}
-          currentPage={pagination.page}
-          currentPageSize={pagination.pageSize}
-          onPageChange={(page) => loadData(page, pagination.pageSize)}
-          onPageSizeChange={(size) => loadData(1, size)}
+          currentPage={page}
+          currentPageSize={pageSize}
+          onPageChange={handlePageChange}
+          onPageSizeChange={handlePageSizeChange}
           emptyState={{
             icon: <Shield className="h-12 w-12" />,
             title: t('permissions.no_permissions'),

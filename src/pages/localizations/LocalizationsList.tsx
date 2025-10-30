@@ -178,7 +178,7 @@ export const LocalizationsList: React.FC = () => {
                 email: localization.updatedBy.email,
                 name: localization.updatedBy.name,
                 profilePhotoUrl: localization.updatedBy.profilePhotoUrl,
-                role: localization.updatedBy.role?.name || "Unknown Role"
+                role: localization.updatedBy.role?.name || t('common.unknown_role')
               } : undefined}
               date={localization.updatedAt}
             />

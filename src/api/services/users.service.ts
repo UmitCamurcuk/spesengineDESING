@@ -13,6 +13,7 @@ interface ListUsersParams {
   pageSize?: number;
   search?: string;
   roleId?: string;
+  status?: 'active' | 'inactive' | 'partial';
   language?: string;
 }
 
