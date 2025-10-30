@@ -13,6 +13,8 @@ import {
   Users,
   XOctagon,
   Edit2,
+  UserPlus,
+  Trash2,
 } from 'lucide-react';
 import { Card, CardHeader } from '../ui/Card';
 import { Badge } from '../ui/Badge';
@@ -23,6 +25,7 @@ import {
   type NotificationRuleStatistics,
 } from '../../api/services/notifications.service';
 import { Statistics as StatisticsType } from '../../types/common';
+import { historyService } from '../../api/services/history.service';
 
 interface StatisticsProps {
   entityType: string;
@@ -62,45 +65,100 @@ export const Statistics: React.FC<StatisticsProps> = ({
   editMode = false
 }) => {
   const isNotificationRule = entityType === 'notification-rule';
+  const isUser = entityType === 'user';
   const { t } = useLanguage();
   const { formatDateTime } = useDateFormatter();
-  const [loading, setLoading] = useState<boolean>(isNotificationRule);
+  const [loading, setLoading] = useState<boolean>(isNotificationRule || isUser);
   const [error, setError] = useState<string | null>(null);
   const [ruleStats, setRuleStats] = useState<NotificationRuleStatistics | null>(null);
+  const [userStats, setUserStats] = useState<any>(null);
 
   useEffect(() => {
-    if (!isNotificationRule) {
+    if (!isNotificationRule && !isUser) {
       setLoading(false);
       setError(null);
       return;
     }
 
     let cancelled = false;
-    const fetchStats = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await notificationsService.getRuleStatistics(entityId);
-        if (!cancelled) {
-          setRuleStats(response);
+    
+    if (isNotificationRule) {
+      const fetchStats = async () => {
+        try {
+          setLoading(true);
+          setError(null);
+          const response = await notificationsService.getRuleStatistics(entityId);
+          if (!cancelled) {
+            setRuleStats(response);
+          }
+        } catch (err) {
+          if (!cancelled) {
+            setError(err instanceof Error ? err.message : 'İstatistikler alınırken bir hata oluştu.');
+          }
+        } finally {
+          if (!cancelled) {
+            setLoading(false);
+          }
         }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'İstatistikler alınırken bir hata oluştu.');
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
+      };
+      fetchStats();
+    }
 
-    fetchStats();
+    if (isUser) {
+      const fetchUserStats = async () => {
+        try {
+          setLoading(true);
+          setError(null);
+          // Fetch user history to calculate statistics
+          const history = await historyService.getHistory({
+            entityType: 'User',
+            entityId,
+            page: 1,
+            pageSize: 1000, // Get all history records
+          });
+
+          // Calculate statistics from history
+          const stats = {
+            totalActivities: history.items.length,
+            createdCount: history.items.filter(h => h.action === 'created').length,
+            updatedCount: history.items.filter(h => h.action === 'updated').length,
+            deletedCount: history.items.filter(h => h.action === 'deleted').length,
+            viewedCount: history.items.filter(h => h.action === 'viewed').length,
+            lastActivity: history.items[0]?.timestamp || null,
+            createdThisMonth: history.items.filter(h => {
+              if (h.action !== 'created') return false;
+              const createdDate = new Date(h.timestamp);
+              const now = new Date();
+              return createdDate.getMonth() === now.getMonth() && createdDate.getFullYear() === now.getFullYear();
+            }).length,
+            updatedThisMonth: history.items.filter(h => {
+              if (h.action !== 'updated') return false;
+              const updatedDate = new Date(h.timestamp);
+              const now = new Date();
+              return updatedDate.getMonth() === now.getMonth() && updatedDate.getFullYear() === now.getFullYear();
+            }).length,
+          };
+
+          if (!cancelled) {
+            setUserStats(stats);
+          }
+        } catch (err) {
+          if (!cancelled) {
+            setError(err instanceof Error ? err.message : 'İstatistikler alınırken bir hata oluştu.');
+          }
+        } finally {
+          if (!cancelled) {
+            setLoading(false);
+          }
+        }
+      };
+      fetchUserStats();
+    }
 
     return () => {
       cancelled = true;
     };
-  }, [entityId, isNotificationRule]);
+  }, [entityId, isNotificationRule, isUser]);
 
   const formatDuration = (ms?: number | null) => {
     if (!ms || ms <= 0) {
@@ -308,6 +366,218 @@ export const Statistics: React.FC<StatisticsProps> = ({
     );
   };
 
+  const userContent = () => {
+    if (loading) {
+      return (
+        <Card padding="lg">
+          <div className="flex items-center justify-center gap-2 py-10 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span>{t('common.loading') ?? 'Yükleniyor'}</span>
+          </div>
+        </Card>
+      );
+    }
+
+    if (error) {
+      return (
+        <Card padding="lg">
+          <div className="flex items-center gap-3 text-rose-500 dark:text-rose-400">
+            <AlertCircle className="h-5 w-5" />
+            <div>
+              <p className="font-medium">İstatistikler yüklenemedi</p>
+              <p className="text-sm text-muted-foreground">{error}</p>
+            </div>
+          </div>
+        </Card>
+      );
+    }
+
+    if (!userStats) {
+      return (
+        <Card padding="lg">
+          <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
+            <BarChart3 className="h-10 w-10 text-muted-foreground" />
+            <div>
+              <p className="text-base font-medium text-foreground">Henüz istatistik yok</p>
+              <p className="text-sm text-muted-foreground">
+                Bu kullanıcı için henüz aktivite kaydı bulunmuyor.
+              </p>
+            </div>
+          </div>
+        </Card>
+      );
+    }
+
+    const overviewCards = [
+      {
+        title: 'Toplam Aktivite',
+        value: userStats.totalActivities.toLocaleString(),
+        helper: `${userStats.viewedCount} görüntüleme`,
+        icon: <Activity className="h-6 w-6" />,
+        tone: 'bg-primary/10 text-primary',
+      },
+      {
+        title: 'Oluşturulan Kayıtlar',
+        value: userStats.createdCount.toLocaleString(),
+        helper: `${userStats.createdThisMonth} bu ay`,
+        icon: <UserPlus className="h-6 w-6" />,
+        tone: 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-300',
+      },
+      {
+        title: 'Güncellenen Kayıtlar',
+        value: userStats.updatedCount.toLocaleString(),
+        helper: `${userStats.updatedThisMonth} bu ay`,
+        icon: <Edit2 className="h-6 w-6" />,
+        tone: 'bg-amber-100 dark:bg-amber-500/10 text-amber-600 dark:text-amber-300',
+      },
+      {
+        title: 'Son Aktivite',
+        value: userStats.lastActivity ? formatDateTime(userStats.lastActivity) : '—',
+        helper: userStats.lastActivity ? `${Math.floor((Date.now() - new Date(userStats.lastActivity).getTime()) / (1000 * 60 * 60))} saat önce` : 'Aktivite yok',
+        icon: <Clock className="h-6 w-6" />,
+        tone: 'bg-blue-100 dark:bg-blue-500/10 text-blue-600 dark:text-blue-300',
+      },
+    ];
+
+    return (
+      <>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {overviewCards.map((card) => (
+            <Card key={card.title} padding="md">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">{card.title}</p>
+                  <p className="text-2xl font-bold text-foreground mt-1">{card.value}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{card.helper}</p>
+                </div>
+                <div className={`p-3 rounded-full ${card.tone}`}>
+                  {card.icon}
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader
+              title="Aktivite Dağılımı"
+              subtitle="Kullanıcı aktivitelerinin türlere göre dağılımı"
+            />
+            <div className="space-y-3 p-4 pt-0">
+              <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-full bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
+                    <UserPlus className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Oluşturma</p>
+                    <p className="text-xs text-muted-foreground">Yeni kayıtlar oluşturuldu</p>
+                  </div>
+                </div>
+                <Badge variant="success" size="sm">
+                  {userStats.createdCount}
+                </Badge>
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-full bg-amber-100 dark:bg-amber-500/10 text-amber-600 dark:text-amber-300">
+                    <Edit2 className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Güncelleme</p>
+                    <p className="text-xs text-muted-foreground">Mevcut kayıtlar güncellendi</p>
+                  </div>
+                </div>
+                <Badge variant="warning" size="sm">
+                  {userStats.updatedCount}
+                </Badge>
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-full bg-rose-100 dark:bg-rose-500/10 text-rose-600 dark:text-rose-300">
+                    <Trash2 className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Silme</p>
+                    <p className="text-xs text-muted-foreground">Kayıtlar silindi</p>
+                  </div>
+                </div>
+                <Badge variant="error" size="sm">
+                  {userStats.deletedCount}
+                </Badge>
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-500/10 text-blue-600 dark:text-blue-300">
+                    <Eye className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Görüntüleme</p>
+                    <p className="text-xs text-muted-foreground">Kayıtlar görüntülendi</p>
+                  </div>
+                </div>
+                <Badge variant="secondary" size="sm">
+                  {userStats.viewedCount}
+                </Badge>
+              </div>
+            </div>
+          </Card>
+
+          <Card>
+            <CardHeader
+              title="Aylık Aktivite"
+              subtitle="Bu ay ve geçen ay aktivite karşılaştırması"
+            />
+            <div className="space-y-3 p-4 pt-0">
+              <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Bu Ay Oluşturulan</p>
+                  <p className="text-xs text-muted-foreground">Yeni kayıtlar</p>
+                </div>
+                <Badge variant="success" size="sm">
+                  {userStats.createdThisMonth}
+                </Badge>
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Bu Ay Güncellenen</p>
+                  <p className="text-xs text-muted-foreground">Mevcut kayıtlar</p>
+                </div>
+                <Badge variant="warning" size="sm">
+                  {userStats.updatedThisMonth}
+                </Badge>
+              </div>
+
+              <div className="rounded-lg border border-border px-4 py-3 bg-muted/30">
+                <p className="text-xs font-medium text-muted-foreground mb-2">Toplam Aktivite Oranı</p>
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 mr-4">
+                    <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary rounded-full transition-all"
+                        style={{
+                          width: `${userStats.totalActivities > 0 ? Math.min((userStats.totalActivities / 1000) * 100, 100) : 0}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <span className="text-sm font-semibold text-foreground">
+                    {userStats.totalActivities > 0 ? Math.min(userStats.totalActivities, 1000) : 0}/1000
+                  </span>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+      </>
+    );
+  };
+
   if (isNotificationRule) {
     return (
       <div className="space-y-6">
@@ -325,6 +595,27 @@ export const Statistics: React.FC<StatisticsProps> = ({
         </div>
 
         {notificationContent()}
+      </div>
+    );
+  }
+
+  if (isUser) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-foreground">Kullanıcı İstatistikleri</h3>
+            <p className="text-sm text-muted-foreground">
+              Kullanıcı aktiviteleri, oluşturulan kayıtlar ve performans metrikleri
+            </p>
+          </div>
+          <Badge variant="primary" size="sm">
+            <BarChart3 className="h-3 w-3 mr-1" />
+            Canlı Veri
+          </Badge>
+        </div>
+
+        {userContent()}
       </div>
     );
   }
