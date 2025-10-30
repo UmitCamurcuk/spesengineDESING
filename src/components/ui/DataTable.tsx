@@ -603,7 +603,7 @@ export function DataTable<T extends Record<string, any>>({
                 <td
                   key={colIndex}
                   className={cn(
-                    'px-4 py-2 text-sm text-foreground align-top',
+                    'px-4 py-2 text-sm text-foreground align-middle',
                     column.align === 'center' && 'text-center',
                     column.align === 'right' && 'text-right',
                   )}
