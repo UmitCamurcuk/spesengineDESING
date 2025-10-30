@@ -151,22 +151,27 @@ const formsEqual = (a: RoleForm, b: RoleForm): boolean => {
   );
 };
 
-const buildUpdatePayload = (current: RoleForm, baseline: RoleForm): RoleUpdateRequest => {
+const buildUpdatePayloadForLanguage = (
+  current: RoleForm,
+  baseline: RoleForm,
+  languageCode: string,
+): RoleUpdateRequest => {
   const payload: RoleUpdateRequest = {};
   const normalizedCurrent = normalizeForm(current);
   const normalizedBaseline = normalizeForm(baseline);
+  const lang = normalizeLanguageCode(languageCode);
 
-  if (!translationMapsEqual(normalizedCurrent.translations.name, normalizedBaseline.translations.name)) {
-    payload.name = normalizedCurrent.translations.name;
+  // Only send changes for the active language
+  const currentName = normalizedCurrent.translations.name[lang] ?? '';
+  const baselineName = normalizedBaseline.translations.name[lang] ?? '';
+  if (currentName !== baselineName) {
+    payload.name = { [lang]: currentName } as any;
   }
 
-  if (
-    !translationMapsEqual(
-      normalizedCurrent.translations.description,
-      normalizedBaseline.translations.description,
-    )
-  ) {
-    payload.description = normalizedCurrent.translations.description;
+  const currentDesc = normalizedCurrent.translations.description[lang] ?? '';
+  const baselineDesc = normalizedBaseline.translations.description[lang] ?? '';
+  if (currentDesc !== baselineDesc) {
+    payload.description = { [lang]: currentDesc } as any;
   }
 
   if (!permissionsEqual(normalizedCurrent.permissions, normalizedBaseline.permissions)) {
@@ -177,10 +182,6 @@ const buildUpdatePayload = (current: RoleForm, baseline: RoleForm): RoleUpdateRe
 };
 
 interface RoleDetailsTabProps {
-  form: RoleForm;
-  editMode: boolean;
-  onChange: (updater: (prev: RoleForm) => RoleForm) => void;
-  languages: LanguageOption[];
   metadata: {
     id: string;
     createdAt: string;
@@ -191,88 +192,13 @@ interface RoleDetailsTabProps {
 }
 
 const RoleDetailsTab: React.FC<RoleDetailsTabProps> = ({
-  form,
-  editMode,
-  onChange,
-  languages,
   metadata,
   formatDateTime,
 }) => {
   const { t } = useLanguage();
 
-  const handleTranslationChange = (
-    field: 'name' | 'description',
-    languageCode: string,
-    value: string,
-  ) => {
-    const normalized = normalizeLanguageCode(languageCode);
-    onChange((prev) => ({
-      ...prev,
-      translations: {
-        ...prev.translations,
-        [field]: {
-          ...prev.translations[field],
-          [normalized]: value,
-        },
-      },
-    }));
-  };
-
   return (
     <div className="space-y-6">
-      <Card padding="lg" className="bg-card">
-        <CardHeader
-          title={t('roles.details.name_translations')}
-          subtitle={t('roles.details.name_translations_subtitle')}
-        />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {languages.map((language) => {
-            const normalized = normalizeLanguageCode(language.code);
-            return (
-              <Input
-                key={`name-${normalized}`}
-                label={`${t('roles.fields.name')} (${language.label})`}
-                value={form.translations.name[normalized] ?? ''}
-                onChange={(event) =>
-                  handleTranslationChange('name', language.code, event.target.value)
-                }
-                placeholder={t('roles.placeholders.name', { language: language.label })}
-                disabled={!editMode}
-              />
-            );
-          })}
-        </div>
-      </Card>
-
-      <Card padding="lg" className="bg-card">
-        <CardHeader
-          title={t('roles.details.description_translations')}
-          subtitle={t('roles.details.description_translations_subtitle')}
-        />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {languages.map((language) => {
-            const normalized = normalizeLanguageCode(language.code);
-            return (
-              <div key={`description-${normalized}`}>
-                <label className="text-sm font-medium text-foreground mb-2 block">
-                  {t('roles.fields.description')} ({language.label})
-                </label>
-                <textarea
-                  value={form.translations.description[normalized] ?? ''}
-                  onChange={(event) =>
-                    handleTranslationChange('description', language.code, event.target.value)
-                  }
-                  placeholder={t('roles.placeholders.description', { language: language.label })}
-                  rows={editMode ? 4 : 3}
-                  className="w-full px-3 py-2 text-sm bg-background text-foreground border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring/20 disabled:bg-muted resize-none"
-                  disabled={!editMode}
-                />
-              </div>
-            );
-          })}
-        </div>
-      </Card>
-
       <Card padding="lg" className="bg-card">
         <CardHeader
           title={t('roles.details.metadata')}
@@ -610,11 +536,6 @@ export function RolesDetails() {
 
   const baselineRef = useRef<RoleForm | null>(null);
   const translationFnRef = useRef(t);
-  const warnedLocalizationIdsRef = useRef<Set<string>>(new Set());
-
-  useEffect(() => {
-    warnedLocalizationIdsRef.current.clear();
-  }, [id]);
 
   useEffect(() => {
     translationFnRef.current = t;
@@ -650,33 +571,16 @@ export function RolesDetails() {
         permissionGroupsService.list({ pageSize: 200, language }),
       ]);
 
-      const nameLocalization = roleResponse.nameLocalizationId
-        ? getLocalization(roleResponse.nameLocalizationId) ?? null
-        : null;
-      const descriptionLocalization = roleResponse.descriptionLocalizationId
-        ? getLocalization(roleResponse.descriptionLocalizationId) ?? null
-        : null;
-
-      if (roleResponse.nameLocalizationId && !nameLocalization && !warnedLocalizationIdsRef.current.has(roleResponse.nameLocalizationId)) {
-        warnedLocalizationIdsRef.current.add(roleResponse.nameLocalizationId);
-        showToast({
-          type: 'warning',
-          message: translationFnRef.current('roles.messages.localization_fetch_failed'),
-        });
-      }
-
-      if (roleResponse.descriptionLocalizationId && !descriptionLocalization && !warnedLocalizationIdsRef.current.has(roleResponse.descriptionLocalizationId)) {
-        warnedLocalizationIdsRef.current.add(roleResponse.descriptionLocalizationId);
-        showToast({
-          type: 'warning',
-          message: translationFnRef.current('roles.messages.localization_fetch_failed'),
-        });
-      }
-
+      // API'den direkt name ve description geliyor, aktif dildeki değerleri kullan
+      const activeLang = normalizeLanguageCode(language);
       const form: RoleForm = {
         translations: {
-          name: buildTranslationState(supportedLanguages, nameLocalization),
-          description: buildTranslationState(supportedLanguages, descriptionLocalization),
+          name: {
+            [activeLang]: roleResponse.name || '',
+          },
+          description: {
+            [activeLang]: roleResponse.description || '',
+          },
         },
         permissions: [...roleResponse.permissions],
       };
@@ -698,12 +602,10 @@ export function RolesDetails() {
       setLoading(false);
     }
   }, [
-    getLocalization,
     id,
     language,
     navigate,
     showToast,
-    supportedLanguages,
   ]);
 
   useEffect(() => {
@@ -751,34 +653,31 @@ export function RolesDetails() {
     const changes: ChangeItem[] = [];
     const normalizedCurrent = normalizeForm(formState);
     const normalizedBaseline = normalizeForm(baselineRef.current);
+    const activeLang = normalizeLanguageCode(language);
+    const activeLangLabel = supportedLanguages.find(l => normalizeLanguageCode(l.code) === activeLang)?.label || activeLang.toUpperCase();
 
-    supportedLanguages.forEach((languageOption) => {
-      const code = normalizeLanguageCode(languageOption.code);
-      const label = `${t('roles.fields.name')} (${languageOption.label})`;
-      const oldValue = normalizedBaseline.translations.name[code] ?? '';
-      const newValue = normalizedCurrent.translations.name[code] ?? '';
-      if (oldValue !== newValue) {
-        changes.push({
-          field: label,
-          oldValue: oldValue || '—',
-          newValue: newValue || '—',
-        });
-      }
-    });
+    // Sadece aktif dildeki değişiklikleri kontrol et
+    const nameLabel = `${t('roles.fields.name')} (${activeLangLabel})`;
+    const oldNameValue = normalizedBaseline.translations.name[activeLang] ?? '';
+    const newNameValue = normalizedCurrent.translations.name[activeLang] ?? '';
+    if (oldNameValue !== newNameValue) {
+      changes.push({
+        field: nameLabel,
+        oldValue: oldNameValue || '—',
+        newValue: newNameValue || '—',
+      });
+    }
 
-    supportedLanguages.forEach((languageOption) => {
-      const code = normalizeLanguageCode(languageOption.code);
-      const label = `${t('roles.fields.description')} (${languageOption.label})`;
-      const oldValue = normalizedBaseline.translations.description[code] ?? '';
-      const newValue = normalizedCurrent.translations.description[code] ?? '';
-      if (oldValue !== newValue) {
-        changes.push({
-          field: label,
-          oldValue: oldValue || '—',
-          newValue: newValue || '—',
-        });
-      }
-    });
+    const descLabel = `${t('roles.fields.description')} (${activeLangLabel})`;
+    const oldDescValue = normalizedBaseline.translations.description[activeLang] ?? '';
+    const newDescValue = normalizedCurrent.translations.description[activeLang] ?? '';
+    if (oldDescValue !== newDescValue) {
+      changes.push({
+        field: descLabel,
+        oldValue: oldDescValue || '—',
+        newValue: newDescValue || '—',
+      });
+    }
 
     if (!permissionsEqual(normalizedCurrent.permissions, normalizedBaseline.permissions)) {
       changes.push({
@@ -813,7 +712,7 @@ export function RolesDetails() {
     }
     try {
       setSaving(true);
-      const payload = buildUpdatePayload(formState, baselineRef.current);
+      const payload = buildUpdatePayloadForLanguage(formState, baselineRef.current, language);
       if (Object.keys(payload).length === 0) {
         showToast({
           type: 'info',
@@ -860,10 +759,6 @@ export function RolesDetails() {
         icon: FileText,
         component: RoleDetailsTab,
         props: {
-          form: formState,
-          editMode: isEditing,
-          onChange: updateFormState,
-          languages: supportedLanguages,
           metadata: {
             id: role.id,
             createdAt: role.createdAt,
@@ -958,6 +853,39 @@ export function RolesDetails() {
     updateFormState,
   ]);
 
+  // Aktif dildeki name ve description değerlerini al
+  const activeLang = normalizeLanguageCode(language);
+  const displayTitle = formState?.translations.name[activeLang] || role?.name?.trim() || t('roles.details.title');
+  const displaySubtitle = formState?.translations.description[activeLang] || role?.description?.trim() || '';
+
+  const handleTitleChange = useCallback((value: string) => {
+    if (!formState) return;
+    updateFormState((prev) => ({
+      ...prev,
+      translations: {
+        ...prev.translations,
+        name: {
+          ...prev.translations.name,
+          [activeLang]: value,
+        },
+      },
+    }));
+  }, [formState, activeLang, updateFormState]);
+
+  const handleSubtitleChange = useCallback((value: string) => {
+    if (!formState) return;
+    updateFormState((prev) => ({
+      ...prev,
+      translations: {
+        ...prev.translations,
+        description: {
+          ...prev.translations.description,
+          [activeLang]: value,
+        },
+      },
+    }));
+  }, [formState, activeLang, updateFormState]);
+
   if (loading || !role || !formState) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -969,18 +897,8 @@ export function RolesDetails() {
   return (
     <>
       <DetailsLayout
-        title={
-          role.name?.trim() ||
-          resolveLocalization(role.nameLocalizationId) ||
-          role.nameLocalizationId ||
-          t('roles.details.title')
-        }
-        subtitle={
-          role.description?.trim() ||
-          resolveLocalization(role.descriptionLocalizationId) ||
-          role.descriptionLocalizationId ||
-          t('roles.details.subtitle')
-        }
+        title={displayTitle}
+        subtitle={displaySubtitle}
         icon={<Shield className="h-6 w-6 text-white" />}
         backUrl="/roles"
         tabs={tabs}
@@ -990,6 +908,10 @@ export function RolesDetails() {
         onSave={canUpdateRole ? handleSave : undefined}
         onCancel={handleCancel}
         inlineActions={false}
+        editableTitle={true}
+        editableSubtitle={true}
+        onTitleChange={handleTitleChange}
+        onSubtitleChange={handleSubtitleChange}
       />
 
       <ChangeConfirmDialog
