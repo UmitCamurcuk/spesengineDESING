@@ -4,7 +4,6 @@ import { Globe, Languages, FileText } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable } from '../../components/ui/DataTable';
 import { Badge } from '../../components/ui/Badge';
-import { Card, CardHeader } from '../../components/ui/Card';
 import { UserInfoWithRole } from '../../components/common/UserInfoWithRole';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useSettings } from '../../contexts/SettingsContext';
@@ -36,16 +35,18 @@ export const LocalizationsList: React.FC = () => {
   const { t } = useLanguage();
   const { settings } = useSettings();
 
-  const [localizations, setLocalizations] = useState<LocalizationRecord[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(10);
   const [search, setSearch] = useState<string>('');
+  const [filters, setFilters] = useState<{ namespace?: string; language?: string }>({});
   const [pagination, setPagination] = useState<ApiPagination>(createEmptyPagination);
+  const [namespaces, setNamespaces] = useState<string[]>([]);
+  const [localizations, setLocalizations] = useState<LocalizationRecord[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchLocalizations = useCallback(
-    async (nextPage: number, nextPageSize: number, nextSearch: string) => {
+    async (nextPage: number, nextPageSize: number, nextSearch: string, nextFilters: { namespace?: string; language?: string }) => {
       setLoading(true);
       setError(null);
       try {
@@ -53,9 +54,18 @@ export const LocalizationsList: React.FC = () => {
           page: nextPage,
           pageSize: nextPageSize,
           search: nextSearch.trim() !== '' ? nextSearch.trim() : undefined,
+          namespace: nextFilters.namespace || undefined,
+          language: nextFilters.language || undefined,
         });
         setLocalizations(response.items);
         setPagination(response.pagination);
+        
+        // Extract unique namespaces from response
+        const uniqueNamespaces = Array.from(new Set(response.items.map(item => item.namespace))).sort();
+        setNamespaces(prev => {
+          const combined = new Set([...prev, ...uniqueNamespaces]);
+          return Array.from(combined).sort();
+        });
       } catch (err) {
         const message = err instanceof Error ? err.message : t('common.error');
         setError(message);
@@ -67,8 +77,8 @@ export const LocalizationsList: React.FC = () => {
   );
 
   useEffect(() => {
-    void fetchLocalizations(page, pageSize, search);
-  }, [fetchLocalizations, page, pageSize, search]);
+    void fetchLocalizations(page, pageSize, search, filters);
+  }, [fetchLocalizations, page, pageSize, search, filters]);
 
   const defaultLanguageCode = useMemo(
     () => normalizeLanguageCode(settings?.localization.defaultLanguage ?? 'en'),
@@ -91,6 +101,18 @@ export const LocalizationsList: React.FC = () => {
     () => settings?.localization.supportedLanguages.filter((lang) => !lang.required) ?? [],
     [settings?.localization.supportedLanguages],
   );
+
+  const fallbackLanguageCode = useMemo(
+    () => normalizeLanguageCode(settings?.localization.fallbackLanguage ?? 'en'),
+    [settings?.localization.fallbackLanguage],
+  );
+
+  const fallbackLanguageLabel = useMemo(() => {
+    const match = settings?.localization.supportedLanguages.find(
+      (lang) => normalizeLanguageCode(lang.code) === fallbackLanguageCode,
+    );
+    return match?.label ?? fallbackLanguageCode.toUpperCase();
+  }, [fallbackLanguageCode, settings?.localization.supportedLanguages]);
 
   const columns = useMemo(() => [
     {
@@ -250,6 +272,43 @@ export const LocalizationsList: React.FC = () => {
     setSearch(value);
   };
 
+  const handleFilterChange = (key: string, value: string) => {
+    setPage(1);
+    setFilters(prev => ({
+      ...prev,
+      [key]: value || undefined,
+    }));
+  };
+
+  const allLanguages = useMemo(() => {
+    if (!settings?.localization.supportedLanguages) return [];
+    return settings.localization.supportedLanguages.map(lang => ({
+      value: normalizeLanguageCode(lang.code),
+      label: `${lang.label} (${lang.code})`,
+    }));
+  }, [settings?.localization.supportedLanguages]);
+
+  const tableFilters = useMemo(() => [
+    {
+      key: 'namespace',
+      label: t('localizations.namespace'),
+      type: 'select' as const,
+      options: [
+        { value: '', label: t('common.all') || 'Tümü' },
+        ...namespaces.map(ns => ({ value: ns, label: ns })),
+      ],
+    },
+    {
+      key: 'language',
+      label: t('localizations.language') || t('settings.localization.language'),
+      type: 'select' as const,
+      options: [
+        { value: '', label: t('common.all') || 'Tümü' },
+        ...allLanguages,
+      ],
+    },
+  ], [namespaces, allLanguages, t]);
+
   const renderLanguageBadges = (languages: typeof requiredLanguages) => {
     if (!languages.length) {
       return <span className="text-xs text-muted-foreground">{t('localizations.settings.none')}</span>;
@@ -270,6 +329,54 @@ export const LocalizationsList: React.FC = () => {
       <PageHeader
         title={t('localizations.title')}
         subtitle={t('localizations.subtitle')}
+        action={
+          settings && (
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-right">
+              <div className="flex items-center justify-end gap-1.5">
+                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                  {t('settings.localization.labels.default')}
+                </span>
+                <Badge variant="success" size="sm" className="text-[10px] px-1.5 py-0.5">
+                  {defaultLanguageLabel} ({defaultLanguageCode})
+                </Badge>
+              </div>
+              <div className="flex items-center justify-end gap-1.5">
+                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                  {t('settings.localization.labels.fallback')}
+                </span>
+                <Badge variant="secondary" size="sm" className="text-[10px] px-1.5 py-0.5">
+                  {fallbackLanguageLabel} ({fallbackLanguageCode})
+                </Badge>
+              </div>
+              <div className="flex items-center justify-end gap-1.5">
+                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                  {t('settings.localization.labels.required_badge')}
+                </span>
+                <div className="flex flex-wrap gap-1">
+                  {requiredLanguages.map((lang) => (
+                    <Badge key={lang.code} variant="secondary" size="sm" className="text-[10px] px-1.5 py-0.5">
+                      {lang.label} ({normalizeLanguageCode(lang.code)})
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+              {optionalLanguages.length > 0 && (
+                <div className="flex items-center justify-end gap-1.5">
+                  <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                    {t('localizations.settings.optional_languages')}
+                  </span>
+                  <div className="flex flex-wrap gap-1">
+                    {optionalLanguages.map((lang) => (
+                      <Badge key={lang.code} variant="secondary" size="sm" className="text-[10px] px-1.5 py-0.5">
+                        {lang.label} ({normalizeLanguageCode(lang.code)})
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        }
       />
 
       <DataTable<LocalizationRecord>
@@ -285,6 +392,9 @@ export const LocalizationsList: React.FC = () => {
         searchPlaceholder={t('localizations.search_placeholder')}
         searchValue={search}
         onSearchChange={handleSearchChange}
+        filters={tableFilters}
+        filterValues={filters}
+        onFilterChange={handleFilterChange}
         onRowClick={(item) => navigate(`/localizations/${item.id}`)}
         emptyState={{
           icon: <FileText className="h-10 w-10 text-muted-foreground" />,
@@ -292,54 +402,6 @@ export const LocalizationsList: React.FC = () => {
           description: t('localizations.create_new_localization'),
         }}
       />
-
-      <Card>
-        <CardHeader
-          title={t('localizations.settings.title')}
-          subtitle={t('localizations.settings.subtitle')}
-          className="border-none mb-2"
-        />
-        {settings ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                {t('settings.localization.labels.default')}
-              </p>
-              <Badge variant="success" size="sm">
-                {defaultLanguageLabel} ({defaultLanguageCode})
-              </Badge>
-            </div>
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                {t('settings.localization.labels.fallback')}
-              </p>
-              <Badge variant="secondary" size="sm">
-                {(() => {
-                  const fallbackCode = normalizeLanguageCode(settings.localization.fallbackLanguage);
-                  const fallbackLabel = settings.localization.supportedLanguages.find(
-                    (lang) => normalizeLanguageCode(lang.code) === fallbackCode,
-                  )?.label ?? fallbackCode.toUpperCase();
-                  return `${fallbackLabel} (${fallbackCode})`;
-                })()}
-              </Badge>
-            </div>
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                {t('settings.localization.labels.required_badge')}
-              </p>
-              {renderLanguageBadges(requiredLanguages)}
-            </div>
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                {t('localizations.settings.optional_languages')}
-              </p>
-              {renderLanguageBadges(optionalLanguages)}
-            </div>
-          </div>
-        ) : (
-          <div className="p-4 text-sm text-muted-foreground">{t('common.loading')}</div>
-        )}
-      </Card>
     </div>
   );
 };

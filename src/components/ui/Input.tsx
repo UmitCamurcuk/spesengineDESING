@@ -23,7 +23,7 @@ export const Input: React.FC<InputProps> = ({
 }) => {
   const inputId = id || `input-${Math.random().toString(36).substr(2, 9)}`;
 
-  const baseClasses = 'w-full px-3 py-2 text-sm bg-background text-foreground border rounded-md transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-0 placeholder:text-muted-foreground';
+  const baseClasses = 'w-full px-2.5 py-1.5 text-xs bg-background text-foreground border rounded-md transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-0 placeholder:text-muted-foreground';
 
   const variantClasses = {
     default: error
@@ -45,8 +45,8 @@ export const Input: React.FC<InputProps> = ({
 
       <div className="relative">
         {leftIcon && (
-          <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
-            <span className="text-muted-foreground text-sm">{leftIcon}</span>
+          <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+            <span className="text-muted-foreground text-xs">{leftIcon}</span>
           </div>
         )}
 
@@ -55,16 +55,16 @@ export const Input: React.FC<InputProps> = ({
           className={cn(
             baseClasses,
             variantClasses[variant],
-            leftIcon && 'pl-9',
-            rightIcon && 'pr-9',
+            leftIcon && 'pl-8',
+            rightIcon && 'pr-8',
             className
           )}
           {...props}
         />
 
         {rightIcon && (
-          <div className="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none">
-            <span className="text-muted-foreground text-sm">{rightIcon}</span>
+          <div className="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none">
+            <span className="text-muted-foreground text-xs">{rightIcon}</span>
           </div>
         )}
       </div>

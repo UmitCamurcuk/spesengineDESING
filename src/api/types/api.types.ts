@@ -364,6 +364,8 @@ export interface LocalizationListParams {
   search?: string;
   namespace?: string;
   language?: string;
+  hasTranslation?: string;
+  missingTranslation?: string;
 }
 
 export interface CreateLocalizationRequest {

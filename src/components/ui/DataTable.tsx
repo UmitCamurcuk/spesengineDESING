@@ -437,18 +437,18 @@ export function DataTable<T extends Record<string, any>>({
                     value={resolvedSearch}
                     onChange={(e) => handleSearchInputChange(e.target.value)}
                     onKeyDown={handleSearchKeyDown}
-                    leftIcon={<Search className="h-4 w-4" />}
-                    className="h-10"
+                    leftIcon={<Search className="h-3.5 w-3.5" />}
+                    className="h-8"
                   />
                   {isServerMode && (
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="h-10"
+                      className="h-8"
                       onClick={triggerServerSearch}
                     >
-                      <Search className="h-4 w-4" />
+                      <Search className="h-3.5 w-3.5" />
                     </Button>
                   )}
                 </div>
@@ -462,7 +462,7 @@ export function DataTable<T extends Record<string, any>>({
                         <select
                           value={resolvedFilters[filter.key] || ''}
                           onChange={(e) => handleFilterChange(filter.key, e.target.value)}
-                          className="px-3 py-2 pr-10 text-sm bg-background text-foreground border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring min-w-[120px] h-10"
+                          className="px-2.5 py-1.5 pr-8 text-xs bg-background text-foreground border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring min-w-[120px] h-8"
                         >
                           <option value="">{filter.label}</option>
                           {filter.options?.map((option) => (
@@ -476,13 +476,13 @@ export function DataTable<T extends Record<string, any>>({
                           placeholder={filter.placeholder || filter.label}
                           value={resolvedFilters[filter.key] || ''}
                           onChange={(e) => handleFilterChange(filter.key, e.target.value)}
-                          className="min-w-[120px]"
+                          className="min-w-[120px] h-8"
                         />
                       )}
                     </div>
                   ))}
-                  <Button variant="outline" size="sm" className="px-3 h-10">
-                    <Filter className="h-4 w-4 mr-2" />
+                  <Button variant="outline" size="sm" className="px-2 h-8">
+                    <Filter className="h-3.5 w-3.5 mr-1.5" />
                     {t('ui.filter')}
                   </Button>
                 </div>
@@ -520,14 +520,14 @@ export function DataTable<T extends Record<string, any>>({
                   onChange={(e) => handleSearchInputChange(e.target.value)}
                   onKeyDown={handleSearchKeyDown}
                   leftIcon={<Search className="h-4 w-4" />}
-                  className="h-10"
+                  className="h-8"
                 />
                 {isServerMode && (
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-10"
+                    className="h-8"
                     onClick={triggerServerSearch}
                   >
                     <Search className="h-4 w-4" />
@@ -544,7 +544,7 @@ export function DataTable<T extends Record<string, any>>({
                       <select
                         value={resolvedFilters[filter.key] || ''}
                         onChange={(e) => handleFilterChange(filter.key, e.target.value)}
-                        className="px-3 py-2 pr-10 text-sm bg-background text-foreground border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring min-w-[120px] h-10"
+                        className="px-2.5 py-1.5 pr-8 text-xs bg-background text-foreground border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring min-w-[120px] h-8"
                       >
                         <option value="">{filter.label}</option>
                         {filter.options?.map((option) => (
@@ -563,8 +563,8 @@ export function DataTable<T extends Record<string, any>>({
                     )}
                   </div>
                 ))}
-                <Button variant="outline" size="sm" className="px-3 h-10">
-                  <Filter className="h-4 w-4 mr-2" />
+                <Button variant="outline" size="sm" className="px-2 h-8">
+                  <Filter className="h-3.5 w-3.5 mr-1.5" />
                   {t('ui.filter')}
                 </Button>
               </div>

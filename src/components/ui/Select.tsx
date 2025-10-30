@@ -22,7 +22,7 @@ export const Select: React.FC<SelectProps> = ({
 }) => {
   const selectId = id || `select-${Math.random().toString(36).substr(2, 9)}`;
   
-  const baseClasses = 'w-full px-3 py-2 border rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 bg-background text-foreground appearance-none cursor-pointer';
+  const baseClasses = 'w-full px-2.5 py-1.5 border rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 bg-background text-foreground appearance-none cursor-pointer text-xs';
   
   const variantClasses = error 
     ? 'border-error focus:border-error focus:ring-error/20' 
@@ -55,8 +55,8 @@ export const Select: React.FC<SelectProps> = ({
           ))}
         </select>
         
-        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+        <div className="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none">
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
         </div>
       </div>
       
