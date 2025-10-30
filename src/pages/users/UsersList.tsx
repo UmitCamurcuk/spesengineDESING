@@ -79,6 +79,7 @@ export const UsersList: React.FC = () => {
     }
   }, [language]);
 
+
   const loadRoles = useCallback(async () => {
     try {
       const result = await rolesService.list({ language });
@@ -89,8 +90,9 @@ export const UsersList: React.FC = () => {
   }, [language]);
 
   useEffect(() => {
-    void loadUsers(page, pageSize, search, filters);
-    void loadRoles();
+    (async () => {
+      await Promise.all([loadUsers(page, pageSize, search, filters), loadRoles()]);
+    })();
   }, [loadUsers, loadRoles, page, pageSize, search, filters]);
 
   const columns = [
@@ -223,8 +225,8 @@ export const UsersList: React.FC = () => {
       key: 'updatedAt',
       title: t('users.list.column_updated'),
       sortable: true,
-      render: (value: string | null | undefined) => (
-        <UserInfoWithRole user={undefined} date={value ?? ''} />
+      render: (value: string | null | undefined, user: UserSummary) => (
+        <UserInfoWithRole user={(user as any).updatedBy} date={value ?? ''} />
       ),
     },
   ];

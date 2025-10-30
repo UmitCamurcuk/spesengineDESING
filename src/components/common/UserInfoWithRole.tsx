@@ -8,7 +8,7 @@ interface UserInfoWithRoleProps {
     email: string;
     name: string;
     profilePhotoUrl?: string;
-    role?: string;
+    role?: string | { name?: string; id?: string; isSystemRole?: boolean };
   };
   date: string;
   fallbackName?: string;
@@ -25,7 +25,7 @@ export const UserInfoWithRole: React.FC<UserInfoWithRoleProps> = ({
 
   const displayName = user?.name || fallbackName;
   const displayEmail = user?.email || fallbackEmail;
-  const displayRole = user?.role || "—";
+  const displayRole = typeof user?.role === 'string' ? user.role : (user?.role?.name || '—');
 
   return (
     <div className="flex items-start space-x-2 text-left">
