@@ -4,12 +4,13 @@ import {
   FolderTree,
   FileText,
   Layers,
-  Bell,
-  BarChart3,
   Code,
   BookOpen,
   History as HistoryIcon,
   Loader2,
+  Search,
+  Shield,
+  Plus,
 } from 'lucide-react';
 import { DetailsLayout } from '../../components/common/DetailsLayout';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -31,8 +32,10 @@ import { Card, CardHeader } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
 import { Select } from '../../components/ui/Select';
-import { NotificationSettings } from '../../components/common/NotificationSettings';
-import { Statistics } from '../../components/common/Statistics';
+import { Checkbox } from '../../components/ui/Checkbox';
+import { Button } from '../../components/ui/Button';
+import { Modal } from '../../components/ui/Modal';
+import { DataTable } from '../../components/ui/DataTable';
 import { APITester } from '../../components/common/APITester';
 import { Documentation } from '../../components/common/Documentation';
 import { HistoryTable } from '../../components/common/HistoryTable';
@@ -284,6 +287,237 @@ interface GroupPermissionsTabProps {
   currentGroupId: string;
 }
 
+interface AddPermissionsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  permissions: PermissionRecord[];
+  assignedIds: string[];
+  onSelect: (permissionIds: string[]) => void;
+}
+
+const AddPermissionsModal: React.FC<AddPermissionsModalProps> = ({
+  isOpen,
+  onClose,
+  permissions,
+  assignedIds,
+  onSelect,
+}) => {
+  const { t, resolveLocalization } = useLanguage();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
+  const [namespaceFilter, setNamespaceFilter] = useState('');
+
+  const assignedSet = useMemo(() => new Set(assignedIds), [assignedIds]);
+
+  // Filter out already assigned permissions
+  const availablePermissions = useMemo(() => {
+    return permissions.filter((perm) => !assignedSet.has(perm.id));
+  }, [permissions, assignedSet]);
+
+  // Filter and search
+  const filteredPermissions = useMemo(() => {
+    let filtered = availablePermissions;
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter((perm) => {
+        const code = perm.code?.toLowerCase() || '';
+        const name = perm.name?.toLowerCase() || '';
+        const localizationName = resolveLocalization(perm.nameLocalizationId)?.toLowerCase() || '';
+        return code.includes(query) || name.includes(query) || localizationName.includes(query);
+      });
+    }
+
+    if (namespaceFilter) {
+      filtered = filtered.filter((perm) => {
+        const parts = perm.code?.split('.') || [];
+        return parts[0]?.toLowerCase() === namespaceFilter.toLowerCase();
+      });
+    }
+
+    return filtered.sort((a, b) => a.code.localeCompare(b.code));
+  }, [availablePermissions, searchQuery, namespaceFilter, resolveLocalization]);
+
+  // Extract unique namespaces
+  const namespaces = useMemo(() => {
+    const nsSet = new Set<string>();
+    availablePermissions.forEach((perm) => {
+      const parts = perm.code?.split('.') || [];
+      if (parts[0]) {
+        nsSet.add(parts[0]);
+      }
+    });
+    return Array.from(nsSet).sort();
+  }, [availablePermissions]);
+
+  const handleToggleSelection = (permissionId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(permissionId)) {
+        next.delete(permissionId);
+      } else {
+        next.add(permissionId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedIds.size === filteredPermissions.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredPermissions.map((p) => p.id)));
+    }
+  };
+
+  const handleAdd = () => {
+    if (selectedIds.size > 0) {
+      onSelect(Array.from(selectedIds));
+      setSelectedIds(new Set());
+      setSearchQuery('');
+      setNamespaceFilter('');
+      onClose();
+    }
+  };
+
+  const columns = useMemo(() => [
+    {
+      key: 'select',
+      title: '',
+      width: '50px',
+      align: 'center' as const,
+      render: (_: any, permission: PermissionRecord) => (
+        <Checkbox
+          checked={selectedIds.has(permission.id)}
+          onChange={() => handleToggleSelection(permission.id)}
+          size="sm"
+        />
+      ),
+    },
+    {
+      key: 'code',
+      title: t('permissions.fields.code') || 'Kod',
+      sortable: true,
+      render: (_: any, permission: PermissionRecord) => (
+        <code className="text-xs font-mono text-foreground">{permission.code}</code>
+      ),
+    },
+    {
+      key: 'name',
+      title: t('permissions.fields.name') || 'İsim',
+      sortable: true,
+      render: (_: any, permission: PermissionRecord) => (
+        <span className="text-xs text-foreground">
+          {permission.name?.trim() ||
+            resolveLocalization(permission.nameLocalizationId) ||
+            permission.nameLocalizationId ||
+            '—'}
+        </span>
+      ),
+    },
+  ], [selectedIds, t, resolveLocalization]);
+
+  // Reset selection when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setSelectedIds(new Set());
+      setSearchQuery('');
+      setNamespaceFilter('');
+    }
+  }, [isOpen]);
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={t('permissionGroups.permissions.add_permissions') || 'İzin Ekle'}
+      size="xl"
+      className="max-h-[90vh]"
+    >
+      <div className="flex flex-col max-h-[calc(90vh-120px)]">
+        <div className="space-y-4 overflow-y-auto flex-1 min-h-0 pr-2">
+          {/* Filters */}
+          <div className="flex flex-col md:flex-row gap-3">
+            <div className="flex-1">
+              <Input
+                placeholder={t('permissionGroups.permissions.search_placeholder') || 'İzin ara...'}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                leftIcon={<Search className="h-3.5 w-3.5" />}
+                className="h-8"
+              />
+            </div>
+            {namespaces.length > 0 && (
+              <div className="min-w-[180px]">
+                <Select
+                  value={namespaceFilter}
+                  onChange={(e) => setNamespaceFilter(e.target.value)}
+                  options={[
+                    { value: '', label: t('permissionGroups.permissions.all_namespaces') || 'Tüm namespace\'ler' },
+                    ...namespaces.map((ns) => ({ value: ns, label: ns })),
+                  ]}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Selection info */}
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>
+              {t('permissionGroups.permissions.available') || 'Mevcut'}: {filteredPermissions.length}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleSelectAll}
+                className="text-primary hover:text-primary-hover font-medium"
+              >
+                {selectedIds.size === filteredPermissions.length && filteredPermissions.length > 0
+                  ? t('common.deselect_all') || 'Tümünü Seçimi Kaldır'
+                  : t('common.select_all') || 'Tümünü Seç'}
+              </button>
+              <span className="text-foreground">
+                {t('permissionGroups.permissions.selected') || 'Seçilen'}: {selectedIds.size}
+              </span>
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="border border-border rounded-lg overflow-hidden">
+            <DataTable
+              data={filteredPermissions}
+              columns={columns}
+              searchable={false}
+              showPagination={false}
+              pageSize={10}
+              emptyState={{
+                icon: <Shield className="h-8 w-8" />,
+                title: t('permissionGroups.permissions.no_available_permissions') || 'Eklenebilecek izin bulunamadı',
+                description: t('permissionGroups.permissions.all_permissions_assigned') || 'Tüm izinler bu gruba zaten atanmış',
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-3 pt-4 border-t border-border mt-4 flex-shrink-0">
+          <Button variant="outline" size="sm" onClick={onClose}>
+            {t('common.cancel') || 'İptal'}
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleAdd}
+            disabled={selectedIds.size === 0}
+            leftIcon={<Plus className="h-3.5 w-3.5" />}
+          >
+            {t('permissionGroups.permissions.add_selected') || 'Seçilenleri Ekle'} ({selectedIds.size})
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
 const GroupPermissionsTab: React.FC<GroupPermissionsTabProps> = ({
   editMode,
   permissions,
@@ -295,103 +529,270 @@ const GroupPermissionsTab: React.FC<GroupPermissionsTabProps> = ({
   groups,
   currentGroupId,
 }) => {
-  const { t } = useLanguage();
+  const { t, resolveLocalization } = useLanguage();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showOnlyAssigned, setShowOnlyAssigned] = useState(!editMode); // Varsayılan: edit mode'da tüm izinleri göster
+  const [addModalOpen, setAddModalOpen] = useState(false);
+
   const assignedSet = useMemo(() => new Set(assignedIds), [assignedIds]);
   const otherGroups = useMemo(
     () => groups.filter((group) => group.id !== currentGroupId),
     [groups, currentGroupId],
   );
 
-  const permissionsSorted = useMemo(
-    () => permissions.slice().sort((a, b) => a.code.localeCompare(b.code)),
-    [permissions],
+  // Update showOnlyAssigned when editMode changes
+  useEffect(() => {
+    if (!editMode) {
+      setShowOnlyAssigned(true); // View mode: only show assigned
+    }
+  }, [editMode]);
+
+  // Filter permissions: show only assigned ones or all based on toggle
+  const filteredPermissions = useMemo(() => {
+    let filtered = permissions;
+    
+    if (showOnlyAssigned) {
+      filtered = filtered.filter((perm) => assignedSet.has(perm.id));
+    }
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter((perm) => {
+        const code = perm.code?.toLowerCase() || '';
+        const name = perm.name?.toLowerCase() || '';
+        const localizationName = resolveLocalization(perm.nameLocalizationId)?.toLowerCase() || '';
+        return code.includes(query) || name.includes(query) || localizationName.includes(query);
+      });
+    }
+
+    return filtered.sort((a, b) => a.code.localeCompare(b.code));
+  }, [permissions, assignedSet, showOnlyAssigned, searchQuery, resolveLocalization]);
+
+  const assignedPermissionsList = useMemo(
+    () => filteredPermissions.filter((perm) => assignedSet.has(perm.id)),
+    [filteredPermissions, assignedSet],
   );
 
-  if (permissionsSorted.length === 0) {
-    return (
-      <div className="p-6 text-sm text-muted-foreground">
-        {t('permissionGroups.permissions.empty_state')}
-      </div>
-    );
-  }
+  const unassignedPermissionsList = useMemo(
+    () => filteredPermissions.filter((perm) => !assignedSet.has(perm.id)),
+    [filteredPermissions, assignedSet],
+  );
+
+  const handleAddPermissions = (permissionIds: string[]) => {
+    permissionIds.forEach((permissionId) => {
+      const permission = permissions.find((p) => p.id === permissionId);
+      if (permission) {
+        onToggle(permission, true);
+      }
+    });
+  };
 
   return (
-    <div className="space-y-4">
-      {permissionsSorted.map((permission) => {
-        const enabled = assignedSet.has(permission.id);
-        const wasInitiallyAssigned = baselineAssigned.has(permission.id);
-        const reassignmentTarget = reassignmentTargets[permission.id] ?? '';
-
-        return (
-          <div
-            key={permission.id}
-            className={`border rounded-lg p-4 space-y-3 ${
-              enabled ? 'border-primary/40 bg-primary/5' : 'border-border'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-foreground">{permission.code}</span>
-                <span className="text-xs text-muted-foreground">
-                  {permission.name?.trim() ||
-                    resolveLocalization(permission.nameLocalizationId) ||
-                    permission.nameLocalizationId ||
-                    '—'}
-                </span>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="sr-only peer"
-                  checked={enabled}
-                  onChange={(event) => onToggle(permission, event.target.checked)}
-                  disabled={!editMode}
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/30 rounded-full peer peer-checked:bg-primary transition-colors peer-disabled:opacity-60" />
-                <div className="absolute left-0 top-0 ml-0.5 mt-0.5 h-5 w-5 bg-white rounded-full border border-border shadow-sm transition-transform duration-200 peer-checked:translate-x-full peer-checked:border-transparent" />
-              </label>
-            </div>
-
-            {!enabled && wasInitiallyAssigned && editMode && otherGroups.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <Select
-                  label={t('permissionGroups.permissions.reassign_to')}
-                  value={reassignmentTarget}
-                  onChange={(event) => onReassign(permission.id, event.target.value)}
-                  options={otherGroups.map((group) => ({
-                    value: group.id,
-                    label:
-                      group.name?.trim() ||
-                      resolveLocalization(group.nameLocalizationId) ||
-                      group.nameLocalizationId ||
-                      group.id,
-                  }))}
-                />
-                <Badge variant="secondary" className="self-center">
-                  {t('permissionGroups.permissions.will_be_moved')}
-                </Badge>
-              </div>
-            )}
-
-            {!enabled && wasInitiallyAssigned && editMode && otherGroups.length === 0 && (
-              <p className="text-xs text-error">
-                {t('permissionGroups.permissions.no_other_groups')}
-              </p>
-            )}
+    <div className="space-y-6">
+      {/* Search and Filters */}
+      <Card padding="lg">
+        <div className="flex flex-col md:flex-row gap-3">
+          <div className="flex-1">
+            <Input
+              placeholder={t('permissionGroups.permissions.search_placeholder') || 'İzin ara...'}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              leftIcon={<Search className="h-3.5 w-3.5" />}
+              className="h-8"
+            />
           </div>
-        );
-      })}
+          {editMode && (
+            <>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={showOnlyAssigned}
+                  onChange={(e) => setShowOnlyAssigned(e.target.checked)}
+                  label={t('permissionGroups.permissions.show_only_assigned') || 'Sadece atananları göster'}
+                  size="sm"
+                />
+              </div>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => setAddModalOpen(true)}
+                leftIcon={<Plus className="h-3.5 w-3.5" />}
+              >
+                {t('permissionGroups.permissions.add') || 'Ekle'}
+              </Button>
+            </>
+          )}
+        </div>
+        <div className="mt-4 flex items-center gap-4 text-xs text-muted-foreground">
+          <span>
+            {t('permissionGroups.permissions.total') || 'Toplam'}: {filteredPermissions.length}
+          </span>
+          <span>
+            {t('permissionGroups.permissions.assigned') || 'Atanmış'}: {assignedPermissionsList.length}
+          </span>
+          {editMode && (
+            <span>
+              {t('permissionGroups.permissions.available') || 'Mevcut'}: {unassignedPermissionsList.length}
+            </span>
+          )}
+        </div>
+      </Card>
+
+      {/* Assigned Permissions */}
+      {assignedPermissionsList.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Shield className="h-4 w-4 text-primary" />
+            <h3 className="text-sm font-semibold text-foreground">
+              {t('permissionGroups.permissions.assigned_permissions') || 'Atanmış İzinler'}
+            </h3>
+            <Badge variant="success" size="sm">{assignedPermissionsList.length}</Badge>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {assignedPermissionsList.map((permission) => {
+              const wasInitiallyAssigned = baselineAssigned.has(permission.id);
+              const reassignmentTarget = reassignmentTargets[permission.id] ?? '';
+              const isRemoved = wasInitiallyAssigned && !assignedSet.has(permission.id);
+
+              return (
+                <Card
+                  key={permission.id}
+                  padding="md"
+                  className={`transition-all ${
+                    isRemoved && editMode
+                      ? 'border-error/50 bg-error/5'
+                      : 'border-primary/30 bg-primary/5 hover:border-primary/50'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Checkbox
+                          checked={assignedSet.has(permission.id)}
+                          onChange={(e) => onToggle(permission, e.target.checked)}
+                          disabled={!editMode}
+                          size="sm"
+                        />
+                        <code className="text-xs font-mono text-foreground font-semibold truncate">
+                          {permission.code}
+                        </code>
+                      </div>
+                      <p className="text-xs text-muted-foreground line-clamp-2">
+                        {permission.name?.trim() ||
+                          resolveLocalization(permission.nameLocalizationId) ||
+                          permission.nameLocalizationId ||
+                          '—'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {!assignedSet.has(permission.id) && wasInitiallyAssigned && editMode && otherGroups.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-border">
+                      <Select
+                        label={t('permissionGroups.permissions.reassign_to') || 'Yeniden ata'}
+                        value={reassignmentTarget}
+                        onChange={(event) => onReassign(permission.id, event.target.value)}
+                        options={[
+                          { value: '', label: t('permissionGroups.permissions.select_group') || 'Grup seç...' },
+                          ...otherGroups.map((group) => ({
+                            value: group.id,
+                            label:
+                              group.name?.trim() ||
+                              resolveLocalization(group.nameLocalizationId) ||
+                              group.nameLocalizationId ||
+                              group.id,
+                          })),
+                        ]}
+                      />
+                    </div>
+                  )}
+
+                  {!assignedSet.has(permission.id) && wasInitiallyAssigned && editMode && otherGroups.length === 0 && (
+                    <div className="mt-3 pt-3 border-t border-border">
+                      <p className="text-xs text-error">
+                        {t('permissionGroups.permissions.no_other_groups') || 'Başka grup bulunamadı'}
+                      </p>
+                    </div>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Available Permissions (when adding) */}
+      {editMode && !showOnlyAssigned && unassignedPermissionsList.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Plus className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold text-foreground">
+              {t('permissionGroups.permissions.available_permissions') || 'Mevcut İzinler'}
+            </h3>
+            <Badge variant="secondary" size="sm">{unassignedPermissionsList.length}</Badge>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {unassignedPermissionsList.map((permission) => (
+              <Card
+                key={permission.id}
+                padding="md"
+                className="border-border hover:border-primary/30 transition-all"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Checkbox
+                        checked={assignedSet.has(permission.id)}
+                        onChange={(e) => onToggle(permission, e.target.checked)}
+                        disabled={!editMode}
+                        size="sm"
+                      />
+                      <code className="text-xs font-mono text-foreground font-semibold truncate">
+                        {permission.code}
+                      </code>
+                    </div>
+                    <p className="text-xs text-muted-foreground line-clamp-2">
+                      {permission.name?.trim() ||
+                        resolveLocalization(permission.nameLocalizationId) ||
+                        permission.nameLocalizationId ||
+                        '—'}
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {filteredPermissions.length === 0 && (
+        <Card padding="lg">
+          <div className="text-center py-8">
+            <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-sm font-semibold text-foreground mb-2">
+              {t('permissionGroups.permissions.no_results') || 'Sonuç bulunamadı'}
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              {searchQuery
+                ? t('permissionGroups.permissions.no_results_description') || 'Arama kriterlerinize uygun izin bulunamadı'
+                : t('permissionGroups.permissions.empty_state') || 'Henüz izin bulunmuyor'}
+            </p>
+          </div>
+        </Card>
+      )}
+
+      {/* Add Permissions Modal */}
+      <AddPermissionsModal
+        isOpen={addModalOpen}
+        onClose={() => setAddModalOpen(false)}
+        permissions={permissions}
+        assignedIds={assignedIds}
+        onSelect={handleAddPermissions}
+      />
     </div>
   );
 };
 
-const NotificationsTab: React.FC<{ entityId: string; editMode: boolean }> = ({ entityId, editMode }) => (
-  <NotificationSettings entityType="permission-group" entityId={entityId} editMode={editMode} />
-);
-
-const StatisticsTab: React.FC<{ entityId: string; editMode: boolean }> = ({ entityId, editMode }) => (
-  <Statistics entityType="permission-group" entityId={entityId} editMode={editMode} />
-);
 
 const ApiTab: React.FC<{ entityId: string; editMode: boolean }> = ({ entityId, editMode }) => (
   <APITester entityType="permission-group" entityId={entityId} editMode={editMode} />
@@ -860,28 +1261,7 @@ export function PermissionGroupsDetails() {
           currentGroupId: group.id,
         },
         hidden: !canReadPermissions,
-      },
-      {
-        id: 'notifications',
-        label: t('details.tabs.notifications'),
-        icon: Bell,
-        component: NotificationsTab,
-        props: {
-          entityId: group.id,
-          editMode: isEditing,
-        },
-        hidden: !canReadGroup,
-      },
-      {
-        id: 'statistics',
-        label: t('details.tabs.statistics'),
-        icon: BarChart3,
-        component: StatisticsTab,
-        props: {
-          entityId: group.id,
-          editMode: isEditing,
-        },
-        hidden: !canReadGroup,
+        badge: assignedPermissions.length.toString(),
       },
       {
         id: 'api',

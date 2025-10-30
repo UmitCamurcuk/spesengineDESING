@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Search, Filter, User, Calendar } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Search, User, Calendar } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { Button } from './Button';
 import { Input } from './Input';
@@ -427,69 +427,60 @@ export function DataTable<T extends Record<string, any>>({
   if (!displayData.length) {
     return (
       <div className={cn('bg-card rounded-lg border border-border overflow-hidden', className)}>
-        {(searchable || filters.length > 0) && (
-          <div className="p-3.5 border-b border-border space-y-3 flex-shrink-0">
-            <div className="flex flex-col sm:flex-row gap-3">
-              {searchable && (
-                <div className={cn('flex-1', isServerMode && 'flex items-center gap-2')}>
-                  <Input
-                    placeholder={searchPlaceholder}
-                    value={resolvedSearch}
-                    onChange={(e) => handleSearchInputChange(e.target.value)}
-                    onKeyDown={handleSearchKeyDown}
-                    leftIcon={<Search className="h-3.5 w-3.5" />}
-                    className="h-8"
-                  />
-                  {isServerMode && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-8"
-                      onClick={triggerServerSearch}
-                    >
-                      <Search className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                </div>
-              )}
+      {(searchable || filters.length > 0) && (
+        <div className="p-3 md:p-4 border-b border-border flex-shrink-0">
+          <div className="flex flex-col gap-2.5 md:flex-row md:items-center md:gap-3">
+            {/* Search Input */}
+            {searchable && (
+              <div className="flex-1 min-w-0">
+                <Input
+                  placeholder={searchPlaceholder}
+                  value={resolvedSearch}
+                  onChange={(e) => handleSearchInputChange(e.target.value)}
+                  onKeyDown={handleSearchKeyDown}
+                  leftIcon={<Search className="h-3.5 w-3.5" />}
+                  className="h-8 w-full"
+                />
+              </div>
+            )}
 
-              {filters.length > 0 && (
-                <div className="flex flex-wrap gap-3">
-                  {filters.map((filter) => (
-                    <div key={filter.key} className="flex-shrink-0">
-                      {filter.type === 'select' ? (
-                        <select
-                          value={resolvedFilters[filter.key] || ''}
-                          onChange={(e) => handleFilterChange(filter.key, e.target.value)}
-                          className="px-2.5 py-1.5 pr-8 text-xs bg-background text-foreground border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring min-w-[120px] h-8"
-                        >
-                          <option value="">{filter.label}</option>
-                          {filter.options?.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <Input
-                          placeholder={filter.placeholder || filter.label}
-                          value={resolvedFilters[filter.key] || ''}
-                          onChange={(e) => handleFilterChange(filter.key, e.target.value)}
-                          className="min-w-[120px] h-8"
-                        />
-                      )}
-                    </div>
-                  ))}
-                  <Button variant="outline" size="sm" className="px-2 h-8">
-                    <Filter className="h-3.5 w-3.5 mr-1.5" />
-                    {t('ui.filter')}
-                  </Button>
-                </div>
-              )}
-            </div>
+            {/* Filters */}
+            {filters.length > 0 && (
+              <div className={cn(
+                'flex flex-wrap gap-2',
+                searchable && 'md:flex-nowrap md:flex-shrink-0',
+                !searchable && 'w-full'
+              )}>
+                {filters.map((filter) => (
+                  <div key={filter.key} className="flex-shrink-0 min-w-0">
+                    {filter.type === 'select' ? (
+                      <select
+                        value={resolvedFilters[filter.key] || ''}
+                        onChange={(e) => handleFilterChange(filter.key, e.target.value)}
+                        className="w-full px-2.5 py-1.5 pr-8 text-xs bg-background text-foreground border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring min-w-[100px] md:min-w-[120px] h-8"
+                      >
+                        <option value="">{filter.label}</option>
+                        {filter.options?.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <Input
+                        placeholder={filter.placeholder || filter.label}
+                        value={resolvedFilters[filter.key] || ''}
+                        onChange={(e) => handleFilterChange(filter.key, e.target.value)}
+                        className="w-full min-w-[100px] md:min-w-[120px] h-8"
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+        </div>
+      )}
 
         <div className="p-10 text-center space-y-3">
           {emptyState?.icon && (
@@ -510,41 +501,36 @@ export function DataTable<T extends Record<string, any>>({
   return (
     <div className={cn('bg-card rounded-lg border border-border overflow-hidden flex flex-col h-full', className)}>
       {(searchable || filters.length > 0) && (
-        <div className="p-3.5 border-b border-border space-y-3 flex-shrink-0">
-          <div className="flex flex-col sm:flex-row gap-3">
+        <div className="p-3 md:p-4 border-b border-border flex-shrink-0">
+          <div className="flex flex-col gap-2.5 md:flex-row md:items-center md:gap-3">
+            {/* Search Input */}
             {searchable && (
-              <div className={cn('flex-1', isServerMode && 'flex items-center gap-2')}>
+              <div className="flex-1 min-w-0">
                 <Input
                   placeholder={searchPlaceholder}
                   value={resolvedSearch}
                   onChange={(e) => handleSearchInputChange(e.target.value)}
                   onKeyDown={handleSearchKeyDown}
-                  leftIcon={<Search className="h-4 w-4" />}
-                  className="h-8"
+                  leftIcon={<Search className="h-3.5 w-3.5" />}
+                  className="h-8 w-full"
                 />
-                {isServerMode && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8"
-                    onClick={triggerServerSearch}
-                  >
-                    <Search className="h-4 w-4" />
-                  </Button>
-                )}
               </div>
             )}
 
+            {/* Filters */}
             {filters.length > 0 && (
-              <div className="flex flex-wrap gap-3">
+              <div className={cn(
+                'flex flex-wrap gap-2',
+                searchable && 'md:flex-nowrap md:flex-shrink-0',
+                !searchable && 'w-full'
+              )}>
                 {filters.map((filter) => (
-                  <div key={filter.key} className="flex-shrink-0">
+                  <div key={filter.key} className="flex-shrink-0 min-w-0">
                     {filter.type === 'select' ? (
                       <select
                         value={resolvedFilters[filter.key] || ''}
                         onChange={(e) => handleFilterChange(filter.key, e.target.value)}
-                        className="px-2.5 py-1.5 pr-8 text-xs bg-background text-foreground border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring min-w-[120px] h-8"
+                        className="w-full px-2.5 py-1.5 pr-8 text-xs bg-background text-foreground border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring min-w-[100px] md:min-w-[120px] h-8"
                       >
                         <option value="">{filter.label}</option>
                         {filter.options?.map((option) => (
@@ -558,15 +544,11 @@ export function DataTable<T extends Record<string, any>>({
                         placeholder={filter.placeholder || filter.label}
                         value={resolvedFilters[filter.key] || ''}
                         onChange={(e) => handleFilterChange(filter.key, e.target.value)}
-                        className="min-w-[120px]"
+                        className="w-full min-w-[100px] md:min-w-[120px] h-8"
                       />
                     )}
                   </div>
                 ))}
-                <Button variant="outline" size="sm" className="px-2 h-8">
-                  <Filter className="h-3.5 w-3.5 mr-1.5" />
-                  {t('ui.filter')}
-                </Button>
               </div>
             )}
           </div>
