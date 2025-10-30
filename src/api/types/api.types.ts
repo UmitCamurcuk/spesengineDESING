@@ -391,6 +391,8 @@ export interface LoginRequest {
 export interface LoginResponseData {
   accessToken: string;
   refreshToken: string;
+  user: AuthUser;
+  session: TokenInfo;
 }
 
 export type LoginResponse = ApiSuccessResponse<LoginResponseData>;
@@ -402,6 +404,8 @@ export interface RefreshTokenRequest {
 export interface RefreshTokenResponseData {
   accessToken: string;
   refreshToken: string;
+  user: AuthUser;
+  session: TokenInfo;
 }
 
 export type RefreshTokenResponse = ApiSuccessResponse<RefreshTokenResponseData>;

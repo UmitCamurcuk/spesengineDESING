@@ -4,6 +4,7 @@ import {
   ApiError,
   ApiResponse,
   LoginResponseData,
+  RefreshTokenResponseData,
 } from '../types/api.types';
 
 interface ExtendedAxiosRequestConfig extends AxiosRequestConfig {
@@ -15,6 +16,7 @@ interface ExtendedAxiosRequestConfig extends AxiosRequestConfig {
 
 const AUTH_TOKEN_KEY = import.meta.env.VITE_AUTH_TOKEN_KEY || 'spes_auth_token';
 const AUTH_REFRESH_TOKEN_KEY = import.meta.env.VITE_AUTH_REFRESH_TOKEN_KEY || 'spes_refresh_token';
+const AUTH_PROFILE_KEY = import.meta.env.VITE_AUTH_PROFILE_KEY || 'spes_auth_profile';
 
 // Create axios instance with default configuration
 export const apiClient: AxiosInstance = axios.create({
@@ -65,6 +67,8 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config as ExtendedAxiosRequestConfig | undefined;
     const status = error.response?.status;
+    const tokenOutdated =
+      (error.response?.headers?.['x-token-outdated'] ?? error.response?.headers?.['X-Token-Outdated']) === 'true';
 
     const responseData = error.response?.data as ApiResponse | undefined;
 
@@ -91,7 +95,7 @@ apiClient.interceptors.response.use(
     const shouldSkipRefresh = authEndpoints.some((endpoint) => requestUrl.includes(endpoint));
 
     // Handle 401 Unauthorized - Try to refresh token when applicable
-    if (status === 401 && originalRequest && !originalRequest._retry && !shouldSkipRefresh) {
+    if ((status === 401 || tokenOutdated) && originalRequest && !originalRequest._retry && !shouldSkipRefresh) {
       originalRequest._retry = true;
 
       try {
@@ -104,18 +108,42 @@ apiClient.interceptors.response.use(
         const baseURL = apiClient.defaults.baseURL?.replace(/\/$/, '') || '';
         const refreshUrl = `${baseURL}${API_ENDPOINTS.AUTH.REFRESH}`;
 
-        const response = await axios.post<ApiResponse<LoginResponseData>>(
+        const response = await axios.post<ApiResponse<RefreshTokenResponseData>>(
           refreshUrl,
           { refreshToken },
           { headers: { 'Content-Type': 'application/json' } }
         );
 
         if (response.data?.ok) {
-          const { accessToken, refreshToken: newRefreshToken } = response.data.data;
+          const { accessToken, refreshToken: newRefreshToken, user, session } = response.data.data;
 
           // Update tokens in localStorage
           localStorage.setItem(AUTH_TOKEN_KEY, accessToken);
           localStorage.setItem(AUTH_REFRESH_TOKEN_KEY, newRefreshToken);
+
+          if (user) {
+            try {
+              localStorage.setItem(
+                AUTH_PROFILE_KEY,
+                JSON.stringify({ user, session })
+              );
+            } catch (storageError) {
+              console.warn('Failed to persist refreshed profile:', storageError);
+            }
+
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(
+                new CustomEvent('auth:profile-updated', {
+                  detail: {
+                    user,
+                    session,
+                    accessToken,
+                    refreshToken: newRefreshToken,
+                  },
+                })
+              );
+            }
+          }
 
           // Retry original request with new token
           originalRequest.headers = originalRequest.headers || {};

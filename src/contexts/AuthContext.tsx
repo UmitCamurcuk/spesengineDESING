@@ -12,7 +12,7 @@ import { ApiError, AuthUser, LoginRequest, TokenInfo } from '../api/types/api.ty
 import { env } from '../config/env';
 import { logger } from '../utils/logger';
 import { useAppDispatch, useReduxSelector } from '../redux/hooks';
-import { loginThunk, logoutThunk, resetAuthState, setUser } from '../redux/slices/authSlice';
+import { loginThunk, logoutThunk, resetAuthState, setTokens, setUser } from '../redux/slices/authSlice';
 
 // Auth context types
 interface AuthContextType {
@@ -120,17 +120,49 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, [authError]);
 
+  useEffect(() => {
+    const handleProfileUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        user: AuthUser | null;
+        session?: TokenInfo | null;
+        accessToken?: string | null;
+        refreshToken?: string | null;
+      }>;
+      if (customEvent.detail) {
+        if (customEvent.detail.accessToken) {
+          dispatch(
+            setTokens({
+              accessToken: customEvent.detail.accessToken,
+              refreshToken: customEvent.detail.refreshToken ?? undefined,
+            }),
+          );
+        }
+        dispatch(
+          setUser({
+            user: customEvent.detail.user ?? null,
+            session: customEvent.detail.session ?? null,
+          }),
+        );
+      }
+    };
+
+    window.addEventListener('auth:profile-updated', handleProfileUpdated as EventListener);
+    return () => {
+      window.removeEventListener('auth:profile-updated', handleProfileUpdated as EventListener);
+    };
+  }, [dispatch]);
+
   // Login function
   const login = async (credentials: LoginRequest) => {
     try {
       setError(null);
       setIsProcessing(true);
-      await dispatch(loginThunk(credentials)).unwrap();
+      const response = await dispatch(loginThunk(credentials)).unwrap();
 
-      const profile = await fetchAndSetProfile();
-      
+      dispatch(setUser({ user: response.data.user, session: response.data.session }));
+
       logger.info('User logged in successfully', {
-        email: profile.user.email,
+        email: response.data.user.email,
       });
     } catch (error) {
       const apiError = error as ApiError;
@@ -175,6 +207,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         response.data.accessToken,
         response.data.refreshToken
       );
+
+      dispatch(
+        setTokens({
+          accessToken: response.data.accessToken,
+          refreshToken: response.data.refreshToken,
+        }),
+      );
+      dispatch(setUser({ user: response.data.user, session: response.data.session }));
 
       logger.debug('Token refreshed successfully');
     } catch (error) {

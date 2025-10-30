@@ -126,7 +126,10 @@ export const logoutThunk = createAsyncThunk<void, void, { rejectValue: ApiError 
   }
 );
 
-const persistTokens = ({ accessToken, refreshToken }: LoginResponseData) => {
+const persistTokens = ({
+  accessToken,
+  refreshToken,
+}: Pick<LoginResponseData, 'accessToken' | 'refreshToken'>) => {
   try {
     if (typeof window !== 'undefined') {
       localStorage.setItem(tokenStorageKey, accessToken);
@@ -177,6 +180,24 @@ const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
+    setTokens: (
+      state,
+      action: PayloadAction<{ accessToken: string | null; refreshToken?: string | null }>,
+    ) => {
+      state.accessToken = action.payload.accessToken;
+      if (action.payload.refreshToken !== undefined) {
+        state.refreshToken = action.payload.refreshToken;
+      }
+
+      if (action.payload.accessToken && (action.payload.refreshToken ?? state.refreshToken)) {
+        persistTokens({
+          accessToken: action.payload.accessToken,
+          refreshToken: action.payload.refreshToken ?? state.refreshToken ?? '',
+        });
+      } else {
+        clearPersistedTokens();
+      }
+    },
     setUser: (state, action: PayloadAction<{ user: AuthUser | null; session?: TokenInfo | null }>) => {
       state.user = normalizeUserProfile(action.payload.user ?? null);
       if (action.payload.session !== undefined) {
@@ -184,19 +205,17 @@ const authSlice = createSlice({
       }
       persistProfile(state.user, state.session);
     },
-    resetAuthState: () => {
+    resetAuthState: (state) => {
       clearPersistedTokens();
       clearPersistedProfile();
-      return {
-        user: null,
-        session: null,
-        accessToken: null,
-        refreshToken: null,
-        meta: null,
-        status: 'idle',
-        error: null,
-        fieldErrors: {},
-      };
+      state.user = null;
+      state.session = null;
+      state.accessToken = null;
+      state.refreshToken = null;
+      state.meta = null;
+      state.status = 'idle';
+      state.error = null;
+      state.fieldErrors = {};
     },
   },
   extraReducers: (builder) => {
@@ -218,7 +237,12 @@ const authSlice = createSlice({
         state.accessToken = tokens.accessToken;
         state.refreshToken = tokens.refreshToken;
 
+        const normalizedUser = normalizeUserProfile(tokens.user);
+        state.user = normalizedUser;
+        state.session = tokens.session ?? null;
+
         persistTokens(tokens);
+        persistProfile(normalizedUser, state.session);
       })
       .addCase(loginThunk.rejected, (state, action) => {
         state.status = 'failed';
@@ -258,5 +282,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { setUser, resetAuthState } = authSlice.actions;
+export const { setUser, resetAuthState, setTokens } = authSlice.actions;
 export default authSlice.reducer;
