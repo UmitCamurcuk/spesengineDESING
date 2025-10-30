@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Shield, Folder } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
-import { DataTable, UserInfo } from '../../components/ui/DataTable';
+import { DataTable } from '../../components/ui/DataTable';
+import { UserInfoWithRole } from '../../components/common/UserInfoWithRole';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -132,10 +133,14 @@ export function PermissionGroupsList() {
       title: t('permissionGroups.list.column_last_updated'),
       sortable: true,
       render: (value: string, group: PermissionGroupRecord) => (
-        <UserInfo
-          name={group.updatedBy?.name || t('common.unknown_user')}
-          email={group.updatedBy?.email || t('common.unknown_user_email')}
-          avatarUrl={group.updatedBy?.profilePhotoUrl}
+        <UserInfoWithRole
+          user={group.updatedBy ? {
+            id: group.updatedBy.id,
+            email: group.updatedBy.email,
+            name: group.updatedBy.name,
+            profilePhotoUrl: group.updatedBy.profilePhotoUrl,
+            role: group.updatedBy.role?.name || t('common.unknown_role')
+          } : undefined}
           date={value}
         />
       ),

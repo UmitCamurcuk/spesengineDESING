@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Key, Shield } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
-import { DataTable, UserInfo } from '../../components/ui/DataTable';
+import { DataTable } from '../../components/ui/DataTable';
+import { UserInfoWithRole } from '../../components/common/UserInfoWithRole';
 import { Badge } from '../../components/ui/Badge';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -168,10 +169,14 @@ export function PermissionsList() {
       title: t('permissions.list.column_last_updated'),
       sortable: true,
       render: (value: string, permission: PermissionRecord) => (
-        <UserInfo
-          name={permission.updatedBy?.name || t('common.unknown_user')}
-          email={permission.updatedBy?.email || t('common.unknown_user_email')}
-          avatarUrl={permission.updatedBy?.profilePhotoUrl}
+        <UserInfoWithRole
+          user={permission.updatedBy ? {
+            id: permission.updatedBy.id,
+            email: permission.updatedBy.email,
+            name: permission.updatedBy.name,
+            profilePhotoUrl: permission.updatedBy.profilePhotoUrl,
+            role: permission.updatedBy.role?.name || t('common.unknown_role')
+          } : undefined}
           date={value}
         />
       ),

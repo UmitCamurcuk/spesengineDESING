@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Users, Shield, Mail, Calendar } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable } from '../../components/ui/DataTable';
+import { UserInfoWithRole } from '../../components/common/UserInfoWithRole';
 import { Badge } from '../../components/ui/Badge';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { usersService } from '../../api/services/users.service';
@@ -222,7 +223,9 @@ export const UsersList: React.FC = () => {
       key: 'updatedAt',
       title: t('users.list.column_updated'),
       sortable: true,
-      render: (value: string | null | undefined) => formatDate(value),
+      render: (value: string | null | undefined) => (
+        <UserInfoWithRole user={undefined} date={value ?? ''} />
+      ),
     },
   ];
 
