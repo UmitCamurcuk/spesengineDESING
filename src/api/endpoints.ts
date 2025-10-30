@@ -111,6 +111,7 @@ export const API_ENDPOINTS = {
     RULES: {
       BASE: '/notifications/rules',
       BY_ID: (id: string) => `/notifications/rules/${id}`,
+      STATS: (id: string) => `/notifications/rules/${id}/statistics`,
     },
     CHANNELS: {
       BASE: '/notifications/channels',

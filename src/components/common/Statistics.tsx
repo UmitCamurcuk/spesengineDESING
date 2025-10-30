@@ -1,7 +1,27 @@
-import React from 'react';
-import { BarChart3, TrendingUp, TrendingDown, Users, Activity, Calendar, Eye, Edit2 } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Activity,
+  AlertCircle,
+  BarChart3,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  Eye,
+  Loader2,
+  TrendingDown,
+  TrendingUp,
+  Users,
+  XOctagon,
+  Edit2,
+} from 'lucide-react';
 import { Card, CardHeader } from '../ui/Card';
 import { Badge } from '../ui/Badge';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { useDateFormatter } from '../../hooks/useDateFormatter';
+import {
+  notificationsService,
+  type NotificationRuleStatistics,
+} from '../../api/services/notifications.service';
 import { Statistics as StatisticsType } from '../../types/common';
 
 interface StatisticsProps {
@@ -41,7 +61,275 @@ export const Statistics: React.FC<StatisticsProps> = ({
   entityId,
   editMode = false
 }) => {
-  const stats = mockStatistics;
+  const isNotificationRule = entityType === 'notification-rule';
+  const { t } = useLanguage();
+  const { formatDateTime } = useDateFormatter();
+  const [loading, setLoading] = useState<boolean>(isNotificationRule);
+  const [error, setError] = useState<string | null>(null);
+  const [ruleStats, setRuleStats] = useState<NotificationRuleStatistics | null>(null);
+
+  useEffect(() => {
+    if (!isNotificationRule) {
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
+    let cancelled = false;
+    const fetchStats = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await notificationsService.getRuleStatistics(entityId);
+        if (!cancelled) {
+          setRuleStats(response);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'İstatistikler alınırken bir hata oluştu.');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchStats();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [entityId, isNotificationRule]);
+
+  const formatDuration = (ms?: number | null) => {
+    if (!ms || ms <= 0) {
+      return '—';
+    }
+    if (ms < 1000) {
+      return `${ms} ms`;
+    }
+    const seconds = ms / 1000;
+    if (seconds < 60) {
+      return `${seconds.toFixed(1)} s`;
+    }
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes} dk ${remainingSeconds.toFixed(0)} sn`;
+  };
+
+  const overviewCards = useMemo(() => {
+    if (!ruleStats) {
+      return null;
+    }
+
+    return [
+      {
+        title: 'Toplam Tetikleme',
+        value: ruleStats.totalEvents.toLocaleString(),
+        helper: `${ruleStats.successCount.toLocaleString()} başarılı`,
+        icon: <Activity className="h-6 w-6" />,
+        tone: 'bg-primary/10 text-primary',
+      },
+      {
+        title: 'Başarı Oranı',
+        value: `${ruleStats.successRate.toFixed(1)}%`,
+        helper: `${ruleStats.partialCount.toLocaleString()} kısmi`,
+        icon: <TrendingUp className="h-6 w-6" />,
+        tone: 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-300',
+      },
+      {
+        title: 'Ortalama Süre',
+        value: formatDuration(ruleStats.averageDurationMs),
+        helper: `En iyi ${formatDuration(ruleStats.minDurationMs)} • En kötü ${formatDuration(ruleStats.maxDurationMs)}`,
+        icon: <Clock className="h-6 w-6" />,
+        tone: 'bg-amber-100 dark:bg-amber-500/10 text-amber-600 dark:text-amber-300',
+      },
+      {
+        title: 'Son Gönderim',
+        value: ruleStats.lastCompletedAt ? formatDateTime(ruleStats.lastCompletedAt) : '—',
+        helper: ruleStats.lastFailedAt ? `Son hata ${formatDateTime(ruleStats.lastFailedAt)}` : 'Hata kaydı yok',
+        icon: <CheckCircle2 className="h-6 w-6" />,
+        tone: 'bg-blue-100 dark:bg-blue-500/10 text-blue-600 dark:text-blue-300',
+      },
+    ];
+  }, [ruleStats, formatDateTime]);
+
+  const notificationContent = () => {
+    if (loading) {
+      return (
+        <Card padding="lg">
+          <div className="flex items-center justify-center gap-2 py-10 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span>{t('common.loading') ?? 'Yükleniyor'}</span>
+          </div>
+        </Card>
+      );
+    }
+
+    if (error) {
+      return (
+        <Card padding="lg">
+          <div className="flex items-center gap-3 text-rose-500 dark:text-rose-400">
+            <AlertCircle className="h-5 w-5" />
+            <div>
+              <p className="font-medium">İstatistikler yüklenemedi</p>
+              <p className="text-sm text-muted-foreground">{error}</p>
+            </div>
+          </div>
+        </Card>
+      );
+    }
+
+    if (!ruleStats || ruleStats.totalEvents === 0) {
+      return (
+        <Card padding="lg">
+          <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
+            <BarChart3 className="h-10 w-10 text-muted-foreground" />
+            <div>
+              <p className="text-base font-medium text-foreground">Henüz istatistik yok</p>
+              <p className="text-sm text-muted-foreground">
+                Bu kural için herhangi bir bildirim gönderilmedi. İlk tetikleme gerçekleştiğinde veriler burada görünecek.
+              </p>
+            </div>
+          </div>
+        </Card>
+      );
+    }
+
+    return (
+      <>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {overviewCards?.map((card) => (
+            <Card key={card.title} padding="md">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">{card.title}</p>
+                  <p className="text-2xl font-bold text-foreground mt-1">{card.value}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{card.helper}</p>
+                </div>
+                <div className={`p-3 rounded-full ${card.tone}`}>
+                  {card.icon}
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader
+                title="Kanal Dağılımı"
+                subtitle="Kanal bazında başarı, hata ve deneme sayıları"
+              />
+              <div className="space-y-3 p-4 pt-0">
+              {ruleStats.channelBreakdown.map((channel) => {
+                const successRate =
+                  channel.total > 0 ? ((channel.successCount / channel.total) * 100).toFixed(1) : '0.0';
+                return (
+                  <div
+                    key={channel.channelType}
+                    className="flex items-center justify-between rounded-lg border border-border px-4 py-3"
+                  >
+                    <div>
+                      <p className="text-sm font-semibold text-foreground capitalize">{channel.channelType}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {channel.total.toLocaleString()} gönderim • Başarı %{successRate}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs">
+                      <Badge variant="success" size="sm">
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        {channel.successCount}
+                      </Badge>
+                      <Badge variant="warning" size="sm">
+                        <Activity className="h-3 w-3 mr-1" />
+                        {channel.partialCount}
+                      </Badge>
+                      <Badge variant="error" size="sm">
+                        <XOctagon className="h-3 w-3 mr-1" />
+                        {channel.failureCount}
+                      </Badge>
+                      <Badge variant="secondary" size="sm">
+                        {channel.averageAttempts.toFixed(1)} deneme
+                      </Badge>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+
+            <Card>
+              <CardHeader
+                title="Son Gönderimler"
+                subtitle="En güncel bildirim olayları"
+              />
+              <div className="space-y-3 p-4 pt-0">
+              {ruleStats.recentEvents.map((event) => {
+                const statusVariant =
+                  event.status === 'success'
+                    ? 'success'
+                    : event.status === 'failed'
+                      ? 'error'
+                      : event.status === 'partial'
+                        ? 'warning'
+                        : 'secondary';
+
+                return (
+                  <div
+                    key={event.id}
+                    className="flex items-center justify-between rounded-lg border border-border px-4 py-3"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        {formatDateTime(event.triggeredAt)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Tamamlanma: {event.completedAt ? formatDateTime(event.completedAt) : '—'} • Süre:{' '}
+                        {formatDuration(event.durationMs)}
+                      </p>
+                      {event.failureReason && (
+                        <p className="text-xs text-rose-500 dark:text-rose-400 mt-1">
+                          {event.failureReason}
+                        </p>
+                      )}
+                    </div>
+                    <Badge variant={statusVariant} size="sm" className="capitalize">
+                      {event.status}
+                    </Badge>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        </div>
+      </>
+    );
+  };
+
+  if (isNotificationRule) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-foreground">Bildirim İstatistikleri</h3>
+            <p className="text-sm text-muted-foreground">
+              Kural performansı, kanal dağılımı ve son gönderimlerin özeti
+            </p>
+          </div>
+          <Badge variant="primary" size="sm">
+            <BarChart3 className="h-3 w-3 mr-1" />
+            Canlı Veri
+          </Badge>
+        </div>
+
+        {notificationContent()}
+      </div>
+    );
+  }
+
+  const fallbackStats = mockStatistics;
 
   const getChangeIcon = (change: number) => {
     if (change > 0) return <TrendingUp className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />;
@@ -74,7 +362,7 @@ export const Statistics: React.FC<StatisticsProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Total Usage</p>
-              <p className="text-2xl font-bold text-foreground">{stats.usageCount.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-foreground">{fallbackStats.usageCount.toLocaleString()}</p>
             </div>
             <div className="p-3 rounded-full bg-primary/10 text-primary">
               <Activity className="h-6 w-6" />
@@ -90,7 +378,7 @@ export const Statistics: React.FC<StatisticsProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Active Items</p>
-              <p className="text-2xl font-bold text-foreground">{stats.activeCount.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-foreground">{fallbackStats.activeCount.toLocaleString()}</p>
             </div>
             <div className="p-3 rounded-full bg-emerald-100 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
               <Eye className="h-6 w-6" />
@@ -98,7 +386,7 @@ export const Statistics: React.FC<StatisticsProps> = ({
           </div>
           <div className="flex items-center mt-2">
             <span className="text-sm text-muted-foreground">
-              {Math.round((stats.activeCount / stats.totalCount) * 100)}% of total
+              {Math.round((fallbackStats.activeCount / fallbackStats.totalCount) * 100)}% of total
             </span>
           </div>
         </Card>
@@ -107,7 +395,7 @@ export const Statistics: React.FC<StatisticsProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">This Month</p>
-              <p className="text-2xl font-bold text-foreground">{stats.updatedThisMonth}</p>
+              <p className="text-2xl font-bold text-foreground">{fallbackStats.updatedThisMonth}</p>
             </div>
             <div className="p-3 rounded-full bg-amber-100 dark:bg-amber-500/10 text-amber-600 dark:text-amber-300">
               <Edit2 className="h-6 w-6" />
@@ -123,7 +411,7 @@ export const Statistics: React.FC<StatisticsProps> = ({
             <div>
               <p className="text-sm font-medium text-muted-foreground">Last Used</p>
               <p className="text-sm font-bold text-foreground">
-                {stats.lastUsed ? new Date(stats.lastUsed).toLocaleDateString() : 'Never'}
+                {fallbackStats.lastUsed ? new Date(fallbackStats.lastUsed).toLocaleDateString() : 'Never'}
               </p>
             </div>
             <div className="p-3 rounded-full bg-purple-100 dark:bg-purple-500/10 text-purple-600 dark:text-purple-300">
@@ -132,7 +420,7 @@ export const Statistics: React.FC<StatisticsProps> = ({
           </div>
           <div className="flex items-center mt-2">
             <span className="text-sm text-muted-foreground">
-              {stats.lastUsed ? `${Math.floor((Date.now() - new Date(stats.lastUsed).getTime()) / (1000 * 60 * 60 * 24))} days ago` : 'No usage recorded'}
+              {fallbackStats.lastUsed ? `${Math.floor((Date.now() - new Date(fallbackStats.lastUsed).getTime()) / (1000 * 60 * 60 * 24))} days ago` : 'No usage recorded'}
             </span>
           </div>
         </Card>
@@ -146,7 +434,7 @@ export const Statistics: React.FC<StatisticsProps> = ({
             subtitle="Monthly usage over time"
           />
           <div className="space-y-4">
-            {stats.trends.map((trend, index) => (
+            {fallbackStats.trends.map((trend, index) => (
               <div key={index} className="flex items-center justify-between p-3 bg-muted/60 rounded-lg">
                 <div className="flex items-center space-x-3">
                   <div className="w-12 h-8 bg-primary/10 rounded flex items-end justify-center">
@@ -178,7 +466,7 @@ export const Statistics: React.FC<StatisticsProps> = ({
             subtitle="Most active users of this attribute"
           />
           <div className="space-y-3">
-            {stats.topUsers.map((user, index) => (
+            {fallbackStats.topUsers.map((user, index) => (
               <div key={user.userId} className="flex items-center justify-between p-3 hover:bg-muted rounded-lg transition-colors">
                 <div className="flex items-center space-x-3">
                   <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
@@ -218,10 +506,10 @@ export const Statistics: React.FC<StatisticsProps> = ({
                   <div className="w-20 h-2 bg-muted rounded-full">
                     <div 
                       className="h-2 bg-emerald-500 rounded-full"
-                      style={{ width: `${(stats.activeCount / stats.totalCount) * 100}%` }}
+                      style={{ width: `${(fallbackStats.activeCount / fallbackStats.totalCount) * 100}%` }}
                     />
                   </div>
-                  <span className="text-sm font-medium text-foreground">{stats.activeCount}</span>
+                  <span className="text-sm font-medium text-foreground">{fallbackStats.activeCount}</span>
                 </div>
               </div>
               <div className="flex items-center justify-between">
@@ -230,10 +518,10 @@ export const Statistics: React.FC<StatisticsProps> = ({
                   <div className="w-20 h-2 bg-muted rounded-full">
                     <div 
                       className="h-2 bg-rose-500 rounded-full"
-                      style={{ width: `${(stats.inactiveCount / stats.totalCount) * 100}%` }}
+                      style={{ width: `${(fallbackStats.inactiveCount / fallbackStats.totalCount) * 100}%` }}
                     />
                   </div>
-                  <span className="text-sm font-medium text-foreground">{stats.inactiveCount}</span>
+                  <span className="text-sm font-medium text-foreground">{fallbackStats.inactiveCount}</span>
                 </div>
               </div>
             </div>
@@ -244,11 +532,11 @@ export const Statistics: React.FC<StatisticsProps> = ({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Created</span>
-                <Badge variant="success" size="sm">{stats.createdThisMonth}</Badge>
+                <Badge variant="success" size="sm">{fallbackStats.createdThisMonth}</Badge>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Updated</span>
-                <Badge variant="warning" size="sm">{stats.updatedThisMonth}</Badge>
+                <Badge variant="warning" size="sm">{fallbackStats.updatedThisMonth}</Badge>
               </div>
             </div>
           </div>
@@ -259,13 +547,13 @@ export const Statistics: React.FC<StatisticsProps> = ({
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Avg. Daily Usage</span>
                 <span className="text-sm font-medium text-foreground">
-                  {Math.round(stats.usageCount / 30)}
+                  {Math.round(fallbackStats.usageCount / 30)}
                 </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Peak Usage</span>
                 <span className="text-sm font-medium text-foreground">
-                  {Math.max(...stats.trends.map(t => t.value))}
+                  {Math.max(...fallbackStats.trends.map(t => t.value))}
                 </span>
               </div>
             </div>

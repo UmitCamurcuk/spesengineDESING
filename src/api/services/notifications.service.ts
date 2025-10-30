@@ -80,6 +80,41 @@ export interface NotificationTemplate extends NotificationTemplatePayload {
   updatedAt: string;
 }
 
+export interface NotificationRuleStatisticsChannel {
+  channelType: string;
+  total: number;
+  successCount: number;
+  failureCount: number;
+  partialCount: number;
+  averageAttempts: number;
+}
+
+export interface NotificationRuleRecentEvent {
+  id: string;
+  status: 'pending' | 'success' | 'partial' | 'failed';
+  triggeredAt: string;
+  completedAt?: string | null;
+  durationMs?: number | null;
+  failureReason?: string | null;
+}
+
+export interface NotificationRuleStatistics {
+  totalEvents: number;
+  successCount: number;
+  failureCount: number;
+  partialCount: number;
+  successRate: number;
+  averageDurationMs: number | null;
+  minDurationMs: number | null;
+  maxDurationMs: number | null;
+  averageAttempts: number | null;
+  lastTriggeredAt: string | null;
+  lastCompletedAt: string | null;
+  lastFailedAt: string | null;
+  channelBreakdown: NotificationRuleStatisticsChannel[];
+  recentEvents: NotificationRuleRecentEvent[];
+}
+
 export interface NotificationRuleQuery {
   search?: string;
   eventKey?: string;
@@ -109,6 +144,13 @@ export const notificationsService = {
   async getRule(id: string): Promise<NotificationRule> {
     const response = await apiClient.get<ApiSuccessResponse<NotificationRule>>(
       API_ENDPOINTS.NOTIFICATIONS.RULES.BY_ID(id),
+    );
+    return response.data.data;
+  },
+
+  async getRuleStatistics(id: string): Promise<NotificationRuleStatistics> {
+    const response = await apiClient.get<ApiSuccessResponse<NotificationRuleStatistics>>(
+      API_ENDPOINTS.NOTIFICATIONS.RULES.STATS(id),
     );
     return response.data.data;
   },
@@ -217,4 +259,7 @@ export type {
   NotificationChannelPayload,
   NotificationTemplate,
   NotificationTemplatePayload,
+  NotificationRuleStatistics,
+  NotificationRuleStatisticsChannel,
+  NotificationRuleRecentEvent,
 };
