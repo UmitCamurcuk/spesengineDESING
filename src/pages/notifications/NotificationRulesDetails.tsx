@@ -6,7 +6,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { notificationsService, type NotificationRule } from '../../api/services/notifications.service';
-import type { TabConfig } from '../../types/common';
+import type { TabConfig, APIEndpoint, DocumentationSection } from '../../types/common';
 import { Card, CardHeader } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
@@ -155,12 +155,34 @@ const StatisticsTab: React.FC<{ entityId: string; editMode: boolean }> = ({ enti
   <Statistics entityType="notification-rule" entityId={entityId} editMode={editMode} />
 );
 
-const ApiTab: React.FC<{ entityId: string; editMode: boolean }> = ({ entityId, editMode }) => (
-  <APITester entityType="notification-rule" entityId={entityId} editMode={editMode} />
+const ApiTab: React.FC<{
+  entityId: string;
+  editMode: boolean;
+  endpoints: APIEndpoint[];
+  onEndpointsChange?: (endpoints: APIEndpoint[]) => Promise<void> | void;
+}> = ({ entityId, editMode, endpoints, onEndpointsChange }) => (
+  <APITester
+    entityType="notification-rule"
+    entityId={entityId}
+    editMode={editMode}
+    endpoints={endpoints}
+    onEndpointsChange={onEndpointsChange}
+  />
 );
 
-const DocumentationTab: React.FC<{ entityId: string; editMode: boolean }> = ({ entityId, editMode }) => (
-  <Documentation entityType="notification-rule" entityId={entityId} editMode={editMode} />
+const DocumentationTab: React.FC<{
+  entityId: string;
+  editMode: boolean;
+  sections: DocumentationSection[];
+  onSave?: (sections: DocumentationSection[]) => Promise<void> | void;
+}> = ({ entityId, editMode, sections, onSave }) => (
+  <Documentation
+    entityType="notification-rule"
+    entityId={entityId}
+    editMode={editMode}
+    sections={sections}
+    onSave={onSave}
+  />
 );
 
 const HistoryTab: React.FC<{ entityId: string }> = ({ entityId }) => (
@@ -176,7 +198,13 @@ export function NotificationRulesDetails() {
 
   const canRead = hasPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.VIEW);
   const canUpdate = hasPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.UPDATE);
-  const canViewHistory = hasPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.VIEW);
+  const canViewStatistics = hasPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.STATISTICS.VIEW);
+  const canEditStatistics = hasPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.STATISTICS.EDIT);
+  const canViewApiReference = hasPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.API.VIEW);
+  const canEditApiReference = hasPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.API.EDIT);
+  const canViewDocumentation = hasPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.DOCUMENTATION.VIEW);
+  const canEditDocumentation = hasPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.DOCUMENTATION.EDIT);
+  const canViewHistory = hasPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.HISTORY.VIEW);
 
   const [loading, setLoading] = useState(true);
   const [rule, setRule] = useState<NotificationRule | null>(null);
@@ -188,6 +216,9 @@ export function NotificationRulesDetails() {
   const [pendingChanges, setPendingChanges] = useState<ChangeItem[]>([]);
   const [commentDialogOpen, setCommentDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [apiReference, setApiReference] = useState<APIEndpoint[]>([]);
+  const [documentationSections, setDocumentationSections] = useState<DocumentationSection[]>([]);
+
 
   const updateGeneralForm = useCallback((updater: (prev: GeneralForm) => GeneralForm) => {
     setGeneralForm((prev) => {
@@ -226,6 +257,48 @@ export function NotificationRulesDetails() {
       setGeneralForm(cloneGeneralForm(general));
       setGeneralHasChanges(false);
 
+      const fetchTasks: Promise<void>[] = [];
+
+      if (canViewApiReference) {
+        fetchTasks.push(
+          notificationsService
+            .getRuleApiReference(id)
+            .then((data) => setApiReference(data))
+            .catch((error: any) => {
+              console.error('Failed to load API reference', error);
+              showToast({
+                type: 'error',
+                message: t('notifications.rules.api_reference_error') || 'API referansı yüklenemedi',
+              });
+              setApiReference([]);
+            }),
+        );
+      } else {
+        setApiReference([]);
+      }
+
+      if (canViewDocumentation) {
+        fetchTasks.push(
+          notificationsService
+            .getRuleDocumentation(id)
+            .then((data) => setDocumentationSections(data))
+            .catch((error: any) => {
+              console.error('Failed to load rule documentation', error);
+              showToast({
+                type: 'error',
+                message: t('notifications.rules.documentation_error') || 'Dokümantasyon yüklenemedi',
+              });
+              setDocumentationSections([]);
+            }),
+        );
+      } else {
+        setDocumentationSections([]);
+      }
+
+      if (fetchTasks.length > 0) {
+        await Promise.all(fetchTasks);
+      }
+
       setRule(ruleResponse);
     } catch (error: any) {
       console.error('Failed to load rule details', error);
@@ -237,11 +310,51 @@ export function NotificationRulesDetails() {
     } finally {
       setLoading(false);
     }
-  }, [id, navigate, showToast, t]);
+  }, [id, navigate, showToast, t, canViewApiReference, canViewDocumentation]);
 
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  const handleUpdateApiReference = useCallback(async (endpoints: APIEndpoint[]) => {
+    if (!id) {
+      return;
+    }
+    try {
+      const updated = await notificationsService.updateRuleApiReference(id, endpoints);
+      setApiReference(updated);
+      showToast({
+        type: 'success',
+        message: t('notifications.rules.api_reference_updated') || 'API referansı güncellendi',
+      });
+    } catch (error: any) {
+      showToast({
+        type: 'error',
+        message: error?.message || t('common.error'),
+      });
+      throw error;
+    }
+  }, [id, showToast, t]);
+
+  const handleUpdateDocumentation = useCallback(async (nextSections: DocumentationSection[]) => {
+    if (!id) {
+      return;
+    }
+    try {
+      const updated = await notificationsService.updateRuleDocumentation(id, nextSections);
+      setDocumentationSections(updated);
+      showToast({
+        type: 'success',
+        message: t('notifications.rules.documentation_updated') || 'Dokümantasyon güncellendi',
+      });
+    } catch (error: any) {
+      showToast({
+        type: 'error',
+        message: error?.message || t('common.error'),
+      });
+      throw error;
+    }
+  }, [id, showToast, t]);
 
   const handleEnterGeneralEdit = () => {
     if (!canUpdate) {
@@ -370,9 +483,9 @@ export function NotificationRulesDetails() {
         component: StatisticsTab,
         props: {
           entityId: rule.id,
-          editMode: isGeneralEditing,
+          editMode: isGeneralEditing && canEditStatistics,
         },
-        hidden: !canRead,
+        hidden: !canViewStatistics,
       },
       {
         id: 'api',
@@ -381,9 +494,11 @@ export function NotificationRulesDetails() {
         component: ApiTab,
         props: {
           entityId: rule.id,
-          editMode: isGeneralEditing,
+          editMode: isGeneralEditing && canEditApiReference,
+          endpoints: apiReference,
+          onEndpointsChange: handleUpdateApiReference,
         },
-        hidden: !canRead,
+        hidden: !canViewApiReference,
       },
       {
         id: 'documentation',
@@ -392,9 +507,11 @@ export function NotificationRulesDetails() {
         component: DocumentationTab,
         props: {
           entityId: rule.id,
-          editMode: isGeneralEditing,
+          editMode: isGeneralEditing && canEditDocumentation,
+          sections: documentationSections,
+          onSave: handleUpdateDocumentation,
         },
-        hidden: !canRead,
+        hidden: !canViewDocumentation,
       },
       {
         id: 'history',
@@ -407,7 +524,25 @@ export function NotificationRulesDetails() {
         hidden: !canViewHistory,
       },
     ];
-  }, [canRead, canViewHistory, generalForm, isGeneralEditing, rule, t, updateGeneralForm]);
+  }, [
+    apiReference,
+    canEditApiReference,
+    canEditDocumentation,
+    canEditStatistics,
+    canRead,
+    canViewApiReference,
+    canViewDocumentation,
+    canViewHistory,
+    canViewStatistics,
+    documentationSections,
+    generalForm,
+    isGeneralEditing,
+    rule,
+    t,
+    updateGeneralForm,
+    handleUpdateApiReference,
+    handleUpdateDocumentation,
+  ]);
 
   if (loading || !rule || !generalForm) {
     return (

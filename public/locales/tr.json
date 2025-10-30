@@ -851,7 +851,11 @@
         "filters": "Filtreler (JSON)",
         "recipients": "Alıcılar (JSON)",
         "channels": "Kanallar (JSON)"
-      }
+      },
+      "api_reference_error": "API referansı yüklenemedi.",
+      "documentation_error": "Dokümantasyon yüklenemedi.",
+      "api_reference_updated": "API referansı güncellendi.",
+      "documentation_updated": "Dokümantasyon güncellendi."
     }
   },
   "profile": {

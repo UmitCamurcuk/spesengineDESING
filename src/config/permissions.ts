@@ -16,6 +16,11 @@ const createCrudPermissionSet = (domain: string, resource: string): CrudPermissi
   HISTORY: `${domain}.${resource}.history`,
 });
 
+const createFeaturePermissionSet = (domain: string, resource: string, feature: string) => ({
+  VIEW: `${domain}.${resource}.${feature}.view`,
+  EDIT: `${domain}.${resource}.${feature}.edit`,
+});
+
 export const PERMISSIONS = {
   CATALOG: {
     ITEMS: createCrudPermissionSet('items', 'item'),
@@ -39,7 +44,13 @@ export const PERMISSIONS = {
     PROFILE: createCrudPermissionSet('profile', 'profile'),
     ASSOCIATIONS: createCrudPermissionSet('associations', 'association'),
     NOTIFICATIONS: {
-      RULES: createCrudPermissionSet('notifications', 'rule'),
+      RULES: {
+        ...createCrudPermissionSet('notifications', 'rule'),
+        STATISTICS: createFeaturePermissionSet('notifications', 'rule', 'statistics'),
+        API: createFeaturePermissionSet('notifications', 'rule', 'api'),
+        DOCUMENTATION: createFeaturePermissionSet('notifications', 'rule', 'documentation'),
+        HISTORY: createFeaturePermissionSet('notifications', 'rule', 'history'),
+      },
       CHANNELS: createCrudPermissionSet('notifications', 'channel'),
       TEMPLATES: createCrudPermissionSet('notifications', 'template'),
     },

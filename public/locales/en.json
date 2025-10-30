@@ -846,7 +846,11 @@
         "filters": "Filters (JSON)",
         "recipients": "Recipients (JSON)",
         "channels": "Channels (JSON)"
-      }
+      },
+      "api_reference_error": "Failed to load API reference.",
+      "documentation_error": "Failed to load documentation.",
+      "api_reference_updated": "API reference updated.",
+      "documentation_updated": "Documentation updated."
     }
   },
   "profile": {

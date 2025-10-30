@@ -1,6 +1,7 @@
 import apiClient from '../client/axios';
 import { API_ENDPOINTS } from '../endpoints';
 import type { ApiSuccessResponse } from '../types/api.types';
+import type { APIEndpoint, DocumentationSection } from '../../types/common';
 
 export type NotificationRecipientType = 'user' | 'role' | 'email' | 'webhook';
 
@@ -153,6 +154,36 @@ export const notificationsService = {
       API_ENDPOINTS.NOTIFICATIONS.RULES.STATS(id),
     );
     return response.data.data;
+  },
+
+  async getRuleApiReference(id: string): Promise<APIEndpoint[]> {
+    const response = await apiClient.get<ApiSuccessResponse<{ endpoints: APIEndpoint[] }>>(
+      API_ENDPOINTS.NOTIFICATIONS.RULES.API_REFERENCE(id),
+    );
+    return response.data.data.endpoints;
+  },
+
+  async updateRuleApiReference(id: string, endpoints: APIEndpoint[]): Promise<APIEndpoint[]> {
+    const response = await apiClient.put<ApiSuccessResponse<{ endpoints: APIEndpoint[] }>>(
+      API_ENDPOINTS.NOTIFICATIONS.RULES.API_REFERENCE(id),
+      { endpoints },
+    );
+    return response.data.data.endpoints;
+  },
+
+  async getRuleDocumentation(id: string): Promise<DocumentationSection[]> {
+    const response = await apiClient.get<ApiSuccessResponse<{ sections: DocumentationSection[] }>>(
+      API_ENDPOINTS.NOTIFICATIONS.RULES.DOCUMENTATION(id),
+    );
+    return response.data.data.sections;
+  },
+
+  async updateRuleDocumentation(id: string, sections: DocumentationSection[]): Promise<DocumentationSection[]> {
+    const response = await apiClient.put<ApiSuccessResponse<{ sections: DocumentationSection[] }>>(
+      API_ENDPOINTS.NOTIFICATIONS.RULES.DOCUMENTATION(id),
+      { sections },
+    );
+    return response.data.data.sections;
   },
 
   async createRule(payload: NotificationRulePayload): Promise<NotificationRule> {
