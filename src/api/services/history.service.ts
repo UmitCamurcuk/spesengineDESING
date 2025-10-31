@@ -63,6 +63,19 @@ const ensureActor = (item: HistoryApiItem): HistoryActor | undefined => {
     profilePhotoUrl: item.actor?.profilePhotoUrl,
   };
 
+  if (item.actor?.role) {
+    const rawRole = item.actor.role;
+    if (typeof rawRole === 'string') {
+      actor.role = { name: rawRole };
+    } else {
+      actor.role = {
+        id: rawRole.id,
+        name: rawRole.name ?? undefined,
+        isSystemRole: rawRole.isSystemRole,
+      };
+    }
+  }
+
   const name = formatActorName(actor);
   if (name) {
     actor.name = name;

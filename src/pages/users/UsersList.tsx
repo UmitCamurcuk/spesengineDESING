@@ -1,14 +1,12 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, Shield, Mail, Calendar } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable } from '../../components/ui/DataTable';
-import { UserInfoWithRole } from '../../components/common/UserInfoWithRole';
 import { Badge } from '../../components/ui/Badge';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { usersService } from '../../api/services/users.service';
-import { rolesService } from '../../api/services/roles.service';
-import type { UserSummary, UserListResponse, RoleRecord } from '../../api/types/api.types';
+import type { UserSummary, UserListResponse } from '../../api/types/api.types';
 
 const deriveStatus = (user: UserSummary): { label: string; variant: 'success' | 'warning' | 'default' } => {
   if (user.notificationsEnabled && user.emailNotificationsEnabled) {
@@ -37,14 +35,9 @@ const formatDate = (value: string | null | undefined): string => {
 
 export const UsersList: React.FC = () => {
   const navigate = useNavigate();
-  const { t, language, resolveLocalization } = useLanguage();
+  const { t, language } = useLanguage();
   const [users, setUsers] = useState<UserSummary[]>([]);
-  const [roles, setRoles] = useState<RoleRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
-  const [search, setSearch] = useState('');
-  const [filters, setFilters] = useState<{ roleId?: string; status?: string }>({});
   const [pagination, setPagination] = useState({
     page: 1,
     pageSize: 25,
@@ -54,20 +47,12 @@ export const UsersList: React.FC = () => {
     hasPrev: false,
   });
 
-  const loadUsers = useCallback(async (
-    nextPage: number,
-    nextPageSize: number,
-    nextSearch: string,
-    nextFilters: { roleId?: string; status?: string }
-  ) => {
+  const loadUsers = async (page = pagination.page, pageSize = pagination.pageSize) => {
     try {
       setLoading(true);
       const response: UserListResponse = await usersService.list({
-        page: nextPage,
-        pageSize: nextPageSize,
-        search: nextSearch.trim() !== '' ? nextSearch.trim() : undefined,
-        roleId: nextFilters.roleId || undefined,
-        status: nextFilters.status as 'active' | 'inactive' | 'partial' | undefined,
+        page,
+        pageSize,
         language,
       });
       setUsers(response.items);
@@ -77,28 +62,22 @@ export const UsersList: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [language]);
-
-
-  const loadRoles = useCallback(async () => {
-    try {
-      const result = await rolesService.list({ language });
-      setRoles(result.items);
-    } catch (error) {
-      console.error('Failed to load roles:', error);
-    }
-  }, [language]);
+  };
 
   useEffect(() => {
-    (async () => {
-      await Promise.all([loadUsers(page, pageSize, search, filters), loadRoles()]);
-    })();
-  }, [loadUsers, loadRoles, page, pageSize, search, filters]);
+    const abortController = new AbortController();
+    loadUsers(1, pagination.pageSize);
+    
+    return () => {
+      abortController.abort();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [language]);
 
   const columns = [
     {
       key: 'name',
-      title: t('users.list.column_user'),
+      title: 'User',
       sortable: true,
       render: (_value: string, user: UserSummary) => {
         const avatarUrl = user.profilePhotoUrl 
@@ -139,11 +118,6 @@ export const UsersList: React.FC = () => {
       },
       mobileRender: (user: UserSummary) => {
         const status = deriveStatus(user);
-        const statusLabel = status.label === 'active' 
-          ? t('users.list.status_active')
-          : status.label === 'inactive'
-          ? t('users.list.status_inactive')
-          : t('users.list.status_partial');
         return (
           <div className="space-y-3">
             <div className="flex items-center space-x-3">
@@ -160,20 +134,20 @@ export const UsersList: React.FC = () => {
                 </div>
               </div>
               <Badge variant={status.variant} size="sm">
-                {statusLabel}
+                {status.label}
               </Badge>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">{t('users.list.column_role')}</div>
+                <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Role</div>
                 <Badge variant="secondary" size="sm">
                   <Shield className="h-3 w-3 mr-1" />
                   {user.primaryRoleName || user.primaryRoleId || '—'}
                 </Badge>
               </div>
               <div>
-                <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">{t('users.list.column_last_login')}</div>
+                <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Last Login</div>
                 <div className="text-sm text-gray-600">{formatDate(user.lastLoginAt)}</div>
               </div>
             </div>
@@ -183,7 +157,7 @@ export const UsersList: React.FC = () => {
     },
     {
       key: 'primaryRoleName',
-      title: t('users.list.column_role'),
+      title: 'Role',
       sortable: true,
       render: (_value: string, user: UserSummary) => (
         <Badge variant="secondary" size="sm">
@@ -194,25 +168,20 @@ export const UsersList: React.FC = () => {
     },
     {
       key: 'status',
-      title: t('users.list.column_status'),
+      title: 'Status',
       sortable: true,
       render: (_value: string, user: UserSummary) => {
         const status = deriveStatus(user);
-        const statusLabel = status.label === 'active' 
-          ? t('users.list.status_active')
-          : status.label === 'inactive'
-          ? t('users.list.status_inactive')
-          : t('users.list.status_partial');
         return (
           <Badge variant={status.variant} size="sm">
-            {statusLabel}
+            {status.label}
           </Badge>
         );
       },
     },
     {
       key: 'lastLoginAt',
-      title: t('users.list.column_last_login'),
+      title: 'Last Login',
       sortable: true,
       render: (value: string | null | undefined) => (
         <div className="flex items-center text-sm text-gray-600">
@@ -223,71 +192,17 @@ export const UsersList: React.FC = () => {
     },
     {
       key: 'updatedAt',
-      title: t('users.list.column_updated'),
+      title: 'Updated',
       sortable: true,
-      render: (value: string | null | undefined, user: UserSummary) => (
-        <UserInfoWithRole user={(user as any).updatedBy} date={value ?? ''} />
-      ),
+      render: (value: string | null | undefined) => formatDate(value),
     },
   ];
-
-  const handlePageChange = (nextPage: number) => {
-    setPage(nextPage);
-  };
-
-  const handlePageSizeChange = (nextSize: number) => {
-    setPageSize(nextSize);
-    setPage(1);
-  };
-
-  const handleSearchChange = (value: string) => {
-    setPage(1);
-    setSearch(value);
-  };
-
-  const handleFilterChange = (key: string, value: string) => {
-    setPage(1);
-    setFilters(prev => ({
-      ...prev,
-      [key]: value || undefined,
-    }));
-  };
-
-  const tableFilters = useMemo(() => [
-    {
-      key: 'roleId',
-      label: t('users.list.filter_role_label'),
-      type: 'select' as const,
-      options: [
-        { value: '', label: t('common.all') || 'Tümü' },
-        ...roles.map((role) => ({
-          value: role.id,
-          label:
-            role.name?.trim() ||
-            resolveLocalization(role.nameLocalizationId) ||
-            role.nameLocalizationId ||
-            role.id,
-        })),
-      ],
-    },
-    {
-      key: 'status',
-      label: t('users.list.filter_status_label'),
-      type: 'select' as const,
-      options: [
-        { value: '', label: t('common.all') || 'Tümü' },
-        { value: 'active', label: t('users.list.status_active') },
-        { value: 'inactive', label: t('users.list.status_inactive') },
-        { value: 'partial', label: t('users.list.status_partial') },
-      ],
-    },
-  ], [roles, resolveLocalization, t]);
 
   return (
     <div className="h-full flex flex-col">
       <PageHeader
-        title={t('users.list.title')}
-        subtitle={t('users.list.subtitle')}
+        title="Users"
+        subtitle="Manage platform users"
       />
 
       <div className="flex-1 mt-6">
@@ -296,22 +211,16 @@ export const UsersList: React.FC = () => {
           columns={columns}
           loading={loading}
           mode="server"
-          searchPlaceholder={t('users.list.search_placeholder')}
-          searchValue={search}
-          onSearchChange={handleSearchChange}
-          filters={tableFilters}
-          filterValues={filters}
-          onFilterChange={handleFilterChange}
           onRowClick={(user) => navigate(`/users/${user.id}`)}
           totalItems={pagination.totalItems}
-          currentPage={page}
-          currentPageSize={pageSize}
-          onPageChange={handlePageChange}
-          onPageSizeChange={handlePageSizeChange}
+          currentPage={pagination.page}
+          currentPageSize={pagination.pageSize}
+          onPageChange={(page) => loadUsers(page, pagination.pageSize)}
+          onPageSizeChange={(size) => loadUsers(1, size)}
           emptyState={{
             icon: <Users className="h-12 w-12" />,
-            title: t('users.list.empty_state_title'),
-            description: t('users.list.empty_state_description'),
+            title: 'No users',
+            description: 'Users will appear here once created',
           }}
         />
       </div>

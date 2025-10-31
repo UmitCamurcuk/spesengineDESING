@@ -22,10 +22,6 @@ interface DetailsLayoutProps {
   onSave?: () => void;
   onCancel?: () => void;
   inlineActions?: boolean;
-  editableTitle?: boolean;
-  editableSubtitle?: boolean;
-  onTitleChange?: (value: string) => void;
-  onSubtitleChange?: (value: string) => void;
 }
 
 export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
@@ -42,10 +38,6 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
   onSave,
   onCancel,
   inlineActions = true,
-  editableTitle = false,
-  editableSubtitle = false,
-  onTitleChange,
-  onSubtitleChange,
 }) => {
   const navigate = useNavigate();
   const { t } = useLanguage();
@@ -154,28 +146,10 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
             <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-sm">
               {icon}
             </div>
-            <div className="flex-1">
-              {editableTitle && editMode && onTitleChange ? (
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => onTitleChange(e.target.value)}
-                  className="text-2xl font-bold text-foreground bg-background border border-input rounded px-2 py-1 w-full focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-              ) : (
-                <h1 className="text-2xl font-bold text-foreground">{title}</h1>
-              )}
-              {subtitle !== undefined && (
-                editableSubtitle && editMode && onSubtitleChange ? (
-                  <textarea
-                    value={subtitle || ''}
-                    onChange={(e) => onSubtitleChange(e.target.value)}
-                    className="text-sm text-foreground bg-background border border-input rounded px-2 py-1 w-full mt-1 focus:outline-none focus:ring-2 focus:ring-ring resize-none"
-                    rows={2}
-                  />
-                ) : (
-                  subtitle && <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>
-                )
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">{title}</h1>
+              {subtitle && (
+                <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>
               )}
             </div>
           </div>

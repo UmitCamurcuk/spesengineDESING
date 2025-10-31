@@ -377,11 +377,23 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
       const assetBase = import.meta.env.VITE_ASSET_BASE_URL || import.meta.env.VITE_API_BASE_URL;
       const rawAvatar = entry.actor?.profilePhotoUrl ?? entry.entityProfilePhotoUrl;
       const avatarUrl = resolveAssetUrl(rawAvatar, assetBase);
-      console.log(entry.actor);
-      const roleName =
-        entry.actor?.role
-          ? entry.actor.role
-          : entry.actor?.role?.name;
+
+      const actorRole = (() => {
+        const rawRole = entry.actor?.role;
+        if (!rawRole) {
+          return undefined;
+        }
+
+        if (typeof rawRole === 'string') {
+          return { name: rawRole };
+        }
+
+        return {
+          id: typeof rawRole.id === 'string' ? rawRole.id : undefined,
+          name: typeof rawRole.name === 'string' ? rawRole.name : undefined,
+          isSystemRole: typeof rawRole.isSystemRole === 'boolean' ? rawRole.isSystemRole : undefined,
+        };
+      })();
 
       let displayName = baseName;
       if (currentUserId && entry.actor?.userId === currentUserId) {
@@ -396,10 +408,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
         email,
         identifier,
         avatarUrl,
-        roleName: roleName
-          ?? (typeof entry.actor?.role === 'string'
-            ? entry.actor.role
-            : entry.actor?.role?.name ?? undefined),
+        role: actorRole,
       };
       return actorDetails;
     },
@@ -494,7 +503,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
                       email: actorInfo.email || '',
                       name: actorInfo.name,
                       profilePhotoUrl: actorInfo.avatarUrl,
-                      role: actorInfo.roleName ?? undefined,
+                      role: actorInfo.role,
                     } : undefined}
                     date={formatTimestamp(entry.timestamp)}
                   />
@@ -594,7 +603,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
                     email: actorInfo.email || '',
                     name: actorInfo.name,
                     profilePhotoUrl: actorInfo.avatarUrl,
-                    role: actorInfo.roleName ?? undefined,
+                    role: actorInfo.role,
                   } : undefined}
                   date={formatTimestamp(entry.timestamp)}
                 />

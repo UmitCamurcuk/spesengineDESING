@@ -21,10 +21,13 @@ export interface HistoryActor {
   ip?: string;
   userAgent?: string;
   profilePhotoUrl?: string;
-  role?: {
-    name?: string;
-  };
-  roleName?: string; // Optional explicit role name provided by backend
+  role?:
+    | string
+    | {
+        id?: string;
+        name?: string;
+        isSystemRole?: boolean;
+      };
 }
 
 export interface HistoryDiff {
