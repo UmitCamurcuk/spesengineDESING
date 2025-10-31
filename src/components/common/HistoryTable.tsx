@@ -506,6 +506,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
                       role: actorInfo.role,
                     } : undefined}
                     date={formatTimestamp(entry.timestamp)}
+                    userAgent={entry.actor?.userAgent}
                   />
                 </div>
 
@@ -606,6 +607,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
                     role: actorInfo.role,
                   } : undefined}
                   date={formatTimestamp(entry.timestamp)}
+                  userAgent={entry.actor?.userAgent}
                 />
               </div>
             );

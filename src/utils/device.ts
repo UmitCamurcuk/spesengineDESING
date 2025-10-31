@@ -1,8 +1,8 @@
 const DEVICE_ICON_PATHS = {
-  iosPhone: '/assets/devices/ios-phone.png',
-  androidPhone: '/assets/devices/android-phone.png',
-  macBrowser: '/assets/devices/mac-browser.png',
-  windowsBrowser: '/assets/devices/windows-browser.png',
+  iosPhone: '/assets/devices/applephone.png',
+  androidPhone: '/assets/devices/androidphone.png',
+  macBrowser: '/assets/devices/applepc.png',
+  windowsBrowser: '/assets/devices/windwospc.png',
 } as const;
 
 type DeviceIconKey = keyof typeof DEVICE_ICON_PATHS;
