@@ -4,7 +4,9 @@ import { Users, Shield, Mail, Calendar } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable } from '../../components/ui/DataTable';
 import { Badge } from '../../components/ui/Badge';
+import { UserInfoWithRole } from '../../components/common/UserInfoWithRole';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useDateFormatter } from '../../hooks/useDateFormatter';
 import { usersService } from '../../api/services/users.service';
 import type { UserSummary, UserListResponse } from '../../api/types/api.types';
 
@@ -36,6 +38,7 @@ const formatDate = (value: string | null | undefined): string => {
 export const UsersList: React.FC = () => {
   const navigate = useNavigate();
   const { t, language } = useLanguage();
+  const { formatDateTime } = useDateFormatter();
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [pagination, setPagination] = useState({
@@ -194,7 +197,23 @@ export const UsersList: React.FC = () => {
       key: 'updatedAt',
       title: 'Updated',
       sortable: true,
-      render: (value: string | null | undefined) => formatDate(value),
+      render: (_value: string | null | undefined, user: UserSummary) => {
+        if (!user.updatedAt) {
+          return <span className="text-sm text-muted-foreground">—</span>;
+        }
+        return (
+          <UserInfoWithRole
+            user={user.updatedBy ? {
+              id: user.updatedBy.id,
+              email: user.updatedBy.email,
+              name: user.updatedBy.name,
+              profilePhotoUrl: user.updatedBy.profilePhotoUrl,
+              role: user.updatedBy.role,
+            } : undefined}
+            date={user.updatedAt}
+          />
+        );
+      },
     },
   ];
 

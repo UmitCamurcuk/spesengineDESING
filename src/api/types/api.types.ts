@@ -581,6 +581,18 @@ export interface UserTenantSummary {
   roleName: string | null;
 }
 
+export interface UpdatedByUserInfo {
+  id: string;
+  email: string;
+  name: string;
+  profilePhotoUrl?: string;
+  role?: string | {
+    name?: string;
+    id?: string;
+    isSystemRole?: boolean;
+  };
+}
+
 export interface UserSummary {
   id: string;
   firstName: string;
@@ -602,6 +614,7 @@ export interface UserSummary {
   lastLoginAt: string | null;
   createdAt: string | null;
   updatedAt: string | null;
+  updatedBy?: UpdatedByUserInfo | null;
 }
 
 export interface UserUpdateRequest {
