@@ -24,6 +24,7 @@ export interface HistoryActor {
   role?: {
     name?: string;
   };
+  roleName?: string; // Optional explicit role name provided by backend
 }
 
 export interface HistoryDiff {

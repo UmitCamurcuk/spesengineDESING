@@ -63,6 +63,18 @@ export interface ApiError {
   timestamp: string;
 }
 
+export interface AuditUserSummary {
+  id: string;
+  email: string;
+  name: string;
+  profilePhotoUrl?: string;
+  role?: string | {
+    id?: string;
+    name?: string;
+    isSystemRole?: boolean;
+  };
+}
+
 export interface ValidationError {
   field: string;
   message: string;

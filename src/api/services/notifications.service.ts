@@ -1,6 +1,6 @@
 import apiClient from '../client/axios';
 import { API_ENDPOINTS } from '../endpoints';
-import type { ApiSuccessResponse } from '../types/api.types';
+import type { ApiSuccessResponse, AuditUserSummary } from '../types/api.types';
 import type { APIEndpoint, DocumentationSection } from '../../types/common';
 
 export type NotificationRecipientType = 'user' | 'role' | 'email' | 'webhook';
@@ -38,6 +38,7 @@ export interface NotificationRule extends NotificationRulePayload {
   metadata: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
+  updatedBy?: AuditUserSummary;
 }
 
 export interface NotificationChannelPayload {
@@ -79,6 +80,7 @@ export interface NotificationTemplate extends NotificationTemplatePayload {
   metadata: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
+  updatedBy?: AuditUserSummary;
 }
 
 export interface NotificationRuleStatisticsChannel {

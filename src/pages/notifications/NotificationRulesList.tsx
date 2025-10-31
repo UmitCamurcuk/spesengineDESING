@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Zap, Calendar, Activity } from 'lucide-react';
+import { Zap, Activity } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable } from '../../components/ui/DataTable';
 import { Badge } from '../../components/ui/Badge';
@@ -9,17 +9,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { notificationsService, type NotificationRule } from '../../api/services/notifications.service';
 import { PERMISSIONS } from '../../config/permissions';
-
-const formatDate = (value: string | null | undefined): string => {
-  if (!value) {
-    return '—';
-  }
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-  return parsed.toLocaleString();
-};
+import { UserInfoWithRole } from '../../components/common/UserInfoWithRole';
 
 export const NotificationRulesList: React.FC = () => {
   const navigate = useNavigate();
@@ -108,7 +98,7 @@ export const NotificationRulesList: React.FC = () => {
               <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">
                 {t('notifications.rules.columns.updated_at')}
               </div>
-              <div className="text-sm text-gray-600">{formatDate(rule.updatedAt)}</div>
+              <UserInfoWithRole user={rule.updatedBy} date={rule.updatedAt} />
             </div>
           </div>
         </div>
@@ -145,11 +135,8 @@ export const NotificationRulesList: React.FC = () => {
       key: 'updatedAt',
       title: t('notifications.rules.columns.updated_at') ?? 'Updated',
       sortable: true,
-      render: (value: string | null | undefined) => (
-        <div className="flex items-center text-sm text-gray-600">
-          <Calendar className="h-4 w-4 mr-2 text-gray-400" />
-          {formatDate(value)}
-        </div>
+      render: (_value: string | null | undefined, rule: NotificationRule) => (
+        <UserInfoWithRole user={rule.updatedBy} date={rule.updatedAt} />
       ),
     },
   ];

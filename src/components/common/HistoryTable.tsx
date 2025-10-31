@@ -256,9 +256,9 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
 
   const filterValues = useServer
     ? {
-        action: serverFilters.action ?? '',
-        actor: serverFilters.actor ?? '',
-      }
+      action: serverFilters.action ?? '',
+      actor: serverFilters.actor ?? '',
+    }
     : undefined;
 
   const handleFilterChange = useCallback(
@@ -377,6 +377,11 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
       const assetBase = import.meta.env.VITE_ASSET_BASE_URL || import.meta.env.VITE_API_BASE_URL;
       const rawAvatar = entry.actor?.profilePhotoUrl ?? entry.entityProfilePhotoUrl;
       const avatarUrl = resolveAssetUrl(rawAvatar, assetBase);
+      console.log(entry.actor);
+      const roleName =
+        entry.actor?.role
+          ? entry.actor.role
+          : entry.actor?.role?.name;
 
       let displayName = baseName;
       if (currentUserId && entry.actor?.userId === currentUserId) {
@@ -386,12 +391,17 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
         displayName = t('profile.history_actor_system');
       }
 
-      return {
+      const actorDetails = {
         name: displayName,
         email,
         identifier,
         avatarUrl,
+        roleName: roleName
+          ?? (typeof entry.actor?.role === 'string'
+            ? entry.actor.role
+            : entry.actor?.role?.name ?? undefined),
       };
+      return actorDetails;
     },
     [currentUserId, t],
   );
@@ -429,77 +439,74 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
             const entityInfo = getEntityInfo(entry);
             return (
               <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <div className={`p-1.5 rounded-full bg-${getActionColor(entry.action)}-100`}>
-                  {getActionIcon(entry.action)}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <div className={`p-1.5 rounded-full bg-${getActionColor(entry.action)}-100`}>
+                      {getActionIcon(entry.action)}
+                    </div>
+                    <Badge variant={getActionColor(entry.action) as any} size="sm">
+                      {translateAction(entry.action)}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center text-xs text-muted-foreground space-x-1">
+                    <Clock className="h-3.5 w-3.5" />
+                    <span>{formatTimestamp(entry.timestamp)}</span>
+                  </div>
                 </div>
-                <Badge variant={getActionColor(entry.action) as any} size="sm">
-                  {translateAction(entry.action)}
-                </Badge>
-              </div>
-              <div className="flex items-center text-xs text-muted-foreground space-x-1">
-                <Clock className="h-3.5 w-3.5" />
-                <span>{formatTimestamp(entry.timestamp)}</span>
-              </div>
-            </div>
 
-            <div className="space-y-1">
-              <div className="text-sm font-medium text-foreground">
-                {resolveSummary(entry)}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {entityInfo.typeLabel}
-                {' · '}
-                {entityInfo.label}
-              </div>
-              {entityInfo.email && (
-                <div className="text-xs text-muted-foreground">
-                  {entityInfo.email}
+                <div className="space-y-1">
+                  <div className="text-sm font-medium text-foreground">
+                    {resolveSummary(entry)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {entityInfo.typeLabel}
+                    {' · '}
+                    {entityInfo.label}
+                  </div>
+                  {entityInfo.email && (
+                    <div className="text-xs text-muted-foreground">
+                      {entityInfo.email}
+                    </div>
+                  )}
+                  {entry.request?.source && (
+                    <div className="text-xs text-muted-foreground">
+                      {t('profile.history_source_label')}: {resolveSourceLabel(entry.request.source)}
+                    </div>
+                  )}
                 </div>
-              )}
-              {entry.request?.source && (
-                <div className="text-xs text-muted-foreground">
-                  {t('profile.history_source_label')}: {resolveSourceLabel(entry.request.source)}
+
+                {entry.tags && entry.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {entry.tags.map((tag) => (
+                      <Badge key={tag} variant="secondary" size="sm">
+                        {translateTag(tag)}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+
+                <div>{renderChanges(entry.changes)}</div>
+
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <UserInfoWithRole
+                    user={entry.actor?.userId ? {
+                      id: entry.actor.userId,
+                      email: actorInfo.email || '',
+                      name: actorInfo.name,
+                      profilePhotoUrl: actorInfo.avatarUrl,
+                      role: actorInfo.roleName ?? undefined,
+                    } : undefined}
+                    date={formatTimestamp(entry.timestamp)}
+                  />
                 </div>
-              )}
-            </div>
 
-            {entry.tags && entry.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {entry.tags.map((tag) => (
-                  <Badge key={tag} variant="secondary" size="sm">
-                    {translateTag(tag)}
-                  </Badge>
-                ))}
+                {entry.comment && (
+                  <div className="flex items-start gap-2 text-xs text-muted-foreground">
+                    <MessageSquare className="h-3.5 w-3.5 mt-0.5" />
+                    <span className="text-foreground whitespace-pre-wrap break-words">{entry.comment}</span>
+                  </div>
+                )}
               </div>
-            )}
-
-            <div>{renderChanges(entry.changes)}</div>
-
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <UserInfoWithRole
-                user={entry.actor?.userId ? {
-                  id: entry.actor.userId,
-                  email: actorInfo.email || '',
-                  name: actorInfo.name,
-                  profilePhotoUrl: actorInfo.avatarUrl,
-                  role: (() => {
-                    console.log('Debug - Mobile entry.actor.role:', entry.actor.role);
-                    return entry.actor.role?.name || "Unknown Role";
-                  })()
-                } : undefined}
-                date={formatTimestamp(entry.timestamp)}
-              />
-            </div>
-
-            {entry.comment && (
-              <div className="flex items-start gap-2 text-xs text-muted-foreground">
-                <MessageSquare className="h-3.5 w-3.5 mt-0.5" />
-                <span className="text-foreground whitespace-pre-wrap break-words">{entry.comment}</span>
-              </div>
-            )}
-          </div>
             );
           })()
         ),
@@ -571,7 +578,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
           ),
       },
       {
-       key: 'timestamp',
+        key: 'timestamp',
         title: t('profile.history_column_performed'),
         sortable: true,
         align: 'center' as const,
@@ -587,10 +594,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
                     email: actorInfo.email || '',
                     name: actorInfo.name,
                     profilePhotoUrl: actorInfo.avatarUrl,
-                    role: (() => {
-                      console.log('Debug - entry.actor.role:', entry.actor.role);
-                      return entry.actor.role?.name || "Unknown Role";
-                    })()
+                    role: actorInfo.roleName ?? undefined,
                   } : undefined}
                   date={formatTimestamp(entry.timestamp)}
                 />
