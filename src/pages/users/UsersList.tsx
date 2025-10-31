@@ -5,8 +5,8 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable } from '../../components/ui/DataTable';
 import { Badge } from '../../components/ui/Badge';
 import { UserInfoWithRole } from '../../components/common/UserInfoWithRole';
+import { RelativeTime } from '../../components/common/RelativeTime';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { useDateFormatter } from '../../hooks/useDateFormatter';
 import { usersService } from '../../api/services/users.service';
 import type { UserSummary, UserListResponse } from '../../api/types/api.types';
 
@@ -38,7 +38,6 @@ const formatDate = (value: string | null | undefined): string => {
 export const UsersList: React.FC = () => {
   const navigate = useNavigate();
   const { t, language } = useLanguage();
-  const { formatDateTime } = useDateFormatter();
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [pagination, setPagination] = useState({
@@ -151,7 +150,9 @@ export const UsersList: React.FC = () => {
               </div>
               <div>
                 <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Last Login</div>
-                <div className="text-sm text-gray-600">{formatDate(user.lastLoginAt)}</div>
+                <div className="text-sm text-gray-600">
+                  <RelativeTime date={user.lastLoginAt} includeTime={true} />
+                </div>
               </div>
             </div>
           </div>
@@ -189,7 +190,7 @@ export const UsersList: React.FC = () => {
       render: (value: string | null | undefined) => (
         <div className="flex items-center text-sm text-gray-600">
           <Calendar className="h-4 w-4 mr-2 text-gray-400" />
-          {formatDate(value ?? null)}
+          <RelativeTime date={value} includeTime={true} />
         </div>
       ),
     },
