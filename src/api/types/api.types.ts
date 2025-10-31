@@ -425,6 +425,55 @@ export interface MeResponseData {
 
 export type MeResponse = ApiSuccessResponse<MeResponseData>;
 
+export type SearchEntityType =
+  | 'item'
+  | 'item_type'
+  | 'category'
+  | 'family'
+  | 'attribute_group'
+  | 'attribute'
+  | 'user'
+  | 'notification_rule';
+
+export interface SearchHit {
+  id: string;
+  entityType: SearchEntityType;
+  tenantId: string;
+  title: {
+    tr?: string;
+    en?: string;
+  };
+  description?: {
+    tr?: string;
+    en?: string;
+  };
+  route: string;
+  isActive?: boolean;
+  tags?: string[];
+  metadata?: Record<string, unknown>;
+  createdAt?: string;
+  updatedAt?: string;
+  score: number;
+  highlight?: Record<string, string[]>;
+}
+
+export interface SearchResponseData {
+  items: SearchHit[];
+  total: number;
+}
+
+export type SearchResponse = ApiSuccessResponse<SearchResponseData>;
+
+export interface SearchSuggestion {
+  id: string;
+  entityType: SearchEntityType;
+  title: string;
+  route: string;
+  score: number;
+}
+
+export type SearchSuggestionsResponse = ApiSuccessResponse<{ items: SearchSuggestion[] }>;
+
 export interface ProfilePhotoResponseData {
   profilePhotoUrl: string;
 }

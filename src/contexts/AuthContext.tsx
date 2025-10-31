@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   ReactNode,
 } from 'react';
@@ -62,11 +63,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const isLoading = isInitializing || status === 'loading' || isProcessing;
   const permissionSet = useMemo(() => new Set(user?.permissions ?? []), [user?.permissions]);
 
-  const fetchAndSetProfile = async () => {
+  const fetchAndSetProfile = useCallback(async () => {
     const profile = await authService.getProfile();
     dispatch(setUser({ user: profile.user, session: profile.token }));
     return profile;
-  };
+  }, [dispatch]);
 
   // Initialize auth state on mount - UNIFIED APPROACH (single /me API call)
   useEffect(() => {
@@ -100,7 +101,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     initializeAuth();
-  }, [accessToken, user]); // Re-run only when accessToken or user changes
+  }, [accessToken, user, fetchAndSetProfile]); // Re-run only when accessToken or user changes
 
   // Auto-refresh token before expiry
   useEffect(() => {
@@ -119,6 +120,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setError(authError);
     }
   }, [authError]);
+
+  const authzSyncInProgressRef = useRef(false);
+
+  useEffect(() => {
+    const handlePermissionsVersionChange = async () => {
+      if (authzSyncInProgressRef.current) {
+        return;
+      }
+      authzSyncInProgressRef.current = true;
+
+      try {
+        if (!isAuthenticated) {
+          return;
+        }
+        await fetchAndSetProfile();
+        logger.info('Permissions refreshed after authzVersion update');
+      } catch (error) {
+        logger.error('Failed to refresh permissions after authzVersion update', error);
+      } finally {
+        authzSyncInProgressRef.current = false;
+      }
+    };
+
+    const listener = handlePermissionsVersionChange as EventListener;
+    window.addEventListener('auth:version-outdated', listener);
+    return () => {
+      window.removeEventListener('auth:version-outdated', listener);
+    };
+  }, [fetchAndSetProfile, isAuthenticated]);
 
   useEffect(() => {
     const handleProfileUpdated = (event: Event) => {

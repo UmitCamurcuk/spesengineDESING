@@ -78,6 +78,7 @@ import { AssociationsCreate } from './pages/associations/AssociationsCreate';
 import { NotificationRulesList } from './pages/notifications/NotificationRulesList';
 import { NotificationRulesCreate } from './pages/notifications/NotificationRulesCreate';
 import { NotificationRulesDetails } from './pages/notifications/NotificationRulesDetails';
+import { SearchResults } from './pages/search/SearchResults';
 
 import { NotificationChannelsList } from './pages/notifications/NotificationChannelsList';
 import { NotificationChannelsCreate } from './pages/notifications/NotificationChannelsCreate';
@@ -450,6 +451,9 @@ const AppContentInner: React.FC = () => {
         
         {/* Profile Route */}
         <Route path="/profile" element={<Profile />} />
+
+        {/* Search */}
+        <Route path="/search" element={<SearchResults />} />
         
         {/* Catch all route - redirect to dashboard */}
         <Route path="*" element={<Navigate to="/dashboard" replace />} />

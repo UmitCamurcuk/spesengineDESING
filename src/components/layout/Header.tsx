@@ -1,8 +1,29 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Bell, Search, User, LogOut, Settings, Menu, ArrowLeft, Home } from 'lucide-react';
+import {
+  ArrowLeft,
+  Bell,
+  BellRing,
+  ChevronRight,
+  Grid,
+  Home,
+  Layers,
+  Loader2,
+  LogOut,
+  Menu,
+  Package,
+  Search,
+  Settings,
+  SlidersHorizontal,
+  Tags,
+  User,
+  Users,
+  X,
+} from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { searchService } from '../../api/services/search.service';
+import type { SearchEntityType, SearchSuggestion } from '../../api/types/api.types';
 
 interface HeaderProps {
   user?: {
@@ -105,9 +126,235 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onMenuClick, act
   const navigate = useNavigate();
   const { t } = useLanguage();
   
+  const entityMetadata = useMemo(
+    () =>
+      ({
+        item: { label: t('navigation.items'), icon: Package },
+        item_type: { label: t('navigation.item_types'), icon: Layers },
+        category: { label: t('navigation.categories'), icon: Tags },
+        family: { label: t('navigation.families'), icon: Layers },
+        attribute_group: { label: t('navigation.attribute_groups'), icon: Grid },
+        attribute: { label: t('navigation.attributes'), icon: SlidersHorizontal },
+        user: { label: t('navigation.users'), icon: Users },
+        notification_rule: { label: t('navigation.notifications'), icon: BellRing },
+      }) as Record<SearchEntityType, { label: string; icon: React.ComponentType<{ className?: string }> }>,
+    [t],
+  );
+  
   const pageTitle = getPageTitle(location.pathname, t);
   const breadcrumbs = getBreadcrumbs(location.pathname, t);
   const canGoBack = breadcrumbs.length > 1;
+  const [searchQuery, setSearchQuery] = useState('');
+  const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [isSearchActive, setIsSearchActive] = useState(false);
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
+  const searchContainerRef = useRef<HTMLDivElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const mobileSearchInputRef = useRef<HTMLInputElement | null>(null);
+  const trimmedQuery = searchQuery.trim();
+  const hasQuery = trimmedQuery.length >= 2;
+  const groupedSuggestions = useMemo(() => {
+    const buckets = new Map<SearchEntityType, SearchSuggestion[]>();
+    suggestions.forEach((suggestion) => {
+      if (!buckets.has(suggestion.entityType)) {
+        buckets.set(suggestion.entityType, []);
+      }
+      const bucket = buckets.get(suggestion.entityType)!;
+      if (bucket.length < 3) {
+        bucket.push(suggestion);
+      }
+    });
+    return Array.from(buckets.entries());
+  }, [suggestions]);
+
+  const navigateToSearch = useCallback(
+    (query: string, entityType?: SearchEntityType) => {
+      const trimmed = query.trim();
+      if (trimmed.length < 2) {
+        return;
+      }
+      const params = new URLSearchParams({ q: trimmed });
+      if (entityType) {
+        params.set('entityType', entityType);
+      }
+      setIsSearchActive(false);
+      setShowMobileSearch(false);
+      setSuggestions([]);
+      navigate(`/search?${params.toString()}`);
+    },
+    [navigate],
+  );
+
+  const handleSuggestionSelect = useCallback(
+    (suggestion: SearchSuggestion) => {
+      setSearchQuery('');
+      setSuggestions([]);
+      setIsSearchActive(false);
+      setShowMobileSearch(false);
+      navigate(suggestion.route);
+    },
+    [navigate],
+  );
+
+  const handleSearchSubmit = useCallback(() => {
+    navigateToSearch(searchQuery);
+  }, [navigateToSearch, searchQuery]);
+
+  const renderSuggestions = () => {
+    if (!hasQuery) {
+      return (
+        <div className="px-4 py-3 text-sm text-muted-foreground">
+          En az 2 karakter giriniz.
+        </div>
+      );
+    }
+
+    if (searchLoading) {
+      return (
+        <div className="flex items-center justify-center py-6">
+          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+        </div>
+      );
+    }
+
+    if (searchError) {
+      return (
+        <div className="px-4 py-3 text-sm text-error">
+          {searchError}
+        </div>
+      );
+    }
+
+    if (hasQuery && groupedSuggestions.length === 0) {
+      return (
+        <div className="px-4 py-3 text-sm text-muted-foreground">
+          {t('common.no_results')}
+        </div>
+      );
+    }
+
+    return (
+      <div className="py-2">
+        {groupedSuggestions.map(([entityType, items]) => {
+          const meta = entityMetadata[entityType];
+          const Icon = meta?.icon ?? Search;
+          return (
+            <div key={entityType} className="py-1">
+              <div className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-2">
+                <Icon className="h-3.5 w-3.5 text-primary" />
+                <span>{meta?.label ?? entityType}</span>
+              </div>
+              <div className="space-y-1">
+                {items.map((item) => (
+                  <button
+                    key={`${entityType}-${item.id}`}
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => handleSuggestionSelect(item)}
+                    className="w-full flex items-center justify-between px-4 py-2 text-left hover:bg-muted focus:bg-muted focus:outline-none transition-colors"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{item.title}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {(meta?.label ?? entityType) + ' · ' + item.route}
+                      </p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  useEffect(() => {
+    if (!isSearchActive && !showMobileSearch) {
+      return;
+    }
+
+    const trimmed = searchQuery.trim();
+    if (trimmed.length < 2) {
+      setSuggestions([]);
+      setSearchError(null);
+      setSearchLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setSearchLoading(true);
+    setSearchError(null);
+
+    const timeout = window.setTimeout(async () => {
+      try {
+        const response = await searchService.suggestions({ query: trimmed, limit: 9 });
+        if (cancelled) {
+          return;
+        }
+        setSuggestions(response.data.items ?? []);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+        setSuggestions([]);
+        setSearchError(t('common.error'));
+      } finally {
+        if (!cancelled) {
+          setSearchLoading(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [isSearchActive, searchQuery, showMobileSearch, t]);
+
+  useEffect(() => {
+    if (!isSearchActive) {
+      return;
+    }
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+        setIsSearchActive(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isSearchActive]);
+
+  useEffect(() => {
+    if (!isSearchActive && !showMobileSearch) {
+      return;
+    }
+
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsSearchActive(false);
+        setShowMobileSearch(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKey);
+    return () => {
+      window.removeEventListener('keydown', handleKey);
+    };
+  }, [isSearchActive, showMobileSearch]);
+
+  useEffect(() => {
+    setIsSearchActive(false);
+    setShowMobileSearch(false);
+    setSearchQuery('');
+    setSuggestions([]);
+  }, [location.pathname]);
 
   return (
     <header className="bg-background border-b border-border px-4 sm:px-5" style={{ paddingTop: '0.4rem', paddingBottom: '0.49rem' }}>
@@ -164,22 +411,63 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onMenuClick, act
               ))}
             </div>
           </div>
-        <div className="flex items-center space-x-2 sm:space-x-3">
-          {/* Page Actions - Left of Search */}
-          {actions}
-          {/* Desktop Search */}
-          <div className="hidden lg:block relative">
-            <Search className="h-4 w-4 text-muted-foreground absolute left-3 top-1/2 transform -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder={t('common.search')}
-              className="pl-9 pr-4 py-1.5 text-sm bg-background text-foreground border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring w-72"
-            />
-          </div>
         </div>
-
-
-          
+        <div className="flex items-center space-x-2 sm:space-x-3">
+          {actions}
+          <div ref={searchContainerRef} className="hidden lg:block relative">
+            <Search className="h-4 w-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onFocus={() => {
+                setIsSearchActive(true);
+                setShowMobileSearch(false);
+              }}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  handleSearchSubmit();
+                }
+              }}
+              placeholder={t('common.search')}
+              className="pl-9 pr-4 py-1.5 text-sm bg-background text-foreground border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring w-80 transition-shadow"
+            />
+            {isSearchActive && (
+              <div className="absolute left-0 right-0 top-full z-30 mt-2 w-96 max-w-[28rem] rounded-md border border-border bg-popover shadow-xl">
+                {renderSuggestions()}
+                {hasQuery && groupedSuggestions.length > 0 && (
+                  <div className="border-t border-border">
+                    <button
+                      type="button"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => navigateToSearch(searchQuery)}
+                      className="flex w-full items-center justify-between px-4 py-2 text-sm text-primary hover:bg-muted transition-colors"
+                    >
+                      <span>{t('dashboard.view_all')}</span>
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="lg:hidden p-2 h-9 w-9"
+            onClick={() => {
+              setShowMobileSearch(true);
+              setIsSearchActive(false);
+              setTimeout(() => {
+                mobileSearchInputRef.current?.focus();
+              }, 50);
+            }}
+          >
+            <Search className="h-5 w-5" />
+          </Button>
+        </div>
         <div className="flex items-center space-x-3">
           <div className="relative">
             <button
@@ -232,8 +520,62 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onMenuClick, act
             )}
           </div>
         </div>
-        </div>
       </div>
+      {showMobileSearch && (
+        <div className="lg:hidden fixed inset-0 z-40 bg-background/95 backdrop-blur-sm">
+          <div className="flex h-full flex-col">
+            <div className="flex items-center justify-between px-4 pt-4">
+              <h2 className="text-sm font-semibold text-foreground">{t('common.search')}</h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="p-2 h-9 w-9"
+                onClick={() => {
+                  setShowMobileSearch(false);
+                }}
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+            <div className="px-4 pt-2 pb-4">
+              <div className="relative">
+                <Search className="h-5 w-5 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  ref={mobileSearchInputRef}
+                  type="text"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      handleSearchSubmit();
+                    }
+                  }}
+                  placeholder={t('common.search')}
+                  className="w-full rounded-md border border-input bg-background py-2 pl-10 pr-4 text-base text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
+                />
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto px-4 pb-6">
+              <div className="rounded-lg border border-border bg-popover shadow-md">
+                {renderSuggestions()}
+                {hasQuery && groupedSuggestions.length > 0 && (
+                  <div className="border-t border-border">
+                    <button
+                      type="button"
+                      onClick={() => navigateToSearch(searchQuery)}
+                      className="flex w-full items-center justify-between px-4 py-3 text-sm text-primary hover:bg-muted transition-colors"
+                    >
+                      <span>{t('dashboard.view_all')}</span>
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 };

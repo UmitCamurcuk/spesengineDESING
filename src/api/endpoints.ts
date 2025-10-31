@@ -154,10 +154,8 @@ export const API_ENDPOINTS = {
   
   // Search endpoints
   SEARCH: {
-    GLOBAL: '/search',
-    ITEMS: '/search/items',
-    CATEGORIES: '/search/categories',
-    USERS: '/search/users',
+    BASE: '/search',
+    BY_ENTITY: (entity: string) => `/search/${entity}`,
     SUGGESTIONS: '/search/suggestions',
   },
   
