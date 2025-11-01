@@ -175,7 +175,13 @@ export function PermissionsList() {
             email: permission.updatedBy.email,
             name: permission.updatedBy.name,
             profilePhotoUrl: permission.updatedBy.profilePhotoUrl,
-            role: permission.updatedBy.role?.name || t('common.unknown_role')
+            role: permission.updatedBy.role
+              ? {
+                  id: permission.updatedBy.role.id,
+                  name: permission.updatedBy.role.name ?? undefined,
+                  isSystemRole: permission.updatedBy.role.isSystemRole ?? false,
+                }
+              : t('common.unknown_role') || 'Unknown Role'
           } : undefined}
           date={value}
         />

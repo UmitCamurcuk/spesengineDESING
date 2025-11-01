@@ -519,6 +519,11 @@ export interface PermissionGroupRecord {
     email: string;
     name: string;
     profilePhotoUrl?: string;
+    role?: {
+      id?: string;
+      name?: string | null;
+      isSystemRole?: boolean;
+    };
   };
 }
 
@@ -542,6 +547,11 @@ export interface PermissionRecord {
     email: string;
     name: string;
     profilePhotoUrl?: string;
+    role?: {
+      id?: string;
+      name?: string | null;
+      isSystemRole?: boolean;
+    };
   };
 }
 

@@ -165,15 +165,15 @@ export const Statistics: React.FC<StatisticsProps> = ({
       return '—';
     }
     if (ms < 1000) {
-      return `${ms} ms`;
+      return `${Math.round(ms)} ms`;
     }
     const seconds = ms / 1000;
     if (seconds < 60) {
-      return `${seconds.toFixed(1)} s`;
+      return `${Math.round(seconds)} s`;
     }
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
-    return `${minutes} dk ${remainingSeconds.toFixed(0)} sn`;
+    return `${minutes} dk ${Math.round(remainingSeconds)} sn`;
   };
 
   const overviewCards = useMemo(() => {

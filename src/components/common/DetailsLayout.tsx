@@ -9,8 +9,8 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useEditActionContext } from '../../contexts/EditActionContext';
 
 interface DetailsLayoutProps {
-  title: string;
-  subtitle?: string;
+  title: React.ReactNode;
+  subtitle?: React.ReactNode;
   icon: React.ReactNode;
   tabs: TabConfig[];
   defaultTab?: string;
@@ -142,17 +142,24 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
             </Button>
           )}
           
-          <div className="flex items-center space-x-3">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-sm">
-              {icon}
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">{title}</h1>
-              {subtitle && (
-                <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>
-              )}
-            </div>
+        <div className="flex items-center space-x-3 w-full">
+          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0">
+            {icon}
           </div>
+          <div className="min-w-0 space-y-1">
+            {typeof title === 'string' ? (
+              <h1 className="text-2xl font-bold text-foreground">{title}</h1>
+            ) : (
+              title
+            )}
+            {subtitle &&
+              (typeof subtitle === 'string' ? (
+                <p className="text-sm text-muted-foreground">{subtitle}</p>
+              ) : (
+                subtitle
+              ))}
+          </div>
+        </div>
         </div>
 
         <div className="flex items-center space-x-3">

@@ -25,11 +25,13 @@ import { HistoryTable } from '../../components/common/HistoryTable';
 import { Card, CardHeader } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { Textarea } from '../../components/ui/Textarea';
 import { Badge } from '../../components/ui/Badge';
 import { ChangeConfirmDialog } from '../../components/ui/ChangeConfirmDialog';
 import { rolesService } from '../../api/services/roles.service';
 import { permissionsService } from '../../api/services/permissions.service';
 import { permissionGroupsService } from '../../api/services/permission-groups.service';
+import { localizationsService } from '../../api/services/localizations.service';
 import { PERMISSIONS } from '../../config/permissions';
 import { cn } from '../../utils/cn';
 import type {
@@ -151,22 +153,42 @@ const formsEqual = (a: RoleForm, b: RoleForm): boolean => {
   );
 };
 
-const buildUpdatePayload = (current: RoleForm, baseline: RoleForm): RoleUpdateRequest => {
+const buildUpdatePayload = (
+  current: RoleForm,
+  baseline: RoleForm,
+  activeLanguage: string,
+): RoleUpdateRequest => {
   const payload: RoleUpdateRequest = {};
   const normalizedCurrent = normalizeForm(current);
   const normalizedBaseline = normalizeForm(baseline);
+  const languageCode = normalizeLanguageCode(activeLanguage);
 
-  if (!translationMapsEqual(normalizedCurrent.translations.name, normalizedBaseline.translations.name)) {
-    payload.name = normalizedCurrent.translations.name;
+  const currentName = normalizedCurrent.translations.name[languageCode] ?? '';
+  const baselineName = normalizedBaseline.translations.name[languageCode] ?? '';
+  if (currentName !== baselineName) {
+    if (currentName.length > 0) {
+      const merged = {
+        ...normalizedBaseline.translations.name,
+        [languageCode]: currentName,
+      };
+      payload.name = Object.fromEntries(
+        Object.entries(merged).filter(([, value]) => value.trim().length > 0),
+      );
+    }
   }
 
-  if (
-    !translationMapsEqual(
-      normalizedCurrent.translations.description,
-      normalizedBaseline.translations.description,
-    )
-  ) {
-    payload.description = normalizedCurrent.translations.description;
+  const currentDescription = normalizedCurrent.translations.description[languageCode] ?? '';
+  const baselineDescription = normalizedBaseline.translations.description[languageCode] ?? '';
+  if (currentDescription !== baselineDescription) {
+    if (currentDescription.length > 0) {
+      const merged = {
+        ...normalizedBaseline.translations.description,
+        [languageCode]: currentDescription,
+      };
+      payload.description = Object.fromEntries(
+        Object.entries(merged).filter(([, value]) => value.trim().length > 0),
+      );
+    }
   }
 
   if (!permissionsEqual(normalizedCurrent.permissions, normalizedBaseline.permissions)) {
@@ -190,89 +212,21 @@ interface RoleDetailsTabProps {
   formatDateTime: (value: string | number | Date | null | undefined, options?: { includeTime?: boolean }) => string;
 }
 
-const RoleDetailsTab: React.FC<RoleDetailsTabProps> = ({
-  form,
-  editMode,
-  onChange,
-  languages,
-  metadata,
-  formatDateTime,
-}) => {
-  const { t } = useLanguage();
-
-  const handleTranslationChange = (
-    field: 'name' | 'description',
-    languageCode: string,
-    value: string,
-  ) => {
-    const normalized = normalizeLanguageCode(languageCode);
-    onChange((prev) => ({
-      ...prev,
-      translations: {
-        ...prev.translations,
-        [field]: {
-          ...prev.translations[field],
-          [normalized]: value,
-        },
-      },
-    }));
+interface RoleDetailsTabProps {
+  metadata: {
+    id: string;
+    createdAt: string;
+    updatedAt: string;
+    isSystemRole: boolean;
   };
+  formatDateTime: (value: string | number | Date | null | undefined, options?: { includeTime?: boolean }) => string;
+}
+
+const RoleDetailsTab: React.FC<RoleDetailsTabProps> = ({ metadata, formatDateTime }) => {
+  const { t } = useLanguage();
 
   return (
     <div className="space-y-6">
-      <Card padding="lg" className="bg-card">
-        <CardHeader
-          title={t('roles.details.name_translations')}
-          subtitle={t('roles.details.name_translations_subtitle')}
-        />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {languages.map((language) => {
-            const normalized = normalizeLanguageCode(language.code);
-            return (
-              <Input
-                key={`name-${normalized}`}
-                label={`${t('roles.fields.name')} (${language.label})`}
-                value={form.translations.name[normalized] ?? ''}
-                onChange={(event) =>
-                  handleTranslationChange('name', language.code, event.target.value)
-                }
-                placeholder={t('roles.placeholders.name', { language: language.label })}
-                disabled={!editMode}
-              />
-            );
-          })}
-        </div>
-      </Card>
-
-      <Card padding="lg" className="bg-card">
-        <CardHeader
-          title={t('roles.details.description_translations')}
-          subtitle={t('roles.details.description_translations_subtitle')}
-        />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {languages.map((language) => {
-            const normalized = normalizeLanguageCode(language.code);
-            return (
-              <div key={`description-${normalized}`}>
-                <label className="text-sm font-medium text-foreground mb-2 block">
-                  {t('roles.fields.description')} ({language.label})
-                </label>
-                <textarea
-                  value={form.translations.description[normalized] ?? ''}
-                  onChange={(event) =>
-                    handleTranslationChange('description', language.code, event.target.value)
-                  }
-                  placeholder={t('roles.placeholders.description', { language: language.label })}
-                  rows={editMode ? 4 : 3}
-                  className="w-full px-3 py-2 text-sm bg-background text-foreground border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring/20 disabled:bg-muted resize-none"
-                  disabled={!editMode}
-                />
-              </div>
-            );
-          })}
-        </div>
-      </Card>
-
       <Card padding="lg" className="bg-card">
         <CardHeader
           title={t('roles.details.metadata')}
@@ -296,6 +250,16 @@ const RoleDetailsTab: React.FC<RoleDetailsTabProps> = ({
               {t('roles.fields.updated_at')}
             </span>
             <span className="mt-1 block">{formatDateTime(metadata.updatedAt, { includeTime: true })}</span>
+          </div>
+          <div className="md:col-span-3">
+            <span className="font-medium text-foreground block">
+              {t('roles.fields.role_type')}
+            </span>
+            <span className="mt-1 inline-flex items-center gap-2">
+              <Badge variant={metadata.isSystemRole ? 'secondary' : 'default'} size="sm">
+                {metadata.isSystemRole ? t('roles.labels.system_role') : t('roles.labels.custom_role')}
+              </Badge>
+            </span>
           </div>
         </div>
       </Card>
@@ -597,6 +561,25 @@ export function RolesDetails() {
     }));
   }, [settings?.localization?.supportedLanguages]);
 
+  const normalizedCurrentLanguage = useMemo(
+    () => normalizeLanguageCode(language),
+    [language],
+  );
+
+  const currentLanguageOption = useMemo<LanguageOption>(() => {
+    const match = supportedLanguages.find(
+      (item) => normalizeLanguageCode(item.code) === normalizedCurrentLanguage,
+    );
+    if (match) {
+      return match;
+    }
+    return {
+      code: language,
+      label: language.toUpperCase(),
+      required: false,
+    };
+  }, [language, normalizedCurrentLanguage, supportedLanguages]);
+
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<RoleWithPermissions | null>(null);
   const [permissions, setPermissions] = useState<PermissionRecord[]>([]);
@@ -650,27 +633,41 @@ export function RolesDetails() {
         permissionGroupsService.list({ pageSize: 200, language }),
       ]);
 
-      const nameLocalization = roleResponse.nameLocalizationId
+      let nameLocalization: LocalizationRecord | null = roleResponse.nameLocalizationId
         ? getLocalization(roleResponse.nameLocalizationId) ?? null
         : null;
-      const descriptionLocalization = roleResponse.descriptionLocalizationId
+      let descriptionLocalization: LocalizationRecord | null = roleResponse.descriptionLocalizationId
         ? getLocalization(roleResponse.descriptionLocalizationId) ?? null
         : null;
 
-      if (roleResponse.nameLocalizationId && !nameLocalization && !warnedLocalizationIdsRef.current.has(roleResponse.nameLocalizationId)) {
-        warnedLocalizationIdsRef.current.add(roleResponse.nameLocalizationId);
-        showToast({
-          type: 'warning',
-          message: translationFnRef.current('roles.messages.localization_fetch_failed'),
-        });
+      if (roleResponse.nameLocalizationId && !nameLocalization) {
+        try {
+          nameLocalization = await localizationsService.getById(roleResponse.nameLocalizationId);
+        } catch (fetchError) {
+          if (!warnedLocalizationIdsRef.current.has(roleResponse.nameLocalizationId)) {
+            warnedLocalizationIdsRef.current.add(roleResponse.nameLocalizationId);
+            showToast({
+              type: 'warning',
+              message: translationFnRef.current('roles.messages.localization_fetch_failed'),
+            });
+          }
+        }
       }
 
-      if (roleResponse.descriptionLocalizationId && !descriptionLocalization && !warnedLocalizationIdsRef.current.has(roleResponse.descriptionLocalizationId)) {
-        warnedLocalizationIdsRef.current.add(roleResponse.descriptionLocalizationId);
-        showToast({
-          type: 'warning',
-          message: translationFnRef.current('roles.messages.localization_fetch_failed'),
-        });
+      if (roleResponse.descriptionLocalizationId && !descriptionLocalization) {
+        try {
+          descriptionLocalization = await localizationsService.getById(
+            roleResponse.descriptionLocalizationId,
+          );
+        } catch (fetchError) {
+          if (!warnedLocalizationIdsRef.current.has(roleResponse.descriptionLocalizationId)) {
+            warnedLocalizationIdsRef.current.add(roleResponse.descriptionLocalizationId);
+            showToast({
+              type: 'warning',
+              message: translationFnRef.current('roles.messages.localization_fetch_failed'),
+            });
+          }
+        }
       }
 
       const form: RoleForm = {
@@ -680,6 +677,22 @@ export function RolesDetails() {
         },
         permissions: [...roleResponse.permissions],
       };
+
+      const currentLang = normalizedCurrentLanguage;
+      if (!form.translations.name[currentLang]) {
+        form.translations.name[currentLang] =
+          roleResponse.name?.trim() ||
+          resolveLocalization(roleResponse.nameLocalizationId) ||
+          form.translations.name[currentLang] ||
+          '';
+      }
+      if (!form.translations.description[currentLang]) {
+        form.translations.description[currentLang] =
+          roleResponse.description?.trim() ||
+          resolveLocalization(roleResponse.descriptionLocalizationId) ||
+          form.translations.description[currentLang] ||
+          '';
+      }
 
       baselineRef.current = cloneForm(form);
       setFormState(cloneForm(form));
@@ -712,6 +725,34 @@ export function RolesDetails() {
     }
     void loadData();
   }, [loadData, translationsReady]);
+
+  const handleHeaderNameChange = useCallback(
+    (value: string) => {
+      updateFormState((prev) => {
+        const next = cloneForm(prev);
+        next.translations.name = {
+          ...next.translations.name,
+          [normalizedCurrentLanguage]: value,
+        };
+        return next;
+      });
+    },
+    [normalizedCurrentLanguage, updateFormState],
+  );
+
+  const handleHeaderDescriptionChange = useCallback(
+    (value: string) => {
+      updateFormState((prev) => {
+        const next = cloneForm(prev);
+        next.translations.description = {
+          ...next.translations.description,
+          [normalizedCurrentLanguage]: value,
+        };
+        return next;
+      });
+    },
+    [normalizedCurrentLanguage, updateFormState],
+  );
 
   const handleEnterEdit = () => {
     if (!canUpdateRole) {
@@ -752,33 +793,30 @@ export function RolesDetails() {
     const normalizedCurrent = normalizeForm(formState);
     const normalizedBaseline = normalizeForm(baselineRef.current);
 
-    supportedLanguages.forEach((languageOption) => {
-      const code = normalizeLanguageCode(languageOption.code);
-      const label = `${t('roles.fields.name')} (${languageOption.label})`;
-      const oldValue = normalizedBaseline.translations.name[code] ?? '';
-      const newValue = normalizedCurrent.translations.name[code] ?? '';
-      if (oldValue !== newValue) {
-        changes.push({
-          field: label,
-          oldValue: oldValue || '—',
-          newValue: newValue || '—',
-        });
-      }
-    });
+    const nameLanguageCode = normalizeLanguageCode(currentLanguageOption.code);
+    const nameLabel = `${t('roles.fields.name')} (${currentLanguageOption.label})`;
+    const previousName = normalizedBaseline.translations.name[nameLanguageCode] ?? '';
+    const nextName = normalizedCurrent.translations.name[nameLanguageCode] ?? '';
+    if (previousName !== nextName) {
+      changes.push({
+        field: nameLabel,
+        oldValue: previousName || '—',
+        newValue: nextName || '—',
+      });
+    }
 
-    supportedLanguages.forEach((languageOption) => {
-      const code = normalizeLanguageCode(languageOption.code);
-      const label = `${t('roles.fields.description')} (${languageOption.label})`;
-      const oldValue = normalizedBaseline.translations.description[code] ?? '';
-      const newValue = normalizedCurrent.translations.description[code] ?? '';
-      if (oldValue !== newValue) {
-        changes.push({
-          field: label,
-          oldValue: oldValue || '—',
-          newValue: newValue || '—',
-        });
-      }
-    });
+    const descriptionLabel = `${t('roles.fields.description')} (${currentLanguageOption.label})`;
+    const previousDescription =
+      normalizedBaseline.translations.description[nameLanguageCode] ?? '';
+    const nextDescription =
+      normalizedCurrent.translations.description[nameLanguageCode] ?? '';
+    if (previousDescription !== nextDescription) {
+      changes.push({
+        field: descriptionLabel,
+        oldValue: previousDescription || '—',
+        newValue: nextDescription || '—',
+      });
+    }
 
     if (!permissionsEqual(normalizedCurrent.permissions, normalizedBaseline.permissions)) {
       changes.push({
@@ -813,7 +851,11 @@ export function RolesDetails() {
     }
     try {
       setSaving(true);
-      const payload = buildUpdatePayload(formState, baselineRef.current);
+      const payload = buildUpdatePayload(
+        formState,
+        baselineRef.current,
+        normalizedCurrentLanguage,
+      );
       if (Object.keys(payload).length === 0) {
         showToast({
           type: 'info',
@@ -860,10 +902,6 @@ export function RolesDetails() {
         icon: FileText,
         component: RoleDetailsTab,
         props: {
-          form: formState,
-          editMode: isEditing,
-          onChange: updateFormState,
-          languages: supportedLanguages,
           metadata: {
             id: role.id,
             createdAt: role.createdAt,
@@ -966,21 +1004,51 @@ export function RolesDetails() {
     );
   }
 
+  const currentNameValue = formState.translations.name[normalizedCurrentLanguage] ?? '';
+  const currentDescriptionValue =
+    formState.translations.description[normalizedCurrentLanguage] ?? '';
+
+  const displayName =
+    role.name?.trim() ||
+    resolveLocalization(role.nameLocalizationId) ||
+    role.nameLocalizationId ||
+    t('roles.details.title');
+
+  const displayDescription =
+    role.description?.trim() ||
+    resolveLocalization(role.descriptionLocalizationId) ||
+    role.descriptionLocalizationId ||
+    t('roles.details.subtitle');
+
+  const titleNode = isEditing ? (
+    <Input
+      value={currentNameValue}
+      onChange={(event) => handleHeaderNameChange(event.target.value)}
+      placeholder={t('roles.placeholders.name', { language: currentLanguageOption.label })}
+      className="max-w-xl"
+      autoFocus
+    />
+  ) : (
+    displayName
+  );
+
+  const subtitleNode = isEditing ? (
+    <Textarea
+      value={currentDescriptionValue}
+      onChange={(event) => handleHeaderDescriptionChange(event.target.value)}
+      placeholder={t('roles.placeholders.description', { language: currentLanguageOption.label })}
+      rows={3}
+      className="max-w-xl"
+    />
+  ) : (
+    displayDescription
+  );
+
   return (
     <>
       <DetailsLayout
-        title={
-          role.name?.trim() ||
-          resolveLocalization(role.nameLocalizationId) ||
-          role.nameLocalizationId ||
-          t('roles.details.title')
-        }
-        subtitle={
-          role.description?.trim() ||
-          resolveLocalization(role.descriptionLocalizationId) ||
-          role.descriptionLocalizationId ||
-          t('roles.details.subtitle')
-        }
+        title={titleNode}
+        subtitle={subtitleNode}
         icon={<Shield className="h-6 w-6 text-white" />}
         backUrl="/roles"
         tabs={tabs}

@@ -23,11 +23,13 @@ import { Documentation } from '../../components/common/Documentation';
 import { HistoryTable } from '../../components/common/HistoryTable';
 import { Card, CardHeader } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
+import { Textarea } from '../../components/ui/Textarea';
 import { Select } from '../../components/ui/Select';
 import { Badge } from '../../components/ui/Badge';
 import { ChangeConfirmDialog } from '../../components/ui/ChangeConfirmDialog';
 import { permissionsService } from '../../api/services/permissions.service';
 import { permissionGroupsService } from '../../api/services/permission-groups.service';
+import { localizationsService } from '../../api/services/localizations.service';
 import { PERMISSIONS } from '../../config/permissions';
 import type {
   PermissionRecord,
@@ -141,10 +143,12 @@ const formsEqual = (a: PermissionForm, b: PermissionForm): boolean => {
 const buildUpdatePayload = (
   current: PermissionForm,
   baseline: PermissionForm,
+  activeLanguage: string,
 ): PermissionUpdateRequest => {
   const payload: PermissionUpdateRequest = {};
   const normalizedCurrent = normalizeForm(current);
   const normalizedBaseline = normalizeForm(baseline);
+  const languageCode = normalizeLanguageCode(activeLanguage);
 
   if (normalizedCurrent.code !== normalizedBaseline.code) {
     payload.code = normalizedCurrent.code;
@@ -162,17 +166,32 @@ const buildUpdatePayload = (
     payload.logo = normalizedCurrent.logo.length > 0 ? normalizedCurrent.logo : null;
   }
 
-  if (!translationMapsEqual(normalizedCurrent.translations.name, normalizedBaseline.translations.name)) {
-    payload.name = normalizedCurrent.translations.name;
+  const currentName = normalizedCurrent.translations.name[languageCode] ?? '';
+  const baselineName = normalizedBaseline.translations.name[languageCode] ?? '';
+  if (currentName !== baselineName) {
+    if (currentName.length > 0) {
+      const merged = {
+        ...normalizedBaseline.translations.name,
+        [languageCode]: currentName,
+      };
+      payload.name = Object.fromEntries(
+        Object.entries(merged).filter(([, value]) => value.trim().length > 0),
+      );
+    }
   }
 
-  if (
-    !translationMapsEqual(
-      normalizedCurrent.translations.description,
-      normalizedBaseline.translations.description,
-    )
-  ) {
-    payload.description = normalizedCurrent.translations.description;
+  const currentDescription = normalizedCurrent.translations.description[languageCode] ?? '';
+  const baselineDescription = normalizedBaseline.translations.description[languageCode] ?? '';
+  if (currentDescription !== baselineDescription) {
+    if (currentDescription.length > 0) {
+      const merged = {
+        ...normalizedBaseline.translations.description,
+        [languageCode]: currentDescription,
+      };
+      payload.description = Object.fromEntries(
+        Object.entries(merged).filter(([, value]) => value.trim().length > 0),
+      );
+    }
   }
 
   return payload;
@@ -182,7 +201,6 @@ interface PermissionDetailsTabProps {
   form: PermissionForm;
   editMode: boolean;
   onChange: (updater: (prev: PermissionForm) => PermissionForm) => void;
-  languages: LanguageOption[];
   metadata: {
     id: string;
     createdAt: string;
@@ -194,7 +212,6 @@ const PermissionDetailsTab: React.FC<PermissionDetailsTabProps> = ({
   form,
   editMode,
   onChange,
-  languages,
   metadata,
 }) => {
   const { t } = useLanguage();
@@ -203,24 +220,6 @@ const PermissionDetailsTab: React.FC<PermissionDetailsTabProps> = ({
     onChange((prev) => ({
       ...prev,
       [field]: field === 'displayOrder' ? Number(value) : value,
-    }));
-  };
-
-  const handleTranslationChange = (
-    field: 'name' | 'description',
-    languageCode: string,
-    value: string,
-  ) => {
-    const normalized = normalizeLanguageCode(languageCode);
-    onChange((prev) => ({
-      ...prev,
-      translations: {
-        ...prev.translations,
-        [field]: {
-          ...prev.translations[field],
-          [normalized]: value,
-        },
-      },
     }));
   };
 
@@ -286,60 +285,7 @@ const PermissionDetailsTab: React.FC<PermissionDetailsTabProps> = ({
             </div>
           </div>
         </Card>
-
-        <Card padding="lg" className="lg:col-span-2">
-          <CardHeader
-            title={t('permissions.fields.name_translations')}
-            subtitle={t('permissions.fields.name_translations_subtitle')}
-          />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {languages.map((language) => {
-              const normalized = normalizeLanguageCode(language.code);
-              return (
-                <Input
-                  key={`name-${normalized}`}
-                  label={`${t('permissions.fields.name')} (${language.label})`}
-                  value={form.translations.name[normalized] ?? ''}
-                  onChange={(event) =>
-                    handleTranslationChange('name', language.code, event.target.value)
-                  }
-                  placeholder={`${t('permissions.fields.name')} - ${language.label}`}
-                  disabled={!editMode}
-                />
-              );
-            })}
-          </div>
-        </Card>
       </div>
-
-      <Card padding="lg">
-        <CardHeader
-          title={t('permissions.fields.description_translations')}
-          subtitle={t('permissions.fields.description_translations_subtitle')}
-        />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {languages.map((language) => {
-            const normalized = normalizeLanguageCode(language.code);
-            return (
-              <div key={`description-${normalized}`}>
-                <label className="text-sm font-medium text-foreground mb-2 block">
-                  {t('permissions.fields.description')} ({language.label})
-                </label>
-                <textarea
-                  value={form.translations.description[normalized] ?? ''}
-                  onChange={(event) =>
-                    handleTranslationChange('description', language.code, event.target.value)
-                  }
-                  placeholder={`${t('permissions.fields.description')} - ${language.label}`}
-                  rows={editMode ? 4 : 3}
-                  className="w-full px-3 py-2 text-sm bg-background text-foreground border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring/20 disabled:bg-muted resize-none"
-                  disabled={!editMode}
-                />
-              </div>
-            );
-          })}
-        </div>
-      </Card>
     </div>
   );
 };
@@ -515,6 +461,25 @@ export function PermissionsDetails() {
     }));
   }, [settings?.localization?.supportedLanguages]);
 
+  const normalizedCurrentLanguage = useMemo(
+    () => normalizeLanguageCode(language),
+    [language],
+  );
+
+  const currentLanguageOption = useMemo<LanguageOption>(() => {
+    const match = supportedLanguages.find(
+      (item) => normalizeLanguageCode(item.code) === normalizedCurrentLanguage,
+    );
+    if (match) {
+      return match;
+    }
+    return {
+      code: language,
+      label: language.toUpperCase(),
+      required: false,
+    };
+  }, [language, normalizedCurrentLanguage, supportedLanguages]);
+
   const [loading, setLoading] = useState(true);
   const [permission, setPermission] = useState<PermissionRecord | null>(null);
   const [groups, setGroups] = useState<PermissionGroupRecord[]>([]);
@@ -566,27 +531,44 @@ export function PermissionsDetails() {
         permissionGroupsService.list({ pageSize: 200, language }),
       ]);
 
-      const nameLocalization = permissionResponse.nameLocalizationId
+      let nameLocalization: LocalizationRecord | null = permissionResponse.nameLocalizationId
         ? getLocalization(permissionResponse.nameLocalizationId) ?? null
         : null;
-      const descriptionLocalization = permissionResponse.descriptionLocalizationId
-        ? getLocalization(permissionResponse.descriptionLocalizationId) ?? null
-        : null;
+      let descriptionLocalization: LocalizationRecord | null =
+        permissionResponse.descriptionLocalizationId
+          ? getLocalization(permissionResponse.descriptionLocalizationId) ?? null
+          : null;
 
-      if (permissionResponse.nameLocalizationId && !nameLocalization && !warnedLocalizationIdsRef.current.has(permissionResponse.nameLocalizationId)) {
-        warnedLocalizationIdsRef.current.add(permissionResponse.nameLocalizationId);
-        showToast({
-          type: 'warning',
-          message: translationFnRef.current('permissions.messages.localization_fetch_failed'),
-        });
+      if (permissionResponse.nameLocalizationId && !nameLocalization) {
+        try {
+          nameLocalization = await localizationsService.getById(
+            permissionResponse.nameLocalizationId,
+          );
+        } catch {
+          if (!warnedLocalizationIdsRef.current.has(permissionResponse.nameLocalizationId)) {
+            warnedLocalizationIdsRef.current.add(permissionResponse.nameLocalizationId);
+            showToast({
+              type: 'warning',
+              message: translationFnRef.current('permissions.messages.localization_fetch_failed'),
+            });
+          }
+        }
       }
 
-      if (permissionResponse.descriptionLocalizationId && !descriptionLocalization && !warnedLocalizationIdsRef.current.has(permissionResponse.descriptionLocalizationId)) {
-        warnedLocalizationIdsRef.current.add(permissionResponse.descriptionLocalizationId);
-        showToast({
-          type: 'warning',
-          message: translationFnRef.current('permissions.messages.localization_fetch_failed'),
-        });
+      if (permissionResponse.descriptionLocalizationId && !descriptionLocalization) {
+        try {
+          descriptionLocalization = await localizationsService.getById(
+            permissionResponse.descriptionLocalizationId,
+          );
+        } catch {
+          if (!warnedLocalizationIdsRef.current.has(permissionResponse.descriptionLocalizationId)) {
+            warnedLocalizationIdsRef.current.add(permissionResponse.descriptionLocalizationId);
+            showToast({
+              type: 'warning',
+              message: translationFnRef.current('permissions.messages.localization_fetch_failed'),
+            });
+          }
+        }
       }
 
       const form: PermissionForm = {
@@ -599,6 +581,22 @@ export function PermissionsDetails() {
           description: buildTranslationState(supportedLanguages, descriptionLocalization),
         },
       };
+
+      const currentLang = normalizedCurrentLanguage;
+      if (!form.translations.name[currentLang]) {
+        form.translations.name[currentLang] =
+          permissionResponse.name?.trim() ||
+          resolveLocalization(permissionResponse.nameLocalizationId) ||
+          form.translations.name[currentLang] ||
+          '';
+      }
+      if (!form.translations.description[currentLang]) {
+        form.translations.description[currentLang] =
+          permissionResponse.description?.trim() ||
+          resolveLocalization(permissionResponse.descriptionLocalizationId) ||
+          form.translations.description[currentLang] ||
+          '';
+      }
 
       baselineRef.current = cloneForm(form);
       setFormState(cloneForm(form));
@@ -620,7 +618,9 @@ export function PermissionsDetails() {
     getLocalization,
     id,
     language,
+    normalizedCurrentLanguage,
     navigate,
+    resolveLocalization,
     showToast,
     supportedLanguages,
   ]);
@@ -631,6 +631,34 @@ export function PermissionsDetails() {
     }
     void loadData();
   }, [loadData, translationsReady]);
+
+  const handleHeaderNameChange = useCallback(
+    (value: string) => {
+      updateFormState((prev) => {
+        const next = cloneForm(prev);
+        next.translations.name = {
+          ...next.translations.name,
+          [normalizedCurrentLanguage]: value,
+        };
+        return next;
+      });
+    },
+    [normalizedCurrentLanguage, updateFormState],
+  );
+
+  const handleHeaderDescriptionChange = useCallback(
+    (value: string) => {
+      updateFormState((prev) => {
+        const next = cloneForm(prev);
+        next.translations.description = {
+          ...next.translations.description,
+          [normalizedCurrentLanguage]: value,
+        };
+        return next;
+      });
+    },
+    [normalizedCurrentLanguage, updateFormState],
+  );
 
   const handleEnterEdit = () => {
     if (!canUpdatePermission) {
@@ -702,33 +730,29 @@ export function PermissionsDetails() {
       });
     }
 
-    supportedLanguages.forEach((languageOption) => {
-      const code = normalizeLanguageCode(languageOption.code);
-      const label = `${t('permissions.fields.name')} (${languageOption.label})`;
-      const oldValue = normalizedBaseline.translations.name[code] ?? '';
-      const newValue = normalizedCurrent.translations.name[code] ?? '';
-      if (oldValue !== newValue) {
-        changes.push({
-          field: label,
-          oldValue: oldValue || '—',
-          newValue: newValue || '—',
-        });
-      }
-    });
+    const nameCode = normalizedCurrentLanguage;
+    const nameLabel = `${t('permissions.fields.name')} (${currentLanguageOption.label})`;
+    const previousName = normalizedBaseline.translations.name[nameCode] ?? '';
+    const nextName = normalizedCurrent.translations.name[nameCode] ?? '';
+    if (previousName !== nextName) {
+      changes.push({
+        field: nameLabel,
+        oldValue: previousName || '—',
+        newValue: nextName || '—',
+      });
+    }
 
-    supportedLanguages.forEach((languageOption) => {
-      const code = normalizeLanguageCode(languageOption.code);
-      const label = `${t('permissions.fields.description')} (${languageOption.label})`;
-      const oldValue = normalizedBaseline.translations.description[code] ?? '';
-      const newValue = normalizedCurrent.translations.description[code] ?? '';
-      if (oldValue !== newValue) {
-        changes.push({
-          field: label,
-          oldValue: oldValue || '—',
-          newValue: newValue || '—',
-        });
-      }
-    });
+    const descriptionLabel = `${t('permissions.fields.description')} (${currentLanguageOption.label})`;
+    const previousDescription =
+      normalizedBaseline.translations.description[nameCode] ?? '';
+    const nextDescription = normalizedCurrent.translations.description[nameCode] ?? '';
+    if (previousDescription !== nextDescription) {
+      changes.push({
+        field: descriptionLabel,
+        oldValue: previousDescription || '—',
+        newValue: nextDescription || '—',
+      });
+    }
 
     return changes;
   };
@@ -755,7 +779,11 @@ export function PermissionsDetails() {
     }
     try {
       setSaving(true);
-      const payload = buildUpdatePayload(formState, baselineRef.current);
+      const payload = buildUpdatePayload(
+        formState,
+        baselineRef.current,
+        normalizedCurrentLanguage,
+      );
       if (Object.keys(payload).length === 0) {
         showToast({
           type: 'info',
@@ -819,7 +847,6 @@ export function PermissionsDetails() {
           form: formState,
           editMode: isEditing,
           onChange: updateFormState,
-          languages: supportedLanguages,
           metadata: {
             id: permission.id,
             createdAt: permission.createdAt,
@@ -920,23 +947,53 @@ export function PermissionsDetails() {
     );
   }
 
+  const currentNameValue = formState.translations.name[normalizedCurrentLanguage] ?? '';
+  const currentDescriptionValue =
+    formState.translations.description[normalizedCurrentLanguage] ?? '';
+
+  const displayName =
+    permission.name?.trim() ||
+    resolveLocalization(permission.nameLocalizationId) ||
+    permission.nameLocalizationId ||
+    t('permissions.details.title');
+
+  const displayDescription =
+    permission.description?.trim() ||
+    resolveLocalization(permission.descriptionLocalizationId) ||
+    permission.descriptionLocalizationId ||
+    t('permissions.details.subtitle');
+
+  const titleNode = isEditing ? (
+    <Input
+      value={currentNameValue}
+      onChange={(event) => handleHeaderNameChange(event.target.value)}
+      placeholder={t('permissions.placeholders.name', { language: currentLanguageOption.label })}
+      className="max-w-xl"
+      autoFocus
+    />
+  ) : (
+    displayName
+  );
+
+  const subtitleNode = isEditing ? (
+    <Textarea
+      value={currentDescriptionValue}
+      onChange={(event) => handleHeaderDescriptionChange(event.target.value)}
+      placeholder={t('permissions.placeholders.description', {
+        language: currentLanguageOption.label,
+      })}
+      rows={3}
+      className="max-w-xl"
+    />
+  ) : (
+    displayDescription
+  );
+
   return (
     <>
       <DetailsLayout
-        title={
-          permission.name?.trim() ||
-          resolveLocalization(permission.nameLocalizationId) ||
-          permission.nameLocalizationId ||
-          t('permissions.details.title')
-        }
-        subtitle={
-          currentGroup?.name?.trim() ||
-          (currentGroup?.nameLocalizationId
-            ? resolveLocalization(currentGroup.nameLocalizationId)
-            : '') ||
-          currentGroup?.nameLocalizationId ||
-          t('permissions.details.subtitle')
-        }
+        title={titleNode}
+        subtitle={subtitleNode}
         icon={<Key className="h-6 w-6 text-white" />}
         backUrl="/permissions"
         tabs={tabs}

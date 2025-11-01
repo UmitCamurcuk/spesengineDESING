@@ -17,6 +17,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useToast } from '../../contexts/ToastContext';
 import { permissionGroupsService } from '../../api/services/permission-groups.service';
 import { permissionsService } from '../../api/services/permissions.service';
+import { localizationsService } from '../../api/services/localizations.service';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSettings } from '../../contexts/SettingsContext';
 import { PERMISSIONS } from '../../config/permissions';
@@ -30,6 +31,7 @@ import type {
 import type { TabConfig } from '../../types/common';
 import { Card, CardHeader } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
+import { Textarea } from '../../components/ui/Textarea';
 import { Badge } from '../../components/ui/Badge';
 import { Select } from '../../components/ui/Select';
 import { Checkbox } from '../../components/ui/Checkbox';
@@ -142,7 +144,6 @@ interface GroupDetailsTabProps {
   form: GroupForm;
   editMode: boolean;
   onChange: (updater: (prev: GroupForm) => GroupForm) => void;
-  languages: LanguageOption[];
   metadata: {
     id: string;
     createdAt: string;
@@ -150,26 +151,8 @@ interface GroupDetailsTabProps {
   };
 }
 
-const GroupDetailsTab: React.FC<GroupDetailsTabProps> = ({ form, editMode, onChange, languages, metadata }) => {
+const GroupDetailsTab: React.FC<GroupDetailsTabProps> = ({ form, editMode, onChange, metadata }) => {
   const { t } = useLanguage();
-
-  const handleTranslationChange = (
-    field: 'name' | 'description',
-    languageCode: string,
-    value: string,
-  ) => {
-    const normalized = normalizeLanguageCode(languageCode);
-    onChange((prev) => ({
-      ...prev,
-      translations: {
-        ...prev.translations,
-        [field]: {
-          ...prev.translations[field],
-          [normalized]: value,
-        },
-      },
-    }));
-  };
 
   const handleFieldChange = (field: keyof GroupForm, value: string | number) => {
     onChange((prev) => ({
@@ -225,52 +208,7 @@ const GroupDetailsTab: React.FC<GroupDetailsTabProps> = ({ form, editMode, onCha
         </div>
       </Card>
 
-      <Card padding="lg">
-        <CardHeader
-          title={t('permissionGroups.fields.name_translations')}
-          subtitle={t('permissionGroups.fields.name_translations_subtitle')}
-        />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {languages.map((language) => {
-            const normalized = normalizeLanguageCode(language.code);
-            return (
-              <Input
-                key={`name-${normalized}`}
-                label={`${t('permissionGroups.fields.name')} (${language.label})`}
-                value={form.translations.name[normalized] ?? ''}
-                onChange={(event) => handleTranslationChange('name', language.code, event.target.value)}
-                disabled={!editMode}
-              />
-            );
-          })}
-        </div>
-      </Card>
-
-      <Card padding="lg">
-        <CardHeader
-          title={t('permissionGroups.fields.description_translations')}
-          subtitle={t('permissionGroups.fields.description_translations_subtitle')}
-        />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {languages.map((language) => {
-            const normalized = normalizeLanguageCode(language.code);
-            return (
-              <div key={`description-${normalized}`}>
-                <label className="text-sm font-medium text-foreground mb-2 block">
-                  {t('permissionGroups.fields.description')} ({language.label})
-                </label>
-                <textarea
-                  value={form.translations.description[normalized] ?? ''}
-                  onChange={(event) => handleTranslationChange('description', language.code, event.target.value)}
-                  rows={editMode ? 4 : 3}
-                  className="w-full px-3 py-2 text-sm bg-background text-foreground border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring/20 disabled:bg-muted resize-none"
-                  disabled={!editMode}
-                />
-              </div>
-            );
-          })}
-        </div>
-      </Card>
+      {/* Translation inputs removed; editing handled via header controls for active language */}
     </div>
   );
 };
@@ -833,6 +771,25 @@ export function PermissionGroupsDetails() {
     }));
   }, [settings?.localization?.supportedLanguages]);
 
+  const normalizedCurrentLanguage = useMemo(
+    () => normalizeLanguageCode(language),
+    [language],
+  );
+
+  const currentLanguageOption = useMemo<LanguageOption>(() => {
+    const match = supportedLanguages.find(
+      (item) => normalizeLanguageCode(item.code) === normalizedCurrentLanguage,
+    );
+    if (match) {
+      return match;
+    }
+    return {
+      code: language,
+      label: language.toUpperCase(),
+      required: false,
+    };
+  }, [language, normalizedCurrentLanguage, supportedLanguages]);
+
   const canReadGroup = hasPermission(PERMISSIONS.SYSTEM.PERMISSION_GROUPS.VIEW);
   const canUpdateGroup = hasPermission(PERMISSIONS.SYSTEM.PERMISSION_GROUPS.UPDATE);
   const canViewGroupHistory = hasPermission(PERMISSIONS.SYSTEM.PERMISSION_GROUPS.HISTORY);
@@ -911,25 +868,36 @@ export function PermissionGroupsDetails() {
         permissionGroupsService.list({ pageSize: 200, language }),
       ]);
 
-      const nameLocalization = groupResponse.nameLocalizationId
+      let nameLocalization: LocalizationRecord | null = groupResponse.nameLocalizationId
         ? getLocalization(groupResponse.nameLocalizationId) ?? null
         : null;
-      const descriptionLocalization = groupResponse.descriptionLocalizationId
-        ? getLocalization(groupResponse.descriptionLocalizationId) ?? null
-        : null;
+      let descriptionLocalization: LocalizationRecord | null =
+        groupResponse.descriptionLocalizationId
+          ? getLocalization(groupResponse.descriptionLocalizationId) ?? null
+          : null;
 
       if (groupResponse.nameLocalizationId && !nameLocalization) {
-        showToast({
-          type: 'warning',
-          message: translationFnRef.current('permissionGroups.messages.localization_fetch_failed'),
-        });
+        try {
+          nameLocalization = await localizationsService.getById(groupResponse.nameLocalizationId);
+        } catch {
+          showToast({
+            type: 'warning',
+            message: translationFnRef.current('permissionGroups.messages.localization_fetch_failed'),
+          });
+        }
       }
 
       if (groupResponse.descriptionLocalizationId && !descriptionLocalization) {
-        showToast({
-          type: 'warning',
-          message: translationFnRef.current('permissionGroups.messages.localization_fetch_failed'),
-        });
+        try {
+          descriptionLocalization = await localizationsService.getById(
+            groupResponse.descriptionLocalizationId,
+          );
+        } catch {
+          showToast({
+            type: 'warning',
+            message: translationFnRef.current('permissionGroups.messages.localization_fetch_failed'),
+          });
+        }
       }
 
       const form: GroupForm = {
@@ -940,6 +908,22 @@ export function PermissionGroupsDetails() {
         displayOrder: groupResponse.displayOrder ?? 0,
         logo: groupResponse.logo ?? '',
       };
+
+      const currentLang = normalizedCurrentLanguage;
+      if (!form.translations.name[currentLang]) {
+        form.translations.name[currentLang] =
+          (groupResponse.name ?? '').trim() ||
+          resolveLocalization(groupResponse.nameLocalizationId) ||
+          form.translations.name[currentLang] ||
+          '';
+      }
+      if (!form.translations.description[currentLang]) {
+        form.translations.description[currentLang] =
+          (groupResponse.description ?? '').trim() ||
+          resolveLocalization(groupResponse.descriptionLocalizationId) ||
+          form.translations.description[currentLang] ||
+          '';
+      }
 
       groupBaselineRef.current = cloneGroupForm(form);
       setFormState(cloneGroupForm(form));
@@ -972,9 +956,11 @@ export function PermissionGroupsDetails() {
     getLocalization,
     id,
     language,
+    normalizedCurrentLanguage,
     navigate,
     showToast,
     supportedLanguages,
+    resolveLocalization,
   ]);
 
   useEffect(() => {
@@ -983,6 +969,34 @@ export function PermissionGroupsDetails() {
     }
     void loadData();
   }, [loadData, translationsReady]);
+
+  const handleHeaderNameChange = useCallback(
+    (value: string) => {
+      updateFormState((prev) => {
+        const next = cloneGroupForm(prev);
+        next.translations.name = {
+          ...next.translations.name,
+          [normalizedCurrentLanguage]: value,
+        };
+        return next;
+      });
+    },
+    [normalizedCurrentLanguage, updateFormState],
+  );
+
+  const handleHeaderDescriptionChange = useCallback(
+    (value: string) => {
+      updateFormState((prev) => {
+        const next = cloneGroupForm(prev);
+        next.translations.description = {
+          ...next.translations.description,
+          [normalizedCurrentLanguage]: value,
+        };
+        return next;
+      });
+    },
+    [normalizedCurrentLanguage, updateFormState],
+  );
 
   const handleTogglePermission = useCallback((permission: PermissionRecord, enabled: boolean) => {
     setAssignedPermissions((prev) => {
@@ -1075,30 +1089,29 @@ export function PermissionGroupsDetails() {
       });
     }
 
-    supportedLanguages.forEach((languageOption) => {
-      const code = normalizeLanguageCode(languageOption.code);
-      const nameKey = `${t('permissionGroups.fields.name')} (${languageOption.label})`;
-      const oldName = normalizedBaseline.translations.name[code] ?? '';
-      const newName = normalizedCurrent.translations.name[code] ?? '';
-      if (oldName !== newName) {
-        changes.push({
-          field: nameKey,
-          oldValue: oldName || '—',
-          newValue: newName || '—',
-        });
-      }
+    const languageLabel = currentLanguageOption.label;
+    const code = normalizedCurrentLanguage;
+    const nameKey = `${t('permissionGroups.fields.name')} (${languageLabel})`;
+    const oldName = normalizedBaseline.translations.name[code] ?? '';
+    const newName = normalizedCurrent.translations.name[code] ?? '';
+    if (oldName !== newName) {
+      changes.push({
+        field: nameKey,
+        oldValue: oldName || '—',
+        newValue: newName || '—',
+      });
+    }
 
-      const descriptionKey = `${t('permissionGroups.fields.description')} (${languageOption.label})`;
-      const oldDescription = normalizedBaseline.translations.description[code] ?? '';
-      const newDescription = normalizedCurrent.translations.description[code] ?? '';
-      if (oldDescription !== newDescription) {
-        changes.push({
-          field: descriptionKey,
-          oldValue: oldDescription || '—',
-          newValue: newDescription || '—',
-        });
-      }
-    });
+    const descriptionKey = `${t('permissionGroups.fields.description')} (${languageLabel})`;
+    const oldDescription = normalizedBaseline.translations.description[code] ?? '';
+    const newDescription = normalizedCurrent.translations.description[code] ?? '';
+    if (oldDescription !== newDescription) {
+      changes.push({
+        field: descriptionKey,
+        oldValue: oldDescription || '—',
+        newValue: newDescription || '—',
+      });
+    }
 
     if (permissionsChanged) {
       const baselineAssigned = Array.from(assignedBaselineRef.current);
@@ -1162,11 +1175,35 @@ export function PermissionGroupsDetails() {
       if (normalizedCurrent.logo !== normalizedBaseline.logo) {
         updatePayload.logo = normalizedCurrent.logo || null;
       }
-      if (!translationsEqual(normalizedCurrent.translations.name, normalizedBaseline.translations.name)) {
-        updatePayload.name = normalizedCurrent.translations.name;
+
+      const langCode = normalizedCurrentLanguage;
+      if (normalizedCurrent.translations.name[langCode] !== (normalizedBaseline.translations.name[langCode] ?? '')) {
+        const nextName = normalizedCurrent.translations.name[langCode] ?? '';
+        if (nextName.length > 0) {
+          const merged = {
+            ...normalizedBaseline.translations.name,
+            [langCode]: nextName,
+          };
+          updatePayload.name = Object.fromEntries(
+            Object.entries(merged).filter(([, value]) => value.trim().length > 0),
+          );
+        }
       }
-      if (!translationsEqual(normalizedCurrent.translations.description, normalizedBaseline.translations.description)) {
-        updatePayload.description = normalizedCurrent.translations.description;
+
+      if (
+        normalizedCurrent.translations.description[langCode] !==
+        (normalizedBaseline.translations.description[langCode] ?? '')
+      ) {
+        const nextDescription = normalizedCurrent.translations.description[langCode] ?? '';
+        if (nextDescription.length > 0) {
+          const merged = {
+            ...normalizedBaseline.translations.description,
+            [langCode]: nextDescription,
+          };
+          updatePayload.description = Object.fromEntries(
+            Object.entries(merged).filter(([, value]) => value.trim().length > 0),
+          );
+        }
       }
 
       if (Object.keys(updatePayload).length > 0) {
@@ -1235,7 +1272,6 @@ export function PermissionGroupsDetails() {
           form: formState,
           editMode: isEditing,
           onChange: updateFormState,
-          languages: supportedLanguages,
           metadata: {
             id: group.id,
             createdAt: group.createdAt,
@@ -1310,7 +1346,6 @@ export function PermissionGroupsDetails() {
     permissions,
     permissionsChanged,
     reassignmentTargets,
-    supportedLanguages,
     t,
     updateFormState,
   ]);
@@ -1323,23 +1358,53 @@ export function PermissionGroupsDetails() {
     );
   }
 
+  const currentNameValue = formState.translations.name[normalizedCurrentLanguage] ?? '';
+  const currentDescriptionValue =
+    formState.translations.description[normalizedCurrentLanguage] ?? '';
+
+  const displayName =
+    group.name?.trim() ||
+    resolveLocalization(group.nameLocalizationId) ||
+    group.nameLocalizationId ||
+    t('permissionGroups.details.title');
+
+  const displayDescription =
+    group.description?.trim() ||
+    (group.descriptionLocalizationId
+      ? resolveLocalization(group.descriptionLocalizationId)
+      : '') ||
+    group.descriptionLocalizationId ||
+    t('permissionGroups.details.subtitle');
+
+  const titleNode = isEditing ? (
+    <Input
+      value={currentNameValue}
+      onChange={(event) => handleHeaderNameChange(event.target.value)}
+      placeholder={t('permissionGroups.fields.name')} 
+      className="max-w-xl"
+      autoFocus
+    />
+  ) : (
+    displayName
+  );
+
+  const subtitleNode = isEditing ? (
+    <Textarea
+      value={currentDescriptionValue}
+      onChange={(event) => handleHeaderDescriptionChange(event.target.value)}
+      placeholder={t('permissionGroups.fields.description')}
+      rows={3}
+      className="max-w-xl"
+    />
+  ) : (
+    displayDescription
+  );
+
   return (
     <>
       <DetailsLayout
-        title={
-          group.name?.trim() ||
-          resolveLocalization(group.nameLocalizationId) ||
-          group.nameLocalizationId ||
-          t('permissionGroups.details.title')
-        }
-        subtitle={
-          group.description?.trim() ||
-          (group.descriptionLocalizationId
-            ? resolveLocalization(group.descriptionLocalizationId)
-            : '') ||
-          group.descriptionLocalizationId ||
-          t('permissionGroups.details.subtitle')
-        }
+        title={titleNode}
+        subtitle={subtitleNode}
         icon={<FolderTree className="h-6 w-6 text-white" />}
         backUrl="/permission-groups"
         tabs={tabs}

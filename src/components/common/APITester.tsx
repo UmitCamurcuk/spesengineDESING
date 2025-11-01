@@ -292,16 +292,16 @@ export const APITester: React.FC<APITesterProps> = ({
                     className="w-full text-left p-3"
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-2 flex-wrap gap-1 min-w-0 flex-1">
                         <Badge variant={getMethodColor(endpoint.method) as any} size="sm">
                           {endpoint.method}
                         </Badge>
-                        <code className="text-sm font-mono text-foreground">
+                        <code className="text-sm font-mono text-foreground break-words break-all">
                           {endpoint.path.replace(':id', entityId)}
                         </code>
-                        {endpoint.requiresAuth && <Shield className="h-3 w-3 text-amber-500" />}
+                        {endpoint.requiresAuth && <Shield className="h-3 w-3 text-amber-500 flex-shrink-0" />}
                       </div>
-                      {endpoint.requiresAuth && <Key className="h-4 w-4 text-amber-500" />}
+                      {endpoint.requiresAuth && <Key className="h-4 w-4 text-amber-500 flex-shrink-0 ml-2" />}
                     </div>
                     <p className="text-sm text-muted-foreground">{endpoint.description}</p>
                   </button>
@@ -372,16 +372,16 @@ export const APITester: React.FC<APITesterProps> = ({
           {selectedEndpoint ? (
             <div className="space-y-4">
               <div className="p-3 bg-muted/60 rounded-lg">
-                <div className="flex items-center space-x-2 mb-2">
-                  <Badge variant={getMethodColor(selectedEndpoint.method) as any} size="sm">
+                <div className="flex items-center space-x-2 mb-2 flex-wrap gap-1">
+                  <Badge variant={getMethodColor(selectedEndpoint.method) as any} size="sm" className="flex-shrink-0">
                     {selectedEndpoint.method}
                   </Badge>
-                  <code className="text-sm font-mono text-foreground">
+                  <code className="text-sm font-mono text-foreground break-words break-all min-w-0 flex-1">
                     {selectedEndpoint.path.replace(':id', entityId)}
                   </code>
                   <button
                     onClick={() => copyToClipboard(selectedEndpoint.path.replace(':id', entityId))}
-                    className="p-1 hover:bg-muted rounded"
+                    className="p-1 hover:bg-muted rounded flex-shrink-0"
                   >
                     {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3 text-muted-foreground" />}
                   </button>

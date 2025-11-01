@@ -139,7 +139,13 @@ export function PermissionGroupsList() {
             email: group.updatedBy.email,
             name: group.updatedBy.name,
             profilePhotoUrl: group.updatedBy.profilePhotoUrl,
-            role: group.updatedBy.role?.name || t('common.unknown_role')
+            role: group.updatedBy.role
+              ? {
+                  id: group.updatedBy.role.id,
+                  name: group.updatedBy.role.name ?? undefined,
+                  isSystemRole: group.updatedBy.role.isSystemRole ?? false,
+                }
+              : t('common.unknown_role') || 'Unknown Role'
           } : undefined}
           date={value}
         />
