@@ -357,7 +357,7 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onMenuClick, act
   }, [location.pathname]);
 
   return (
-    <header className="bg-background border-b border-border px-4 sm:px-5" style={{ paddingTop: '0.4rem', paddingBottom: '0.49rem' }}>
+    <header className="bg-background border-b border-border px-4 sm:px-5" style={{ paddingTop: '0.4rem', paddingBottom: '0.44rem' }}>
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
           {/* Mobile Menu & Back Button */}

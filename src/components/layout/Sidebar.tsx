@@ -174,16 +174,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, isOpen, onClose }) 
       <div className="p-3 border-b border-sidebar-border">
         <div className="flex items-center justify-between lg:justify-start">
           <div className="flex items-center space-x-2.5">
-          <div className="w-7 h-7 bg-gradient-to-br from-primary to-primary-hover rounded-lg flex items-center justify-center">
-            <Zap className="h-3.5 w-3.5 text-white" />
+            <img 
+              src="/assets/logo/IconLight.png" 
+              alt="SpesEngine Logo" 
+              className="w-7 h-7"
+            />
+            <div>
+              <h1 className="text-base font-semibold text-sidebar-foreground">
+                {settings?.general?.companyName || 'SpesEngine'}
+              </h1>
+              <p className="text-xs text-muted-foreground">CDP • MDM • ERP</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-base font-semibold text-sidebar-foreground">
-              {settings?.general?.companyName || 'SpesEngine'}
-            </h1>
-            <p className="text-xs text-muted-foreground">CDP • MDM • ERP</p>
-          </div>
-        </div>
           <button
             onClick={onClose}
             className="lg:hidden p-2 rounded-lg hover:bg-muted transition-colors"

@@ -9,6 +9,7 @@ export { permissionGroupsService } from './services/permission-groups.service';
 export { permissionsService } from './services/permissions.service';
 export { rolesService } from './services/roles.service';
 export { notificationsService } from './services/notifications.service';
+export { attributesService } from './services/attributes.service';
 
 // API Client Export
 export { default as apiClient } from './client/axios';
