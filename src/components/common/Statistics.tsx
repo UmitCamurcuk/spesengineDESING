@@ -31,6 +31,7 @@ interface StatisticsProps {
   entityType: string;
   entityId: string;
   editMode?: boolean;
+  statistics?: StatisticsType;
 }
 
 // Mock statistics data
@@ -62,7 +63,8 @@ const mockStatistics: StatisticsType = {
 export const Statistics: React.FC<StatisticsProps> = ({
   entityType,
   entityId,
-  editMode = false
+  editMode = false,
+  statistics,
 }) => {
   const isNotificationRule = entityType === 'notification-rule';
   const isUser = entityType === 'user';
@@ -72,6 +74,13 @@ export const Statistics: React.FC<StatisticsProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [ruleStats, setRuleStats] = useState<NotificationRuleStatistics | null>(null);
   const [userStats, setUserStats] = useState<any>(null);
+
+  useEffect(() => {
+    if (statistics) {
+      setLoading(false);
+      setError(null);
+    }
+  }, [statistics]);
 
   useEffect(() => {
     if (!isNotificationRule && !isUser) {
@@ -620,7 +629,7 @@ export const Statistics: React.FC<StatisticsProps> = ({
     );
   }
 
-  const fallbackStats = mockStatistics;
+  const fallbackStats = statistics ?? mockStatistics;
 
   const getChangeIcon = (change: number) => {
     if (change > 0) return <TrendingUp className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />;

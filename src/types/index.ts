@@ -37,87 +37,179 @@ export enum AttributeType {
 
 export interface Attribute {
   id: string;
+  key?: string;
   name: string;
   type: AttributeType;
   required: boolean;
+  unique?: boolean;
   options?: string[];
   defaultValue?: any;
-  validation?: any;
+  validation?: Record<string, any> | null;
   description?: string;
+  helpText?: string | null;
+  tags?: string[];
   createdAt: string;
   updatedAt: string;
+  attributeGroups?: AttributeGroupSummary[];
+  createdBy?: UserReference | string | null;
+  updatedBy?: UserReference | string | null;
+  localization?: {
+    nameLocalizationId: string;
+    descriptionLocalizationId?: string | null;
+    helpTextLocalizationId?: string | null;
+    nameTranslations?: Record<string, string>;
+    descriptionTranslations?: Record<string, string>;
+    helpTextTranslations?: Record<string, string>;
+  };
+  uiSettings?: Record<string, unknown> | null;
 }
 
 export interface AttributeGroup {
   id: string;
+  key?: string;
   name: string;
   description?: string;
+  note?: string | null;
+  attributeIds?: string[];
+  attributeCount?: number;
   attributes: Attribute[];
   order: number;
+  tags?: string[];
   createdAt: string;
   updatedAt: string;
+  localization?: {
+    nameLocalizationId: string;
+    descriptionLocalizationId?: string | null;
+    noteLocalizationId?: string | null;
+    nameTranslations?: Record<string, string>;
+    descriptionTranslations?: Record<string, string>;
+    noteTranslations?: Record<string, string>;
+  };
+  createdBy?: UserReference | string | null;
+  updatedBy?: UserReference | string | null;
+}
+
+export interface AttributeGroupSummary {
+  id: string;
+  key: string;
+  nameLocalizationId: string;
+  descriptionLocalizationId?: string | null;
+  name: string;
+}
+
+export interface UserReference {
+  id: string;
+  email: string;
+  name: string;
+  profilePhotoUrl?: string;
+  role?: {
+    id?: string;
+    name?: string | null;
+    isSystemRole?: boolean;
+  };
+}
+
+export interface AttributeGroupBinding {
+  id: string;
+  attributeGroupId: string;
+  inherited: boolean;
+  required: boolean;
 }
 
 export interface Family {
   id: string;
+  key: string;
   name: string;
-  description?: string;
-  parentFamilyId?: string;
-  childFamilies: Family[];
-  categoryId?: string;
-  attributeGroups: AttributeGroup[];
+  description?: string | null;
+  nameLocalizationId: string;
+  descriptionLocalizationId?: string | null;
+  parentFamilyId?: string | null;
+  hierarchyPath: string[];
+  categoryId?: string | null;
+  isSystemFamily: boolean;
+  attributeGroupIds: string[];
+  attributeGroupBindings: AttributeGroupBinding[];
+  attributeGroupCount?: number;
   createdAt: string;
   updatedAt: string;
+  createdBy?: UserReference | string | null;
+  updatedBy?: UserReference | string | null;
 }
 
 export interface Category {
   id: string;
+  key: string;
   name: string;
-  description?: string;
-  parentCategoryId?: string;
-  childCategories: Category[];
-  familyIds: string[];
-  itemTypeIds: string[];
-  attributeGroups: AttributeGroup[];
+  description?: string | null;
+  nameLocalizationId: string;
+  descriptionLocalizationId?: string | null;
+  parentCategoryId?: string | null;
+  hierarchyPath: string[];
+  defaultItemTypeId?: string | null;
+  linkedItemTypeIds: string[];
+  linkedFamilyIds: string[];
+  isSystemCategory: boolean;
+  attributeGroupIds: string[];
+  attributeGroupBindings: AttributeGroupBinding[];
+  attributeGroupCount?: number;
   createdAt: string;
   updatedAt: string;
+  createdBy?: UserReference | string | null;
+  updatedBy?: UserReference | string | null;
 }
 
 export interface ItemType {
   id: string;
+  key: string;
   name: string;
-  description?: string;
+  description?: string | null;
+  nameLocalizationId: string;
+  descriptionLocalizationId?: string | null;
   categoryIds: string[];
-  attributeGroups: AttributeGroup[];
+  linkedFamilyIds: string[];
+  lifecycleStatus: 'draft' | 'active' | 'deprecated';
+  isSystemItemType: boolean;
+  version: number;
+  attributeGroupIds: string[];
+  attributeGroupBindings: AttributeGroupBinding[];
+  attributeGroupCount?: number;
   createdAt: string;
   updatedAt: string;
+  createdBy?: UserReference | string | null;
+  updatedBy?: UserReference | string | null;
 }
 
 export interface Item {
   id: string;
+  itemTypeId: string | null;
+  categoryId?: string | null;
+  familyId?: string | null;
+  code: string;
+  externalCode?: string | null;
+  sku?: string | null;
   name: string;
-  itemTypeId: string;
-  categoryId: string;
-  familyId: string;
-  attributeValues: Record<string, any>;
-  associations: ItemAssociation[];
-  status: 'draft' | 'active' | 'inactive';
+  nameLocalizationId: string;
+  descriptionLocalizationId?: string | null;
+  description?: string | null;
+  status: 'draft' | 'active' | 'inactive' | 'archived';
+  version: number;
   createdAt: string;
   updatedAt: string;
+  createdBy?: UserReference | string | null;
+  updatedBy?: UserReference | string | null;
 }
 
 export interface Association {
   id: string;
-  name: string;
-  description?: string;
-  sourceItemTypeId: string;
-  targetItemTypeId: string;
-  associationType: 'one-to-one' | 'one-to-many' | 'many-to-many';
-  isRequired: boolean;
-  minQuantity?: number;
-  maxQuantity?: number;
+  associationTypeId: string | null;
+  sourceItemId: string | null;
+  targetItemId: string | null;
+  metadata?: Record<string, any> | null;
+  orderIndex?: number | null;
   createdAt: string;
   updatedAt: string;
+  createdBy?: UserReference | string | null;
+  updatedBy?: UserReference | string | null;
 }
 
 export interface ItemAssociation {

@@ -26,7 +26,8 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable } from '../../components/ui/DataTable';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
-import { Attribute, AttributeType } from '../../types';
+import { Attribute, AttributeType, UserReference } from '../../types';
+import { UserInfoWithRole } from '../../components/common/UserInfoWithRole';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { PERMISSIONS } from '../../config/permissions';
@@ -122,19 +123,6 @@ const getAttributeTypeLabel = (type: AttributeType, t: (key: string) => string) 
   }
 };
 
-const formatDate = (value?: string) => {
-  if (!value) {
-    return '—';
-  }
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-
-  return parsed.toLocaleString();
-};
-
 export const AttributesList: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useLanguage();
@@ -144,6 +132,36 @@ export const AttributesList: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const canCreateAttribute = hasPermission(PERMISSIONS.CATALOG.ATTRIBUTES.CREATE);
+
+  type UserInfoPayload = {
+    id: string;
+    email: string;
+    name: string;
+    profilePhotoUrl?: string;
+    role?: UserReference['role'] | string;
+  };
+
+  const toUserInfo = (user: Attribute['updatedBy'] | Attribute['createdBy']): UserInfoPayload | undefined => {
+    if (!user) {
+      return undefined;
+    }
+
+    if (typeof user === 'string') {
+      return {
+        id: user,
+        email: user,
+        name: user,
+      };
+    }
+
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      profilePhotoUrl: user.profilePhotoUrl,
+      role: user.role,
+    };
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -211,34 +229,26 @@ export const AttributesList: React.FC = () => {
       {
         key: 'description',
         title: t('attributes.description'),
-        render: (value?: string) => (
-          <span className="text-sm text-muted-foreground line-clamp-2">{value ?? '—'}</span>
+        render: (_: string, attribute: Attribute) => (
+          <span className="text-sm text-muted-foreground line-clamp-2">
+            {attribute.description ?? '—'}
+          </span>
         ),
       },
       {
-        key: 'options',
-        title: t('attributes.options'),
-        render: (value?: string[]) =>
-          Array.isArray(value) && value.length > 0 ? (
-            <div className="flex flex-wrap gap-1">
-              {value.slice(0, 3).map((tag) => (
-                <Badge key={tag} variant="secondary" size="sm">
-                  {tag}
-                </Badge>
-              ))}
-              {value.length > 3 && (
-                <span className="text-xs text-muted-foreground">+{value.length - 3}</span>
-              )}
-            </div>
-          ) : (
-            <span className="text-xs text-muted-foreground">—</span>
-          ),
+        key: 'key',
+        title: t('attributes.attribute_key'),
+        render: (_: string, attribute: Attribute) => (
+          <code className="text-xs bg-muted px-2 py-1 rounded">{attribute.key || attribute.id}</code>
+        ),
       },
       {
         key: 'updatedAt',
         title: t('attributes.updated_at'),
-        render: (value?: string) => <span className="text-sm text-muted-foreground">{formatDate(value)}</span>,
         sortable: true,
+        render: (_: unknown, attribute: Attribute) => (
+          <UserInfoWithRole user={toUserInfo(attribute.updatedBy)} date={attribute.updatedAt} />
+        ),
       },
     ],
     [t],

@@ -1,233 +1,112 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  Tags, 
-  FileText, 
-  Bell, 
-  BarChart3, 
-  Globe, 
-  BookOpen, 
-  History,
-  Edit2,
-  Save,
-  X,
-  Plus
+import {
+  Tags as TagsIcon,
+  FileText,
+  BarChart3,
+  Globe,
+  BookOpen,
+  History as HistoryIcon,
+  Layers,
+  Hash,
+  Activity,
+  Clock,
 } from 'lucide-react';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { useToast } from '../../contexts/ToastContext';
 import { DetailsLayout } from '../../components/common/DetailsLayout';
 import { Card, CardHeader } from '../../components/ui/Card';
-import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
-import { Button } from '../../components/ui/Button';
 import { HistoryTable } from '../../components/common/HistoryTable';
 import { NotificationSettings } from '../../components/common/NotificationSettings';
-import { APITester } from '../../components/common/APITester';
 import { Documentation } from '../../components/common/Documentation';
 import { Statistics } from '../../components/common/Statistics';
-import { AttributeGroup, AttributeType } from '../../types';
-import { TabConfig } from '../../types/common';
+import { APITester } from '../../components/common/APITester';
+import { AttributeGroup, Attribute } from '../../types';
+import { TabConfig, DocumentationSection, APIEndpoint, Statistics as StatisticsType } from '../../types/common';
+import { attributeGroupsService } from '../../api/services/attribute-groups.service';
+import { UserInfoWithRole } from '../../components/common/UserInfoWithRole';
 
-// Mock data
-const mockAttributeGroup: AttributeGroup = {
-  id: 'group-1',
-  name: 'Basic Product Info',
-  description: 'Essential product information including name, price, description, and basic metadata',
-  attributes: [],
-  order: 1,
-  createdAt: '2024-01-01T10:00:00Z',
-  updatedAt: '2024-01-20T14:30:00Z',
-};
+interface AttributeGroupDetailsTabProps {
+  group: AttributeGroup;
+}
 
-const mockAttributes = [
-  {
-    id: 'attr-1',
-    name: 'Product Name',
-    type: AttributeType.TEXT,
-    required: true,
-    description: 'The display name for the product',
-  },
-  {
-    id: 'attr-2',
-    name: 'Price',
-    type: AttributeType.NUMBER,
-    required: true,
-    description: 'Product price in USD',
-  },
-  {
-    id: 'attr-3',
-    name: 'Description',
-    type: AttributeType.RICH_TEXT,
-    required: false,
-    description: 'Detailed product description',
-  },
-  {
-    id: 'attr-4',
-    name: 'Status',
-    type: AttributeType.SELECT,
-    required: true,
-    options: ['active', 'draft', 'inactive'],
-    description: 'Product availability status',
-  },
-  {
-    id: 'attr-5',
-    name: 'Featured',
-    type: AttributeType.BOOLEAN,
-    required: false,
-    description: 'Whether this product is featured',
-  },
-  {
-    id: 'attr-6',
-    name: 'Rating',
-    type: AttributeType.RATING,
-    required: false,
-    description: 'Customer rating (1-5 stars)',
-  },
-  {
-    id: 'attr-7',
-    name: 'Color',
-    type: AttributeType.COLOR,
-    required: false,
-    description: 'Primary product color',
-  },
-  {
-    id: 'attr-8',
-    name: 'Launch Date',
-    type: AttributeType.DATE,
-    required: false,
-    description: 'Product launch date',
-  },
-];
+interface AttributeGroupAttributesTabProps {
+  attributes: Attribute[];
+  isLoading: boolean;
+}
 
-const getAttributeTypeColor = (type: AttributeType) => {
-  switch (type) {
-    case AttributeType.TEXT:
-      return 'primary';
-    case AttributeType.NUMBER:
-      return 'secondary';
-    case AttributeType.BOOLEAN:
-      return 'success';
-    case AttributeType.SELECT:
-      return 'warning';
-    case AttributeType.RICH_TEXT:
-      return 'error';
-    case AttributeType.RATING:
-      return 'warning';
-    case AttributeType.COLOR:
-      return 'error';
-    case AttributeType.DATE:
-      return 'secondary';
-    default:
-      return 'default';
-  }
-};
-
-// Details Component
-const AttributeGroupDetailsTab: React.FC<{ editMode: boolean }> = ({ editMode }) => {
-  const [attributeGroup, setAttributeGroup] = useState(mockAttributeGroup);
+const AttributeGroupDetailsTab: React.FC<AttributeGroupDetailsTabProps> = ({ group }) => {
+  const { t } = useLanguage();
+  const attributeCount = group.attributeIds?.length ?? group.attributes.length ?? 0;
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Basic Information */}
-        <div className="lg:col-span-2">
-          <Card>
-            <CardHeader 
-              title="Basic Information" 
-              subtitle="Core attribute group properties and configuration"
-            />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <Input
-                  label="Group Name"
-                  value={attributeGroup.name}
-                  onChange={(e) => setAttributeGroup(prev => ({ ...prev, name: e.target.value }))}
-                  disabled={!editMode}
-                />
-              </div>
-              
-              <div>
-                <Input
-                  label="Display Order"
-                  type="number"
-                  value={attributeGroup.order}
-                  onChange={(e) => setAttributeGroup(prev => ({ ...prev, order: parseInt(e.target.value) || 1 }))}
-                  disabled={!editMode}
-                  min="1"
-                />
-              </div>
-              
-              <div className="md:col-span-2">
-                <Input
-                  label="Description"
-                  value={attributeGroup.description || ''}
-                  onChange={(e) => setAttributeGroup(prev => ({ ...prev, description: e.target.value }))}
-                  disabled={!editMode}
-                />
-              </div>
-            </div>
-          </Card>
-        </div>
-
-        {/* Metadata */}
-        <div className="lg:col-span-1">
-          <Card>
-            <CardHeader title="Metadata" />
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700">Group ID</label>
-                <p className="text-sm text-gray-900 mt-1 font-mono bg-gray-100 px-2 py-1 rounded">
-                  {attributeGroup.id}
-                </p>
-              </div>
-              
-              <div>
-                <label className="text-sm font-medium text-gray-700">Total Attributes</label>
-                <div className="flex items-center space-x-2 mt-1">
-                  <Badge variant="primary" size="sm">
-                    {mockAttributes.length} attributes
-                  </Badge>
-                </div>
-              </div>
-              
-              <div>
-                <label className="text-sm font-medium text-gray-700">Created</label>
-                <p className="text-sm text-gray-900 mt-1">
-                  {new Date(attributeGroup.createdAt).toLocaleDateString()}
-                </p>
-              </div>
-              
-              <div>
-                <label className="text-sm font-medium text-gray-700">Last Updated</label>
-                <p className="text-sm text-gray-900 mt-1">
-                  {new Date(attributeGroup.updatedAt).toLocaleDateString()}
-                </p>
-              </div>
-            </div>
-          </Card>
-        </div>
-      </div>
-
-      {/* Group Preview */}
       <Card>
-        <CardHeader 
-          title="Group Preview" 
-          subtitle="How this attribute group will appear in forms"
+        <CardHeader
+          title={t('attributeGroups.basic_information') || 'Temel Bilgiler'}
+          subtitle={t('attributeGroups.basic_information_subtitle') || 'Attribute grubuna ait meta veriler'}
         />
-        <div className="p-6 border-2 border-dashed border-gray-200 rounded-lg bg-gray-50">
-          <div className="flex items-center space-x-3 mb-4">
-            <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
-              <span className="text-xs font-medium text-gray-600">{attributeGroup.order}</span>
-            </div>
-            <div>
-              <h4 className="text-lg font-semibold text-gray-900">
-                {attributeGroup.name}
-              </h4>
-              <p className="text-sm text-gray-500">
-                {attributeGroup.description}
-              </p>
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 px-6 pb-6">
+          <div className="space-y-2 text-sm">
+            <span className="text-muted-foreground">{t('attributeGroups.key') || 'Anahtar'}</span>
+            <p className="font-mono bg-muted px-2 py-1 rounded">{group.key ?? group.id}</p>
           </div>
-          <div className="text-sm text-gray-600">
-            This group contains {mockAttributes.length} attributes that will be displayed together in forms.
+
+          <div className="space-y-2 text-sm">
+            <span className="text-muted-foreground">
+              {t('attributeGroups.display_order') || 'Gösterim Sırası'}
+            </span>
+            <p>{group.order ?? 0}</p>
+          </div>
+
+          <div className="space-y-2 text-sm md:col-span-2">
+            <span className="text-muted-foreground">{t('attributeGroups.description') || 'Açıklama'}</span>
+            <p>{group.description || '—'}</p>
+          </div>
+
+          <div className="space-y-2 text-sm">
+            <span className="text-muted-foreground">{t('attributeGroups.created_at') || 'Oluşturulma'}</span>
+            <p>{new Date(group.createdAt).toLocaleString()}</p>
+          </div>
+
+          <div className="space-y-2 text-sm">
+            <span className="text-muted-foreground">{t('attributeGroups.updated_at') || 'Güncellenme'}</span>
+            <p>{new Date(group.updatedAt).toLocaleString()}</p>
+          </div>
+
+          <div className="space-y-2 text-sm">
+            <span className="text-muted-foreground">{t('attributeGroups.created_by') || 'Oluşturan'}</span>
+            <UserInfoWithRole user={group.createdBy} />
+          </div>
+
+          <div className="space-y-2 text-sm">
+            <span className="text-muted-foreground">{t('attributeGroups.updated_by') || 'Güncelleyen'}</span>
+            <UserInfoWithRole user={group.updatedBy} />
+          </div>
+
+          <div className="space-y-2 text-sm md:col-span-2">
+            <span className="text-muted-foreground">
+              {t('attributeGroups.tags_label') || 'Etiketler'}
+            </span>
+            {group.tags && group.tags.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {group.tags.map((tag) => (
+                  <Badge key={tag} variant="outline">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            ) : (
+              <p>—</p>
+            )}
+          </div>
+
+          <div className="space-y-2 text-sm md:col-span-2">
+            <span className="text-muted-foreground">
+              {t('attributeGroups.attribute_count') || 'Attribute Sayısı'}
+            </span>
+            <Badge variant="primary">{attributeCount}</Badge>
           </div>
         </div>
       </Card>
@@ -235,187 +114,367 @@ const AttributeGroupDetailsTab: React.FC<{ editMode: boolean }> = ({ editMode })
   );
 };
 
-// Attributes Component
-const AttributesTab: React.FC<{ editMode: boolean }> = ({ editMode }) => {
-  const navigate = useNavigate();
-  const [selectedAttributes, setSelectedAttributes] = useState(mockAttributes.map(attr => attr.id));
+const AttributeGroupAttributesTab: React.FC<AttributeGroupAttributesTabProps> = ({
+  attributes,
+  isLoading,
+}) => {
+  const { t } = useLanguage();
 
-  const toggleAttribute = (attributeId: string) => {
-    if (!editMode) return;
-    
-    setSelectedAttributes(prev => 
-      prev.includes(attributeId)
-        ? prev.filter(id => id !== attributeId)
-        : [...prev, attributeId]
+  if (isLoading) {
+    return (
+      <Card>
+        <div className="px-6 py-10 text-sm text-muted-foreground">
+          {t('common.loading') || 'Yükleniyor...'}
+        </div>
+      </Card>
     );
-  };
+  }
+
+  if (attributes.length === 0) {
+    return (
+      <Card>
+        <div className="px-6 py-10 text-sm text-muted-foreground">
+          {t('attributeGroups.no_attributes') || 'Bu attribute grubu henüz attribute içermiyor.'}
+        </div>
+      </Card>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900">Attributes in This Group</h3>
-          <p className="text-sm text-gray-500">Manage which attributes belong to this group</p>
-        </div>
-        <div className="flex items-center space-x-3">
-          <Badge variant="primary" size="sm">
-            {selectedAttributes.length} attributes selected
-          </Badge>
-          {editMode && (
-            <Button variant="outline" size="sm" onClick={() => navigate('/attributes/create')}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create New Attribute
-            </Button>
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {mockAttributes.map(attribute => {
-          const isSelected = selectedAttributes.includes(attribute.id);
-          return (
-            <button
-              key={attribute.id}
-              onClick={() => editMode ? toggleAttribute(attribute.id) : navigate(`/attributes/${attribute.id}`)}
-              className={`p-4 border-2 rounded-xl transition-all duration-200 text-left ${
-                isSelected
-                  ? 'border-blue-500 bg-blue-50 shadow-sm'
-                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-              } ${!editMode && 'cursor-pointer hover:shadow-md'}`}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex items-start space-x-3">
-                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-sm">
-                    <FileText className="h-4 w-4 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2 mb-1">
-                      <h4 className="text-sm font-medium text-gray-900">{attribute.name}</h4>
-                      {attribute.required && (
-                        <Badge variant="error" size="sm">Required</Badge>
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-500 mb-2">{attribute.description}</p>
-                    {attribute.options && (
-                      <div className="flex flex-wrap gap-1">
-                        <span className="text-xs text-gray-400">Options:</span>
-                        {attribute.options.slice(0, 3).map((option, optIndex) => (
-                          <Badge key={optIndex} variant="outline" size="sm">
-                            {option}
-                          </Badge>
-                        ))}
-                        {attribute.options.length > 3 && (
-                          <span className="text-xs text-gray-400">+{attribute.options.length - 3}</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="flex flex-col items-end space-y-1">
-                  <Badge variant={getAttributeTypeColor(attribute.type) as any} size="sm">
-                    {attribute.type}
-                  </Badge>
-                  {isSelected && editMode && (
-                    <div className="w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center">
-                      <FileText className="h-3 w-3 text-white" />
-                    </div>
-                  )}
-                </div>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      {mockAttributes.length === 0 && (
-        <div className="text-center py-12">
-          <FileText className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-          <p className="text-sm text-gray-500 mb-4">No attributes in this group yet</p>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => navigate('/attributes/create')}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add First Attribute
-          </Button>
-        </div>
-      )}
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {attributes.map((attribute) => (
+        <Card key={attribute.id} padding="md">
+          <div className="flex items-start justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Layers className="h-4 w-4 text-primary" />
+                {attribute.name}
+              </h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                <code>{attribute.key ?? attribute.id}</code>
+              </p>
+            </div>
+            <Badge variant="secondary">{attribute.type}</Badge>
+          </div>
+          <div className="mt-3 space-y-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <Hash className="h-3 w-3" />
+              <span>{attribute.required ? 'Zorunlu' : 'Opsiyonel'}</span>
+            </div>
+            {attribute.description ? <p>{attribute.description}</p> : null}
+          </div>
+        </Card>
+      ))}
     </div>
   );
 };
 
 export const AttributeGroupsDetails: React.FC = () => {
-  const { id } = useParams();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { t } = useLanguage();
+  const { showToast } = useToast();
 
-  const handleSave = async () => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-  };
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [group, setGroup] = useState<AttributeGroup | null>(null);
+  const [attributes, setAttributes] = useState<Attribute[]>([]);
+
+  useEffect(() => {
+    if (!id) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await attributeGroupsService.getById(id);
+        if (cancelled) return;
+        setGroup(data);
+        setAttributes(Array.isArray(data.attributes) ? data.attributes : []);
+      } catch (err: any) {
+        console.error('Failed to load attribute group', err);
+        if (cancelled) return;
+        setError(
+          err?.response?.data?.error?.message ??
+            t('attributeGroups.failed_to_load') ??
+            'Attribute grubu yüklenemedi.',
+        );
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, t]);
+
+  const statisticsData: StatisticsType | null = useMemo(() => {
+    if (!group) {
+      return null;
+    }
+    const total = attributes.length;
+    const requiredCount = attributes.filter((attribute) => attribute.required).length;
+    const optionalCount = total - requiredCount;
+
+    return {
+      totalCount: total,
+      activeCount: requiredCount,
+      inactiveCount: optionalCount,
+      createdThisMonth: 0,
+      updatedThisMonth: 0,
+      usageCount: total,
+      lastUsed: group.updatedAt,
+      trends: [
+        { period: 'Jan', value: total, change: 0 },
+        { period: 'Feb', value: total, change: 0 },
+      ],
+      topUsers: [
+        {
+          userId: group.updatedBy && typeof group.updatedBy !== 'string' ? group.updatedBy.id ?? 'user' : 'user',
+          userName:
+            (group.updatedBy && typeof group.updatedBy !== 'string'
+              ? group.updatedBy.name ?? group.updatedBy.email
+              : 'System') ?? 'System',
+          count: total,
+        },
+      ],
+    };
+  }, [attributes, group]);
+
+  const documentationSections: DocumentationSection[] = useMemo(() => {
+    if (!group) {
+      return [];
+    }
+
+    const attributesList =
+      attributes.length > 0
+        ? attributes.map((attribute) => `- **${attribute.name}** (\`${attribute.type}\`)`).join('\n')
+        : 'Henüz attribute eklenmemiş.';
+
+    return [
+      {
+        id: 'overview',
+        title: 'Genel Bakış',
+        content: `# ${group.name}
+
+**Anahtar:** \`${group.key}\`
+
+**Attribute Sayısı:** ${group.attributeIds?.length ?? 0}
+
+**Açıklama:** ${group.description ?? '—'}
+
+## Attribute Listesi
+${attributesList}
+`,
+        order: 0,
+        type: 'markdown',
+        lastUpdated: group.updatedAt,
+        author:
+          typeof group.updatedBy === 'string'
+            ? group.updatedBy
+            : group.updatedBy?.name ?? group.updatedBy?.email ?? 'System',
+      },
+      {
+        id: 'structure',
+        title: 'Kullanım Notları',
+        content: `# Kullanım Notları
+
+- Attribute grupları item type, kategori veya family seviyesinde bağlanabilir.
+- Bu grupta ${attributes.filter((attribute) => attribute.required).length} adet zorunlu attribute bulunuyor.
+- Eğer attribute eklemek isterseniz, attribute detay sayfasından bu gruba bağlayabilirsiniz.
+`,
+        order: 1,
+        type: 'markdown',
+        lastUpdated: group.updatedAt,
+        author:
+          typeof group.createdBy === 'string'
+            ? group.createdBy
+            : group.createdBy?.name ?? group.createdBy?.email ?? 'System',
+      },
+    ];
+  }, [attributes, group]);
+
+  const apiEndpoints: APIEndpoint[] = useMemo(() => {
+    if (!group) {
+      return [];
+    }
+
+    return [
+      {
+        id: 'list-groups',
+        method: 'GET',
+        path: '/api/attribute-groups',
+        description: 'Attribute gruplarını listeler.',
+        responseExample: {
+          items: [{ id: group.id, key: group.key, name: group.name }],
+          total: 1,
+        },
+        requiresAuth: true,
+        permissions: ['attributeGroups.attributeGroup.list'],
+      },
+      {
+        id: 'get-group',
+        method: 'GET',
+        path: `/api/attribute-groups/${group.id}`,
+        description: 'Attribute grubuna ait detayları döner.',
+        responseExample: {
+          id: group.id,
+          key: group.key,
+          name: group.name,
+          attributeIds: group.attributeIds ?? [],
+        },
+        requiresAuth: true,
+        permissions: ['attributeGroups.attributeGroup.view'],
+      },
+      {
+        id: 'update-group',
+        method: 'PUT',
+        path: `/api/attribute-groups/${group.id}`,
+        description: 'Attribute grubu günceller.',
+        requestBody: {
+          nameLocalizationId: group.localization?.nameLocalizationId,
+          attributeIds: group.attributeIds ?? [],
+          comment: 'Güncelleme notu',
+        },
+        responseExample: {
+          id: group.id,
+          updatedAt: new Date().toISOString(),
+        },
+        requiresAuth: true,
+        permissions: ['attributeGroups.attributeGroup.update'],
+      },
+    ];
+  }, [group]);
+
+  if (!id) {
+    return null;
+  }
+
+  if (loading) {
+    return (
+      <div className="px-6 py-12">
+        <p className="text-sm text-muted-foreground">{t('common.loading') || 'Yükleniyor...'}</p>
+      </div>
+    );
+  }
+
+  if (error || !group) {
+    return (
+      <div className="px-6 py-12">
+        <Card>
+          <div className="px-6 py-10 text-sm text-error">
+            {error ??
+              t('attributeGroups.failed_to_load') ??
+              'Attribute grubu yüklenemedi. Lütfen daha sonra tekrar deneyin.'}
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   const tabs: TabConfig[] = [
     {
       id: 'details',
-      label: 'Details',
-      icon: Tags,
+      label: t('attributeGroups.details_tab') || 'Detaylar',
+      icon: FileText,
       component: AttributeGroupDetailsTab,
+      props: { group },
     },
     {
       id: 'attributes',
-      label: 'Attributes',
-      icon: FileText,
-      component: AttributesTab,
-      badge: mockAttributes.length.toString(),
-    },
-    {
-      id: 'notifications',
-      label: 'Notifications',
-      icon: Bell,
-      component: NotificationSettings,
-      props: { entityType: 'attribute-group', entityId: id },
+      label: t('attributeGroups.attributes_tab') || 'Attribute\'lar',
+      icon: TagsIcon,
+      component: AttributeGroupAttributesTab,
+      props: { attributes, isLoading: loading },
+      badge: attributes.length,
     },
     {
       id: 'statistics',
-      label: 'Statistics',
+      label: t('attributeGroups.statistics_tab') || 'İstatistikler',
       icon: BarChart3,
       component: Statistics,
-      props: { entityType: 'attribute-group', entityId: id },
-    },
-    {
-      id: 'api',
-      label: 'API',
-      icon: Globe,
-      component: APITester,
-      props: { entityType: 'attribute-group', entityId: id },
+      props: {
+        entityType: 'attribute-group',
+        entityId: group.id,
+        statistics: statisticsData ?? undefined,
+      },
     },
     {
       id: 'documentation',
-      label: 'Documentation',
+      label: t('attributeGroups.documentation_tab') || 'Dokümantasyon',
       icon: BookOpen,
       component: Documentation,
-      props: { entityType: 'attribute-group', entityId: id },
+      props: {
+        entityType: 'attribute-group',
+        entityId: group.id,
+        sections: documentationSections,
+        editMode: false,
+      },
+    },
+    {
+      id: 'api',
+      label: t('attributeGroups.api_tab') || 'API',
+      icon: Globe,
+      component: APITester,
+      props: {
+        entityType: 'attribute-group',
+        entityId: group.id,
+        endpoints: apiEndpoints,
+        editMode: false,
+      },
     },
     {
       id: 'history',
-      label: 'History',
-      icon: History,
+      label: t('attributeGroups.history_tab') || 'Geçmiş',
+      icon: HistoryIcon,
       component: HistoryTable,
-      props: { entityType: 'attribute-group', entityId: id },
-      badge: '18',
+      props: { entityType: 'AttributeGroup', entityId: group.id },
+    },
+    {
+      id: 'notifications',
+      label: t('attributeGroups.notifications_tab') || 'Bildirimler',
+      icon: Activity,
+      component: NotificationSettings,
+      props: { entityType: 'attribute-group', entityId: group.id },
     },
   ];
 
   return (
     <DetailsLayout
-      title={mockAttributeGroup.name}
-      subtitle={`Attribute group • Order ${mockAttributeGroup.order} • ${mockAttributes.length} attributes`}
-      icon={<Tags className="h-6 w-6 text-white" />}
+      title={
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-2xl font-bold text-foreground">{group.name}</span>
+            <Badge variant="secondary">
+              {group.attributeIds?.length ?? 0}{' '}
+              {t('attributeGroups.attribute_unit') || 'attribute'}
+            </Badge>
+          </div>
+          <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+            <span>
+              <Clock className="inline h-3 w-3 mr-1" />
+              {new Date(group.updatedAt).toLocaleString()}
+            </span>
+          </div>
+        </div>
+      }
+      subtitle={group.description ?? undefined}
+      icon={<TagsIcon className="h-6 w-6 text-white" />}
       tabs={tabs}
       defaultTab="details"
-      onSave={handleSave}
       backUrl="/attribute-groups"
       inlineActions={false}
     />
   );
 };
+
+export default AttributeGroupsDetails;

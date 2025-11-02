@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { AttributeType } from '../../types';
 import { cn } from '../../utils/cn';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface AttributeTypeCardProps {
   type: AttributeType;
@@ -32,177 +33,52 @@ interface AttributeTypeCardProps {
   onClick?: () => void;
 }
 
-const getAttributeTypeInfo = (type: AttributeType) => {
-  switch (type) {
-    case AttributeType.TEXT:
-      return {
-        icon: Type,
-        name: 'Text',
-        description: 'Single line text input for names, titles, and short descriptions',
-        color: 'from-blue-500 to-blue-600'
-      };
-    case AttributeType.NUMBER:
-      return {
-        icon: Hash,
-        name: 'Number',
-        description: 'Numeric values including integers and decimals',
-        color: 'from-emerald-500 to-emerald-600'
-      };
-    case AttributeType.BOOLEAN:
-      return {
-        icon: ToggleLeft,
-        name: 'Boolean',
-        description: 'True/false or yes/no values',
-        color: 'from-purple-500 to-purple-600'
-      };
-    case AttributeType.DATE:
-      return {
-        icon: Calendar,
-        name: 'Date',
-        description: 'Date picker for selecting specific dates',
-        color: 'from-orange-500 to-orange-600'
-      };
-    case AttributeType.DATETIME:
-      return {
-        icon: Calendar,
-        name: 'Date & Time',
-        description: 'Combined date and time picker',
-        color: 'from-orange-500 to-red-500'
-      };
-    case AttributeType.TIME:
-      return {
-        icon: Clock,
-        name: 'Time',
-        description: 'Time picker for hours and minutes',
-        color: 'from-cyan-500 to-cyan-600'
-      };
-    case AttributeType.SELECT:
-      return {
-        icon: ChevronDown,
-        name: 'Select',
-        description: 'Dropdown with predefined options (single choice)',
-        color: 'from-indigo-500 to-indigo-600'
-      };
-    case AttributeType.MULTISELECT:
-      return {
-        icon: List,
-        name: 'Multi Select',
-        description: 'Multiple choice selection from predefined options',
-        color: 'from-indigo-500 to-purple-500'
-      };
-    case AttributeType.FILE:
-      return {
-        icon: File,
-        name: 'File',
-        description: 'File upload for documents and attachments',
-        color: 'from-gray-500 to-gray-600'
-      };
-    case AttributeType.IMAGE:
-      return {
-        icon: Image,
-        name: 'Image',
-        description: 'Image upload with preview functionality',
-        color: 'from-pink-500 to-pink-600'
-      };
-    case AttributeType.ATTACHMENT:
-      return {
-        icon: Paperclip,
-        name: 'Attachment',
-        description: 'General file attachment with metadata',
-        color: 'from-gray-500 to-slate-600'
-      };
-    case AttributeType.OBJECT:
-      return {
-        icon: Box,
-        name: 'Object',
-        description: 'Complex nested object structure',
-        color: 'from-teal-500 to-teal-600'
-      };
-    case AttributeType.ARRAY:
-      return {
-        icon: Layers,
-        name: 'Array',
-        description: 'List of multiple values or objects',
-        color: 'from-teal-500 to-cyan-500'
-      };
-    case AttributeType.JSON:
-      return {
-        icon: Code,
-        name: 'JSON',
-        description: 'Raw JSON data structure',
-        color: 'from-yellow-500 to-yellow-600'
-      };
-    case AttributeType.FORMULA:
-      return {
-        icon: Calculator,
-        name: 'Formula',
-        description: 'Calculated field based on other attributes',
-        color: 'from-green-500 to-green-600'
-      };
-    case AttributeType.EXPRESSION:
-      return {
-        icon: Zap,
-        name: 'Expression',
-        description: 'Dynamic expression evaluation',
-        color: 'from-yellow-500 to-orange-500'
-      };
-    case AttributeType.TABLE:
-      return {
-        icon: LayoutGrid,
-        name: 'Table',
-        description: 'Structured table data with rows and columns',
-        color: 'from-slate-500 to-slate-600'
-      };
-    case AttributeType.COLOR:
-      return {
-        icon: Palette,
-        name: 'Color',
-        description: 'Color picker for hex, RGB, or HSL values',
-        color: 'from-rose-500 to-pink-500'
-      };
-    case AttributeType.RICH_TEXT:
-      return {
-        icon: FileText,
-        name: 'Rich Text',
-        description: 'Formatted text editor with styling options',
-        color: 'from-violet-500 to-violet-600'
-      };
-    case AttributeType.RATING:
-      return {
-        icon: Star,
-        name: 'Rating',
-        description: 'Star rating system (1-5 stars)',
-        color: 'from-amber-500 to-amber-600'
-      };
-    case AttributeType.BARCODE:
-      return {
-        icon: Scan,
-        name: 'Barcode',
-        description: 'Barcode scanner and generator',
-        color: 'from-gray-600 to-gray-700'
-      };
-    case AttributeType.QR:
-      return {
-        icon: QrCode,
-        name: 'QR Code',
-        description: 'QR code scanner and generator',
-        color: 'from-gray-600 to-slate-700'
-      };
-    case AttributeType.READONLY:
-      return {
-        icon: Eye,
-        name: 'Read Only',
-        description: 'Display-only field that cannot be edited',
-        color: 'from-gray-400 to-gray-500'
-      };
-    default:
-      return {
-        icon: Type,
-        name: 'Unknown',
-        description: 'Unknown attribute type',
-        color: 'from-gray-500 to-gray-600'
-      };
+const TYPE_CONFIG: Record<
+  AttributeType,
+  { icon: React.ComponentType<{ className?: string }>; color: string; translation: string }
+> = {
+  [AttributeType.TEXT]: { icon: Type, color: 'from-blue-500 to-blue-600', translation: 'text' },
+  [AttributeType.NUMBER]: { icon: Hash, color: 'from-emerald-500 to-emerald-600', translation: 'number' },
+  [AttributeType.BOOLEAN]: { icon: ToggleLeft, color: 'from-purple-500 to-purple-600', translation: 'boolean' },
+  [AttributeType.DATE]: { icon: Calendar, color: 'from-orange-500 to-orange-600', translation: 'date' },
+  [AttributeType.DATETIME]: { icon: Calendar, color: 'from-orange-500 to-red-500', translation: 'datetime' },
+  [AttributeType.TIME]: { icon: Clock, color: 'from-cyan-500 to-cyan-600', translation: 'time' },
+  [AttributeType.SELECT]: { icon: ChevronDown, color: 'from-indigo-500 to-indigo-600', translation: 'select' },
+  [AttributeType.MULTISELECT]: { icon: List, color: 'from-indigo-500 to-purple-500', translation: 'multiselect' },
+  [AttributeType.FILE]: { icon: File, color: 'from-gray-500 to-gray-600', translation: 'file' },
+  [AttributeType.IMAGE]: { icon: Image, color: 'from-pink-500 to-pink-600', translation: 'image' },
+  [AttributeType.ATTACHMENT]: { icon: Paperclip, color: 'from-gray-500 to-slate-600', translation: 'attachment' },
+  [AttributeType.OBJECT]: { icon: Box, color: 'from-teal-500 to-teal-600', translation: 'object' },
+  [AttributeType.ARRAY]: { icon: Layers, color: 'from-teal-500 to-cyan-500', translation: 'array' },
+  [AttributeType.JSON]: { icon: Code, color: 'from-yellow-500 to-yellow-600', translation: 'json' },
+  [AttributeType.FORMULA]: { icon: Calculator, color: 'from-green-500 to-green-600', translation: 'formula' },
+  [AttributeType.EXPRESSION]: { icon: Zap, color: 'from-yellow-500 to-orange-500', translation: 'expression' },
+  [AttributeType.TABLE]: { icon: LayoutGrid, color: 'from-slate-500 to-slate-600', translation: 'table' },
+  [AttributeType.COLOR]: { icon: Palette, color: 'from-rose-500 to-pink-500', translation: 'color' },
+  [AttributeType.RICH_TEXT]: { icon: FileText, color: 'from-violet-500 to-violet-600', translation: 'rich_text' },
+  [AttributeType.RATING]: { icon: Star, color: 'from-amber-500 to-amber-600', translation: 'rating' },
+  [AttributeType.BARCODE]: { icon: Scan, color: 'from-gray-600 to-gray-700', translation: 'barcode' },
+  [AttributeType.QR]: { icon: QrCode, color: 'from-gray-600 to-slate-700', translation: 'qr' },
+  [AttributeType.READONLY]: { icon: Eye, color: 'from-gray-400 to-gray-500', translation: 'readonly' },
+};
+
+const getAttributeTypeInfo = (type: AttributeType, translate: (key: string) => string) => {
+  if (TYPE_CONFIG[type]) {
+    const config = TYPE_CONFIG[type];
+    return {
+      icon: config.icon,
+      color: config.color,
+      name: translate(`attributes.types.${config.translation}.name`),
+      description: translate(`attributes.types.${config.translation}.description`),
+    };
   }
+
+  return {
+    icon: Type,
+    color: 'from-gray-500 to-gray-600',
+    name: translate('attributes.types.unknown.name'),
+    description: translate('attributes.types.unknown.description'),
+  };
 };
 
 export const AttributeTypeCard: React.FC<AttributeTypeCardProps> = ({
@@ -210,7 +86,8 @@ export const AttributeTypeCard: React.FC<AttributeTypeCardProps> = ({
   selected = false,
   onClick
 }) => {
-  const info = getAttributeTypeInfo(type);
+  const { t } = useLanguage();
+  const info = getAttributeTypeInfo(type, t);
   const Icon = info.icon;
 
   return (

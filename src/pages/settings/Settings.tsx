@@ -812,7 +812,7 @@ export const Settings: React.FC = () => {
             return Boolean(other.required);
           });
 
-          const disableToggle = isLocked || isDefault || isFallback || (lang.required && !otherRequiredExists);
+          const disableToggle = isLocked || isDefault || (lang.required && !otherRequiredExists);
           const disableRemoval =
             isLocked
             || isDefault

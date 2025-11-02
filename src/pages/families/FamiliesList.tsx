@@ -1,67 +1,15 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Plus, Layers } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { PERMISSIONS } from '../../config/permissions';
-import { Plus, Layers, ChevronRight } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
-import { DataTable, UserInfo } from '../../components/ui/DataTable';
 import { Button } from '../../components/ui/Button';
+import { Card, CardHeader } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
-import { Family } from '../../types';
-
-// Mock data
-const mockFamilies: Family[] = [
-  {
-    id: 'fam-1',
-    name: 'Coffee Products',
-    description: 'Coffee beans, ground coffee, and brewing accessories',
-    parentFamilyId: undefined,
-    childFamilies: [],
-    categoryId: 'cat-2',
-    attributeGroups: [],
-    createdAt: '2024-01-01T10:00:00Z',
-    updatedAt: '2024-01-20T14:30:00Z',
-  },
-  {
-    id: 'fam-2',
-    name: 'Arabica Coffee',
-    description: 'Premium arabica coffee varieties',
-    parentFamilyId: 'fam-1',
-    childFamilies: [],
-    categoryId: 'cat-2',
-    attributeGroups: [],
-    createdAt: '2024-01-02T09:15:00Z',
-    updatedAt: '2024-01-19T16:45:00Z',
-  },
-  {
-    id: 'fam-3',
-    name: 'Audio Equipment',
-    description: 'Headphones, speakers, and audio accessories',
-    parentFamilyId: undefined,
-    childFamilies: [],
-    categoryId: 'cat-4',
-    attributeGroups: [],
-    createdAt: '2024-01-03T11:20:00Z',
-    updatedAt: '2024-01-22T13:10:00Z',
-  },
-  {
-    id: 'fam-4',
-    name: 'Wireless Headphones',
-    description: 'Bluetooth and wireless headphone products',
-    parentFamilyId: 'fam-3',
-    childFamilies: [],
-    categoryId: 'cat-4',
-    attributeGroups: [],
-    createdAt: '2024-01-04T15:30:00Z',
-    updatedAt: '2024-01-21T10:20:00Z',
-  },
-];
-
-const mockCategories = [
-  { id: 'cat-2', name: 'Coffee Products' },
-  { id: 'cat-4', name: 'Audio Equipment' },
-];
+import type { Family } from '../../types';
+import { familiesService } from '../../api/services/families.service';
 
 export const FamiliesList: React.FC = () => {
   const navigate = useNavigate();
@@ -69,178 +17,144 @@ export const FamiliesList: React.FC = () => {
   const { hasPermission } = useAuth();
   const canCreateFamily = hasPermission(PERMISSIONS.CATALOG.FAMILIES.CREATE);
 
-  const columns = [
-    {
-      key: 'name',
-      title: 'Name',
-      sortable: true,
-      render: (value: string, family: Family) => (
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-sm">
-            <Layers className="h-5 w-5 text-white" />
-          </div>
-          <div>
-            <div className="flex items-center space-x-2">
-              {family.parentFamilyId && (
-                <span className="text-xs text-gray-400">
-                  <ChevronRight className="h-3 w-3" />
-                </span>
-              )}
-              <div className="text-sm font-semibold text-foreground">{value}</div>
-            </div>
-            <div className="text-xs text-gray-500">ID: {family.id}</div>
-          </div>
-        </div>
-      ),
-      mobileRender: (family: Family) => (
-        <div className="space-y-3">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-sm">
-              <Layers className="h-5 w-5 text-white" />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center space-x-2">
-                {family.parentFamilyId && (
-                  <span className="text-xs text-gray-400">
-                    <ChevronRight className="h-3 w-3" />
-                  </span>
-                )}
-                <div className="text-sm font-semibold text-foreground">{family.name}</div>
-              </div>
-              <div className="text-xs text-gray-500">ID: {family.id}</div>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Category</div>
-              <Badge variant="secondary" size="sm">
-                {mockCategories.find(c => c.id === family.categoryId)?.name || family.categoryId}
-              </Badge>
-            </div>
-            <div>
-              <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Parent</div>
-              {family.parentFamilyId ? (
-                <Badge variant="outline" size="sm">
-                  {mockFamilies.find(f => f.id === family.parentFamilyId)?.name || family.parentFamilyId}
-                </Badge>
-              ) : (
-                <span className="text-xs text-gray-400">Root Family</span>
-              )}
-            </div>
-          </div>
-          
-          <div>
-            <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Description</div>
-            <div className="text-sm text-gray-600">{family.description}</div>
-          </div>
-        </div>
-      ),
-    },
-    {
-      key: 'description',
-      title: 'Description',
-      render: (value: string) => (
-        <span className="text-sm text-gray-600">{value}</span>
-      ),
-    },
-    {
-      key: 'categoryId',
-      title: 'Category',
-      render: (value: string) => {
-        const category = mockCategories.find(c => c.id === value);
-        return (
-          <Badge variant="secondary" size="sm">
-            {category?.name || value}
-          </Badge>
-        );
-      },
-    },
-    {
-      key: 'parentFamilyId',
-      title: 'Parent Family',
-      render: (value: string | undefined) => (
-        value ? (
-          <Badge variant="outline" size="sm">
-            {mockFamilies.find(f => f.id === value)?.name || value}
-          </Badge>
-        ) : (
-          <span className="text-xs text-gray-400">Root Family</span>
-        )
-      ),
-    },
-    {
-      key: 'updatedAt',
-      title: 'Last Updated',
-      sortable: true,
-      render: (value: string) => (
-        <UserInfo
-          name="Admin User"
-          email="admin@company.com"
-          date={value}
-        />
-      ),
-    },
-  ];
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [families, setFamilies] = useState<Family[]>([]);
 
-  const filters = [
-    {
-      key: 'categoryId',
-      label: 'All Categories',
-      type: 'select' as const,
-      options: [
-        { value: 'cat-2', label: 'Coffee Products' },
-        { value: 'cat-4', label: 'Audio Equipment' },
-      ]
-    },
-    {
-      key: 'parentFamilyId',
-      label: 'Family Type',
-      type: 'select' as const,
-      options: [
-        { value: 'root', label: 'Root Families' },
-        { value: 'child', label: 'Child Families' },
-      ]
-    }
-  ];
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchFamilies = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const { items } = await familiesService.list();
+        if (!cancelled) {
+          setFamilies(items);
+        }
+      } catch (err: any) {
+        console.error('Failed to load families', err);
+        if (!cancelled) {
+          setError(
+            err?.response?.data?.error?.message ??
+              t('families.failed_to_load') ??
+              'Family listesi yüklenemedi.',
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchFamilies();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [t]);
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="space-y-6">
       <PageHeader
-        title={t('families.title')}
-        subtitle={t('families.subtitle')}
-        action={
+        title={t('families.title') || 'Families'}
+        description={t('families.subtitle') || 'Manage product families and their hierarchy'}
+        actions={
           canCreateFamily ? (
             <Button onClick={() => navigate('/families/create')}>
               <Plus className="h-4 w-4 mr-2" />
-              Create Family
+              {t('families.create') || 'Create Family'}
             </Button>
-          ) : null
+          ) : undefined
         }
       />
-      
-      <div className="flex-1 mt-6">
-        <DataTable
-          data={mockFamilies}
-          columns={columns}
-          searchPlaceholder="Search families..."
-          filters={filters}
-          onRowClick={(family) => navigate(`/families/${family.id}`)}
-          emptyState={{
-            icon: <Layers className="h-12 w-12" />,
-            title: 'No families found',
-            description: 'Get started by creating your first family',
-            action: canCreateFamily
-              ? (
-                  <Button onClick={() => navigate('/families/create')}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Family
-                  </Button>
-                )
-              : undefined,
-          }}
+
+      <Card>
+        <CardHeader
+          title={t('families.list_title') || 'Family Records'}
+          subtitle={
+            loading
+              ? t('common.loading') || 'Loading...'
+              : `${families.length} ${t('families.count_suffix') || 'records'}`
+          }
         />
-      </div>
+        {error ? (
+          <div className="px-6 py-10 text-sm text-red-500">{error}</div>
+        ) : loading ? (
+          <div className="px-6 py-10 text-sm text-muted-foreground">
+            {t('common.loading') || 'Loading...'}
+          </div>
+        ) : families.length === 0 ? (
+          <div className="px-6 py-10 text-sm text-muted-foreground">
+            {t('families.empty_state') ||
+              'Henüz family oluşturulmadı. Yeni bir kayıt ekleyerek başlayın.'}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-border">
+              <thead className="bg-muted/50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    {t('families.columns.name') || 'Name'}
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    {t('families.columns.key') || 'Key'}
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    {t('families.columns.category') || 'Category'}
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    {t('families.columns.attribute_groups') || 'Attribute Groups'}
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    {t('families.columns.updated_at') || 'Updated'}
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border bg-background">
+                {families.map((family) => (
+                  <tr
+                    key={family.id}
+                    className="hover:bg-muted/50 cursor-pointer transition-colors"
+                    onClick={() => navigate(`/families/${family.id}`)}
+                  >
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-sm">
+                          <Layers className="h-5 w-5 text-white" />
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium text-foreground">{family.name}</div>
+                          <div className="text-xs text-muted-foreground">ID: {family.id}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground font-mono">
+                      {family.key}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      {family.categoryId ? (
+                        <Badge variant="secondary">{family.categoryId}</Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">
+                          {t('families.root_category') || 'Unassigned'}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <Badge variant="outline">{family.attributeGroupCount ?? 0}</Badge>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
+                      {new Date(family.updatedAt).toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
     </div>
   );
 };

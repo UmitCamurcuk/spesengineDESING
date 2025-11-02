@@ -1,17 +1,20 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileText, ArrowRight, Check } from 'lucide-react';
+import { ArrowLeft, FileText, ArrowRight, Check, Filter, Search, Hash, Tags } from 'lucide-react';
 import { Card, CardHeader } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Stepper } from '../../components/ui/Stepper';
+import { Badge } from '../../components/ui/Badge';
 import { AttributeTypeCard } from '../../components/ui/AttributeTypeCard';
 import { AttributeGroupSelector } from '../../components/ui/AttributeGroupSelector';
 import { AttributeRenderer } from '../../components/attributes/AttributeRenderer';
-import { AttributeType } from '../../types';
+import { AttributeType, AttributeGroup } from '../../types';
+import { useRequiredLanguages } from '../../hooks/useRequiredLanguages';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useToast } from '../../contexts/ToastContext';
 import { attributesService } from '../../api/services/attributes.service';
+import { attributeGroupsService } from '../../api/services/attribute-groups.service';
 import { localizationsService } from '../../api/services/localizations.service';
 
 type ValidationField =
@@ -21,37 +24,12 @@ type ValidationField =
   | { key: string; label: string; type: 'select'; options: string[] }
   | { key: string; label: string; type: 'textarea'; placeholder?: string };
 
-const mockAttributeGroups = [
-  {
-    id: 'group-1',
-    name: 'Basic Product Info',
-    description: 'Essential product information',
-    attributeCount: 5,
-  },
-  {
-    id: 'group-2',
-    name: 'Physical Properties',
-    description: 'Weight, dimensions, material properties',
-    attributeCount: 8,
-  },
-  {
-    id: 'group-3',
-    name: 'Marketing Information',
-    description: 'SEO, promotional content, tags',
-    attributeCount: 6,
-  },
-  {
-    id: 'group-4',
-    name: 'Technical Specifications',
-    description: 'Technical details and requirements',
-    attributeCount: 12,
-  },
-];
-
 const OPTION_BASED_TYPES = new Set<AttributeType>([
   AttributeType.SELECT,
   AttributeType.MULTISELECT,
 ]);
+
+type LocalizationState = Record<string, string>;
 
 const getValidationFields = (type: AttributeType): ValidationField[] => {
   switch (type) {
@@ -272,6 +250,18 @@ export const AttributesCreate: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useLanguage();
   const { showToast } = useToast();
+  const requiredLanguages = useRequiredLanguages();
+
+  const syncLocalizationState = useCallback(
+    (current: LocalizationState): LocalizationState => {
+      const next: LocalizationState = {};
+      requiredLanguages.forEach(({ code }) => {
+        next[code] = current?.[code] ?? '';
+      });
+      return next;
+    },
+    [requiredLanguages],
+  );
 
   const steps = useMemo(
     () => [
@@ -311,10 +301,8 @@ export const AttributesCreate: React.FC = () => {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState({
     key: '',
-    name: '',
-    nameEn: '',
-    description: '',
-    descriptionEn: '',
+    names: {} as LocalizationState,
+    descriptions: {} as LocalizationState,
     type: '' as AttributeType,
     required: false,
     unique: false,
@@ -325,9 +313,13 @@ export const AttributesCreate: React.FC = () => {
     tags: [] as string[],
   });
 
+  const [attributeGroups, setAttributeGroups] = useState<AttributeGroup[]>([]);
+  const [attributeGroupsLoading, setAttributeGroupsLoading] = useState<boolean>(true);
+  const [attributeGroupsError, setAttributeGroupsError] = useState<string | null>(null);
+
   const translateError = useCallback(
-    (key: string, fallback: string) => {
-      const translated = t(key);
+    (key: string, fallback: string, params?: Record<string, unknown>) => {
+      const translated = t(key, params);
       return translated === key ? fallback : translated;
     },
     [t],
@@ -342,6 +334,127 @@ export const AttributesCreate: React.FC = () => {
       return rest;
     });
   }, []);
+
+  useEffect(() => {
+    setFormData((prev) => ({
+      ...prev,
+      names: syncLocalizationState(prev.names),
+      descriptions: syncLocalizationState(prev.descriptions),
+    }));
+  }, [syncLocalizationState]);
+
+  const resolveNameLabel = useCallback(
+    (code: string, languageLabel: string) => {
+      if (code === 'tr') {
+        return (
+          t('attributes.create.attribute_name_tr') ||
+          `Attribute Name (${languageLabel})`
+        );
+      }
+      if (code === 'en') {
+        return (
+          t('attributes.create.attribute_name_en') ||
+          `Attribute Name (${languageLabel})`
+        );
+      }
+      const dynamic = t('attributes.create.attribute_name_dynamic', { language: languageLabel });
+      if (dynamic !== 'attributes.create.attribute_name_dynamic') {
+        return dynamic;
+      }
+      return `Attribute Name (${languageLabel})`;
+    },
+    [t],
+  );
+
+  const resolveDescriptionLabel = useCallback(
+    (code: string, languageLabel: string) => {
+      if (code === 'tr') {
+        return (
+          t('attributes.create.description_tr') ||
+          `Description (${languageLabel})`
+        );
+      }
+      if (code === 'en') {
+        return (
+          t('attributes.create.description_en') ||
+          `Description (${languageLabel})`
+        );
+      }
+      const dynamic = t('attributes.create.description_dynamic', { language: languageLabel });
+      if (dynamic !== 'attributes.create.description_dynamic') {
+        return dynamic;
+      }
+      return `Description (${languageLabel})`;
+    },
+    [t],
+  );
+
+  const buildTranslations = useCallback(
+    (values: LocalizationState, fallback?: LocalizationState): Record<string, string> => {
+      const translations: Record<string, string> = {};
+      requiredLanguages.forEach(({ code }) => {
+        const primary = values[code]?.trim();
+        if (primary) {
+          translations[code] = primary;
+          return;
+        }
+        const fallbackValue = fallback?.[code]?.trim();
+        if (fallbackValue) {
+          translations[code] = fallbackValue;
+        }
+      });
+      return translations;
+    },
+    [requiredLanguages],
+  );
+
+  const getPrimaryTranslation = useCallback(
+    (values: LocalizationState): string => {
+      for (const { code } of requiredLanguages) {
+        const value = values[code]?.trim();
+        if (value) {
+          return value;
+        }
+      }
+      return Object.values(values)
+        .map((value) => value?.trim())
+        .find((value) => value && value.length > 0) ?? '';
+    },
+    [requiredLanguages],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchGroups = async () => {
+      try {
+        setAttributeGroupsLoading(true);
+        setAttributeGroupsError(null);
+        const data = await attributeGroupsService.list();
+        if (!cancelled) {
+          setAttributeGroups(data);
+        }
+      } catch (error) {
+        console.error('Failed to load attribute groups', error);
+        if (!cancelled) {
+          setAttributeGroupsError(
+            t('attributes.create.failed_to_load_attribute_groups') ||
+              'Attribute grupları yüklenemedi. Lütfen daha sonra tekrar deneyin.',
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setAttributeGroupsLoading(false);
+        }
+      }
+    };
+
+    fetchGroups();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [t]);
 
   const getStepErrors = useCallback(
     (step: number): Record<string, string> => {
@@ -361,21 +474,26 @@ export const AttributesCreate: React.FC = () => {
           );
         }
 
-        if (!formData.name.trim()) {
-          errors.name = translateError(
-            'attributes.create.errors.name_tr_required',
-            'Display name (Turkish) is required.',
-          );
-        }
+        requiredLanguages.forEach(({ code, label }) => {
+          const value = formData.names[code]?.trim();
+          if (!value) {
+            const key =
+              code === 'tr'
+                ? 'attributes.create.errors.name_tr_required'
+                : code === 'en'
+                ? 'attributes.create.errors.name_en_required'
+                : 'attributes.create.errors.name_required';
+            const fallback =
+              code === 'tr'
+                ? 'Display name (Turkish) is required.'
+                : code === 'en'
+                ? 'Display name (English) is required.'
+                : `Display name (${label}) is required.`;
+            errors[`name.${code}`] = translateError(key, fallback, { language: label });
+          }
+        });
 
-        if (!formData.nameEn.trim()) {
-          errors.nameEn = translateError(
-            'attributes.create.errors.name_en_required',
-            'Display name (English) is required.',
-          );
-        }
-
-        if (formData.attributeGroups.length === 0) {
+        if (!attributeGroupsLoading && attributeGroups.length > 0 && formData.attributeGroups.length === 0) {
           errors.attributeGroups = translateError(
             'attributes.create.errors.attribute_group_required',
             'Select at least one attribute group.',
@@ -422,7 +540,7 @@ export const AttributesCreate: React.FC = () => {
 
       return errors;
     },
-    [formData, translateError],
+    [formData, translateError, attributeGroups, attributeGroupsLoading, requiredLanguages],
   );
 
   const recomputeErrors = useCallback(() => {
@@ -748,65 +866,54 @@ export const AttributesCreate: React.FC = () => {
                         key: e.target.value.trim().toLowerCase(),
                       }));
                     }}
-                    placeholder="product_name"
+                    placeholder={t('attributes.create.attribute_key_placeholder')}
                     required
                     error={formErrors.key}
                     helperText={t('attributes.create.attribute_key_help')}
                   />
 
-                  <Input
-                    label={t('attributes.create.attribute_name_tr')}
-                    value={formData.name}
-                    onChange={(e) => {
-                      clearError('name');
-                      setFormData((prev) => ({ ...prev, name: e.target.value }));
-                    }}
-                    placeholder={t('attributes.create.attribute_name_placeholder')}
-                    required
-                    error={formErrors.name}
-                  />
-
-                  <Input
-                    label={t('attributes.create.attribute_name_en')}
-                    value={formData.nameEn}
-                    onChange={(e) => {
-                      clearError('nameEn');
-                      setFormData((prev) => ({ ...prev, nameEn: e.target.value }));
-                    }}
-                    placeholder={t('attributes.create.attribute_name_en_placeholder')}
-                    required
-                    error={formErrors.nameEn}
-                  />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {requiredLanguages.map(({ code, label }) => (
+                      <Input
+                        key={`attribute-name-${code}`}
+                        label={resolveNameLabel(code, label)}
+                        value={formData.names[code] ?? ''}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          clearError(`name.${code}`);
+                          setFormData((prev) => ({
+                            ...prev,
+                            names: { ...prev.names, [code]: value },
+                          }));
+                        }}
+                        placeholder={t('attributes.create.attribute_name_placeholder')}
+                        required
+                        error={formErrors[`name.${code}`]}
+                      />
+                    ))}
+                  </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-medium text-foreground mb-1">
-                        {t('attributes.create.description_tr')}
-                      </label>
-                      <textarea
-                        value={formData.description}
-                        onChange={(e) =>
-                          setFormData((prev) => ({ ...prev, description: e.target.value }))
-                        }
-                        placeholder={t('attributes.create.description_placeholder')}
-                        rows={3}
-                        className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-foreground mb-1">
-                        {t('attributes.create.description_en')}
-                      </label>
-                      <textarea
-                        value={formData.descriptionEn}
-                        onChange={(e) =>
-                          setFormData((prev) => ({ ...prev, descriptionEn: e.target.value }))
-                        }
-                        placeholder={t('attributes.create.description_placeholder')}
-                        rows={3}
-                        className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-                      />
-                    </div>
+                    {requiredLanguages.map(({ code, label }) => (
+                      <div key={`attribute-description-${code}`}>
+                        <label className="block text-xs font-medium text-foreground mb-1">
+                          {resolveDescriptionLabel(code, label)}
+                        </label>
+                        <textarea
+                          value={formData.descriptions[code] ?? ''}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setFormData((prev) => ({
+                              ...prev,
+                              descriptions: { ...prev.descriptions, [code]: value },
+                            }));
+                          }}
+                          placeholder={t('attributes.create.description_placeholder')}
+                          rows={3}
+                          className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                        />
+                      </div>
+                    ))}
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -854,14 +961,29 @@ export const AttributesCreate: React.FC = () => {
                 <p className="text-sm text-muted-foreground mb-4">
                   {t('attributes.create.attribute_groups_subtitle')}
                 </p>
-                <AttributeGroupSelector
-                  groups={mockAttributeGroups}
-                  selectedGroups={formData.attributeGroups}
-                  onSelectionChange={(groups) => {
-                    clearError('attributeGroups');
-                    setFormData((prev) => ({ ...prev, attributeGroups: groups }));
-                  }}
-                />
+                {attributeGroupsLoading ? (
+                  <div className="text-sm text-muted-foreground">
+                    {t('attributes.create.loading_attribute_groups') || 'Attribute grupları yükleniyor...'}
+                  </div>
+                ) : attributeGroupsError ? (
+                  <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {attributeGroupsError}
+                  </div>
+                ) : (
+                  <AttributeGroupSelector
+                    groups={attributeGroups.map((group) => ({
+                      id: group.id,
+                      name: group.name,
+                      description: group.description,
+                      attributeCount: group.attributeCount ?? group.attributeIds?.length ?? 0,
+                    }))}
+                    selectedGroups={formData.attributeGroups}
+                    onSelectionChange={(groups) => {
+                      clearError('attributeGroups');
+                      setFormData((prev) => ({ ...prev, attributeGroups: groups }));
+                    }}
+                  />
+                )}
                 {formErrors.attributeGroups && (
                   <p className="text-xs text-error mt-2">{formErrors.attributeGroups}</p>
                 )}
@@ -1031,8 +1153,9 @@ export const AttributesCreate: React.FC = () => {
           </Card>
         );
 
-      case 4:
-      default:
+      case 4: {
+        const previewName = getPrimaryTranslation(formData.names);
+        const previewDescription = getPrimaryTranslation(formData.descriptions);
         return (
           <Card>
             <CardHeader
@@ -1051,23 +1174,26 @@ export const AttributesCreate: React.FC = () => {
                     </span>{' '}
                     {formData.key || '—'}
                   </p>
-                  <p>
+                  <div className="space-y-1">
                     <span className="text-muted-foreground">
-                      {t('attributes.create.name_tr_summary')}:
-                    </span>{' '}
-                    {formData.name || '—'}
-                  </p>
-                  <p>
-                    <span className="text-muted-foreground">
-                      {t('attributes.create.name_en_summary')}:
-                    </span>{' '}
-                    {formData.nameEn || '—'}
-                  </p>
+                      {t('attributes.create.names_summary') || 'Names'}
+                    </span>
+                    <div className="mt-1 space-y-1">
+                      {requiredLanguages.map(({ code, label }) => (
+                        <div key={`preview-name-${code}`}>
+                          <span className="text-muted-foreground">{label}:</span>{' '}
+                          {formData.names[code]?.trim() || '—'}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                   <p>
                     <span className="text-muted-foreground">
                       {t('attributes.create.type')}:
                     </span>{' '}
-                    {formData.type || '—'}
+                    {formData.type
+                      ? t(`attributes.types.${formData.type}.name`) || formData.type
+                      : '—'}
                   </p>
                   <p>
                     <span className="text-muted-foreground">
@@ -1089,22 +1215,19 @@ export const AttributesCreate: React.FC = () => {
                       {formData.tags.join(', ')}
                     </p>
                   )}
-                  {formData.description && (
-                    <p>
-                      <span className="text-muted-foreground">
-                        {t('attributes.create.description_tr')}:
-                      </span>{' '}
-                      {formData.description}
-                    </p>
-                  )}
-                  {formData.descriptionEn && (
-                    <p>
-                      <span className="text-muted-foreground">
-                        {t('attributes.create.description_en')}:
-                      </span>{' '}
-                      {formData.descriptionEn}
-                    </p>
-                  )}
+                  <div className="space-y-1">
+                    <span className="text-muted-foreground">
+                      {t('attributes.create.descriptions_summary') || 'Descriptions'}
+                    </span>
+                    <div className="mt-1 space-y-1">
+                      {requiredLanguages.map(({ code, label }) => (
+                        <div key={`preview-description-${code}`}>
+                          <span className="text-muted-foreground">{label}:</span>{' '}
+                          {formData.descriptions[code]?.trim() || '—'}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -1114,7 +1237,7 @@ export const AttributesCreate: React.FC = () => {
                   <div className="space-y-1">
                     {formData.attributeGroups.length > 0 ? (
                       formData.attributeGroups.map((groupId) => {
-                        const group = mockAttributeGroups.find((g) => g.id === groupId);
+                        const group = attributeGroups.find((g) => g.id === groupId);
                         return group ? (
                           <p key={groupId} className="text-sm text-muted-foreground">
                             • {group.name}
@@ -1173,10 +1296,10 @@ export const AttributesCreate: React.FC = () => {
                   <AttributeRenderer
                     attribute={{
                       id: 'preview',
-                      name: formData.name || formData.nameEn,
+                      name: previewName || formData.key || 'Attribute',
                       type: formData.type || AttributeType.TEXT,
                       required: formData.required,
-                      description: formData.description,
+                      description: previewDescription || undefined,
                       options: formData.options.length > 0 ? formData.options : undefined,
                       defaultValue: formData.defaultValue || undefined,
                       validation: formData.validation,
@@ -1192,6 +1315,9 @@ export const AttributesCreate: React.FC = () => {
             </div>
           </Card>
         );
+      }
+      default:
+        return null;
     }
   };
 
@@ -1216,32 +1342,35 @@ export const AttributesCreate: React.FC = () => {
       setLoading(true);
 
       const trimmedKey = formData.key.trim();
-      const nameTr = formData.name.trim();
-      const nameEn = formData.nameEn.trim() || nameTr;
-      const descriptionTr = formData.description.trim();
-      const descriptionEn = formData.descriptionEn.trim();
+      const nameTranslations = buildTranslations(formData.names);
+      const descriptionTranslations = buildTranslations(formData.descriptions, formData.names);
+      if (Object.keys(nameTranslations).length === 0) {
+        showToast({
+          type: 'error',
+          message:
+            t('attributes.create.errors.name_required') ||
+            'Display name is required.',
+        });
+        setCurrentStep(0);
+        setLoading(false);
+        return;
+      }
 
       const namespace = 'attributes';
       const nameLocalization = await localizationsService.create({
         namespace,
         key: `${trimmedKey}.name`,
         description: null,
-        translations: {
-          tr: nameTr,
-          en: nameEn,
-        },
+        translations: nameTranslations,
       });
 
       let descriptionLocalizationId: string | undefined;
-      if (descriptionTr || descriptionEn) {
+      if (Object.keys(descriptionTranslations).length > 0) {
         const descriptionLocalization = await localizationsService.create({
           namespace,
           key: `${trimmedKey}.description`,
           description: null,
-          translations: {
-            tr: descriptionTr || descriptionEn || nameTr,
-            en: descriptionEn || descriptionTr || nameEn,
-          },
+          translations: descriptionTranslations,
         });
         descriptionLocalizationId = descriptionLocalization.id;
       }
@@ -1292,7 +1421,34 @@ export const AttributesCreate: React.FC = () => {
         payload.tags = formData.tags;
       }
 
-      await attributesService.create(payload);
+      const created = await attributesService.create(payload);
+
+      if (formData.attributeGroups.length > 0) {
+        const results = await Promise.allSettled(
+          formData.attributeGroups.map(async (groupId) => {
+            const group = attributeGroups.find((item) => item.id === groupId);
+            if (!group) {
+              return;
+            }
+            const existingIds = Array.isArray(group.attributeIds) ? group.attributeIds : [];
+            if (existingIds.includes(created.id)) {
+              return;
+            }
+            const nextIds = Array.from(new Set([...existingIds, created.id]));
+            await attributeGroupsService.update(groupId, { attributeIds: nextIds });
+          }),
+        );
+
+        const failed = results.filter((result) => result.status === 'rejected');
+        if (failed.length > 0) {
+          showToast({
+            type: 'warning',
+            message:
+              t('attributes.create.attribute_group_update_failed') ||
+              'Attribute attribute gruplarına bağlanırken bazı hatalar oluştu.',
+          });
+        }
+      }
 
       showToast({
         type: 'success',
@@ -1300,7 +1456,7 @@ export const AttributesCreate: React.FC = () => {
           t('attributes.create.attribute_created_successfully') ||
           'Attribute created successfully.',
       });
-      navigate('/attributes');
+      navigate(`/attributes/${created.id}`);
     } catch (error: any) {
       console.error('Failed to create attribute', error);
       const message =
