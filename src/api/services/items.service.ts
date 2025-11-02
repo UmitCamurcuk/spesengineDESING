@@ -19,7 +19,7 @@ type BackendItem = {
   code: string;
   externalCode?: string | null;
   sku?: string | null;
-  nameLocalizationId: string;
+  nameLocalizationId?: string | null;
   descriptionLocalizationId?: string | null;
   name: string;
   nameLanguage: string | null;
@@ -58,7 +58,7 @@ const mapItem = (item: BackendItem): Item => ({
   externalCode: item.externalCode ?? null,
   sku: item.sku ?? null,
   name: item.name,
-  nameLocalizationId: item.nameLocalizationId,
+  nameLocalizationId: item.nameLocalizationId ?? null,
   descriptionLocalizationId: item.descriptionLocalizationId ?? null,
   description: item.description ?? null,
   status: item.status,

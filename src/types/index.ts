@@ -188,7 +188,7 @@ export interface Item {
   externalCode?: string | null;
   sku?: string | null;
   name: string;
-  nameLocalizationId: string;
+  nameLocalizationId?: string | null;
   descriptionLocalizationId?: string | null;
   description?: string | null;
   status: 'draft' | 'active' | 'inactive' | 'archived';

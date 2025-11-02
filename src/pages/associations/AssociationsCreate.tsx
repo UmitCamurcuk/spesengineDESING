@@ -1,299 +1,417 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, Zap, Database, ArrowUpDown, Hash } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Zap } from 'lucide-react';
 import { Card, CardHeader } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
-import { Select } from '../../components/ui/Select';
 import { Stepper } from '../../components/ui/Stepper';
 import { Badge } from '../../components/ui/Badge';
+import { PageHeader } from '../../components/ui/PageHeader';
+import { useToast } from '../../contexts/ToastContext';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { associationsService } from '../../api/services/associations.service';
+import { itemsService } from '../../api/services/items.service';
+import type { Item } from '../../types';
 
-const steps = [
-  { id: 'basic', name: 'Basic Info', description: 'Name and description' },
-  { id: 'relationship', name: 'Relationship', description: 'Define item types' },
-  { id: 'configuration', name: 'Configuration', description: 'Set rules and limits' },
-  { id: 'review', name: 'Review', description: 'Confirm details' },
-];
+type StepId = 'associationType' | 'items' | 'configuration' | 'review';
 
-const mockItemTypes = [
-  { value: 'type-order', label: 'Order' },
-  { value: 'type-product', label: 'Product' },
-  { value: 'type-service', label: 'Service' },
-  { value: 'type-fabric', label: 'Fabric' },
-  { value: 'type-hardware', label: 'Hardware' },
-  { value: 'type-accessories', label: 'Accessories' },
-  { value: 'type-resource', label: 'Resource' },
-];
+interface FormState {
+  associationTypeId: string;
+  sourceItemId: string;
+  targetItemId: string;
+  orderIndex: string;
+  metadata: string;
+}
 
-const associationTypeOptions = [
-  { value: 'one-to-one', label: 'One to One' },
-  { value: 'one-to-many', label: 'One to Many' },
-  { value: 'many-to-many', label: 'Many to Many' },
-];
+const defaultFormState: FormState = {
+  associationTypeId: '',
+  sourceItemId: '',
+  targetItemId: '',
+  orderIndex: '',
+  metadata: '',
+};
 
 export const AssociationsCreate: React.FC = () => {
   const navigate = useNavigate();
-  const [currentStep, setCurrentStep] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    sourceItemTypeId: '',
-    targetItemTypeId: '',
-    associationType: 'one-to-many' as 'one-to-one' | 'one-to-many' | 'many-to-many',
-    isRequired: false,
-    minQuantity: 1,
-    maxQuantity: 10,
-  });
+  const { showToast } = useToast();
+  const { t } = useLanguage();
 
-  const handleNext = () => {
-    if (currentStep < steps.length - 1) {
-      setCurrentStep(currentStep + 1);
+  const steps = useMemo(
+    () => [
+      {
+        id: 'associationType' as StepId,
+        name: t('associations.create.steps.type') || 'Association Type',
+        description: t('associations.create.steps.type_desc') || 'Association tipini tanımlayın',
+      },
+      {
+        id: 'items' as StepId,
+        name: t('associations.create.steps.items') || 'Items',
+        description: t('associations.create.steps.items_desc') || 'Kaynak ve hedef item seçin',
+      },
+      {
+        id: 'configuration' as StepId,
+        name: t('associations.create.steps.configuration') || 'Configuration',
+        description: t('associations.create.steps.configuration_desc') || 'Opsiyonel ayarlar',
+      },
+      {
+        id: 'review' as StepId,
+        name: t('associations.create.steps.review') || 'Review',
+        description: t('associations.create.steps.review_desc') || 'Kaydetmeden önce kontrol edin',
+      },
+    ],
+    [t],
+  );
+
+  const [form, setForm] = useState<FormState>({ ...defaultFormState });
+  const [items, setItems] = useState<Item[]>([]);
+  const [loadingItems, setLoadingItems] = useState<boolean>(true);
+  const [itemsError, setItemsError] = useState<string | null>(null);
+  const [currentStep, setCurrentStep] = useState<number>(0);
+  const [submitting, setSubmitting] = useState<boolean>(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchItems = async () => {
+      try {
+        setLoadingItems(true);
+        setItemsError(null);
+        const response = await itemsService.list({ limit: 200 });
+        if (!cancelled) {
+          setItems(response.items ?? []);
+        }
+      } catch (error: any) {
+        if (!cancelled) {
+          console.error('Failed to load items for associations create', error);
+          setItemsError(
+            error?.response?.data?.error?.message ??
+              t('associations.create.items_failed') ??
+              'Item listesi yüklenemedi. Lütfen daha sonra tekrar deneyin.',
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingItems(false);
+        }
+      }
+    };
+
+    void fetchItems();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [t]);
+
+  const updateForm = useCallback((patch: Partial<FormState>) => {
+    setForm((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  const validateCurrentStep = useCallback(() => {
+    const step = steps[currentStep];
+    if (!step) {
+      return false;
     }
-  };
 
-  const handleBack = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
-
-  const handleSubmit = async () => {
-    setLoading(true);
-    setTimeout(() => {
-      navigate('/associations');
-    }, 2000);
-  };
-
-  const canProceed = () => {
-    switch (currentStep) {
-      case 0:
-        return formData.name.trim() !== '';
-      case 1:
-        return formData.sourceItemTypeId !== '' && formData.targetItemTypeId !== '';
-      case 2:
-        return formData.minQuantity >= 0 && formData.maxQuantity >= formData.minQuantity;
+    switch (step.id) {
+      case 'associationType':
+        if (!form.associationTypeId.trim()) {
+          showToast({
+            type: 'error',
+            message:
+              t('associations.create.validation.type') || 'Association type ID alanı zorunludur.',
+          });
+          return false;
+        }
+        return true;
+      case 'items':
+        if (!form.sourceItemId || !form.targetItemId) {
+          showToast({
+            type: 'error',
+            message:
+              t('associations.create.validation.items') || 'Kaynak ve hedef item seçilmelidir.',
+          });
+          return false;
+        }
+        if (form.sourceItemId === form.targetItemId) {
+          showToast({
+            type: 'error',
+            message:
+              t('associations.create.validation.items_same') ||
+              'Kaynak ve hedef farklı itemlar olmalıdır.',
+          });
+          return false;
+        }
+        return true;
+      case 'configuration':
+        return true;
+      case 'review':
       default:
         return true;
     }
+  }, [currentStep, form.associationTypeId, form.sourceItemId, form.targetItemId, showToast, steps, t]);
+
+  const handleNext = useCallback(() => {
+    if (!validateCurrentStep()) {
+      return;
+    }
+    setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1));
+  }, [validateCurrentStep, steps.length]);
+
+  const handleBack = useCallback(() => {
+    setCurrentStep((prev) => Math.max(prev - 1, 0));
+  }, []);
+
+  const handleSubmit = useCallback(async () => {
+    if (submitting) {
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const metadata = form.metadata.trim();
+      let metadataPayload: Record<string, unknown> | undefined;
+      if (metadata) {
+        try {
+          metadataPayload = JSON.parse(metadata);
+        } catch (err) {
+          metadataPayload = { note: metadata };
+        }
+      }
+
+      const orderIndexValue = form.orderIndex.trim();
+      const orderIndex = orderIndexValue ? Number(orderIndexValue) : undefined;
+
+      const payload = {
+        associationTypeId: form.associationTypeId.trim(),
+        sourceItemId: form.sourceItemId,
+        targetItemId: form.targetItemId,
+        orderIndex,
+        metadata: metadataPayload,
+      };
+
+      await associationsService.create(payload);
+
+      showToast({
+        type: 'success',
+        message: t('associations.create.success') || 'Association başarıyla oluşturuldu.',
+      });
+
+      navigate('/associations');
+    } catch (error: any) {
+      console.error('Failed to create association', error);
+      showToast({
+        type: 'error',
+        message:
+          error?.response?.data?.error?.message ??
+          t('associations.create.failed') ??
+          'Association oluşturulamadı. Lütfen tekrar deneyin.',
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  }, [form.associationTypeId, form.metadata, form.orderIndex, form.sourceItemId, form.targetItemId, navigate, showToast, submitting, t]);
+
+  const renderAssociationTypeStep = () => (
+    <Card>
+      <CardHeader
+        title={t('associations.create.type_title') || 'Association Type'}
+        subtitle={
+          t('associations.create.type_subtitle') ||
+          'Association kaydı hangi association type altında oluşturulacak?'
+        }
+      />
+      <div className="px-6 pb-6 space-y-4">
+        <Input
+          label={t('associations.fields.association_type_id') || 'Association Type ID'}
+          value={form.associationTypeId}
+          onChange={(event) => updateForm({ associationTypeId: event.target.value })}
+          placeholder="association-type-id"
+          required
+        />
+        <p className="text-xs text-muted-foreground">
+          {t('associations.create.type_hint') ||
+            'Mevcut association type kaydının ID değerini kullanın. Gerekirse association type modülünden yeni bir type oluşturabilirsiniz.'}
+        </p>
+      </div>
+    </Card>
+  );
+
+  const renderItemsStep = () => (
+    <Card>
+      <CardHeader
+        title={t('associations.create.items_title') || 'Select Items'}
+        subtitle={t('associations.create.items_subtitle') || 'Kaynak ve hedef itemları seçin'}
+      />
+      <div className="px-6 pb-6 space-y-4">
+        {itemsError ? (
+          <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {itemsError}
+          </div>
+        ) : null}
+
+        {loadingItems ? (
+          <div className="text-sm text-muted-foreground">
+            {t('common.loading') || 'Yükleniyor...'}
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-foreground mb-1">
+                  {t('associations.fields.source_item') || 'Source Item'}
+                </label>
+                <select
+                  value={form.sourceItemId}
+                  onChange={(event) => updateForm({ sourceItemId: event.target.value })}
+                  className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="">{t('associations.create.select_source_item') || 'Kaynak item seçin'}</option>
+                  {items.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.code} {item.name ? `- ${item.name}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-foreground mb-1">
+                  {t('associations.fields.target_item') || 'Target Item'}
+                </label>
+                <select
+                  value={form.targetItemId}
+                  onChange={(event) => updateForm({ targetItemId: event.target.value })}
+                  className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="">{t('associations.create.select_target_item') || 'Hedef item seçin'}</option>
+                  {items
+                    .filter((item) => item.id !== form.sourceItemId)
+                    .map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.code} {item.name ? `- ${item.name}` : ''}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </Card>
+  );
+
+  const renderConfigurationStep = () => (
+    <Card>
+      <CardHeader
+        title={t('associations.create.configuration_title') || 'Configuration'}
+        subtitle={t('associations.create.configuration_subtitle') || 'Opsiyonel metadata alanları'}
+      />
+      <div className="px-6 pb-6 space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Input
+            label={t('associations.fields.order_index') || 'Order Index'}
+            type="number"
+            value={form.orderIndex}
+            onChange={(event) => updateForm({ orderIndex: event.target.value })}
+            placeholder="0"
+          />
+
+          <Input
+            label={t('associations.fields.metadata') || 'Metadata (JSON veya metin)'}
+            value={form.metadata}
+            onChange={(event) => updateForm({ metadata: event.target.value })}
+            placeholder='{"note": "optional"}'
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {t('associations.create.configuration_hint') ||
+            'Metadata alanı isteğe bağlıdır. JSON formatında veri girebilir veya basit bir not yazabilirsiniz.'}
+        </p>
+      </div>
+    </Card>
+  );
+
+  const renderReviewStep = () => {
+    const sourceItem = items.find((item) => item.id === form.sourceItemId);
+    const targetItem = items.find((item) => item.id === form.targetItemId);
+    const orderIndexValue = form.orderIndex.trim();
+
+    return (
+      <Card>
+        <CardHeader
+          title={t('associations.review.title') || 'Review'}
+          subtitle={t('associations.review.subtitle') || 'Association kaydını doğrulayın'}
+        />
+        <div className="px-6 pb-6 space-y-3 text-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">
+              {t('associations.fields.association_type_id') || 'Association Type'}
+            </span>
+            <Badge variant="primary" size="sm">
+              {form.associationTypeId.trim() || '—'}
+            </Badge>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">
+              {t('associations.fields.source_item') || 'Source Item'}
+            </span>
+            <span className="font-medium text-foreground">
+              {sourceItem
+                ? `${sourceItem.code}${sourceItem.name ? ` - ${sourceItem.name}` : ''}`
+                : '—'}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">
+              {t('associations.fields.target_item') || 'Target Item'}
+            </span>
+            <span className="font-medium text-foreground">
+              {targetItem
+                ? `${targetItem.code}${targetItem.name ? ` - ${targetItem.name}` : ''}`
+                : '—'}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">
+              {t('associations.fields.order_index') || 'Order Index'}
+            </span>
+            <span className="font-medium text-foreground">
+              {orderIndexValue || '—'}
+            </span>
+          </div>
+
+          <div>
+            <span className="text-muted-foreground block">
+              {t('associations.fields.metadata') || 'Metadata'}
+            </span>
+            <span className="text-sm text-foreground">
+              {form.metadata.trim() || t('associations.review.no_metadata') || 'Ek metadata bulunmuyor.'}
+            </span>
+          </div>
+        </div>
+      </Card>
+    );
   };
 
   const renderStepContent = () => {
-    switch (currentStep) {
-      case 0:
-        return (
-          <Card>
-            <CardHeader
-              title="Association Information"
-              subtitle="Define the basic properties of your association"
-            />
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="md:col-span-2">
-                  <Input
-                    label="Association Name"
-                    value={formData.name}
-                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="e.g., Order - Fabric, Product - Accessories"
-                    required
-                  />
-                </div>
+    const step = steps[currentStep];
+    if (!step) {
+      return null;
+    }
 
-                <div className="md:col-span-2">
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Description
-                    </label>
-                    <textarea
-                      value={formData.description}
-                      onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                      placeholder="Describe the relationship between these item types..."
-                      rows={4}
-                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </Card>
-        );
-
-      case 1: {
-        const sourceItemType = mockItemTypes.find(t => t.value === formData.sourceItemTypeId);
-        const targetItemType = mockItemTypes.find(t => t.value === formData.targetItemTypeId);
-
-        return (
-          <Card>
-            <CardHeader
-              title="Define Relationship"
-              subtitle="Select the item types and relationship type"
-            />
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Select
-                  label="Source Item Type"
-                  value={formData.sourceItemTypeId}
-                  onChange={(e) => setFormData(prev => ({ ...prev, sourceItemTypeId: e.target.value }))}
-                  options={mockItemTypes}
-                  required
-                  leftIcon={<Database className="h-4 w-4" />}
-                  helperText="The item type that will have the association"
-                />
-
-                <Select
-                  label="Target Item Type"
-                  value={formData.targetItemTypeId}
-                  onChange={(e) => setFormData(prev => ({ ...prev, targetItemTypeId: e.target.value }))}
-                  options={mockItemTypes.filter(t => t.value !== formData.sourceItemTypeId)}
-                  required
-                  leftIcon={<Database className="h-4 w-4" />}
-                  helperText="The item type that will be associated"
-                />
-              </div>
-
-              <Select
-                label="Association Type"
-                value={formData.associationType}
-                onChange={(e) => setFormData(prev => ({ ...prev, associationType: e.target.value as any }))}
-                options={associationTypeOptions}
-                required
-                leftIcon={<ArrowUpDown className="h-4 w-4" />}
-                helperText="Define the cardinality of the relationship"
-              />
-
-              {sourceItemType && targetItemType && (
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <h4 className="text-sm font-medium text-gray-700 mb-3">Relationship Preview</h4>
-                  <div className="flex items-center space-x-3 text-sm">
-                    <Badge variant="primary">{sourceItemType.label}</Badge>
-                    <ArrowRight className="h-4 w-4 text-gray-600" />
-                    <Badge variant="secondary">{targetItemType.label}</Badge>
-                    <Badge variant="secondary" size="sm">
-                      {formData.associationType}
-                    </Badge>
-                  </div>
-                </div>
-              )}
-            </div>
-          </Card>
-        );
-      }
-
-      case 2:
-        return (
-          <Card>
-            <CardHeader
-              title="Configuration"
-              subtitle="Set rules and quantity limits"
-            />
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <Input
-                    label="Minimum Quantity"
-                    type="number"
-                    value={formData.minQuantity}
-                    onChange={(e) => setFormData(prev => ({ ...prev, minQuantity: parseInt(e.target.value) || 0 }))}
-                    min="0"
-                    required
-                    leftIcon={<Hash className="h-4 w-4" />}
-                    helperText="Minimum number of associated items"
-                  />
-                </div>
-
-                <div>
-                  <Input
-                    label="Maximum Quantity"
-                    type="number"
-                    value={formData.maxQuantity}
-                    onChange={(e) => setFormData(prev => ({ ...prev, maxQuantity: parseInt(e.target.value) || 1 }))}
-                    min={formData.minQuantity}
-                    required
-                    leftIcon={<Hash className="h-4 w-4" />}
-                    helperText="Maximum number of associated items"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="isRequired"
-                  checked={formData.isRequired}
-                  onChange={(e) => setFormData(prev => ({ ...prev, isRequired: e.target.checked }))}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                <label htmlFor="isRequired" className="text-sm font-medium text-gray-700">
-                  This association is required
-                </label>
-              </div>
-            </div>
-          </Card>
-        );
-
-      case 3: {
-        const sourceItemType = mockItemTypes.find(t => t.value === formData.sourceItemTypeId);
-        const targetItemType = mockItemTypes.find(t => t.value === formData.targetItemTypeId);
-
-        return (
-          <Card>
-            <CardHeader
-              title="Review & Confirm"
-              subtitle="Please review your association details before creating"
-            />
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">Basic Information</h4>
-                  <div className="space-y-2">
-                    <p><span className="text-gray-500">Name:</span> {formData.name}</p>
-                    {formData.description && (
-                      <p><span className="text-gray-500">Description:</span> {formData.description}</p>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">Relationship</h4>
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-gray-500">From:</span>
-                      <Badge variant="primary">{sourceItemType?.label}</Badge>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-gray-500">To:</span>
-                      <Badge variant="secondary">{targetItemType?.label}</Badge>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-gray-500">Type:</span>
-                      <Badge variant="secondary">{formData.associationType}</Badge>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="border-t border-gray-200 pt-6">
-                <h4 className="text-sm font-medium text-gray-700 mb-4">Configuration</h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                    <span className="text-sm font-medium text-gray-700">Required</span>
-                    <span className="text-sm text-gray-600">{formData.isRequired ? 'Yes' : 'No'}</span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                    <span className="text-sm font-medium text-gray-700">Min Quantity</span>
-                    <span className="text-sm text-gray-600">{formData.minQuantity}</span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                    <span className="text-sm font-medium text-gray-700">Max Quantity</span>
-                    <span className="text-sm text-gray-600">{formData.maxQuantity}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </Card>
-        );
-      }
-
+    switch (step.id) {
+      case 'associationType':
+        return renderAssociationTypeStep();
+      case 'items':
+        return renderItemsStep();
+      case 'configuration':
+        return renderConfigurationStep();
+      case 'review':
+        return renderReviewStep();
       default:
         return null;
     }
@@ -301,46 +419,51 @@ export const AssociationsCreate: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Stepper */}
-      <Card padding="lg">
-        <Stepper steps={steps} currentStep={currentStep} />
-      </Card>
+      <PageHeader
+        title={t('associations.create_title') || 'Create Association'}
+        subtitle={
+          t('associations.create_subtitle') ||
+          'Mevcut itemlar arasında association oluşturun ve isteğe bağlı olarak metadata ekleyin.'
+        }
+      />
 
-      {/* Step Content */}
-      {renderStepContent()}
+      <Card>
+        <CardHeader
+          title={t('associations.create.form_title') || 'Association Bilgileri'}
+          subtitle={t('associations.create.form_subtitle') || 'Adımları takip ederek association kaydedin.'}
+        />
+        <div className="px-6 pb-6 space-y-6">
+          <Stepper steps={steps} currentStep={currentStep} />
 
-      {/* Navigation */}
-      <div className="flex justify-between">
-        <Button
-          variant="outline"
-          onClick={handleBack}
-          disabled={currentStep === 0}
-          leftIcon={<ArrowLeft className="h-4 w-4" />}
-        >
-          Back
-        </Button>
+          {renderStepContent()}
 
-        <div className="flex space-x-3">
-          {currentStep === steps.length - 1 ? (
+          <div className="flex items-center justify-between pt-4">
             <Button
-              onClick={handleSubmit}
-              loading={loading}
-              disabled={!canProceed()}
-              leftIcon={<Check className="h-4 w-4" />}
+              variant="outline"
+              onClick={handleBack}
+              disabled={currentStep === 0 || submitting}
             >
-              Create Association
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              {t('common.back') || 'Geri'}
             </Button>
-          ) : (
-            <Button
-              onClick={handleNext}
-              disabled={!canProceed()}
-              rightIcon={<ArrowRight className="h-4 w-4" />}
-            >
-              Continue
-            </Button>
-          )}
+
+            <div className="flex items-center gap-2">
+              {currentStep < steps.length - 1 ? (
+                <Button onClick={handleNext} disabled={submitting}>
+                  {t('common.next') || 'İleri'}
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
+              ) : (
+                <Button onClick={handleSubmit} disabled={submitting}>
+                  {submitting ? t('common.saving') || 'Kaydediliyor...' : t('common.create') || 'Oluştur'}
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
-      </div>
+      </Card>
     </div>
   );
 };
+
+export default AssociationsCreate;

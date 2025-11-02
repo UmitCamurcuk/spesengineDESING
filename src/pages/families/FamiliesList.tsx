@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Layers } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -6,10 +6,11 @@ import { useAuth } from '../../contexts/AuthContext';
 import { PERMISSIONS } from '../../config/permissions';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
-import { Card, CardHeader } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
+import { DataTable } from '../../components/ui/DataTable';
 import type { Family } from '../../types';
 import { familiesService } from '../../api/services/families.service';
+import { UserInfoWithRole } from '../../components/common/UserInfoWithRole';
 
 export const FamiliesList: React.FC = () => {
   const navigate = useNavigate();
@@ -17,9 +18,29 @@ export const FamiliesList: React.FC = () => {
   const { hasPermission } = useAuth();
   const canCreateFamily = hasPermission(PERMISSIONS.CATALOG.FAMILIES.CREATE);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [families, setFamilies] = useState<Family[]>([]);
+
+  const toUserInfo = useCallback((user: Family['updatedBy'] | Family['createdBy']) => {
+    if (!user) {
+      return undefined;
+    }
+    if (typeof user === 'string') {
+      return {
+        id: user,
+        email: user,
+        name: user,
+      };
+    }
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      profilePhotoUrl: user.profilePhotoUrl,
+      role: user.role,
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -28,7 +49,7 @@ export const FamiliesList: React.FC = () => {
       try {
         setLoading(true);
         setError(null);
-        const { items } = await familiesService.list();
+        const { items } = await familiesService.list({ limit: 200 });
         if (!cancelled) {
           setFamilies(items);
         }
@@ -55,8 +76,75 @@ export const FamiliesList: React.FC = () => {
     };
   }, [t]);
 
+  const handleRowClick = useCallback(
+    (family: Family) => {
+      navigate(`/families/${family.id}`);
+    },
+    [navigate],
+  );
+
+  const columns = useMemo(
+    () => [
+      {
+        key: 'name',
+        title: t('families.columns.name') || 'Name',
+        sortable: true,
+        render: (_: string, family: Family) => (
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-sm">
+              <Layers className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-foreground">{family.name}</div>
+              <div className="text-xs text-muted-foreground">ID: {family.id}</div>
+            </div>
+          </div>
+        ),
+      },
+      {
+        key: 'key',
+        title: t('families.columns.key') || 'Key',
+        render: (_: string, family: Family) => (
+          <code className="text-xs bg-muted px-2 py-1 rounded">{family.key}</code>
+        ),
+      },
+      {
+        key: 'categoryId',
+        title: t('families.columns.category') || 'Category',
+        render: (_: string | null | undefined, family: Family) =>
+          family.categoryId ? (
+            <Badge variant="secondary" size="sm">
+              {family.categoryId}
+            </Badge>
+          ) : (
+            <span className="text-xs text-muted-foreground">
+              {t('families.root_label') || 'Root'}
+            </span>
+          ),
+      },
+      {
+        key: 'attributeGroupCount',
+        title: t('families.columns.attribute_groups') || 'Attribute Groups',
+        render: (_: number | undefined, family: Family) => (
+          <Badge variant="outline" size="sm">
+            {family.attributeGroupCount ?? family.attributeGroupIds?.length ?? 0}
+          </Badge>
+        ),
+      },
+      {
+        key: 'updatedAt',
+        title: t('families.columns.updated_at') || 'Updated',
+        sortable: true,
+        render: (_: string, family: Family) => (
+          <UserInfoWithRole user={toUserInfo(family.updatedBy)} date={family.updatedAt} />
+        ),
+      },
+    ],
+    [t, toUserInfo],
+  );
+
   return (
-    <div className="space-y-6">
+    <div className="h-full flex flex-col">
       <PageHeader
         title={t('families.title') || 'Families'}
         description={t('families.subtitle') || 'Manage product families and their hierarchy'}
@@ -70,91 +158,34 @@ export const FamiliesList: React.FC = () => {
         }
       />
 
-      <Card>
-        <CardHeader
-          title={t('families.list_title') || 'Family Records'}
-          subtitle={
-            loading
-              ? t('common.loading') || 'Loading...'
-              : `${families.length} ${t('families.count_suffix') || 'records'}`
-          }
+      {error && (
+        <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      <div className="flex-1 mt-6">
+        <DataTable<Family>
+          data={families}
+          columns={columns}
+          loading={loading}
+          searchPlaceholder={t('families.search_placeholder') || 'Search families...'}
+          onRowClick={handleRowClick}
+          emptyState={{
+            icon: <Layers className="h-12 w-12" />,
+            title: t('families.empty_state') || 'Henüz family oluşturulmadı.',
+            description:
+              t('families.create_new') ||
+              'İlk family kaydınızı oluşturarak ürün hiyerarşinizi başlatın.',
+            action: canCreateFamily ? (
+              <Button onClick={() => navigate('/families/create')}>
+                <Plus className="h-4 w-4 mr-2" />
+                {t('families.create') || 'Create Family'}
+              </Button>
+            ) : undefined,
+          }}
         />
-        {error ? (
-          <div className="px-6 py-10 text-sm text-red-500">{error}</div>
-        ) : loading ? (
-          <div className="px-6 py-10 text-sm text-muted-foreground">
-            {t('common.loading') || 'Loading...'}
-          </div>
-        ) : families.length === 0 ? (
-          <div className="px-6 py-10 text-sm text-muted-foreground">
-            {t('families.empty_state') ||
-              'Henüz family oluşturulmadı. Yeni bir kayıt ekleyerek başlayın.'}
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-border">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    {t('families.columns.name') || 'Name'}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    {t('families.columns.key') || 'Key'}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    {t('families.columns.category') || 'Category'}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    {t('families.columns.attribute_groups') || 'Attribute Groups'}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    {t('families.columns.updated_at') || 'Updated'}
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border bg-background">
-                {families.map((family) => (
-                  <tr
-                    key={family.id}
-                    className="hover:bg-muted/50 cursor-pointer transition-colors"
-                    onClick={() => navigate(`/families/${family.id}`)}
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-sm">
-                          <Layers className="h-5 w-5 text-white" />
-                        </div>
-                        <div>
-                          <div className="text-sm font-medium text-foreground">{family.name}</div>
-                          <div className="text-xs text-muted-foreground">ID: {family.id}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground font-mono">
-                      {family.key}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      {family.categoryId ? (
-                        <Badge variant="secondary">{family.categoryId}</Badge>
-                      ) : (
-                        <span className="text-muted-foreground text-xs">
-                          {t('families.root_category') || 'Unassigned'}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <Badge variant="outline">{family.attributeGroupCount ?? 0}</Badge>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
-                      {new Date(family.updatedAt).toLocaleString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
+      </div>
     </div>
   );
 };

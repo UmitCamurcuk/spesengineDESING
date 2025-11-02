@@ -1,607 +1,975 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, FolderTree, ArrowRight, Check, Tags, Plus, X, Sparkles } from 'lucide-react';
+import { Check, Hash, Search } from 'lucide-react';
 import { Card, CardHeader } from '../../components/ui/Card';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
-import { TreeSelect } from '../../components/ui/TreeSelect';
-import { Stepper } from '../../components/ui/Stepper';
+import { Textarea } from '../../components/ui/Textarea';
 import { Badge } from '../../components/ui/Badge';
+import { Stepper } from '../../components/ui/Stepper';
+import { useToast } from '../../contexts/ToastContext';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { useRequiredLanguages } from '../../hooks/useRequiredLanguages';
+import { categoriesService } from '../../api/services/categories.service';
+import { itemTypesService } from '../../api/services/item-types.service';
+import { familiesService } from '../../api/services/families.service';
+import { attributeGroupsService } from '../../api/services/attribute-groups.service';
+import { localizationsService } from '../../api/services/localizations.service';
+import type { AttributeGroup, Category, Family, ItemType } from '../../types';
 
-const steps = [
-  { id: 'basic', name: 'Basic Info', description: 'Name and description' },
-  { id: 'hierarchy', name: 'Parent Category', description: 'Select parent category' },
-  { id: 'attributes', name: 'Attribute Groups', description: 'Select attribute groups' },
-  { id: 'preview', name: 'Preview', description: 'Review and confirm' },
-];
+interface FormState {
+  key: string;
+  names: Record<string, string>;
+  descriptions: Record<string, string>;
+  parentCategoryId: string;
+  defaultItemTypeId: string;
+  linkedItemTypeIds: string[];
+  linkedFamilyIds: string[];
+  isSystemCategory: boolean;
+  attributeGroupIds: string[];
+}
+
+type StepId = 'basic' | 'relationships' | 'attributeGroups' | 'preview';
 
 export const CategoriesCreate: React.FC = () => {
   const navigate = useNavigate();
-  const [currentStep, setCurrentStep] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
+  const { showToast } = useToast();
+  const { t } = useLanguage();
+  const requiredLanguages = useRequiredLanguages();
+
+  const [form, setForm] = useState<FormState>({
+    key: '',
+    names: {},
+    descriptions: {},
     parentCategoryId: '',
-    attributeGroups: [] as string[],
+    defaultItemTypeId: '',
+    linkedItemTypeIds: [],
+    linkedFamilyIds: [],
+    isSystemCategory: false,
+    attributeGroupIds: [],
   });
 
-  // Mock hierarchical categories
-  const categoryTreeOptions = [
-    {
-      id: 'root',
-      label: 'No Parent (Root Category)',
-      value: '',
-      icon: <FolderTree className="h-4 w-4 text-gray-400" />,
-    },
-    {
-      id: 'cat-1',
-      label: 'Food & Beverage',
-      value: 'cat-1',
-      icon: <FolderTree className="h-4 w-4 text-orange-600" />,
-      children: [
-        {
-          id: 'cat-2',
-          label: 'Coffee Products',
-          value: 'cat-2',
-          icon: <FolderTree className="h-4 w-4 text-amber-600" />,
-        },
-        {
-          id: 'cat-5',
-          label: 'Tea Products',
-          value: 'cat-5',
-          icon: <FolderTree className="h-4 w-4 text-green-600" />,
-        }
-      ]
-    },
-    {
-      id: 'cat-3',
-      label: 'Electronics',
-      value: 'cat-3',
-      icon: <FolderTree className="h-4 w-4 text-blue-600" />,
-      children: [
-        {
-          id: 'cat-4',
-          label: 'Audio Equipment',
-          value: 'cat-4',
-          icon: <FolderTree className="h-4 w-4 text-indigo-600" />,
-        },
-        {
-          id: 'cat-7',
-          label: 'Mobile Devices',
-          value: 'cat-7',
-          icon: <FolderTree className="h-4 w-4 text-purple-600" />,
-        }
-      ]
-    },
-    {
-      id: 'cat-8',
-      label: 'Home & Garden',
-      value: 'cat-8',
-      icon: <FolderTree className="h-4 w-4 text-emerald-600" />,
-      children: [
-        {
-          id: 'cat-9',
-          label: 'Furniture',
-          value: 'cat-9',
-          icon: <FolderTree className="h-4 w-4 text-teal-600" />,
-        },
-        {
-          id: 'cat-10',
-          label: 'Garden Tools',
-          value: 'cat-10',
-          icon: <FolderTree className="h-4 w-4 text-green-600" />,
-        }
-      ]
-    }
-  ];
+  const [currentStep, setCurrentStep] = useState(0);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [itemTypes, setItemTypes] = useState<ItemType[]>([]);
+  const [families, setFamilies] = useState<Family[]>([]);
+  const [attributeGroups, setAttributeGroups] = useState<AttributeGroup[]>([]);
+  const [attributeGroupSearch, setAttributeGroupSearch] = useState('');
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  // Mock attribute groups
-  const mockAttributeGroups = [
-    {
-      id: 'group-1',
-      name: 'Basic Product Info',
-      description: 'Essential product information',
-      attributeCount: 5
+  const steps = useMemo(
+    () => [
+      {
+        id: 'basic',
+        name: t('categories.steps.basic_information') || 'Temel Bilgiler',
+        description: t('categories.steps.basic_information_desc') || 'Anahtar ve zorunlu alanlar',
+      },
+      {
+        id: 'relationships',
+        name: t('categories.steps.relationships') || 'İlişkiler',
+        description: t('categories.steps.relationships_desc') || 'Hiyerarşi ve bağlantılar',
+      },
+      {
+        id: 'attributeGroups',
+        name: t('categories.steps.attribute_groups') || 'Attribute Grupları',
+        description:
+          t('categories.steps.attribute_groups_desc') || 'Bağlanacak attribute gruplarını seçin',
+      },
+      {
+        id: 'preview',
+        name: t('categories.steps.preview') || 'Önizleme',
+        description: t('categories.steps.preview_desc') || 'Kaydetmeden önce kontrol edin',
+      },
+    ],
+    [t],
+  );
+
+  const syncLocalizationState = useCallback(
+    (current: Record<string, string>): Record<string, string> => {
+      const next: Record<string, string> = {};
+      requiredLanguages.forEach(({ code }) => {
+        next[code] = current?.[code] ?? '';
+      });
+      return next;
     },
-    {
-      id: 'group-2',
-      name: 'Physical Properties',
-      description: 'Weight, dimensions, material properties',
-      attributeCount: 8
-    },
-    {
-      id: 'group-3',
-      name: 'Marketing Information',
-      description: 'SEO, promotional content, tags',
-      attributeCount: 6
-    },
-    {
-      id: 'group-4',
-      name: 'Technical Specifications',
-      description: 'Technical details and requirements',
-      attributeCount: 12
-    }
-  ];
+    [requiredLanguages],
+  );
 
-  const handleNext = () => {
-    if (currentStep < steps.length - 1) {
-      setCurrentStep(currentStep + 1);
-    }
-  };
-
-  const handleBack = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
-
-  const handleSubmit = async () => {
-    setLoading(true);
-    setTimeout(() => {
-      navigate('/categories');
-    }, 1500);
-  };
-
-  const toggleAttributeGroup = (groupId: string) => {
-    setFormData(prev => ({
+  useEffect(() => {
+    setForm((prev) => ({
       ...prev,
-      attributeGroups: prev.attributeGroups.includes(groupId)
-        ? prev.attributeGroups.filter(id => id !== groupId)
-        : [...prev.attributeGroups, groupId]
+      names: syncLocalizationState(prev.names),
+      descriptions: syncLocalizationState(prev.descriptions),
     }));
-  };
+  }, [syncLocalizationState]);
 
-  const canProceed = () => {
-    switch (currentStep) {
-      case 0:
-        return formData.name.trim() !== '';
-      case 1:
-        return true; // Parent category is optional
-      case 2:
-        return formData.attributeGroups.length > 0;
-      default:
-        return true;
-    }
-  };
-
-  const findNodeByValue = (nodes: typeof categoryTreeOptions, targetValue: string): any => {
-    for (const node of nodes) {
-      if (node.value === targetValue) return node;
-      if (node.children) {
-        const found = findNodeByValue(node.children, targetValue);
-        if (found) return found;
+  const resolveNameLabel = useCallback(
+    (code: string, languageLabel: string) => {
+      if (code === 'tr') {
+        return t('categories.fields.name_tr') || `Name (${languageLabel})`;
       }
+      if (code === 'en') {
+        return t('categories.fields.name_en') || `Name (${languageLabel})`;
+      }
+      const fallback =
+        t('categories.fields.name') !== 'categories.fields.name'
+          ? t('categories.fields.name')
+          : t('categories.fields.name_en') !== 'categories.fields.name_en'
+          ? t('categories.fields.name_en')
+          : 'Name';
+      return `${fallback} (${languageLabel})`;
+    },
+    [t],
+  );
+
+  const resolveDescriptionLabel = useCallback(
+    (code: string, languageLabel: string) => {
+      if (code === 'tr') {
+        return t('categories.fields.description_tr') || `Description (${languageLabel})`;
+      }
+      if (code === 'en') {
+        return t('categories.fields.description_en') || `Description (${languageLabel})`;
+      }
+      const fallback =
+        t('categories.fields.description') !== 'categories.fields.description'
+          ? t('categories.fields.description')
+          : t('categories.fields.description_en') !== 'categories.fields.description_en'
+          ? t('categories.fields.description_en')
+          : 'Description';
+      return `${fallback} (${languageLabel})`;
+    },
+    [t],
+  );
+
+  const buildTranslations = useCallback(
+    (values: Record<string, string>, fallback?: Record<string, string>): Record<string, string> => {
+      const result: Record<string, string> = {};
+      requiredLanguages.forEach(({ code }) => {
+        const primary = values[code]?.trim();
+        if (primary) {
+          result[code] = primary;
+          return;
+        }
+        const fallbackValue = fallback?.[code]?.trim();
+        if (fallbackValue) {
+          result[code] = fallbackValue;
+        }
+      });
+      return result;
+    },
+    [requiredLanguages],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchLookups = async () => {
+      try {
+        setInitialLoading(true);
+        setError(null);
+        const [categoriesResult, itemTypesResult, familiesResult, attributeGroupsResult] =
+          await Promise.all([
+            categoriesService.list({ limit: 200 }),
+            itemTypesService.list({ limit: 200 }),
+            familiesService.list({ limit: 200 }),
+            attributeGroupsService.list(),
+          ]);
+        if (cancelled) {
+          return;
+        }
+        setCategories(categoriesResult.items ?? []);
+        setItemTypes(itemTypesResult.items ?? []);
+        setFamilies(familiesResult.items ?? []);
+        setAttributeGroups(attributeGroupsResult ?? []);
+      } catch (err: any) {
+        if (cancelled) {
+          return;
+        }
+        console.error('Failed to load category dependencies', err);
+        setError(
+          err?.response?.data?.error?.message ??
+            t('categories.lookup_failed') ??
+            'Gerekli veriler yüklenemedi.',
+        );
+      } finally {
+        if (!cancelled) {
+          setInitialLoading(false);
+        }
+      }
+    };
+
+    fetchLookups();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [t]);
+
+  const sortedCategories = useMemo(() => {
+    const items = [...categories];
+    return items.sort((a, b) => {
+      const depthDiff = (a.hierarchyPath?.length ?? 0) - (b.hierarchyPath?.length ?? 0);
+      if (depthDiff !== 0) {
+        return depthDiff;
+      }
+      return a.name.localeCompare(b.name);
+    });
+  }, [categories]);
+
+  const sortedItemTypes = useMemo(() => {
+    const items = [...itemTypes];
+    return items.sort((a, b) => a.name.localeCompare(b.name));
+  }, [itemTypes]);
+
+  const sortedFamilies = useMemo(() => {
+    const items = [...families];
+    return items.sort((a, b) => {
+      const depthDiff = (a.hierarchyPath?.length ?? 0) - (b.hierarchyPath?.length ?? 0);
+      if (depthDiff !== 0) {
+        return depthDiff;
+      }
+      return a.name.localeCompare(b.name);
+    });
+  }, [families]);
+
+  const attributeGroupMap = useMemo(() => {
+    const map = new Map<string, AttributeGroup>();
+    attributeGroups.forEach((group) => map.set(group.id, group));
+    return map;
+  }, [attributeGroups]);
+
+  const itemTypeMap = useMemo(() => {
+    const map = new Map<string, ItemType>();
+    itemTypes.forEach((itemType) => map.set(itemType.id, itemType));
+    return map;
+  }, [itemTypes]);
+
+  const familyMap = useMemo(() => {
+    const map = new Map<string, Family>();
+    families.forEach((family) => map.set(family.id, family));
+    return map;
+  }, [families]);
+
+  const selectedAttributeGroups = useMemo(
+    () =>
+      form.attributeGroupIds
+        .map((id) => attributeGroupMap.get(id))
+        .filter((group): group is AttributeGroup => Boolean(group)),
+    [attributeGroupMap, form.attributeGroupIds],
+  );
+
+  const selectedItemTypes = useMemo(
+    () =>
+      form.linkedItemTypeIds
+        .map((id) => itemTypeMap.get(id))
+        .filter((itemType): itemType is ItemType => Boolean(itemType)),
+    [form.linkedItemTypeIds, itemTypeMap],
+  );
+
+  const selectedFamilies = useMemo(
+    () =>
+      form.linkedFamilyIds
+        .map((id) => familyMap.get(id))
+        .filter((family): family is Family => Boolean(family)),
+    [familyMap, form.linkedFamilyIds],
+  );
+
+  const filteredAttributeGroups = useMemo(() => {
+    const term = attributeGroupSearch.trim().toLowerCase();
+    if (!term) {
+      return attributeGroups;
     }
-    return null;
-  };
+    return attributeGroups.filter((group) => {
+      const haystack = [
+        group.name ?? '',
+        group.key ?? '',
+        group.description ?? '',
+        ...(group.tags ?? []),
+      ]
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(term);
+    });
+  }, [attributeGroupSearch, attributeGroups]);
+
+  const updateForm = useCallback((patch: Partial<FormState>) => {
+    setForm((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  const toggleAttributeGroup = useCallback((attributeGroupId: string) => {
+    setForm((prev) => {
+      const exists = prev.attributeGroupIds.includes(attributeGroupId);
+      return {
+        ...prev,
+        attributeGroupIds: exists
+          ? prev.attributeGroupIds.filter((id) => id !== attributeGroupId)
+          : [...prev.attributeGroupIds, attributeGroupId],
+      };
+    });
+  }, []);
+
+  const toggleLinkedItemType = useCallback((itemTypeId: string) => {
+    setForm((prev) => {
+      const exists = prev.linkedItemTypeIds.includes(itemTypeId);
+      const nextLinked = exists
+        ? prev.linkedItemTypeIds.filter((id) => id !== itemTypeId)
+        : [...prev.linkedItemTypeIds, itemTypeId];
+      const nextDefault =
+        exists && prev.defaultItemTypeId === itemTypeId ? '' : prev.defaultItemTypeId;
+      return {
+        ...prev,
+        linkedItemTypeIds: nextLinked,
+        defaultItemTypeId: nextDefault,
+      };
+    });
+  }, []);
+
+  const toggleLinkedFamily = useCallback((familyId: string) => {
+    setForm((prev) => {
+      const exists = prev.linkedFamilyIds.includes(familyId);
+      return {
+        ...prev,
+        linkedFamilyIds: exists
+          ? prev.linkedFamilyIds.filter((id) => id !== familyId)
+          : [...prev.linkedFamilyIds, familyId],
+      };
+    });
+  }, []);
+
+  const validateBasicStep = useCallback((): boolean => {
+    if (!form.key.trim()) {
+      showToast({
+        type: 'error',
+        message: t('categories.validation.key') || 'Key zorunludur.',
+      });
+      return false;
+    }
+
+    const missingLanguage = requiredLanguages.find(({ code }) => !form.names[code]?.trim());
+    if (missingLanguage) {
+      showToast({
+        type: 'error',
+        message:
+          t('categories.validation.name_language_required', { language: missingLanguage.label }) ||
+          `${missingLanguage.label} adı zorunludur.`,
+      });
+      return false;
+    }
+
+    return true;
+  }, [form.key, form.names, requiredLanguages, showToast, t]);
+
+  const handleNext = useCallback(() => {
+    if (currentStep >= steps.length - 1) {
+      return;
+    }
+    const currentStepId = steps[currentStep]?.id as StepId;
+    if (currentStepId === 'basic' && !validateBasicStep()) {
+      return;
+    }
+    setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1));
+  }, [currentStep, steps, validateBasicStep]);
+
+  const handleBack = useCallback(() => {
+    if (currentStep === 0) {
+      return;
+    }
+    setCurrentStep((prev) => Math.max(prev - 1, 0));
+  }, [currentStep]);
+
+  const handleSubmit = useCallback(async () => {
+    if (submitting) {
+      return;
+    }
+    if (!validateBasicStep()) {
+      setCurrentStep(0);
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const normalizedKey = form.key.trim().toLowerCase();
+      const namespace = 'categories';
+
+      const nameTranslations = buildTranslations(form.names);
+      const nameLocalization = await localizationsService.create({
+        namespace,
+        key: `${normalizedKey}.name`,
+        description: null,
+        translations: nameTranslations,
+      });
+
+      let descriptionLocalizationId: string | undefined;
+      const descriptionTranslations = buildTranslations(form.descriptions, form.names);
+      if (Object.keys(descriptionTranslations).length > 0) {
+        const descriptionLocalization = await localizationsService.create({
+          namespace,
+          key: `${normalizedKey}.description`,
+          description: null,
+          translations: descriptionTranslations,
+        });
+        descriptionLocalizationId = descriptionLocalization.id;
+      }
+
+      const payload = {
+        key: normalizedKey,
+        nameLocalizationId: nameLocalization.id,
+        descriptionLocalizationId,
+        parentCategoryId: form.parentCategoryId ? form.parentCategoryId : null,
+        defaultItemTypeId: form.defaultItemTypeId ? form.defaultItemTypeId : null,
+        linkedItemTypeIds: form.linkedItemTypeIds,
+        linkedFamilyIds: form.linkedFamilyIds,
+        isSystemCategory: form.isSystemCategory,
+        attributeGroupIds: form.attributeGroupIds,
+      };
+
+      const created = await categoriesService.create(payload);
+
+      showToast({
+        type: 'success',
+        message: t('categories.create_success') || 'Kategori başarıyla oluşturuldu.',
+      });
+
+      navigate(`/categories/${created.id}`);
+    } catch (err: any) {
+      console.error('Failed to create category', err);
+      const message =
+        err?.response?.data?.error?.message ??
+        err?.message ??
+        t('categories.create_failed') ??
+        'Kategori oluşturulamadı.';
+      showToast({ type: 'error', message });
+    } finally {
+      setSubmitting(false);
+    }
+  }, [
+    buildTranslations,
+    form.attributeGroupIds,
+    form.defaultItemTypeId,
+    form.descriptions,
+    form.isSystemCategory,
+    form.key,
+    form.linkedFamilyIds,
+    form.linkedItemTypeIds,
+    form.names,
+    form.parentCategoryId,
+    navigate,
+    showToast,
+    submitting,
+    t,
+    validateBasicStep,
+  ]);
+
+  const currentStepId = steps[currentStep]?.id as StepId;
 
   const renderStepContent = () => {
-    switch (currentStep) {
-      case 0: {
+    switch (currentStepId) {
+      case 'basic':
         return (
-          <Card className="overflow-hidden">
-            <div className="bg-gradient-to-r from-teal-500 to-cyan-600 px-6 py-8">
-              <div className="flex items-center space-x-4">
-                <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
-                  <FolderTree className="h-8 w-8 text-white" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-white">Category Information</h2>
-                  <p className="text-teal-100 mt-1">Define the essential properties of your category</p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="p-6 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="md:col-span-2">
-                  <Input
-                    label="Category Name"
-                    value={formData.name}
-                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="Enter a descriptive category name"
-                    required
-                    className="text-lg"
-                  />
-                </div>
-                
-                <div className="md:col-span-2">
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Description
-                    </label>
-                    <textarea
-                      value={formData.description}
-                      onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                      placeholder="Describe what this category represents and what types of items it will contain..."
-                      rows={4}
-                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 resize-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {formData.name && (
-                <div className="mt-6 p-4 bg-teal-50 border border-teal-200 rounded-xl">
-                  <div className="flex items-center space-x-2 text-teal-700 mb-2">
-                    <Sparkles className="h-4 w-4" />
-                    <span className="text-sm font-medium">Preview</span>
-                  </div>
-                  <div className="text-sm text-teal-600">
-                    Category: <span className="font-semibold">{formData.name}</span>
-                    {formData.description && (
-                      <div className="mt-1 text-teal-600/80">{formData.description}</div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          </Card>
-        );
-      }
-
-      case 1: {
-        const selectedParent = findNodeByValue(categoryTreeOptions, formData.parentCategoryId);
-        
-        return (
-          <Card className="overflow-hidden">
-            <div className="bg-gradient-to-r from-blue-500 to-indigo-600 px-6 py-8">
-              <div className="flex items-center space-x-4">
-                <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
-                  <FolderTree className="h-8 w-8 text-white" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-white">Category Hierarchy</h2>
-                  <p className="text-blue-100 mt-1">Position this category within your organizational structure</p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="p-6 space-y-6">
-              <TreeSelect
-                label="Parent Category"
-                value={formData.parentCategoryId}
-                onChange={(value) => setFormData(prev => ({ ...prev, parentCategoryId: value }))}
-                options={categoryTreeOptions}
-                placeholder="Select parent category"
-                helperText="Choose a parent category to create a hierarchical structure, or leave empty for a root-level category"
-                searchable
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input
+                label={t('categories.fields.key') || 'Key'}
+                value={form.key}
+                onChange={(event) => updateForm({ key: event.target.value })}
+                placeholder="coffee_products"
+                required
               />
 
-              {selectedParent && selectedParent.value && (
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
-                  <div className="flex items-center space-x-2 text-blue-700 mb-2">
-                    <FolderTree className="h-4 w-4" />
-                    <span className="text-sm font-medium">Hierarchy Preview</span>
-                  </div>
-                  <div className="flex items-center space-x-3 text-sm text-blue-600">
-                    <div className="flex items-center space-x-2">
-                      {selectedParent.icon}
-                      <span className="font-medium">{selectedParent.label}</span>
-                    </div>
-                    <ArrowRight className="h-4 w-4" />
-                    <span className="font-medium text-teal-600">{formData.name || 'New Category'}</span>
-                  </div>
-                </div>
-              )}
+              <div className="flex items-center gap-2 mt-2 md:mt-6">
+                <input
+                  id="isSystemCategory"
+                  type="checkbox"
+                  checked={form.isSystemCategory}
+                  onChange={(event) => updateForm({ isSystemCategory: event.target.checked })}
+                  className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                />
+                <label htmlFor="isSystemCategory" className="text-sm text-foreground">
+                  {t('categories.fields.is_system') || 'Sistem Kategorisi'}
+                </label>
+              </div>
             </div>
-          </Card>
-        );
-      }
 
-      case 2: {
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {requiredLanguages.map(({ code, label }) => (
+                <Input
+                  key={`category-name-${code}`}
+                  label={resolveNameLabel(code, label)}
+                  value={form.names[code] ?? ''}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      names: { ...prev.names, [code]: event.target.value },
+                    }))
+                  }
+                  required
+                />
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {requiredLanguages.map(({ code, label }) => (
+                <Textarea
+                  key={`category-description-${code}`}
+                  label={resolveDescriptionLabel(code, label)}
+                  value={form.descriptions[code] ?? ''}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      descriptions: { ...prev.descriptions, [code]: event.target.value },
+                    }))
+                  }
+                  rows={3}
+                />
+              ))}
+            </div>
+          </div>
+        );
+
+      case 'relationships':
         return (
-          <Card className="overflow-hidden">
-            <div className="bg-gradient-to-r from-purple-500 to-pink-600 px-6 py-8">
-              <div className="flex items-center space-x-4">
-                <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
-                  <Tags className="h-8 w-8 text-white" />
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-xs font-medium text-foreground mb-1">
+                  {t('categories.fields.parent') || 'Parent Category'}
+                </label>
+                <select
+                  value={form.parentCategoryId}
+                  onChange={(event) => updateForm({ parentCategoryId: event.target.value })}
+                  className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="">
+                    {t('categories.root_label') || 'Parent yok (kök kategori)'}
+                  </option>
+                  {sortedCategories.map((category) => {
+                    const depth = category.hierarchyPath?.length ?? 0;
+                    const prefix =
+                      depth > 0 ? `${'— '.repeat(depth)}${category.name}` : category.name;
+                    return (
+                      <option key={category.id} value={category.id}>
+                        {prefix}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-foreground mb-1">
+                  {t('categories.fields.default_item_type') || 'Varsayılan Item Type'}
+                </label>
+                <select
+                  value={form.defaultItemTypeId}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setForm((prev) => {
+                      const shouldAttach =
+                        value && value.length > 0 && !prev.linkedItemTypeIds.includes(value);
+                      return {
+                        ...prev,
+                        defaultItemTypeId: value,
+                        linkedItemTypeIds: shouldAttach
+                          ? [...prev.linkedItemTypeIds, value]
+                          : prev.linkedItemTypeIds,
+                      };
+                    });
+                  }}
+                  className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="">{t('categories.select_default_item_type') || 'Seçilmedi'}</option>
+                  {sortedItemTypes.map((itemType) => (
+                    <option key={itemType.id} value={itemType.id}>
+                      {itemType.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {t('categories.create.default_item_type_helper') ||
+                    'Varsayılan item type, opsiyonel olarak kategoriye bağlanır.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-semibold text-foreground">
+                    {t('categories.fields.linked_item_types') || 'Bağlı Item Types'}
+                  </h4>
+                  <Badge variant="primary" size="sm">
+                    {form.linkedItemTypeIds.length}
+                  </Badge>
                 </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-white">Attribute Groups</h2>
-                  <p className="text-purple-100 mt-1">Select which attribute groups this category will use</p>
+                <div className="border border-border rounded-lg p-3 max-h-60 overflow-y-auto space-y-2 text-sm">
+                  {sortedItemTypes.length === 0 ? (
+                    <div className="text-muted-foreground">
+                      {t('categories.create.no_item_types') || 'Tanımlı item type bulunamadı.'}
+                    </div>
+                  ) : (
+                    sortedItemTypes.map((itemType) => (
+                      <label key={itemType.id} className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={form.linkedItemTypeIds.includes(itemType.id)}
+                          onChange={() => toggleLinkedItemType(itemType.id)}
+                          className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                        />
+                        <span>{itemType.name}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-semibold text-foreground">
+                    {t('categories.fields.linked_families') || 'Bağlı Families'}
+                  </h4>
+                  <Badge variant="primary" size="sm">
+                    {form.linkedFamilyIds.length}
+                  </Badge>
+                </div>
+                <div className="border border-border rounded-lg p-3 max-h-60 overflow-y-auto space-y-2 text-sm">
+                  {sortedFamilies.length === 0 ? (
+                    <div className="text-muted-foreground">
+                      {t('categories.create.no_families') || 'Tanımlı family bulunamadı.'}
+                    </div>
+                  ) : (
+                    sortedFamilies.map((family) => {
+                      const depth = family.hierarchyPath?.length ?? 0;
+                      const label =
+                        depth > 0 ? `${'— '.repeat(depth)}${family.name}` : family.name;
+                      return (
+                        <label key={family.id} className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={form.linkedFamilyIds.includes(family.id)}
+                            onChange={() => toggleLinkedFamily(family.id)}
+                            className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                          />
+                          <span>{label}</span>
+                        </label>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             </div>
-            
-            <div className="p-6 space-y-6">
+          </div>
+        );
+
+      case 'attributeGroups':
+        return (
+          <div className="space-y-4">
+            <Input
+              label={t('categories.attribute_groups.search_label') || 'Attribute gruplarında ara'}
+              placeholder={
+                t('categories.attribute_groups.search_placeholder') ||
+                'İsim, açıklama veya etikete göre filtrele'
+              }
+              value={attributeGroupSearch}
+              onChange={(event) => setAttributeGroupSearch(event.target.value)}
+              leftIcon={<Search className="h-4 w-4" />}
+            />
+
+            {filteredAttributeGroups.length === 0 ? (
+              <div className="text-sm text-muted-foreground">
+                {attributeGroups.length === 0
+                  ? t('categories.attribute_groups.empty') || 'Tanımlı attribute grubu bulunamadı.'
+                  : t('categories.attribute_groups.no_results') ||
+                    'Eşleşen attribute grubu bulunamadı.'}
+              </div>
+            ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {mockAttributeGroups.map(group => {
-                  const isSelected = formData.attributeGroups.includes(group.id);
+                {filteredAttributeGroups.map((group) => {
+                  const isSelected = form.attributeGroupIds.includes(group.id);
                   return (
                     <button
+                      type="button"
                       key={group.id}
                       onClick={() => toggleAttributeGroup(group.id)}
-                      className={`p-4 border-2 rounded-xl transition-all duration-200 text-left ${
+                      className={`relative text-left border-2 rounded-xl p-4 transition-all duration-200 ${
                         isSelected
-                          ? 'border-purple-500 bg-purple-50 shadow-sm'
-                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                          ? 'border-primary bg-primary/10 shadow-sm'
+                          : 'border-border hover:border-primary/60 hover:bg-muted/60'
                       }`}
                     >
-                      <div className="flex items-center space-x-3">
-                        <div className={`p-2 rounded-lg ${
-                          isSelected ? 'bg-purple-100' : 'bg-gray-100'
-                        }`}>
-                          <Tags className={`h-5 w-5 ${
-                            isSelected ? 'text-purple-600' : 'text-gray-600'
-                          }`} />
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="text-sm font-medium text-gray-900">{group.name}</h4>
-                          <p className="text-xs text-gray-500 mt-1">{group.description}</p>
-                          <p className="text-xs text-gray-400 mt-1">{group.attributeCount} attributes</p>
-                        </div>
-                        {isSelected && (
-                          <div className="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center">
-                            <Check className="h-3 w-3 text-white" />
+                      {isSelected ? (
+                        <div className="absolute top-3 right-3">
+                          <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center">
+                            <Check className="h-3 w-3" />
                           </div>
-                        )}
+                        </div>
+                      ) : null}
+
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-semibold text-foreground">{group.name}</h4>
+                          <Badge variant="primary" size="sm">
+                            {group.attributeCount ?? group.attributeIds?.length ?? 0}{' '}
+                            {t('categories.attribute_groups.attribute_short') || 'attr'}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground line-clamp-2">
+                          {group.description ||
+                            t('categories.attribute_groups.no_description') ||
+                            'Açıklama bulunmuyor.'}
+                        </p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Hash className="h-3 w-3" />
+                          <span>{group.key ?? group.id}</span>
+                        </div>
                       </div>
                     </button>
                   );
                 })}
               </div>
+            )}
 
-              {formData.attributeGroups.length > 0 && (
-                <div className="border-t border-gray-200 pt-6">
-                  <h4 className="text-sm font-medium text-gray-700 mb-3">
-                    Selected Attribute Groups ({formData.attributeGroups.length})
-                  </h4>
-                  <div className="flex flex-wrap gap-2">
-                    {formData.attributeGroups.map(groupId => {
-                      const group = mockAttributeGroups.find(g => g.id === groupId);
-                      return group ? (
-                        <Badge
-                          key={groupId}
-                          variant="primary"
-                          className="flex items-center space-x-1"
-                        >
-                          <span>{group.name}</span>
-                          <button
-                            type="button"
-                            onClick={() => toggleAttributeGroup(groupId)}
-                            className="ml-1 hover:bg-purple-700 rounded-full p-0.5"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </Badge>
-                      ) : null;
-                    })}
+            {selectedAttributeGroups.length > 0 ? (
+              <div className="border-t border-border pt-4">
+                <h4 className="text-sm font-medium text-foreground mb-2">
+                  {t('categories.attribute_groups.selected_count', {
+                    count: selectedAttributeGroups.length,
+                  }) || `Seçilen attribute grubu: ${selectedAttributeGroups.length}`}
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {selectedAttributeGroups.map((group) => (
+                    <Badge key={group.id} variant="secondary" size="sm">
+                      {group.name}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        );
+
+      case 'preview':
+      default: {
+        const selectedParent = form.parentCategoryId
+          ? categories.find((category) => category.id === form.parentCategoryId)
+          : null;
+        const defaultItemType = form.defaultItemTypeId
+          ? itemTypeMap.get(form.defaultItemTypeId) ?? null
+          : null;
+
+        return (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold text-foreground">
+                  {t('categories.preview.general') || 'Genel Bilgiler'}
+                </h4>
+                <div className="space-y-2 rounded-lg border border-border p-4 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">
+                      {t('categories.fields.key') || 'Key'}
+                    </span>
+                    <span className="font-medium">{form.key.trim() || '—'}</span>
                   </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">
+                      {t('categories.fields.parent') || 'Parent'}
+                    </span>
+                    <span className="font-medium">
+                      {selectedParent
+                        ? selectedParent.name
+                        : t('categories.root_label') || 'Parent yok'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">
+                      {t('categories.fields.default_item_type') || 'Varsayılan Item Type'}
+                    </span>
+                    <span className="font-medium">
+                      {defaultItemType
+                        ? defaultItemType.name
+                        : t('categories.select_default_item_type') || 'Seçilmedi'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">
+                      {t('categories.fields.is_system') || 'Sistem Kategori'}
+                    </span>
+                    <span className="font-medium">
+                      {form.isSystemCategory
+                        ? t('common.yes') || 'Evet'
+                        : t('common.no') || 'Hayır'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold text-foreground">
+                  {t('categories.preview.translations') || 'Çeviriler'}
+                </h4>
+                <div className="space-y-2 rounded-lg border border-border p-4 text-sm">
+                  {requiredLanguages.map(({ code, label }) => (
+                    <div key={`preview-name-${code}`} className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">
+                          {(t('categories.fields.name') !== 'categories.fields.name'
+                            ? t('categories.fields.name')
+                            : 'Name') + ` (${label})`}
+                        </span>
+                        <span className="font-medium">{form.names[code]?.trim() || '—'}</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {(t('categories.fields.description') !== 'categories.fields.description'
+                          ? t('categories.fields.description')
+                          : 'Description') + ` (${label})`}
+                        <span className="ml-1 text-foreground">
+                          {form.descriptions[code]?.trim() ||
+                            t('categories.preview.no_description') ||
+                            '—'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold text-foreground">
+                  {t('categories.preview.linked_item_types') || 'Bağlı Item Types'}
+                </h4>
+                {selectedItemTypes.length === 0 ? (
+                  <div className="text-sm text-muted-foreground border border-dashed border-border rounded-lg p-4">
+                    {t('categories.preview.no_item_types') || 'Item type seçilmedi.'}
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedItemTypes.map((itemType) => (
+                      <Badge key={itemType.id} variant="secondary" size="sm">
+                        {itemType.name}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold text-foreground">
+                  {t('categories.preview.linked_families') || 'Bağlı Families'}
+                </h4>
+                {selectedFamilies.length === 0 ? (
+                  <div className="text-sm text-muted-foreground border border-dashed border-border rounded-lg p-4">
+                    {t('categories.preview.no_families') || 'Family seçilmedi.'}
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedFamilies.map((family) => (
+                      <Badge key={family.id} variant="secondary" size="sm">
+                        {family.name}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <h4 className="text-sm font-semibold text-foreground">
+                {t('categories.attribute_groups.title') || 'Attribute Grupları'}
+              </h4>
+              {selectedAttributeGroups.length === 0 ? (
+                <div className="text-sm text-muted-foreground border border-dashed border-border rounded-lg p-4">
+                  {t('categories.attribute_groups.none_selected') ||
+                    'Bu kategori için attribute grubu seçilmedi.'}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {selectedAttributeGroups.map((group) => (
+                    <div key={group.id} className="border border-border rounded-lg p-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-sm text-foreground">{group.name}</span>
+                        <Badge variant="primary" size="sm">
+                          {group.attributeCount ?? group.attributeIds?.length ?? 0}{' '}
+                          {t('categories.attribute_groups.attribute_short') || 'attr'}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {group.description ||
+                          t('categories.attribute_groups.no_description') ||
+                          'Açıklama bulunmuyor.'}
+                      </p>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
-          </Card>
+          </div>
         );
       }
-
-      case 3: {
-        const selectedParent = findNodeByValue(categoryTreeOptions, formData.parentCategoryId);
-        
-        return (
-          <Card className="overflow-hidden">
-            <div className="bg-gradient-to-r from-indigo-500 to-purple-600 px-6 py-8">
-              <div className="flex items-center space-x-4">
-                <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
-                  <Check className="h-8 w-8 text-white" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-white">Review & Confirm</h2>
-                  <p className="text-indigo-100 mt-1">Please review your category details before creating</p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="p-6 space-y-8">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="space-y-6">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                      <div className="w-6 h-6 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
-                        <FolderTree className="h-4 w-4 text-blue-600" />
-                      </div>
-                      Basic Information
-                    </h3>
-                    <div className="space-y-4">
-                      <div className="p-4 bg-gray-50 rounded-xl">
-                        <label className="text-sm font-medium text-gray-500 uppercase tracking-wider">Name</label>
-                        <p className="text-lg font-semibold text-gray-900 mt-1">{formData.name}</p>
-                      </div>
-                      
-                      {formData.description && (
-                        <div className="p-4 bg-gray-50 rounded-xl">
-                          <label className="text-sm font-medium text-gray-500 uppercase tracking-wider">Description</label>
-                          <p className="text-sm text-gray-700 mt-1 leading-relaxed">{formData.description}</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="space-y-6">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                      <div className="w-6 h-6 bg-emerald-100 rounded-lg flex items-center justify-center mr-3">
-                        <FolderTree className="h-4 w-4 text-emerald-600" />
-                      </div>
-                      Hierarchy
-                    </h3>
-                    <div className="space-y-4">
-                      <div className="p-4 bg-gray-50 rounded-xl">
-                        <label className="text-sm font-medium text-gray-500 uppercase tracking-wider">Parent Category</label>
-                        <div className="mt-2">
-                          {selectedParent && selectedParent.value ? (
-                            <div className="flex items-center space-x-2">
-                              {selectedParent.icon}
-                              <Badge variant="secondary">
-                                {selectedParent.label}
-                              </Badge>
-                            </div>
-                          ) : (
-                            <Badge variant="outline">Root Category</Badge>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Attribute Groups */}
-              <div className="border-t border-gray-200 pt-8">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                  <div className="w-6 h-6 bg-purple-100 rounded-lg flex items-center justify-center mr-3">
-                    <Tags className="h-4 w-4 text-purple-600" />
-                  </div>
-                  Attribute Groups ({formData.attributeGroups.length})
-                </h3>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {formData.attributeGroups.map(groupId => {
-                    const group = mockAttributeGroups.find(g => g.id === groupId);
-                    return group ? (
-                      <div key={groupId} className="p-4 bg-purple-50 border border-purple-200 rounded-xl">
-                        <div className="flex items-center space-x-3">
-                          <Tags className="h-5 w-5 text-purple-600" />
-                          <div>
-                            <h4 className="text-sm font-medium text-gray-900">{group.name}</h4>
-                            <p className="text-xs text-gray-500">{group.attributeCount} attributes</p>
-                          </div>
-                        </div>
-                      </div>
-                    ) : null;
-                  })}
-                </div>
-              </div>
-
-              {/* Final Hierarchy Display */}
-              <div className="border-t border-gray-200 pt-8">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                  <div className="w-6 h-6 bg-indigo-100 rounded-lg flex items-center justify-center mr-3">
-                    <Sparkles className="h-4 w-4 text-indigo-600" />
-                  </div>
-                  Complete Hierarchy
-                </h3>
-                
-                <div className="p-6 bg-gradient-to-br from-gray-50 to-blue-50 border-2 border-dashed border-gray-300 rounded-xl">
-                  <div className="flex flex-col space-y-3">
-                    {/* Parent Category Level */}
-                    {selectedParent && selectedParent.value && (
-                      <>
-                        <div className="flex items-center space-x-3">
-                          <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
-                            <FolderTree className="h-4 w-4 text-white" />
-                          </div>
-                          <div>
-                            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Parent Category</p>
-                            <p className="text-sm font-semibold text-gray-900">{selectedParent.label}</p>
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center justify-center">
-                          <div className="w-px h-6 bg-gray-300"></div>
-                        </div>
-                      </>
-                    )}
-                    
-                    {/* New Category Level */}
-                    <div className={`flex items-center space-x-3 ${selectedParent?.value ? 'ml-4' : ''}`}>
-                      <div className="w-8 h-8 bg-gradient-to-r from-teal-500 to-cyan-600 rounded-lg flex items-center justify-center shadow-sm">
-                        <FolderTree className="h-4 w-4 text-white" />
-                      </div>
-                      <div>
-                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">New Category</p>
-                        <p className="text-sm font-semibold text-teal-700">{formData.name}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </Card>
-        );
-      }
-
-      default:
-        return null;
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-teal-50/30 p-4 sm:p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center space-x-4 mb-8">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate('/categories')}
-            className="p-2"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Create New Category</h1>
-            <p className="text-gray-600 mt-1">Build your category structure</p>
-          </div>
-        </div>
+    <div className="space-y-6">
+      <PageHeader
+        title={t('categories.create_title') || 'Kategori Oluştur'}
+        subtitle={
+          t('categories.create_subtitle') ||
+          'Hiyerarşi, ilişkiler ve attribute gruplarıyla yeni bir kategori oluşturun.'
+        }
+      />
 
-        {/* Stepper */}
-        <Card padding="lg" className="shadow-sm">
+      <Card>
+        <CardHeader
+          title={t('categories.create_form') || 'Kategori Bilgileri'}
+          subtitle={t('categories.create_form_subtitle') || 'Adımları takip ederek kategori kaydedin.'}
+        />
+        <div className="px-6 pb-6 space-y-6">
           <Stepper steps={steps} currentStep={currentStep} />
-        </Card>
 
-        {/* Step Content */}
-        {renderStepContent()}
+          {error ? <div className="text-sm text-error">{error}</div> : null}
 
-        {/* Navigation */}
-        <div className="flex justify-between items-center pt-6">
-          <Button
-            variant="outline"
-            onClick={handleBack}
-            disabled={currentStep === 0}
-            leftIcon={<ArrowLeft className="h-4 w-4" />}
-            size="lg"
-          >
-            Back
-          </Button>
-          
-          <div className="flex items-center space-x-3">
-            <div className="hidden sm:flex items-center space-x-2 text-sm text-gray-500">
-              <span>Step {currentStep + 1} of {steps.length}</span>
-              <div className="w-20 h-1 bg-gray-200 rounded-full">
-                <div 
-                  className="h-1 bg-blue-600 rounded-full transition-all duration-300"
-                  style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
-                />
-              </div>
+          {initialLoading ? (
+            <div className="text-sm text-muted-foreground">
+              {t('common.loading') || 'Yükleniyor...'}
             </div>
-            
-            {currentStep === steps.length - 1 ? (
-              <Button
-                onClick={handleSubmit}
-                loading={loading}
-                disabled={!canProceed()}
-                leftIcon={<Check className="h-4 w-4" />}
-                size="lg"
-                className="bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700"
-              >
-                Create Category
-              </Button>
-            ) : (
-              <Button
-                onClick={handleNext}
-                disabled={!canProceed()}
-                rightIcon={<ArrowRight className="h-4 w-4" />}
-                size="lg"
-              >
-                Continue
-              </Button>
-            )}
-          </div>
+          ) : (
+            <>
+              {renderStepContent()}
+
+              <div className="flex items-center justify-between pt-4">
+                <Button
+                  variant="outline"
+                  onClick={handleBack}
+                  disabled={currentStep === 0 || submitting}
+                >
+                  {t('common.back') || 'Geri'}
+                </Button>
+
+                <div className="flex items-center gap-2">
+                  {currentStep < steps.length - 1 ? (
+                    <Button onClick={handleNext} disabled={submitting}>
+                      {t('common.next') || 'İleri'}
+                    </Button>
+                  ) : (
+                    <Button onClick={handleSubmit} disabled={submitting}>
+                      {submitting
+                        ? t('common.saving') || 'Kaydediliyor...'
+                        : t('common.create') || 'Oluştur'}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
         </div>
-      </div>
+      </Card>
     </div>
   );
 };
+
+export default CategoriesCreate;

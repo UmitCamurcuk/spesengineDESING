@@ -1,488 +1,810 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, FolderTree, Tags, X } from 'lucide-react';
+import { Check, Hash, Search } from 'lucide-react';
 import { Card, CardHeader } from '../../components/ui/Card';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { Textarea } from '../../components/ui/Textarea';
 import { Badge } from '../../components/ui/Badge';
 import { Stepper } from '../../components/ui/Stepper';
+import { useToast } from '../../contexts/ToastContext';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { useRequiredLanguages } from '../../hooks/useRequiredLanguages';
+import { categoriesService } from '../../api/services/categories.service';
+import { attributeGroupsService } from '../../api/services/attribute-groups.service';
+import { itemTypesService } from '../../api/services/item-types.service';
+import { localizationsService } from '../../api/services/localizations.service';
+import type { AttributeGroup, Category } from '../../types';
 
-const steps = [
-  { id: 'basic', name: 'Basic Info', description: 'Name and description' },
-  { id: 'categories', name: 'Categories', description: 'Select categories' },
-  { id: 'attributes', name: 'Attribute Groups', description: 'Select attribute groups' },
-  { id: 'preview', name: 'Preview', description: 'Review and confirm' },
-];
+type LifecycleStatus = 'draft' | 'active' | 'deprecated';
+
+interface FormState {
+  key: string;
+  names: Record<string, string>;
+  descriptions: Record<string, string>;
+  lifecycleStatus: LifecycleStatus;
+  isSystemItemType: boolean;
+  categoryIds: string[];
+  attributeGroupIds: string[];
+}
+
+type StepId = 'basic' | 'relationships' | 'attributeGroups' | 'preview';
 
 export const ItemTypesCreate: React.FC = () => {
   const navigate = useNavigate();
-  const [currentStep, setCurrentStep] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    categoryIds: [] as string[],
-    attributeGroups: [] as string[],
+  const { showToast } = useToast();
+  const { t } = useLanguage();
+  const requiredLanguages = useRequiredLanguages();
+
+  const [form, setForm] = useState<FormState>({
+    key: '',
+    names: {},
+    descriptions: {},
+    lifecycleStatus: 'draft',
+    isSystemItemType: false,
+    categoryIds: [],
+    attributeGroupIds: [],
   });
 
-  const categoryTreeOptions = [
-    {
-      id: 'cat-1',
-      label: 'Food & Beverage',
-      value: 'cat-1',
-      icon: <FolderTree className="h-4 w-4 text-orange-600" />,
-      children: [
-        {
-          id: 'cat-2',
-          label: 'Coffee Products',
-          value: 'cat-2',
-          icon: <FolderTree className="h-4 w-4 text-amber-600" />,
-        },
-        {
-          id: 'cat-5',
-          label: 'Tea Products',
-          value: 'cat-5',
-          icon: <FolderTree className="h-4 w-4 text-green-600" />,
-        },
-        {
-          id: 'cat-6',
-          label: 'Beverages',
-          value: 'cat-6',
-          icon: <FolderTree className="h-4 w-4 text-blue-600" />,
-        }
-      ]
-    },
-    {
-      id: 'cat-3',
-      label: 'Electronics',
-      value: 'cat-3',
-      icon: <FolderTree className="h-4 w-4 text-blue-600" />,
-      children: [
-        {
-          id: 'cat-4',
-          label: 'Audio Equipment',
-          value: 'cat-4',
-          icon: <FolderTree className="h-4 w-4 text-blue-600" />,
-        },
-        {
-          id: 'cat-7',
-          label: 'Mobile Devices',
-          value: 'cat-7',
-          icon: <FolderTree className="h-4 w-4 text-blue-600" />,
-        }
-      ]
-    },
-    {
-      id: 'cat-8',
-      label: 'Home & Garden',
-      value: 'cat-8',
-      icon: <FolderTree className="h-4 w-4 text-emerald-600" />,
-      children: [
-        {
-          id: 'cat-9',
-          label: 'Furniture',
-          value: 'cat-9',
-          icon: <FolderTree className="h-4 w-4 text-teal-600" />,
-        },
-        {
-          id: 'cat-10',
-          label: 'Garden Tools',
-          value: 'cat-10',
-          icon: <FolderTree className="h-4 w-4 text-green-600" />,
-        }
-      ]
-    }
-  ];
+  const [currentStep, setCurrentStep] = useState(0);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [attributeGroups, setAttributeGroups] = useState<AttributeGroup[]>([]);
+  const [attributeGroupSearch, setAttributeGroupSearch] = useState('');
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const mockAttributeGroups = [
-    {
-      id: 'group-1',
-      name: 'Basic Product Info',
-      description: 'Essential product information',
-      attributeCount: 5
+  const steps = useMemo(
+    () => [
+      {
+        id: 'basic',
+        name: t('itemTypes.steps.basic_information') || 'Temel Bilgiler',
+        description: t('itemTypes.steps.basic_information_desc') || 'Anahtar, çeviri ve durum seçimi',
+      },
+      {
+        id: 'relationships',
+        name: t('itemTypes.steps.relationships') || 'İlişkiler',
+        description: t('itemTypes.steps.relationships_desc') || 'Kategori bağlantıları ve kodlar',
+      },
+      {
+        id: 'attributeGroups',
+        name: t('itemTypes.steps.attribute_groups') || 'Attribute Grupları',
+        description:
+          t('itemTypes.steps.attribute_groups_desc') || 'Bağlanacak attribute gruplarını seçin',
+      },
+      {
+        id: 'preview',
+        name: t('itemTypes.steps.preview') || 'Önizleme',
+        description: t('itemTypes.steps.preview_desc') || 'Kaydetmeden önce kontrol edin',
+      },
+    ],
+    [t],
+  );
+
+  const syncLocalizationState = useCallback(
+    (current: Record<string, string>): Record<string, string> => {
+      const next: Record<string, string> = {};
+      requiredLanguages.forEach(({ code }) => {
+        next[code] = current?.[code] ?? '';
+      });
+      return next;
     },
-    {
-      id: 'group-2',
-      name: 'Physical Properties',
-      description: 'Weight, dimensions, material properties',
-      attributeCount: 8
-    },
-    {
-      id: 'group-3',
-      name: 'Marketing Information',
-      description: 'SEO, promotional content, tags',
-      attributeCount: 6
-    },
-    {
-      id: 'group-4',
-      name: 'Technical Specifications',
-      description: 'Technical details and requirements',
-      attributeCount: 12
-    }
-  ];
+    [requiredLanguages],
+  );
 
-  const handleNext = () => {
-    if (currentStep < steps.length - 1) {
-      setCurrentStep(currentStep + 1);
-    }
-  };
-
-  const handleBack = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
-
-  const handleSubmit = async () => {
-    setLoading(true);
-    setTimeout(() => {
-      navigate('/item-types');
-    }, 1500);
-  };
-
-  const toggleCategory = (categoryId: string) => {
-    setFormData(prev => ({
+  useEffect(() => {
+    setForm((prev) => ({
       ...prev,
-      categoryIds: prev.categoryIds.includes(categoryId)
-        ? prev.categoryIds.filter(id => id !== categoryId)
-        : [...prev.categoryIds, categoryId]
+      names: syncLocalizationState(prev.names),
+      descriptions: syncLocalizationState(prev.descriptions),
     }));
-  };
+  }, [syncLocalizationState]);
 
-  const toggleAttributeGroup = (groupId: string) => {
-    setFormData(prev => ({
-      ...prev,
-      attributeGroups: prev.attributeGroups.includes(groupId)
-        ? prev.attributeGroups.filter(id => id !== groupId)
-        : [...prev.attributeGroups, groupId]
-    }));
-  };
-
-  const canProceed = () => {
-    switch (currentStep) {
-      case 0:
-        return formData.name.trim() !== '';
-      case 1:
-        return formData.categoryIds.length > 0;
-      case 2:
-        return formData.attributeGroups.length > 0;
-      default:
-        return true;
-    }
-  };
-
-  const findNodeByValue = (nodes: typeof categoryTreeOptions, targetValue: string): any => {
-    for (const node of nodes) {
-      if (node.value === targetValue) return node;
-      if (node.children) {
-        const found = findNodeByValue(node.children, targetValue);
-        if (found) return found;
+  const resolveNameLabel = useCallback(
+    (code: string, languageLabel: string) => {
+      if (code === 'tr') {
+        return t('itemTypes.fields.name_tr') || `Name (${languageLabel})`;
       }
+      if (code === 'en') {
+        return t('itemTypes.fields.name_en') || `Name (${languageLabel})`;
+      }
+      const fallback =
+        t('itemTypes.fields.name') !== 'itemTypes.fields.name'
+          ? t('itemTypes.fields.name')
+          : t('itemTypes.fields.name_en') !== 'itemTypes.fields.name_en'
+          ? t('itemTypes.fields.name_en')
+          : 'Name';
+      return `${fallback} (${languageLabel})`;
+    },
+    [t],
+  );
+
+  const resolveDescriptionLabel = useCallback(
+    (code: string, languageLabel: string) => {
+      if (code === 'tr') {
+        return t('itemTypes.fields.description_tr') || `Description (${languageLabel})`;
+      }
+      if (code === 'en') {
+        return t('itemTypes.fields.description_en') || `Description (${languageLabel})`;
+      }
+      const fallback =
+        t('itemTypes.fields.description') !== 'itemTypes.fields.description'
+          ? t('itemTypes.fields.description')
+          : t('itemTypes.fields.description_en') !== 'itemTypes.fields.description_en'
+          ? t('itemTypes.fields.description_en')
+          : 'Description';
+      return `${fallback} (${languageLabel})`;
+    },
+    [t],
+  );
+
+  const buildTranslations = useCallback(
+    (values: Record<string, string>, fallback?: Record<string, string>): Record<string, string> => {
+      const result: Record<string, string> = {};
+      requiredLanguages.forEach(({ code }) => {
+        const primary = values[code]?.trim();
+        if (primary) {
+          result[code] = primary;
+          return;
+        }
+        const fallbackValue = fallback?.[code]?.trim();
+        if (fallbackValue) {
+          result[code] = fallbackValue;
+        }
+      });
+      return result;
+    },
+    [requiredLanguages],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchLookups = async () => {
+      try {
+        setInitialLoading(true);
+        setError(null);
+        const [categoriesResult, attributeGroupsResult] = await Promise.all([
+          categoriesService.list({ limit: 200 }),
+          attributeGroupsService.list(),
+        ]);
+        if (cancelled) {
+          return;
+        }
+        setCategories(categoriesResult.items ?? []);
+        setAttributeGroups(attributeGroupsResult ?? []);
+      } catch (err: any) {
+        if (cancelled) {
+          return;
+        }
+        console.error('Failed to load item type dependencies', err);
+        setError(
+          err?.response?.data?.error?.message ??
+            t('itemTypes.lookup_failed') ??
+            'Gerekli veriler yüklenemedi.',
+        );
+      } finally {
+        if (!cancelled) {
+          setInitialLoading(false);
+        }
+      }
+    };
+
+    fetchLookups();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [t]);
+
+  const sortedCategories = useMemo(() => {
+    const items = [...categories];
+    return items.sort((a, b) => {
+      const depthDiff = (a.hierarchyPath?.length ?? 0) - (b.hierarchyPath?.length ?? 0);
+      if (depthDiff !== 0) {
+        return depthDiff;
+      }
+      return a.name.localeCompare(b.name);
+    });
+  }, [categories]);
+
+  const attributeGroupMap = useMemo(() => {
+    const map = new Map<string, AttributeGroup>();
+    attributeGroups.forEach((group) => map.set(group.id, group));
+    return map;
+  }, [attributeGroups]);
+
+  const categoryMap = useMemo(() => {
+    const map = new Map<string, Category>();
+    categories.forEach((category) => map.set(category.id, category));
+    return map;
+  }, [categories]);
+
+  const selectedAttributeGroups = useMemo(
+    () =>
+      form.attributeGroupIds
+        .map((id) => attributeGroupMap.get(id))
+        .filter((group): group is AttributeGroup => Boolean(group)),
+    [attributeGroupMap, form.attributeGroupIds],
+  );
+
+  const selectedCategories = useMemo(
+    () =>
+      form.categoryIds
+        .map((id) => categoryMap.get(id))
+        .filter((category): category is Category => Boolean(category)),
+    [categoryMap, form.categoryIds],
+  );
+
+  const filteredAttributeGroups = useMemo(() => {
+    const term = attributeGroupSearch.trim().toLowerCase();
+    if (!term) {
+      return attributeGroups;
     }
-    return null;
-  };
+    return attributeGroups.filter((group) => {
+      const haystack = [
+        group.name ?? '',
+        group.key ?? '',
+        group.description ?? '',
+        ...(group.tags ?? []),
+      ]
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(term);
+    });
+  }, [attributeGroupSearch, attributeGroups]);
+
+  const updateForm = useCallback((patch: Partial<FormState>) => {
+    setForm((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  const toggleAttributeGroup = useCallback((attributeGroupId: string) => {
+    setForm((prev) => {
+      const exists = prev.attributeGroupIds.includes(attributeGroupId);
+      return {
+        ...prev,
+        attributeGroupIds: exists
+          ? prev.attributeGroupIds.filter((id) => id !== attributeGroupId)
+          : [...prev.attributeGroupIds, attributeGroupId],
+      };
+    });
+  }, []);
+
+  const toggleCategory = useCallback((categoryId: string) => {
+    setForm((prev) => {
+      const exists = prev.categoryIds.includes(categoryId);
+      return {
+        ...prev,
+        categoryIds: exists
+          ? prev.categoryIds.filter((id) => id !== categoryId)
+          : [...prev.categoryIds, categoryId],
+      };
+    });
+  }, []);
+
+  const validateBasicStep = useCallback((): boolean => {
+    if (!form.key.trim()) {
+      showToast({
+        type: 'error',
+        message: t('itemTypes.validation.key') || 'Key zorunludur.',
+      });
+      return false;
+    }
+
+    const missingLanguage = requiredLanguages.find(({ code }) => !form.names[code]?.trim());
+    if (missingLanguage) {
+      showToast({
+        type: 'error',
+        message:
+          t('itemTypes.validation.name_language_required', { language: missingLanguage.label }) ||
+          `${missingLanguage.label} adı zorunludur.`,
+      });
+      return false;
+    }
+
+    return true;
+  }, [form.key, form.names, requiredLanguages, showToast, t]);
+
+  const handleNext = useCallback(() => {
+    if (currentStep >= steps.length - 1) {
+      return;
+    }
+    const currentStepId = steps[currentStep]?.id as StepId;
+    if (currentStepId === 'basic' && !validateBasicStep()) {
+      return;
+    }
+    setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1));
+  }, [currentStep, steps, validateBasicStep]);
+
+  const handleBack = useCallback(() => {
+    if (currentStep === 0) {
+      return;
+    }
+    setCurrentStep((prev) => Math.max(prev - 1, 0));
+  }, [currentStep]);
+
+  const handleSubmit = useCallback(async () => {
+    if (submitting) {
+      return;
+    }
+    if (!validateBasicStep()) {
+      setCurrentStep(0);
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const normalizedKey = form.key.trim().toLowerCase();
+      const namespace = 'item_types';
+
+      const nameTranslations = buildTranslations(form.names);
+      const nameLocalization = await localizationsService.create({
+        namespace,
+        key: `${normalizedKey}.name`,
+        description: null,
+        translations: nameTranslations,
+      });
+
+      let descriptionLocalizationId: string | undefined;
+      const descriptionTranslations = buildTranslations(form.descriptions, form.names);
+      if (Object.keys(descriptionTranslations).length > 0) {
+        const descriptionLocalization = await localizationsService.create({
+          namespace,
+          key: `${normalizedKey}.description`,
+          description: null,
+          translations: descriptionTranslations,
+        });
+        descriptionLocalizationId = descriptionLocalization.id;
+      }
+
+      const payload = {
+        key: normalizedKey,
+        nameLocalizationId: nameLocalization.id,
+        descriptionLocalizationId,
+        categoryIds: form.categoryIds,
+        lifecycleStatus: form.lifecycleStatus,
+        isSystemItemType: form.isSystemItemType,
+        attributeGroupIds: form.attributeGroupIds,
+      };
+
+      const created = await itemTypesService.create(payload);
+
+      showToast({
+        type: 'success',
+        message: t('itemTypes.create_success') || 'Item type başarıyla oluşturuldu.',
+      });
+
+      navigate(`/item-types/${created.id}`);
+    } catch (err: any) {
+      console.error('Failed to create item type', err);
+      const message =
+        err?.response?.data?.error?.message ??
+        err?.message ??
+        t('itemTypes.create_failed') ??
+        'Item type oluşturulamadı.';
+      showToast({ type: 'error', message });
+    } finally {
+      setSubmitting(false);
+    }
+  }, [
+    buildTranslations,
+    form.attributeGroupIds,
+    form.categoryIds,
+    form.descriptions,
+    form.isSystemItemType,
+    form.key,
+    form.lifecycleStatus,
+    form.names,
+    navigate,
+    showToast,
+    submitting,
+    t,
+    validateBasicStep,
+  ]);
+
+  const lifecycleLabels = useMemo<Record<LifecycleStatus, string>>(
+    () => ({
+      draft: t('itemTypes.lifecycle.draft') || 'Taslak',
+      active: t('itemTypes.lifecycle.active') || 'Aktif',
+      deprecated: t('itemTypes.lifecycle.deprecated') || 'Kullanımdan Kalkan',
+    }),
+    [t],
+  );
+
+  const currentStepId = steps[currentStep]?.id as StepId;
 
   const renderStepContent = () => {
-    switch (currentStep) {
-      case 0:
+    switch (currentStepId) {
+      case 'basic':
         return (
-          <Card>
-            <CardHeader
-              title="Basic Information"
-              subtitle="Define the fundamental properties of your item type"
-            />
-            <div className="space-y-6">
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
-                label="Item Type Name"
-                value={formData.name}
-                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="Enter a descriptive item type name"
+                label={t('itemTypes.fields.key') || 'Key'}
+                value={form.key}
+                onChange={(event) => updateForm({ key: event.target.value })}
+                placeholder="coffee_product_type"
                 required
               />
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Description
-                </label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Describe what this item type represents and what kinds of items it will contain..."
-                  rows={4}
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-                />
-              </div>
-            </div>
-          </Card>
-        );
 
-      case 1:
-        return (
-          <Card>
-            <CardHeader
-              title="Associated Categories"
-              subtitle="Select which categories can use this item type"
-            />
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {categoryTreeOptions.map(category => (
-                  <div key={category.id} className="space-y-2">
-                    <button
-                      type="button"
-                      onClick={() => toggleCategory(category.value)}
-                      className={`w-full p-4 border-2 rounded-lg transition-all duration-200 text-left ${
-                        formData.categoryIds.includes(category.value)
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          {category.icon}
-                          <div>
-                            <h4 className="text-sm font-medium text-gray-900">{category.label}</h4>
-                          </div>
-                        </div>
-                        {formData.categoryIds.includes(category.value) && (
-                          <Check className="h-5 w-5 text-blue-600" />
-                        )}
-                      </div>
-                    </button>
-
-                    {category.children && (
-                      <div className="ml-4 space-y-2">
-                        {category.children.map(child => (
-                          <button
-                            key={child.id}
-                            type="button"
-                            onClick={() => toggleCategory(child.value)}
-                            className={`w-full p-3 border-2 rounded-lg transition-all duration-200 text-left ${
-                              formData.categoryIds.includes(child.value)
-                                ? 'border-blue-500 bg-blue-50'
-                                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center space-x-3">
-                                {child.icon}
-                                <h5 className="text-sm font-medium text-gray-900">{child.label}</h5>
-                              </div>
-                              {formData.categoryIds.includes(child.value) && (
-                                <Check className="h-4 w-4 text-blue-600" />
-                              )}
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {formData.categoryIds.length > 0 && (
-                <div className="border-t border-gray-200 pt-6">
-                  <h4 className="text-sm font-medium text-gray-700 mb-3">
-                    Selected Categories ({formData.categoryIds.length})
-                  </h4>
-                  <div className="flex flex-wrap gap-2">
-                    {formData.categoryIds.map(categoryId => {
-                      const category = findNodeByValue(categoryTreeOptions, categoryId);
-                      return category ? (
-                        <Badge
-                          key={categoryId}
-                          variant="primary"
-                          className="flex items-center space-x-1"
-                        >
-                          <span>{category.label}</span>
-                          <button
-                            type="button"
-                            onClick={() => toggleCategory(categoryId)}
-                            className="ml-1 hover:bg-blue-700 rounded-full p-0.5"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </Badge>
-                      ) : null;
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          </Card>
-        );
-
-      case 2:
-        return (
-          <Card>
-            <CardHeader
-              title="Attribute Groups"
-              subtitle="Select which attribute groups this item type will use"
-            />
-            <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {mockAttributeGroups.map(group => {
-                  const isSelected = formData.attributeGroups.includes(group.id);
+                <div>
+                  <label className="block text-xs font-medium text-foreground mb-1">
+                    {t('itemTypes.fields.lifecycle_status') || 'Lifecycle Durumu'}
+                  </label>
+                  <select
+                    value={form.lifecycleStatus}
+                    onChange={(event) =>
+                      updateForm({ lifecycleStatus: event.target.value as LifecycleStatus })
+                    }
+                    className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="draft">{lifecycleLabels.draft}</option>
+                    <option value="active">{lifecycleLabels.active}</option>
+                    <option value="deprecated">{lifecycleLabels.deprecated}</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2 mt-2 md:mt-6">
+                  <input
+                    id="isSystemItemType"
+                    type="checkbox"
+                    checked={form.isSystemItemType}
+                    onChange={(event) => updateForm({ isSystemItemType: event.target.checked })}
+                    className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                  />
+                  <label htmlFor="isSystemItemType" className="text-sm text-foreground">
+                    {t('itemTypes.fields.is_system') || 'Sistem Item Type'}
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {requiredLanguages.map(({ code, label }) => (
+                <Input
+                  key={`item-type-name-${code}`}
+                  label={resolveNameLabel(code, label)}
+                  value={form.names[code] ?? ''}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      names: { ...prev.names, [code]: event.target.value },
+                    }))
+                  }
+                  required
+                />
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {requiredLanguages.map(({ code, label }) => (
+                <Textarea
+                  key={`item-type-description-${code}`}
+                  label={resolveDescriptionLabel(code, label)}
+                  value={form.descriptions[code] ?? ''}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      descriptions: { ...prev.descriptions, [code]: event.target.value },
+                    }))
+                  }
+                  rows={3}
+                />
+              ))}
+            </div>
+          </div>
+        );
+
+      case 'relationships':
+        return(
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-semibold text-foreground">
+                  {t('itemTypes.fields.categories') || 'Kategoriler'}
+                </h4>
+                <Badge variant="primary" size="sm">
+                  {form.categoryIds.length}
+                </Badge>
+              </div>
+              <div className="border border-border rounded-lg p-3 max-h-60 overflow-y-auto space-y-2 text-sm">
+                {sortedCategories.length === 0 ? (
+                  <div className="text-muted-foreground">
+                    {t('itemTypes.create.no_categories') || 'Tanımlı kategori bulunamadı.'}
+                  </div>
+                ) : (
+                  sortedCategories.map((category) => {
+                    const depth = category.hierarchyPath?.length ?? 0;
+                    const label =
+                      depth > 0 ? `${'— '.repeat(depth)}${category.name}` : category.name;
+                    return (
+                      <label key={category.id} className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={form.categoryIds.includes(category.id)}
+                          onChange={() => toggleCategory(category.id)}
+                          className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                        />
+                        <span>{label}</span>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+          </div>
+        );
+
+      case 'attributeGroups':
+        return (
+          <div className="space-y-4">
+            <Input
+              label={t('itemTypes.attribute_groups.search_label') || 'Attribute gruplarında ara'}
+              placeholder={
+                t('itemTypes.attribute_groups.search_placeholder') ||
+                'İsim, açıklama veya etikete göre filtrele'
+              }
+              value={attributeGroupSearch}
+              onChange={(event) => setAttributeGroupSearch(event.target.value)}
+              leftIcon={<Search className="h-4 w-4" />}
+            />
+
+            {filteredAttributeGroups.length === 0 ? (
+              <div className="text-sm text-muted-foreground">
+                {attributeGroups.length === 0
+                  ? t('itemTypes.attribute_groups.empty') || 'Tanımlı attribute grubu bulunamadı.'
+                  : t('itemTypes.attribute_groups.no_results') ||
+                    'Eşleşen attribute grubu bulunamadı.'}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {filteredAttributeGroups.map((group) => {
+                  const isSelected = form.attributeGroupIds.includes(group.id);
                   return (
                     <button
+                      type="button"
                       key={group.id}
                       onClick={() => toggleAttributeGroup(group.id)}
-                      className={`p-4 border-2 rounded-lg transition-all duration-200 text-left ${
+                      className={`relative text-left border-2 rounded-xl p-4 transition-all duration-200 ${
                         isSelected
-                          ? 'border-blue-500 bg-blue-50 shadow-sm'
-                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                          ? 'border-primary bg-primary/10 shadow-sm'
+                          : 'border-border hover:border-primary/60 hover:bg-muted/60'
                       }`}
                     >
-                      <div className="flex items-center space-x-3">
-                        <div className={`p-2 rounded-lg ${
-                          isSelected ? 'bg-blue-100' : 'bg-gray-100'
-                        }`}>
-                          <Tags className={`h-5 w-5 ${
-                            isSelected ? 'text-blue-600' : 'text-gray-600'
-                          }`} />
+                      {isSelected ? (
+                        <div className="absolute top-3 right-3">
+                          <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center">
+                            <Check className="h-3 w-3" />
+                          </div>
                         </div>
-                        <div className="flex-1">
-                          <h4 className="text-sm font-medium text-gray-900">{group.name}</h4>
-                          <p className="text-xs text-gray-500 mt-1">{group.description}</p>
-                          <p className="text-xs text-gray-400 mt-1">{group.attributeCount} attributes</p>
+                      ) : null}
+
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-semibold text-foreground">{group.name}</h4>
+                          <Badge variant="primary" size="sm">
+                            {group.attributeCount ?? group.attributeIds?.length ?? 0}{' '}
+                            {t('itemTypes.attribute_groups.attribute_short') || 'attr'}
+                          </Badge>
                         </div>
-                        {isSelected && (
-                          <Check className="h-5 w-5 text-blue-600" />
-                        )}
+                        <p className="text-xs text-muted-foreground line-clamp-2">
+                          {group.description ||
+                            t('itemTypes.attribute_groups.no_description') ||
+                            'Açıklama bulunmuyor.'}
+                        </p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Hash className="h-3 w-3" />
+                          <span>{group.key ?? group.id}</span>
+                        </div>
                       </div>
                     </button>
                   );
                 })}
               </div>
+            )}
 
-              {formData.attributeGroups.length > 0 && (
-                <div className="border-t border-gray-200 pt-6">
-                  <h4 className="text-sm font-medium text-gray-700 mb-3">
-                    Selected Attribute Groups ({formData.attributeGroups.length})
-                  </h4>
-                  <div className="flex flex-wrap gap-2">
-                    {formData.attributeGroups.map(groupId => {
-                      const group = mockAttributeGroups.find(g => g.id === groupId);
-                      return group ? (
-                        <Badge
-                          key={groupId}
-                          variant="primary"
-                          className="flex items-center space-x-1"
-                        >
-                          <span>{group.name}</span>
-                          <button
-                            type="button"
-                            onClick={() => toggleAttributeGroup(groupId)}
-                            className="ml-1 hover:bg-blue-700 rounded-full p-0.5"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </Badge>
-                      ) : null;
-                    })}
+            {selectedAttributeGroups.length > 0 ? (
+              <div className="border-t border-border pt-4">
+                <h4 className="text-sm font-medium text-foreground mb-2">
+                  {t('itemTypes.attribute_groups.selected_count', {
+                    count: selectedAttributeGroups.length,
+                  }) || `Seçilen attribute grubu: ${selectedAttributeGroups.length}`}
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {selectedAttributeGroups.map((group) => (
+                    <Badge key={group.id} variant="secondary" size="sm">
+                      {group.name}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        );
+
+      case 'preview':
+      default:
+        return (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold text-foreground">
+                  {t('itemTypes.preview.general') || 'Genel Bilgiler'}
+                </h4>
+                <div className="space-y-2 rounded-lg border border-border p-4 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">
+                      {t('itemTypes.fields.key') || 'Key'}
+                    </span>
+                    <span className="font-medium">{form.key.trim() || '—'}</span>
                   </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">
+                      {t('itemTypes.fields.lifecycle_status') || 'Lifecycle Durumu'}
+                    </span>
+                    <span className="font-medium">{lifecycleLabels[form.lifecycleStatus]}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">
+                      {t('itemTypes.fields.is_system') || 'Sistem Item Type'}
+                    </span>
+                    <span className="font-medium">
+                      {form.isSystemItemType
+                        ? t('common.yes') || 'Evet'
+                        : t('common.no') || 'Hayır'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold text-foreground">
+                  {t('itemTypes.preview.translations') || 'Çeviriler'}
+                </h4>
+                <div className="space-y-2 rounded-lg border border-border p-4 text-sm">
+                  {requiredLanguages.map(({ code, label }) => (
+                    <div key={`preview-name-${code}`} className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">
+                          {(t('itemTypes.fields.name') !== 'itemTypes.fields.name'
+                            ? t('itemTypes.fields.name')
+                            : 'Name') + ` (${label})`}
+                        </span>
+                        <span className="font-medium">{form.names[code]?.trim() || '—'}</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {(t('itemTypes.fields.description') !== 'itemTypes.fields.description'
+                          ? t('itemTypes.fields.description')
+                          : 'Description') + ` (${label})`}
+                        <span className="ml-1 text-foreground">
+                          {form.descriptions[code]?.trim() ||
+                            t('itemTypes.preview.no_description') ||
+                            '—'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold text-foreground">
+                  {t('itemTypes.fields.categories') || 'Kategoriler'}
+                </h4>
+                {selectedCategories.length === 0 ? (
+                  <div className="text-sm text-muted-foreground border border-dashed border-border rounded-lg p-4">
+                    {t('itemTypes.preview.no_categories') || 'Kategori seçilmedi.'}
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedCategories.map((category) => (
+                      <Badge key={category.id} variant="secondary" size="sm">
+                        {category.name}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+            </div>
+
+            <div className="space-y-2">
+              <h4 className="text-sm font-semibold text-foreground">
+                {t('itemTypes.attribute_groups.title') || 'Attribute Grupları'}
+              </h4>
+              {selectedAttributeGroups.length === 0 ? (
+                <div className="text-sm text-muted-foreground border border-dashed border-border rounded-lg p-4">
+                  {t('itemTypes.attribute_groups.none_selected') ||
+                    'Bu item type için attribute grubu seçilmedi.'}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {selectedAttributeGroups.map((group) => (
+                    <div key={group.id} className="border border-border rounded-lg p-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-sm text-foreground">{group.name}</span>
+                        <Badge variant="primary" size="sm">
+                          {group.attributeCount ?? group.attributeIds?.length ?? 0}{' '}
+                          {t('itemTypes.attribute_groups.attribute_short') || 'attr'}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {group.description ||
+                          t('itemTypes.attribute_groups.no_description') ||
+                          'Açıklama bulunmuyor.'}
+                      </p>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
-          </Card>
+          </div>
         );
-
-      case 3: {
-        return (
-          <Card>
-            <CardHeader
-              title="Review & Confirm"
-              subtitle="Please review your item type details before creating"
-            />
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">Basic Information</h4>
-                  <div className="space-y-2">
-                    <p><span className="text-gray-500">Name:</span> {formData.name}</p>
-                    {formData.description && (
-                      <p><span className="text-gray-500">Description:</span> {formData.description}</p>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">Associated Categories ({formData.categoryIds.length})</h4>
-                  <div className="space-y-1">
-                    {formData.categoryIds.map(categoryId => {
-                      const category = findNodeByValue(categoryTreeOptions, categoryId);
-                      return category ? (
-                        <p key={categoryId} className="text-sm text-gray-600">• {category.label}</p>
-                      ) : null;
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              <div className="border-t border-gray-200 pt-6">
-                <h4 className="text-sm font-medium text-gray-700 mb-4">Attribute Groups ({formData.attributeGroups.length})</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {formData.attributeGroups.map(groupId => {
-                    const group = mockAttributeGroups.find(g => g.id === groupId);
-                    return group ? (
-                      <div key={groupId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <span className="text-sm font-medium text-gray-700">{group.name}</span>
-                        <span className="text-sm text-gray-600">{group.attributeCount} attrs</span>
-                      </div>
-                    ) : null;
-                  })}
-                </div>
-              </div>
-            </div>
-          </Card>
-        );
-      }
-
-      default:
-        return null;
     }
   };
 
   return (
     <div className="space-y-6">
-      {/* Stepper */}
-      <Card padding="lg">
-        <Stepper steps={steps} currentStep={currentStep} />
-      </Card>
+      <PageHeader
+        title={t('itemTypes.create_title') || 'Item Type Oluştur'}
+        subtitle={
+          t('itemTypes.create_subtitle') ||
+          'Lifecycle, ilişkiler ve attribute gruplarıyla yeni bir item type oluşturun.'
+        }
+      />
 
-      {/* Step Content */}
-      {renderStepContent()}
+      <Card>
+        <CardHeader
+          title={t('itemTypes.create_form') || 'Item Type Bilgileri'}
+          subtitle={t('itemTypes.create_form_subtitle') || 'Adımları takip ederek item type kaydedin.'}
+        />
+        <div className="px-6 pb-6 space-y-6">
+          <Stepper steps={steps} currentStep={currentStep} />
 
-      {/* Navigation */}
-      <div className="flex justify-between">
-        <Button
-          variant="outline"
-          onClick={handleBack}
-          disabled={currentStep === 0}
-          leftIcon={<ArrowLeft className="h-4 w-4" />}
-        >
-          Back
-        </Button>
+          {error ? <div className="text-sm text-error">{error}</div> : null}
 
-        <div className="flex space-x-3">
-          {currentStep === steps.length - 1 ? (
-            <Button
-              onClick={handleSubmit}
-              loading={loading}
-              disabled={!canProceed()}
-              leftIcon={<Check className="h-4 w-4" />}
-            >
-              Create Item Type
-            </Button>
+          {initialLoading ? (
+            <div className="text-sm text-muted-foreground">
+              {t('common.loading') || 'Yükleniyor...'}
+            </div>
           ) : (
-            <Button
-              onClick={handleNext}
-              disabled={!canProceed()}
-              rightIcon={<ArrowRight className="h-4 w-4" />}
-            >
-              Continue
-            </Button>
+            <>
+              {renderStepContent()}
+
+              <div className="flex items-center justify-between pt-4">
+                <Button
+                  variant="outline"
+                  onClick={handleBack}
+                  disabled={currentStep === 0 || submitting}
+                >
+                  {t('common.back') || 'Geri'}
+                </Button>
+
+                <div className="flex items-center gap-2">
+                  {currentStep < steps.length - 1 ? (
+                    <Button onClick={handleNext} disabled={submitting}>
+                      {t('common.next') || 'İleri'}
+                    </Button>
+                  ) : (
+                    <Button onClick={handleSubmit} disabled={submitting}>
+                      {submitting
+                        ? t('common.saving') || 'Kaydediliyor...'
+                        : t('common.create') || 'Oluştur'}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </>
           )}
         </div>
-      </div>
+      </Card>
     </div>
   );
 };
+
+export default ItemTypesCreate;

@@ -1,517 +1,658 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, Package, FolderTree, Layers, Database, Zap, Plus } from 'lucide-react';
+import { Plus, Package, Check, ArrowLeft, ArrowRight } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Card, CardHeader } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { Stepper } from '../../components/ui/Stepper';
-import { Select } from '../../components/ui/Select';
 import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
-import { AttributeRenderer } from '../../components/attributes/AttributeRenderer';
-import { AttributeType, Attribute } from '../../types';
+import { Stepper } from '../../components/ui/Stepper';
+import { useToast } from '../../contexts/ToastContext';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { itemsService } from '../../api/services/items.service';
+import { itemTypesService } from '../../api/services/item-types.service';
+import { categoriesService } from '../../api/services/categories.service';
+import { familiesService } from '../../api/services/families.service';
+import { associationsService } from '../../api/services/associations.service';
+import type { ItemType, Category, Family, Item } from '../../types';
 
-const steps = [
-  { id: 'item-type', name: 'Item Type', description: 'Select item type' },
-  { id: 'category', name: 'Category', description: 'Choose category' },
-  { id: 'family', name: 'Family', description: 'Pick family' },
-  { id: 'attributes', name: 'Attributes', description: 'Fill required data' },
-  { id: 'associations', name: 'Associations', description: 'Set up relationships' },
-  { id: 'review', name: 'Review', description: 'Confirm details' },
-];
+type StepId = 'itemType' | 'relationships' | 'associations' | 'review';
 
-// Mock data
-const mockItemTypes = [
-  { value: 'type-1', label: 'Product' },
-  { value: 'type-2', label: 'Service' },
-  { value: 'type-3', label: 'Digital Asset' },
-];
-
-const mockCategories = [
-  { value: 'cat-1', label: 'Food & Beverage' },
-  { value: 'cat-2', label: 'Electronics' },
-  { value: 'cat-3', label: 'Home & Garden' },
-];
-
-const mockFamilies = [
-  { value: 'fam-1', label: 'Coffee Products' },
-  { value: 'fam-2', label: 'Audio Equipment' },
-  { value: 'fam-3', label: 'Furniture' },
-];
-
-const mockRequiredAttributes: Attribute[] = [
-  {
-    id: 'attr-name',
-    name: 'Item Name',
-    type: AttributeType.TEXT,
-    required: true,
-    description: 'The display name for this item',
-    createdAt: '2024-01-01T00:00:00Z',
-    updatedAt: '2024-01-01T00:00:00Z',
-  },
-  {
-    id: 'attr-price',
-    name: 'Price',
-    type: AttributeType.NUMBER,
-    required: true,
-    description: 'Item price in USD',
-    createdAt: '2024-01-01T00:00:00Z',
-    updatedAt: '2024-01-01T00:00:00Z',
-  },
-  {
-    id: 'attr-status',
-    name: 'Status',
-    type: AttributeType.SELECT,
-    required: true,
-    options: ['active', 'draft', 'inactive'],
-    defaultValue: 'draft',
-    createdAt: '2024-01-01T00:00:00Z',
-    updatedAt: '2024-01-01T00:00:00Z',
-  },
-];
-
-// Mock associations for the selected item type
-const mockRequiredAssociations = [
-  {
-    id: 'assoc-1',
-    name: 'Order - Fabric',
-    description: 'Fabric items required for this order',
-    sourceItemTypeId: 'type-1',
-    targetItemTypeId: 'type-fabric',
-    associationType: 'one-to-many' as const,
-    isRequired: true,
-    minQuantity: 1,
-    maxQuantity: 10,
-  },
-  {
-    id: 'assoc-2',
-    name: 'Order - Hardware',
-    description: 'Hardware components for this order',
-    sourceItemTypeId: 'type-1',
-    targetItemTypeId: 'type-hardware',
-    associationType: 'one-to-many' as const,
-    isRequired: true,
-    minQuantity: 1,
-    maxQuantity: 5,
-  },
-  {
-    id: 'assoc-3',
-    name: 'Order - Accessories',
-    description: 'Optional accessories for this order',
-    sourceItemTypeId: 'type-1',
-    targetItemTypeId: 'type-accessories',
-    associationType: 'one-to-many' as const,
-    isRequired: false,
-    minQuantity: 0,
-    maxQuantity: 3,
-  },
-];
-
-// Mock target items for associations
-const mockTargetItems = {
-  'type-fabric': [
-    { id: 'fabric-1', name: 'Cotton Fabric - Blue', price: 15.99 },
-    { id: 'fabric-2', name: 'Silk Fabric - Red', price: 45.99 },
-    { id: 'fabric-3', name: 'Linen Fabric - White', price: 25.99 },
-  ],
-  'type-hardware': [
-    { id: 'hardware-1', name: 'Metal Button - Silver', price: 2.99 },
-    { id: 'hardware-2', name: 'Zipper - Black', price: 8.99 },
-    { id: 'hardware-3', name: 'Thread - White', price: 3.99 },
-  ],
-  'type-accessories': [
-    { id: 'acc-1', name: 'Gift Box', price: 5.99 },
-    { id: 'acc-2', name: 'Care Instructions Card', price: 1.99 },
-    { id: 'acc-3', name: 'Brand Tag', price: 0.99 },
-  ],
+type AssociationDraft = {
+  associationTypeId: string;
+  targetItemId: string;
+  orderIndex?: string;
+  metadata?: string;
 };
+
+interface FormState {
+  itemTypeId: string;
+  categoryId: string;
+  familyId: string;
+  code: string;
+  externalCode: string;
+  sku: string;
+  status: 'draft' | 'active' | 'inactive' | 'archived';
+  associations: AssociationDraft[];
+}
+
+const statusOptions: Array<{ value: FormState['status']; label: string }> = [
+  { value: 'draft', label: 'Draft' },
+  { value: 'active', label: 'Active' },
+  { value: 'inactive', label: 'Inactive' },
+  { value: 'archived', label: 'Archived' },
+];
+
+const defaultAssociationRow: AssociationDraft = {
+  associationTypeId: '',
+  targetItemId: '',
+  orderIndex: '',
+  metadata: '',
+};
+
 export const ItemsCreate: React.FC = () => {
   const navigate = useNavigate();
-  const [currentStep, setCurrentStep] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
+  const { t } = useLanguage();
+  const { showToast } = useToast();
+
+  const steps = useMemo(
+    () => [
+      {
+        id: 'itemType' as StepId,
+        name: t('items.create.steps.item_type') || 'Item Type',
+        description: t('items.create.steps.item_type_desc') || 'Select the base item type',
+      },
+      {
+        id: 'relationships' as StepId,
+        name: t('items.create.steps.relationships') || 'Metadata',
+        description: t('items.create.steps.relationships_desc') || 'Assign related taxonomy values',
+      },
+      {
+        id: 'associations' as StepId,
+        name: t('items.create.steps.associations') || 'Associations',
+        description: t('items.create.steps.associations_desc') || 'Link existing items via association types',
+      },
+      {
+        id: 'review' as StepId,
+        name: t('items.create.steps.review') || 'Review',
+        description: t('items.create.steps.review_desc') || 'Verify before saving',
+      },
+    ],
+    [t],
+  );
+
+  const [form, setForm] = useState<FormState>({
     itemTypeId: '',
     categoryId: '',
     familyId: '',
-    attributeValues: {} as Record<string, any>,
-    associations: [] as { associationId: string; targetItemId: string; quantity?: number }[],
+    code: '',
+    externalCode: '',
+    sku: '',
+    status: 'draft',
+    associations: [{ ...defaultAssociationRow }],
   });
+  const [currentStep, setCurrentStep] = useState(0);
+  const [itemTypes, setItemTypes] = useState<ItemType[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [families, setFamilies] = useState<Family[]>([]);
+  const [availableItems, setAvailableItems] = useState<Item[]>([]);
+  const [loadingLookup, setLoadingLookup] = useState(true);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleNext = () => {
-    if (currentStep < steps.length - 1) {
-      setCurrentStep(currentStep + 1);
-    }
-  };
+  useEffect(() => {
+    let cancelled = false;
 
-  const handleBack = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
+    const fetchLookups = async () => {
+      try {
+        setLoadingLookup(true);
+        setLookupError(null);
+        const [itemTypeResult, categoryResult, familyResult, itemsResult] = await Promise.all([
+          itemTypesService.list({ limit: 200 }),
+          categoriesService.list({ limit: 200 }),
+          familiesService.list({ limit: 200 }),
+          itemsService.list({ limit: 200 }),
+        ]);
 
-  const handleSubmit = async () => {
-    setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      navigate('/items');
-    }, 2000);
-  };
+        if (cancelled) {
+          return;
+        }
 
-  const handleAttributeChange = (attributeId: string, value: any) => {
-    setFormData(prev => ({
-      ...prev,
-      attributeValues: {
-        ...prev.attributeValues,
-        [attributeId]: value,
-      },
-    }));
-  };
+        setItemTypes(itemTypeResult.items ?? []);
+        setCategories(categoryResult.items ?? []);
+        setFamilies(familyResult.items ?? []);
+        setAvailableItems(itemsResult.items ?? []);
+      } catch (error: any) {
+        if (!cancelled) {
+          console.error('Failed to load item create lookups', error);
+          setLookupError(
+            error?.response?.data?.error?.message ??
+              t('items.create.failed_to_load_dependencies') ??
+              'Gerekli veriler yüklenemedi. Lütfen daha sonra tekrar deneyin.',
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingLookup(false);
+        }
+      }
+    };
 
-  const canProceed = () => {
-    switch (currentStep) {
-      case 0:
-        return formData.itemTypeId !== '';
-      case 1:
-        return formData.categoryId !== '';
-      case 2:
-        return formData.familyId !== '';
-      case 3:
-        return mockRequiredAttributes.every(attr => {
-          const value = formData.attributeValues[attr.id];
-          return attr.required ? value !== undefined && value !== '' : true;
-        });
-      case 4:
-        // Check if all required associations are filled
-        const requiredAssociations = mockRequiredAssociations.filter(assoc => assoc.isRequired);
-        return requiredAssociations.every(assoc => 
-          formData.associations.some(item => item.associationId === assoc.id)
+    void fetchLookups();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [t]);
+
+  const selectedItemType = useMemo(
+    () => itemTypes.find((type) => type.id === form.itemTypeId) ?? null,
+    [itemTypes, form.itemTypeId],
+  );
+  const selectedCategories = useMemo(
+    () => form.categoryId ? [categories.find((c) => c.id === form.categoryId)].filter(Boolean) as Category[] : [],
+    [categories, form.categoryId],
+  );
+  const selectedFamily = useMemo(
+    () => families.find((family) => family.id === form.familyId) ?? null,
+    [families, form.familyId],
+  );
+
+  const updateForm = useCallback((patch: Partial<FormState>) => {
+    setForm((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  const handleAssociationChange = useCallback(
+    (index: number, patch: Partial<AssociationDraft>) => {
+      setForm((prev) => {
+        const next = [...prev.associations];
+        next[index] = { ...next[index], ...patch };
+        return { ...prev, associations: next };
+      });
+    },
+  []);
+
+  const addAssociationRow = useCallback(() => {
+    setForm((prev) => ({ ...prev, associations: [...prev.associations, { ...defaultAssociationRow }] }));
+  }, []);
+
+  const removeAssociationRow = useCallback((index: number) => {
+    setForm((prev) => {
+      const next = prev.associations.filter((_, idx) => idx !== index);
+      return { ...prev, associations: next.length > 0 ? next : [{ ...defaultAssociationRow }] };
+    });
+  }, []);
+
+  const validateCurrentStep = useCallback(() => {
+    const step = steps[currentStep];
+    if (!step) return false;
+
+    switch (step.id) {
+      case 'itemType':
+        if (loadingLookup) {
+          showToast({ type: 'error', message: t('items.create.validation.loading') || 'Veriler yükleniyor.' });
+          return false;
+        }
+        if (!form.itemTypeId) {
+          showToast({
+            type: 'error',
+            message: t('items.create.validation.item_type') || 'Lütfen bir item type seçin.',
+          });
+          return false;
+        }
+        return true;
+      case 'relationships':
+        if (!form.code.trim()) {
+          showToast({ type: 'error', message: t('items.create.validation.code_required') || 'Kod alanı zorunludur.' });
+          return false;
+        }
+        return true;
+      case 'associations':
+        const invalidRow = form.associations.find(
+          (assoc) =>
+            (assoc.associationTypeId && !assoc.targetItemId) ||
+            (!assoc.associationTypeId && assoc.targetItemId),
         );
+        if (invalidRow) {
+          showToast({
+            type: 'error',
+            message:
+              t('items.create.validation.association_incomplete') ||
+              'Association için hem association type hem de hedef item seçilmelidir.',
+          });
+          return false;
+        }
+        return true;
+      case 'review':
       default:
         return true;
     }
+  }, [currentStep, form.associations, form.code, form.itemTypeId, loadingLookup, showToast, steps, t]);
+
+  const handleNext = useCallback(() => {
+    if (!validateCurrentStep()) {
+      return;
+    }
+    setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1));
+  }, [validateCurrentStep, steps.length]);
+
+  const handleBack = useCallback(() => {
+    setCurrentStep((prev) => Math.max(prev - 1, 0));
+  }, []);
+
+  const handleSubmit = useCallback(async () => {
+    if (submitting) {
+      return;
+    }
+    if (!validateCurrentStep()) {
+      setCurrentStep((prev) => Math.min(prev, steps.length - 1));
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+
+      const payload = {
+        itemTypeId: form.itemTypeId,
+        categoryId: form.categoryId ? form.categoryId : null,
+        familyId: form.familyId ? form.familyId : null,
+        code: form.code.trim(),
+        externalCode: form.externalCode.trim() || null,
+        sku: form.sku.trim() || null,
+        status: form.status,
+      };
+
+      const created = await itemsService.create(payload);
+
+      const validAssociations = form.associations.filter(
+        (assoc) => assoc.associationTypeId.trim().length > 0 && assoc.targetItemId.trim().length > 0,
+      );
+
+      for (const assoc of validAssociations) {
+        let metadataPayload: Record<string, unknown> | undefined;
+        const trimmedMetadata = assoc.metadata?.trim();
+        if (trimmedMetadata) {
+          try {
+            metadataPayload = JSON.parse(trimmedMetadata);
+          } catch (err) {
+            metadataPayload = { note: trimmedMetadata };
+          }
+        }
+
+        const orderIndexValue = assoc.orderIndex?.trim();
+        const orderIndex = orderIndexValue ? Number(orderIndexValue) : undefined;
+
+        await associationsService.create({
+          associationTypeId: assoc.associationTypeId.trim(),
+          sourceItemId: created.id,
+          targetItemId: assoc.targetItemId.trim(),
+          orderIndex,
+          metadata: metadataPayload,
+        });
+      }
+
+      showToast({
+        type: 'success',
+        message: t('items.create.success') || 'Item başarıyla oluşturuldu.',
+      });
+
+      navigate(`/items/${created.id}`);
+    } catch (error: any) {
+      console.error('Failed to create item', error);
+      showToast({
+        type: 'error',
+        message:
+          error?.response?.data?.error?.message ??
+          t('items.create.failed') ??
+          'Item oluşturulamadı. Lütfen tekrar deneyin.',
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  }, [form, navigate, showToast, submitting, t, validateCurrentStep, steps.length]);
+
+  const renderItemTypeStep = () => {
+    if (loadingLookup) {
+      return <div className="text-sm text-muted-foreground">{t('common.loading') || 'Yükleniyor...'}</div>;
+    }
+
+    if (itemTypes.length === 0) {
+      return (
+        <div className="rounded-md border border-dashed border-border p-6 text-sm text-muted-foreground">
+          {t('items.create.no_item_types') || 'Henüz item type oluşturulmamış.'}
+        </div>
+      );
+    }
+
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {itemTypes.map((itemType) => {
+          const isSelected = form.itemTypeId === itemType.id;
+          return (
+            <button
+              type="button"
+              key={itemType.id}
+              onClick={() => updateForm({ itemTypeId: itemType.id })}
+              className={`relative text-left border-2 rounded-xl p-4 transition-all duration-200 ${
+                isSelected
+                  ? 'border-primary bg-primary/10 shadow-sm'
+                  : 'border-border hover:border-primary/60 hover:bg-muted/60'
+              }`}
+            >
+              {isSelected ? (
+                <div className="absolute top-3 right-3">
+                  <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow">
+                    <Check className="h-3 w-3" />
+                  </div>
+                </div>
+              ) : null}
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">{itemType.name}</h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {itemType.description || t('items.create.no_description') || '—'}
+                  </p>
+                </div>
+                <Badge variant="secondary" size="sm">
+                  {(itemType.attributeGroupCount ?? itemType.attributeGroupIds?.length ?? 0).toString()}{' '}
+                  {t('items.create.attribute_group_short') || 'groups'}
+                </Badge>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    );
   };
 
-  const renderStepContent = () => {
-    switch (currentStep) {
-      case 0:
-        return (
-          <Card>
-            <CardHeader 
-              title="Select Item Type" 
-              subtitle="Choose the type of item you want to create"
-            />
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {mockItemTypes.map(type => (
-                  <button
-                    key={type.value}
-                    onClick={() => setFormData(prev => ({ ...prev, itemTypeId: type.value }))}
-                    className={`p-6 border-2 rounded-lg transition-all duration-200 text-left ${
-                      formData.itemTypeId === type.value
-                        ? 'border-indigo-500 bg-indigo-50'
-                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    <Database className="h-8 w-8 text-indigo-600 mb-3" />
-                    <h3 className="text-lg font-medium text-gray-900">{type.label}</h3>
-                    <p className="text-sm text-gray-500 mt-1">
-                      Create a new {type.label.toLowerCase()} item
-                    </p>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </Card>
-        );
+  const renderRelationshipsStep = () => (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-xs font-medium text-foreground mb-1">
+            {t('items.fields.category') || 'Category'}
+          </label>
+          <select
+            value={form.categoryId}
+            onChange={(event) => updateForm({ categoryId: event.target.value })}
+            className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            <option value="">{t('items.create.select_category') || 'Kategori seçin (opsiyonel)'}</option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+        </div>
 
-      case 1:
-        return (
-          <Card>
-            <CardHeader 
-              title="Select Category" 
-              subtitle="Choose the category for your item"
-            />
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {mockCategories.map(category => (
-                  <button
-                    key={category.value}
-                    onClick={() => setFormData(prev => ({ ...prev, categoryId: category.value }))}
-                    className={`p-6 border-2 rounded-lg transition-all duration-200 text-left ${
-                      formData.categoryId === category.value
-                        ? 'border-indigo-500 bg-indigo-50'
-                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    <FolderTree className="h-8 w-8 text-teal-600 mb-3" />
-                    <h3 className="text-lg font-medium text-gray-900">{category.label}</h3>
-                    <p className="text-sm text-gray-500 mt-1">
-                      Items in {category.label.toLowerCase()} category
-                    </p>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </Card>
-        );
+        <div>
+          <label className="block text-xs font-medium text-foreground mb-1">
+            {t('items.fields.family') || 'Family'}
+          </label>
+          <select
+            value={form.familyId}
+            onChange={(event) => updateForm({ familyId: event.target.value })}
+            className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            <option value="">{t('items.create.select_family') || 'Family seçin (opsiyonel)'}</option>
+            {families.map((family) => (
+              <option key={family.id} value={family.id}>
+                {family.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
 
-      case 2:
-        return (
-          <Card>
-            <CardHeader 
-              title="Select Family" 
-              subtitle="Choose the family for your item"
-            />
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {mockFamilies.map(family => (
-                  <button
-                    key={family.value}
-                    onClick={() => setFormData(prev => ({ ...prev, familyId: family.value }))}
-                    className={`p-6 border-2 rounded-lg transition-all duration-200 text-left ${
-                      formData.familyId === family.value
-                        ? 'border-indigo-500 bg-indigo-50'
-                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    <Layers className="h-8 w-8 text-emerald-600 mb-3" />
-                    <h3 className="text-lg font-medium text-gray-900">{family.label}</h3>
-                    <p className="text-sm text-gray-500 mt-1">
-                      Family specializing in {family.label.toLowerCase()}
-                    </p>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </Card>
-        );
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Input
+          label={t('items.fields.code') || 'Code'}
+          value={form.code}
+          onChange={(event) => updateForm({ code: event.target.value })}
+          placeholder="ITEM-001"
+          required
+        />
 
-      case 3:
-        return (
-          <Card>
-            <CardHeader 
-              title="Fill Required Attributes" 
-              subtitle="Provide the essential information for your item"
-            />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {mockRequiredAttributes.map(attribute => (
-                <AttributeRenderer
-                  key={attribute.id}
-                  attribute={attribute}
-                  value={formData.attributeValues[attribute.id] || attribute.defaultValue}
-                  onChange={(value) => handleAttributeChange(attribute.id, value)}
-                />
-              ))}
-            </div>
-          </Card>
-        );
+        <Input
+          label={t('items.fields.external_code') || 'External Code'}
+          value={form.externalCode}
+          onChange={(event) => updateForm({ externalCode: event.target.value })}
+          placeholder="ERP-12345"
+        />
 
-      case 4: {
-        return (
-          <Card className="overflow-hidden">
-            <div className="bg-gradient-to-r from-purple-500 to-pink-600 px-6 py-8">
-              <div className="flex items-center space-x-4">
-                <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
-                  <Zap className="h-8 w-8 text-white" />
+        <Input
+          label={t('items.fields.sku') || 'SKU'}
+          value={form.sku}
+          onChange={(event) => updateForm({ sku: event.target.value })}
+          placeholder="SKU-001"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-xs font-medium text-foreground mb-1">
+            {t('items.fields.status') || 'Status'}
+          </label>
+          <select
+            value={form.status}
+            onChange={(event) => updateForm({ status: event.target.value as FormState['status'] })}
+            className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            {statusOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {t(`items.status_${option.value}`) || option.label}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-muted-foreground mt-1">
+            {t('items.create.status_helper') ||
+              'Yayınlanma durumunu belirleyin. Taslak olarak kaydedebilirsiniz.'}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderAssociationsStep = () => (
+    <div className="space-y-6">
+      <div>
+        <p className="text-sm text-muted-foreground">
+          {t('items.create.associations_hint') ||
+            'Yeni item oluşturulduktan sonra seçilen association tipe göre mevcut itemlarla bağlantılar kurulacaktır.'}
+        </p>
+      </div>
+
+      <div className="space-y-4">
+        {form.associations.map((assoc, index) => {
+          const targetItem = availableItems.find((item) => item.id === assoc.targetItemId);
+          return (
+            <Card key={`association-row-${index}`}>
+              <CardHeader
+                title={`${t('items.create.association_row') || 'Association'} #${index + 1}`}
+                subtitle={
+                  assoc.associationTypeId
+                    ? t('items.create.association_row_selected') || 'Association yapılandırması'
+                    : t('items.create.association_row_subtitle') || 'Association ayrıntılarını girin'
+                }
+              />
+              <div className="px-6 pb-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input
+                    label={t('items.fields.association_type_id') || 'Association Type ID'}
+                    value={assoc.associationTypeId}
+                    onChange={(event) => handleAssociationChange(index, { associationTypeId: event.target.value })}
+                    placeholder="association-type-id"
+                    required
+                  />
+
+                  <div>
+                    <label className="block text-xs font-medium text-foreground mb-1">
+                      {t('items.fields.target_item') || 'Target Item'}
+                    </label>
+                    <select
+                      value={assoc.targetItemId}
+                      onChange={(event) => handleAssociationChange(index, { targetItemId: event.target.value })}
+                      className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    >
+                      <option value="">{t('items.create.select_target_item') || 'Hedef item seçin'}</option>
+                      {availableItems.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.code} {item.name ? `- ${item.name}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-white">Item Associations</h2>
-                  <p className="text-purple-100 mt-1">Set up relationships with other items</p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input
+                    label={t('items.fields.order_index') || 'Order Index'}
+                    type="number"
+                    value={assoc.orderIndex ?? ''}
+                    onChange={(event) => handleAssociationChange(index, { orderIndex: event.target.value })}
+                    placeholder="0"
+                  />
+
+                  <Input
+                    label={t('items.fields.metadata') || 'Metadata (JSON veya metin)'}
+                    value={assoc.metadata ?? ''}
+                    onChange={(event) => handleAssociationChange(index, { metadata: event.target.value })}
+                    placeholder='{"quantity": 1}'
+                  />
+                </div>
+
+                <div className="flex justify-end">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => removeAssociationRow(index)}
+                    disabled={form.associations.length === 1}
+                  >
+                    {t('common.remove') || 'Kaldır'}
+                  </Button>
                 </div>
               </div>
+            </Card>
+          );
+        })}
+      </div>
+
+      <Button variant="outline" onClick={addAssociationRow}>
+        <Plus className="h-4 w-4 mr-2" />
+        {t('items.create.add_association') || 'Association Satırı Ekle'}
+      </Button>
+    </div>
+  );
+
+  const renderReviewStep = () => (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <Card>
+        <CardHeader
+          title={t('items.review.summary') || 'Özet'}
+          subtitle={t('items.review.summary_desc') || 'Temel bilgileri kontrol edin'}
+        />
+        <div className="px-6 pb-6 space-y-3 text-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">{t('items.fields.item_type') || 'Item Type'}</span>
+            <span className="font-medium text-foreground">
+              {selectedItemType?.name || t('items.review.not_selected') || 'Seçilmedi'}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">{t('items.fields.category') || 'Category'}</span>
+            <span className="font-medium text-foreground">
+              {selectedCategories.length ? selectedCategories[0].name : t('items.review.not_selected') || 'Seçilmedi'}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">{t('items.fields.family') || 'Family'}</span>
+            <span className="font-medium text-foreground">
+              {selectedFamily?.name || t('items.review.not_selected') || 'Seçilmedi'}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">{t('items.fields.code') || 'Code'}</span>
+            <span className="font-medium text-foreground">{form.code.trim() || '—'}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">{t('items.fields.external_code') || 'External Code'}</span>
+            <span className="font-medium text-foreground">{form.externalCode.trim() || '—'}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">{t('items.fields.sku') || 'SKU'}</span>
+            <span className="font-medium text-foreground">{form.sku.trim() || '—'}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">{t('items.fields.status') || 'Status'}</span>
+            <Badge variant="secondary" size="sm">
+              {t(`items.status_${form.status}`) || form.status}
+            </Badge>
+          </div>
+        </div>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title={t('items.review.associations') || 'Associations'}
+          subtitle={t('items.review.associations_desc') || 'Kaydedilecek association satırları'}
+        />
+        <div className="px-6 pb-6 space-y-3 text-sm">
+          {form.associations.filter((assoc) => assoc.associationTypeId && assoc.targetItemId).length === 0 ? (
+            <div className="text-muted-foreground">
+              {t('items.review.no_associations') || 'Association eklenmedi.'}
             </div>
-            
-            <div className="p-6 space-y-6">
-              {mockRequiredAssociations.map(association => {
-                const targetItems = mockTargetItems[association.targetItemTypeId as keyof typeof mockTargetItems] || [];
-                const selectedItems = formData.associations.filter(item => item.associationId === association.id);
-                
+          ) : (
+            form.associations
+              .filter((assoc) => assoc.associationTypeId && assoc.targetItemId)
+              .map((assoc, index) => {
+                const targetItem = availableItems.find((item) => item.id === assoc.targetItemId);
                 return (
-                  <div key={association.id} className="space-y-4">
+                  <div key={`review-assoc-${index}`} className="border-b border-border pb-2">
                     <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="text-lg font-semibold text-gray-900 flex items-center">
-                          {association.name}
-                          {association.isRequired && (
-                            <Badge variant="error" size="sm" className="ml-2">Required</Badge>
-                          )}
-                        </h4>
-                        <p className="text-sm text-gray-500">{association.description}</p>
-                        <p className="text-xs text-gray-400 mt-1">
-                          {association.associationType} • Min: {association.minQuantity} • Max: {association.maxQuantity}
-                        </p>
+                      <span className="font-medium text-foreground">
+                        {assoc.associationTypeId}
+                      </span>
+                      <span className="text-xs text-muted-foreground">#{index + 1}</span>
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      <span>{t('items.fields.target_item') || 'Target'}:</span>{' '}
+                      <span className="text-foreground">
+                        {targetItem ? `${targetItem.code}${targetItem.name ? ` - ${targetItem.name}` : ''}` : assoc.targetItemId}
+                      </span>
+                    </div>
+                    {assoc.orderIndex && (
+                      <div className="text-xs text-muted-foreground">
+                        {t('items.fields.order_index') || 'Order'}: {assoc.orderIndex}
                       </div>
-                      <Badge variant="primary" size="sm">
-                        {selectedItems.length} selected
-                      </Badge>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {targetItems.map(item => {
-                        const isSelected = selectedItems.some(selected => selected.targetItemId === item.id);
-                        const selectedItem = selectedItems.find(selected => selected.targetItemId === item.id);
-                        
-                        return (
-                          <div
-                            key={item.id}
-                            className={`p-4 border-2 rounded-xl transition-all duration-200 ${
-                              isSelected
-                                ? 'border-purple-500 bg-purple-50 shadow-sm'
-                                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between mb-3">
-                              <div>
-                                <h5 className="text-sm font-medium text-gray-900">{item.name}</h5>
-                                <p className="text-xs text-gray-500">${item.price}</p>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (isSelected) {
-                                    setFormData(prev => ({
-                                      ...prev,
-                                      associations: prev.associations.filter(
-                                        assoc => !(assoc.associationId === association.id && assoc.targetItemId === item.id)
-                                      )
-                                    }));
-                                  } else {
-                                    setFormData(prev => ({
-                                      ...prev,
-                                      associations: [...prev.associations, {
-                                        associationId: association.id,
-                                        targetItemId: item.id,
-                                        quantity: 1
-                                      }]
-                                    }));
-                                  }
-                                }}
-                                className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
-                                  isSelected
-                                    ? 'bg-purple-600 text-white'
-                                    : 'bg-gray-200 text-gray-400 hover:bg-gray-300'
-                                }`}
-                              >
-                                {isSelected ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
-                              </button>
-                            </div>
-                            
-                            {isSelected && (
-                              <div className="space-y-2">
-                                <label className="text-xs font-medium text-gray-700">Quantity</label>
-                                <input
-                                  type="number"
-                                  min={association.minQuantity || 1}
-                                  max={association.maxQuantity || 999}
-                                  value={selectedItem?.quantity || 1}
-                                  onChange={(e) => {
-                                    const quantity = parseInt(e.target.value) || 1;
-                                    setFormData(prev => ({
-                                      ...prev,
-                                      associations: prev.associations.map(assoc =>
-                                        assoc.associationId === association.id && assoc.targetItemId === item.id
-                                          ? { ...assoc, quantity }
-                                          : assoc
-                                      )
-                                    }));
-                                  }}
-                                  className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                />
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
+                    )}
+                    {assoc.metadata && (
+                      <div className="text-xs text-muted-foreground">
+                        {t('items.fields.metadata') || 'Metadata'}: {assoc.metadata}
+                      </div>
+                    )}
                   </div>
                 );
-              })}
-            </div>
-          </Card>
-        );
-      }
+              })
+          )}
+        </div>
+      </Card>
+    </div>
+  );
 
-      case 5: {
-        return (
-          <Card>
-            <CardHeader 
-              title="Review & Confirm" 
-              subtitle="Please review your item details before creating"
-            />
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">Item Type</h4>
-                  <p className="text-sm text-gray-900">
-                    {mockItemTypes.find(t => t.value === formData.itemTypeId)?.label}
-                  </p>
-                </div>
-                <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">Category</h4>
-                  <p className="text-sm text-gray-900">
-                    {mockCategories.find(c => c.value === formData.categoryId)?.label}
-                  </p>
-                </div>
-                <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">Family</h4>
-                  <p className="text-sm text-gray-900">
-                    {mockFamilies.find(f => f.value === formData.familyId)?.label}
-                  </p>
-                </div>
-              </div>
-              
-              <div className="border-t border-gray-200 pt-6">
-                <h4 className="text-sm font-medium text-gray-700 mb-4">Attributes</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {mockRequiredAttributes.map(attribute => (
-                    <div key={attribute.id} className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">
-                        {attribute.name}
-                      </label>
-                      <AttributeRenderer
-                        attribute={attribute}
-                        value={formData.attributeValues[attribute.id]}
-                        mode="view"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-              
-              {formData.associations.length > 0 && (
-                <div className="border-t border-gray-200 pt-6">
-                  <h4 className="text-sm font-medium text-gray-700 mb-4">Associations</h4>
-                  <div className="space-y-4">
-                    {mockRequiredAssociations.map(association => {
-                      const selectedItems = formData.associations.filter(item => item.associationId === association.id);
-                      if (selectedItems.length === 0) return null;
-                      
-                      return (
-                        <div key={association.id} className="p-4 bg-gray-50 rounded-lg">
-                          <h5 className="text-sm font-medium text-gray-900 mb-2">{association.name}</h5>
-                          <div className="space-y-2">
-                            {selectedItems.map(selectedItem => {
-                              const targetItems = mockTargetItems[association.targetItemTypeId as keyof typeof mockTargetItems] || [];
-                              const item = targetItems.find(i => i.id === selectedItem.targetItemId);
-                              return item ? (
-                                <div key={selectedItem.targetItemId} className="flex items-center justify-between text-sm">
-                                  <span className="text-gray-700">{item.name}</span>
-                                  <Badge variant="outline" size="sm">Qty: {selectedItem.quantity}</Badge>
-                                </div>
-                              ) : null;
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          </Card>
-        );
-      }
+  const renderStepContent = () => {
+    const step = steps[currentStep];
+    if (!step) return null;
 
+    switch (step.id) {
+      case 'itemType':
+        return renderItemTypeStep();
+      case 'relationships':
+        return renderRelationshipsStep();
+      case 'associations':
+        return renderAssociationsStep();
+      case 'review':
+        return renderReviewStep();
       default:
         return null;
     }
@@ -519,46 +660,57 @@ export const ItemsCreate: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Stepper */}
-      <Card padding="lg">
-        <Stepper steps={steps} currentStep={currentStep} />
-      </Card>
+      <PageHeader
+        title={t('items.create_title') || 'Item Oluştur'}
+        subtitle={
+          t('items.create_subtitle') ||
+          'Ürün tipini seçin, metadata alanlarını doldurun ve gerekli association bağlantılarını ekleyin.'
+        }
+      />
 
-      {/* Step Content */}
-      {renderStepContent()}
+      <Card>
+        <CardHeader
+          title={t('items.create.form_title') || 'Item Bilgileri'}
+          subtitle={t('items.create.form_subtitle') || 'Adımları tamamlayarak yeni bir item ekleyin.'}
+        />
+        <div className="px-6 pb-6 space-y-6">
+          <Stepper steps={steps} currentStep={currentStep} />
 
-      {/* Navigation */}
-      <div className="flex justify-between">
-        <Button
-          variant="outline"
-          onClick={handleBack}
-          disabled={currentStep === 0}
-          leftIcon={<ArrowLeft className="h-4 w-4" />}
-        >
-          Back
-        </Button>
-        
-        <div className="flex space-x-3">
-          {currentStep === steps.length - 1 ? (
+          {lookupError ? (
+            <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {lookupError}
+            </div>
+          ) : null}
+
+          {renderStepContent()}
+
+          <div className="flex items-center justify-between pt-4">
             <Button
-              onClick={handleSubmit}
-              loading={loading}
-              disabled={!canProceed()}
-              leftIcon={<Check className="h-4 w-4" />}
+              variant="outline"
+              onClick={handleBack}
+              disabled={currentStep === 0 || submitting}
             >
-              Create Item
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              {t('common.back') || 'Geri'}
             </Button>
-          ) : (
-            <Button
-              onClick={handleNext}
-              disabled={!canProceed()}
-              rightIcon={<ArrowRight className="h-4 w-4" />}
-            >
-              Continue
-            </Button>
-          )}
+
+            <div className="flex items-center gap-2">
+              {currentStep < steps.length - 1 ? (
+                <Button onClick={handleNext} disabled={submitting || loadingLookup}>
+                  {t('common.next') || 'İleri'}
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
+              ) : (
+                <Button onClick={handleSubmit} disabled={submitting}>
+                  {submitting ? t('common.saving') || 'Kaydediliyor...' : t('common.create') || 'Oluştur'}
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
-      </div>
+      </Card>
     </div>
   );
 };
+
+export default ItemsCreate;

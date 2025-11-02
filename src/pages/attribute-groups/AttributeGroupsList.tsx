@@ -110,7 +110,7 @@ export const AttributeGroupsList: React.FC = () => {
       },
       {
         key: 'attributeCount',
-        title: t('attributeGroups.attribute_count') || 'Attribute Sayısı',
+        title: t('attributeGroups.attribute_count'),
         render: (_: number, group: AttributeGroup) => (
           <div className="flex items-center gap-2 text-sm text-foreground">
             <ListOrdered className="h-4 w-4 text-primary" />
