@@ -156,7 +156,7 @@ export const AttributeGroupsList: React.FC = () => {
             ? [
                 <Button key="create" onClick={() => navigate('/attribute-groups/create')}>
                   <Plus className="h-4 w-4 mr-2" />
-                  {t('attributeGroups.create') || 'Attribute Grubu Oluştur'}
+                  {t('attributeGroups.create')}
                 </Button>,
               ]
             : undefined
@@ -178,14 +178,13 @@ export const AttributeGroupsList: React.FC = () => {
           searchPlaceholder={t('attributeGroups.search_placeholder') || 'Attribute grubu ara...'}
           emptyState={{
             icon: <Layers className="h-12 w-12" />,
-            title: t('attributeGroups.empty_title') || 'Henüz attribute grubu yok',
+            title: t('attributeGroups.empty_title') ,
             description:
-              t('attributeGroups.empty_description') ||
-              'Ürün attribute’larını gruplamak için yeni bir attribute grubu oluşturun.',
+              t('attributeGroups.empty_description') ,
             action: canCreateGroup ? (
               <Button onClick={() => navigate('/attribute-groups/create')}>
                 <Plus className="h-4 w-4 mr-2" />
-                {t('attributeGroups.create') || 'Attribute Grubu Oluştur'}
+                {t('attributeGroups.create')}
               </Button>
             ) : undefined,
           }}

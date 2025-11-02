@@ -338,7 +338,7 @@ export const AttributeGroupsCreate: React.FC = () => {
       const message =
         error?.response?.data?.error?.message ??
         error?.message ??
-        'Attribute grubu oluşturulamadı.';
+        'Öznitelik grubu oluşturulamadı.';
       showToast({ type: 'error', message });
     } finally {
       setSaving(false);

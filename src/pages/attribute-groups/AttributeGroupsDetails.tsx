@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import {
   Tags as TagsIcon,
   FileText,
@@ -11,9 +11,11 @@ import {
   Hash,
   Activity,
   Clock,
+  Check,
 } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useToast } from '../../contexts/ToastContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { DetailsLayout } from '../../components/common/DetailsLayout';
 import { Card, CardHeader } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
@@ -22,18 +24,30 @@ import { NotificationSettings } from '../../components/common/NotificationSettin
 import { Documentation } from '../../components/common/Documentation';
 import { Statistics } from '../../components/common/Statistics';
 import { APITester } from '../../components/common/APITester';
+import { Input } from '../../components/ui/Input';
+import { Button } from '../../components/ui/Button';
 import { AttributeGroup, Attribute } from '../../types';
 import { TabConfig, DocumentationSection, APIEndpoint, Statistics as StatisticsType } from '../../types/common';
 import { attributeGroupsService } from '../../api/services/attribute-groups.service';
+import { attributesService } from '../../api/services/attributes.service';
 import { UserInfoWithRole } from '../../components/common/UserInfoWithRole';
+import { PERMISSIONS } from '../../config/permissions';
 
 interface AttributeGroupDetailsTabProps {
   group: AttributeGroup;
+  editMode?: boolean;
 }
 
 interface AttributeGroupAttributesTabProps {
   attributes: Attribute[];
   isLoading: boolean;
+  editMode?: boolean;
+  availableAttributes?: Attribute[];
+  selectedAttributeIds?: string[];
+  onSelectionChange?: (ids: string[]) => void;
+  selectionLoading?: boolean;
+  selectionError?: string | null;
+  onRetryLoad?: () => void;
 }
 
 const AttributeGroupDetailsTab: React.FC<AttributeGroupDetailsTabProps> = ({ group }) => {
@@ -117,8 +131,168 @@ const AttributeGroupDetailsTab: React.FC<AttributeGroupDetailsTabProps> = ({ gro
 const AttributeGroupAttributesTab: React.FC<AttributeGroupAttributesTabProps> = ({
   attributes,
   isLoading,
+  editMode = false,
+  availableAttributes = [],
+  selectedAttributeIds = [],
+  onSelectionChange,
+  selectionLoading = false,
+  selectionError,
+  onRetryLoad,
 }) => {
   const { t } = useLanguage();
+  const [searchTerm, setSearchTerm] = useState('');
+
+  useEffect(() => {
+    if (!editMode) {
+      setSearchTerm('');
+    }
+  }, [editMode]);
+
+  const filteredAttributes = useMemo(() => {
+    if (!editMode) {
+      return [];
+    }
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) {
+      return availableAttributes;
+    }
+    return availableAttributes.filter((attribute) => {
+      const haystack = [
+        attribute.name,
+        attribute.key ?? '',
+        attribute.description ?? '',
+        ...(attribute.tags ?? []),
+      ]
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(term);
+    });
+  }, [availableAttributes, editMode, searchTerm]);
+
+  const selectedMetadata = useMemo(() => {
+    if (!selectedAttributeIds || selectedAttributeIds.length === 0) {
+      return [];
+    }
+    const merged = new Map<string, Attribute>();
+    availableAttributes.forEach((attribute) => merged.set(attribute.id, attribute));
+    attributes.forEach((attribute) => {
+      if (!merged.has(attribute.id)) {
+        merged.set(attribute.id, attribute);
+      }
+    });
+    return selectedAttributeIds
+      .map((id) => merged.get(id))
+      .filter((value): value is Attribute => Boolean(value));
+  }, [availableAttributes, attributes, selectedAttributeIds]);
+
+  const handleToggle = (attributeId: string) => {
+    if (!onSelectionChange) {
+      return;
+    }
+    const isSelected = selectedAttributeIds.includes(attributeId);
+    const nextIds = isSelected
+      ? selectedAttributeIds.filter((id) => id !== attributeId)
+      : [...selectedAttributeIds, attributeId];
+    onSelectionChange(nextIds);
+  };
+
+  if (editMode) {
+    return (
+      <Card>
+        <CardHeader
+          title={t('attributeGroups.manage_attributes_title') ?? 'Attribute Seçimi'}
+          subtitle={
+            t('attributeGroups.manage_attributes_subtitle') ??
+            'Attribute grubuna dahil edeceğiniz attribute’ları seçin.'
+          }
+        />
+        <div className="px-6 pb-6 space-y-4">
+          <Input
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            placeholder={t('attributeGroups.search_attributes_placeholder') ?? 'Attribute ara'}
+            disabled={selectionLoading}
+          />
+
+          {selectionError ? (
+            <div className="space-y-3">
+              <div className="text-sm text-error">{selectionError}</div>
+              {onRetryLoad ? (
+                <Button size="sm" variant="outline" onClick={onRetryLoad}>
+                  {t('common.retry') ?? 'Tekrar dene'}
+                </Button>
+              ) : null}
+            </div>
+          ) : selectionLoading ? (
+            <div className="text-sm text-muted-foreground">
+              {t('common.loading') ?? 'Yükleniyor...'}
+            </div>
+          ) : filteredAttributes.length === 0 ? (
+            <div className="text-sm text-muted-foreground">
+              {t('attributeGroups.no_matching_attributes') ?? 'Eşleşen attribute bulunamadı.'}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {filteredAttributes.map((attribute) => {
+                const isSelected = selectedAttributeIds.includes(attribute.id);
+                return (
+                  <button
+                    type="button"
+                    key={attribute.id}
+                    onClick={() => handleToggle(attribute.id)}
+                    className={`relative p-4 border-2 rounded-xl text-left transition-all duration-200 ${
+                      isSelected
+                        ? 'border-primary bg-primary/10 shadow-sm'
+                        : 'border-border hover:border-primary/60 hover:bg-muted/60'
+                    }`}
+                  >
+                    {isSelected ? (
+                      <div className="absolute top-3 right-3">
+                        <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow">
+                          <Check className="h-3 w-3" />
+                        </div>
+                      </div>
+                    ) : null}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <h4 className="text-sm font-medium text-foreground">{attribute.name}</h4>
+                        <p className="text-xs text-muted-foreground flex items-center gap-2">
+                          <Hash className="h-3 w-3" />
+                          <code>{attribute.key ?? attribute.id}</code>
+                        </p>
+                        {attribute.description ? (
+                          <p className="text-xs text-muted-foreground line-clamp-2">
+                            {attribute.description}
+                          </p>
+                        ) : null}
+                      </div>
+                      <Badge variant="secondary">{attribute.type}</Badge>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {selectedMetadata.length > 0 ? (
+            <div className="border-t border-border pt-4">
+              <h4 className="text-sm font-medium text-foreground mb-2">
+                {t('attributeGroups.selected_attributes_count', { count: selectedMetadata.length }) ??
+                  `Seçilen attribute: ${selectedMetadata.length}`}
+              </h4>
+              <div className="flex flex-wrap gap-2">
+                {selectedMetadata.map((attribute) => (
+                  <Badge key={attribute.id} variant="outline">
+                    {attribute.name}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </Card>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -159,7 +333,11 @@ const AttributeGroupAttributesTab: React.FC<AttributeGroupAttributesTabProps> = 
           <div className="mt-3 space-y-2 text-xs text-muted-foreground">
             <div className="flex items-center gap-2">
               <Hash className="h-3 w-3" />
-              <span>{attribute.required ? 'Zorunlu' : 'Opsiyonel'}</span>
+              <span>
+                {attribute.required
+                  ? t('attributes.required') ?? 'Zorunlu'
+                  : t('attributes.optional') ?? 'Opsiyonel'}
+              </span>
             </div>
             {attribute.description ? <p>{attribute.description}</p> : null}
           </div>
@@ -171,14 +349,29 @@ const AttributeGroupAttributesTab: React.FC<AttributeGroupAttributesTabProps> = 
 
 export const AttributeGroupsDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const { t } = useLanguage();
   const { showToast } = useToast();
+  const { hasPermission } = useAuth();
 
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [group, setGroup] = useState<AttributeGroup | null>(null);
   const [attributes, setAttributes] = useState<Attribute[]>([]);
+  const [editMode, setEditMode] = useState(false);
+  const [selectedAttributeIds, setSelectedAttributeIds] = useState<string[]>([]);
+  const [availableAttributes, setAvailableAttributes] = useState<Attribute[]>([]);
+  const [availableAttributesLoading, setAvailableAttributesLoading] = useState(false);
+  const [availableAttributesError, setAvailableAttributesError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const attributesLoadedRef = useRef(false);
+
+  const canUpdateGroup = hasPermission(PERMISSIONS.CATALOG.ATTRIBUTE_GROUPS.UPDATE);
+  const canViewAttributesTab = hasPermission(PERMISSIONS.CATALOG.ATTRIBUTES.VIEW);
+  const canViewHistory = hasPermission(PERMISSIONS.CATALOG.ATTRIBUTE_GROUPS.HISTORY);
+  const canViewNotifications = hasPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.VIEW);
+  const canViewStatistics = hasPermission(PERMISSIONS.CATALOG.ATTRIBUTE_GROUPS.VIEW);
+  const canViewDocumentation = hasPermission(PERMISSIONS.CATALOG.ATTRIBUTE_GROUPS.VIEW);
+  const canViewApi = hasPermission(PERMISSIONS.CATALOG.ATTRIBUTE_GROUPS.VIEW);
 
   useEffect(() => {
     if (!id) {
@@ -195,6 +388,11 @@ export const AttributeGroupsDetails: React.FC = () => {
         if (cancelled) return;
         setGroup(data);
         setAttributes(Array.isArray(data.attributes) ? data.attributes : []);
+        setSelectedAttributeIds(Array.isArray(data.attributeIds) ? data.attributeIds : []);
+        setEditMode(false);
+        setAvailableAttributes([]);
+        setAvailableAttributesError(null);
+        attributesLoadedRef.current = false;
       } catch (err: any) {
         console.error('Failed to load attribute group', err);
         if (cancelled) return;
@@ -216,6 +414,111 @@ export const AttributeGroupsDetails: React.FC = () => {
       cancelled = true;
     };
   }, [id, t]);
+
+  useEffect(() => {
+    if (!editMode) {
+      setSelectedAttributeIds(Array.isArray(group?.attributeIds) ? group?.attributeIds : []);
+    }
+  }, [editMode, group?.attributeIds]);
+
+  const loadAvailableAttributes = useCallback(
+    async (force = false) => {
+      if (!canUpdateGroup) {
+        return;
+      }
+      if (!force && attributesLoadedRef.current) {
+        return;
+      }
+
+      try {
+        setAvailableAttributesLoading(true);
+        setAvailableAttributesError(null);
+        const items = await attributesService.list();
+        setAvailableAttributes(items);
+        attributesLoadedRef.current = true;
+      } catch (err) {
+        console.error('Failed to load attributes for attribute group editing', err);
+        setAvailableAttributesError(
+          t('attributeGroups.failed_to_load_available_attributes') ??
+            'Attribute listesi yüklenirken bir hata oluştu.',
+        );
+        attributesLoadedRef.current = false;
+      } finally {
+        setAvailableAttributesLoading(false);
+      }
+    },
+    [canUpdateGroup, t],
+  );
+
+  useEffect(() => {
+    if (editMode) {
+      void loadAvailableAttributes();
+    }
+  }, [editMode, loadAvailableAttributes]);
+
+  const originalAttributeIds = useMemo(() => {
+    if (!group?.attributeIds) {
+      return [] as string[];
+    }
+    return [...group.attributeIds].sort();
+  }, [group?.attributeIds]);
+
+  const hasAttributeChanges = useMemo(() => {
+    if (!editMode) {
+      return false;
+    }
+    const sortedSelection = [...selectedAttributeIds].sort();
+    if (sortedSelection.length !== originalAttributeIds.length) {
+      return true;
+    }
+    return sortedSelection.some((id, index) => id !== originalAttributeIds[index]);
+  }, [editMode, originalAttributeIds, selectedAttributeIds]);
+
+  const handleSave = useCallback(async () => {
+    if (!group || saving) {
+      return;
+    }
+
+    if (!hasAttributeChanges) {
+      setEditMode(false);
+      setSelectedAttributeIds(group.attributeIds ?? []);
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const updated = await attributeGroupsService.update(group.id, {
+        attributeIds: selectedAttributeIds,
+      });
+      setGroup(updated);
+      setAttributes(Array.isArray(updated.attributes) ? updated.attributes : []);
+      setSelectedAttributeIds(Array.isArray(updated.attributeIds) ? updated.attributeIds : []);
+      setEditMode(false);
+      showToast({
+        type: 'success',
+        message:
+          t('attributeGroups.updated_successfully') ?? 'Attribute grubu başarıyla güncellendi.',
+      });
+    } catch (err: any) {
+      console.error('Failed to update attribute group', err);
+      showToast({
+        type: 'error',
+        message:
+          err?.response?.data?.error?.message ??
+          err?.message ??
+          (t('attributeGroups.failed_to_update') ?? 'Attribute grubu güncellenemedi.'),
+      });
+    } finally {
+      setSaving(false);
+    }
+  }, [
+    group,
+    hasAttributeChanges,
+    selectedAttributeIds,
+    showToast,
+    saving,
+    t,
+  ]);
 
   const statisticsData: StatisticsType | null = useMemo(() => {
     if (!group) {
@@ -394,8 +697,19 @@ ${attributesList}
       label: t('attributeGroups.attributes_tab') || 'Attribute\'lar',
       icon: TagsIcon,
       component: AttributeGroupAttributesTab,
-      props: { attributes, isLoading: loading },
+      props: {
+        attributes,
+        isLoading: loading,
+        editMode,
+        availableAttributes,
+        selectedAttributeIds,
+        onSelectionChange: setSelectedAttributeIds,
+        selectionLoading: availableAttributesLoading,
+        selectionError: availableAttributesError,
+        onRetryLoad: () => loadAvailableAttributes(true),
+      },
       badge: attributes.length,
+      hidden: !canViewAttributesTab,
     },
     {
       id: 'statistics',
@@ -407,6 +721,7 @@ ${attributesList}
         entityId: group.id,
         statistics: statisticsData ?? undefined,
       },
+      hidden: !canViewStatistics,
     },
     {
       id: 'documentation',
@@ -417,8 +732,9 @@ ${attributesList}
         entityType: 'attribute-group',
         entityId: group.id,
         sections: documentationSections,
-        editMode: false,
+        editMode,
       },
+      hidden: !canViewDocumentation,
     },
     {
       id: 'api',
@@ -429,8 +745,9 @@ ${attributesList}
         entityType: 'attribute-group',
         entityId: group.id,
         endpoints: apiEndpoints,
-        editMode: false,
+        editMode,
       },
+      hidden: !canViewApi,
     },
     {
       id: 'history',
@@ -438,6 +755,7 @@ ${attributesList}
       icon: HistoryIcon,
       component: HistoryTable,
       props: { entityType: 'AttributeGroup', entityId: group.id },
+      hidden: !canViewHistory,
     },
     {
       id: 'notifications',
@@ -445,8 +763,11 @@ ${attributesList}
       icon: Activity,
       component: NotificationSettings,
       props: { entityType: 'attribute-group', entityId: group.id },
+      hidden: !canViewNotifications,
     },
   ];
+
+  const hasChanges = hasAttributeChanges && !saving;
 
   return (
     <DetailsLayout
@@ -472,6 +793,19 @@ ${attributesList}
       tabs={tabs}
       defaultTab="details"
       backUrl="/attribute-groups"
+      editMode={editMode}
+      hasChanges={hasChanges}
+      onEdit={canUpdateGroup ? () => setEditMode(true) : undefined}
+      onSave={canUpdateGroup ? handleSave : undefined}
+      onCancel={
+        canUpdateGroup
+          ? () => {
+              setEditMode(false);
+              setSelectedAttributeIds(Array.isArray(group.attributeIds) ? group.attributeIds : []);
+              setAvailableAttributesError(null);
+            }
+          : undefined
+      }
       inlineActions={false}
     />
   );
