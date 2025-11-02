@@ -33,10 +33,13 @@ interface AttributeTypeCardProps {
   onClick?: () => void;
 }
 
-const TYPE_CONFIG: Record<
-  AttributeType,
-  { icon: React.ComponentType<{ className?: string }>; color: string; translation: string }
-> = {
+export interface AttributeTypeMeta {
+  icon: React.ComponentType<{ className?: string }>;
+  color: string;
+  translation: string;
+}
+
+export const ATTRIBUTE_TYPE_META: Record<AttributeType, AttributeTypeMeta> = {
   [AttributeType.TEXT]: { icon: Type, color: 'from-blue-500 to-blue-600', translation: 'text' },
   [AttributeType.NUMBER]: { icon: Hash, color: 'from-emerald-500 to-emerald-600', translation: 'number' },
   [AttributeType.BOOLEAN]: { icon: ToggleLeft, color: 'from-purple-500 to-purple-600', translation: 'boolean' },
@@ -62,9 +65,9 @@ const TYPE_CONFIG: Record<
   [AttributeType.READONLY]: { icon: Eye, color: 'from-gray-400 to-gray-500', translation: 'readonly' },
 };
 
-const getAttributeTypeInfo = (type: AttributeType, translate: (key: string) => string) => {
-  if (TYPE_CONFIG[type]) {
-    const config = TYPE_CONFIG[type];
+export const getAttributeTypeInfo = (type: AttributeType, translate: (key: string) => string) => {
+  if (ATTRIBUTE_TYPE_META[type]) {
+    const config = ATTRIBUTE_TYPE_META[type];
     return {
       icon: config.icon,
       color: config.color,

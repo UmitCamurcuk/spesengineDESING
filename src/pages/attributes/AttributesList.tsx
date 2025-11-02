@@ -1,27 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Plus,
-  Package,
-  Type,
-  Hash as HashIcon,
-  ToggleLeft,
-  Calendar,
-  Image,
-  Paperclip,
-  FileText,
-  Code,
-  List,
-  CheckSquare,
-  Table,
-  Palette,
-  Calculator,
-  Braces,
-  BarChart3,
-  Clock,
-  Calendar as CalendarIcon,
-  Star,
-} from 'lucide-react';
+import { Plus, Package } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable } from '../../components/ui/DataTable';
 import { Button } from '../../components/ui/Button';
@@ -32,96 +11,14 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { PERMISSIONS } from '../../config/permissions';
 import { attributesService } from '../../api/services/attributes.service';
+import { ATTRIBUTE_TYPE_META } from '../../components/ui/AttributeTypeCard';
 
-const getAttributeTypeIcon = (type: AttributeType, name?: string) => {
-  if (name && name.toLowerCase().includes('rating')) {
-    return Star;
-  }
-
-  switch (type) {
-    case AttributeType.TEXT:
-      return Type;
-    case AttributeType.NUMBER:
-      return HashIcon;
-    case AttributeType.BOOLEAN:
-      return ToggleLeft;
-    case AttributeType.DATE:
-      return Calendar;
-    case AttributeType.IMAGE:
-      return Image;
-    case AttributeType.ATTACHMENT:
-      return Paperclip;
-    case AttributeType.JSON:
-      return Code;
-    case AttributeType.ARRAY:
-      return List;
-    case AttributeType.SELECT:
-      return CheckSquare;
-    case AttributeType.RICH_TEXT:
-      return FileText;
-    case AttributeType.TABLE:
-      return Table;
-    case AttributeType.COLOR:
-      return Palette;
-    case AttributeType.FORMULA:
-      return Calculator;
-    case AttributeType.OBJECT:
-      return Braces;
-    case AttributeType.BARCODE:
-      return BarChart3;
-    case AttributeType.TIME:
-      return Clock;
-    case AttributeType.DATETIME:
-      return CalendarIcon;
-    case AttributeType.EXPRESSION:
-      return Code;
-    default:
-      return Type;
-  }
-};
-
-const getAttributeTypeLabel = (type: AttributeType, t: (key: string) => string) => {
-  switch (type) {
-    case AttributeType.TEXT:
-      return t('attributes.types.text');
-    case AttributeType.NUMBER:
-      return t('attributes.types.number');
-    case AttributeType.BOOLEAN:
-      return t('attributes.types.boolean');
-    case AttributeType.DATE:
-      return t('attributes.types.date');
-    case AttributeType.IMAGE:
-      return t('attributes.types.image');
-    case AttributeType.ATTACHMENT:
-      return t('attributes.types.attachment');
-    case AttributeType.JSON:
-      return t('attributes.types.json');
-    case AttributeType.ARRAY:
-      return t('attributes.types.array');
-    case AttributeType.SELECT:
-      return t('attributes.types.select');
-    case AttributeType.RICH_TEXT:
-      return t('attributes.types.rich_text');
-    case AttributeType.TABLE:
-      return t('attributes.types.table');
-    case AttributeType.COLOR:
-      return t('attributes.types.color');
-    case AttributeType.FORMULA:
-      return t('attributes.types.formula');
-    case AttributeType.OBJECT:
-      return t('attributes.types.object');
-    case AttributeType.BARCODE:
-      return t('attributes.types.barcode');
-    case AttributeType.TIME:
-      return t('attributes.types.time');
-    case AttributeType.DATETIME:
-      return t('attributes.types.datetime');
-    case AttributeType.EXPRESSION:
-      return t('attributes.types.expression');
-    default:
-      return type;
-  }
-};
+const getAttributeTypeMeta = (type: AttributeType) =>
+  ATTRIBUTE_TYPE_META[type] ?? {
+    icon: Package,
+    color: 'from-gray-500 to-gray-600',
+    translation: 'unknown',
+  };
 
 export const AttributesList: React.FC = () => {
   const navigate = useNavigate();
@@ -200,13 +97,14 @@ export const AttributesList: React.FC = () => {
         title: t('attributes.name'),
         sortable: true,
         render: (value: string, attribute: Attribute) => {
-          const IconComponent = getAttributeTypeIcon(attribute.type, attribute.name);
-          const typeLabel = getAttributeTypeLabel(attribute.type, t);
+          const meta = getAttributeTypeMeta(attribute.type);
+          const IconComponent = meta.icon;
+          const typeLabel = t(`attributes.types.${meta.translation}.name`);
 
           return (
             <div className="flex items-center space-x-3">
               <div className="flex flex-col items-center">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-sm">
+                <div className={`w-10 h-10 bg-gradient-to-br ${meta.color} rounded-xl flex items-center justify-center shadow-sm`}>
                   <IconComponent className="h-5 w-5 text-white" />
                 </div>
                 <span className="text-xs text-muted-foreground mt-1">{typeLabel}</span>
