@@ -764,6 +764,7 @@ export const AttributesDetails: React.FC = () => {
   const requiredLanguages = useRequiredLanguages();
 
   const canUpdateAttribute = hasPermission(PERMISSIONS.CATALOG.ATTRIBUTES.UPDATE);
+  const canDeleteAttribute = hasPermission(PERMISSIONS.CATALOG.ATTRIBUTES.DELETE);
   const canViewAttributeGroupsTab = hasPermission(PERMISSIONS.CATALOG.ATTRIBUTE_GROUPS.VIEW);
   const canViewAttributeHistory = hasPermission(PERMISSIONS.CATALOG.ATTRIBUTES.HISTORY);
   const canViewNotifications = hasPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.VIEW);
@@ -787,6 +788,7 @@ export const AttributesDetails: React.FC = () => {
   const [attributeGroupsLoading, setAttributeGroupsLoading] = useState<boolean>(true);
   const [attributeGroupsError, setAttributeGroupsError] = useState<string | null>(null);
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
+  const [deleting, setDeleting] = useState(false);
 
   const buildLocalizationState = useCallback(
     (translations?: Record<string, string> | null, fallback?: string): LocalizationState => {
@@ -1376,6 +1378,31 @@ export const AttributesDetails: React.FC = () => {
     }
   };
 
+  const handleDelete = useCallback(async () => {
+    if (!attribute || deleting) {
+      return;
+    }
+    try {
+      setDeleting(true);
+      await attributesService.delete(attribute.id);
+      showToast({
+        type: 'success',
+        message: t('attributes.delete_success') || 'Attribute başarıyla silindi.',
+      });
+      navigate('/attributes');
+    } catch (err: any) {
+      console.error('Failed to delete attribute', err);
+      const message =
+        err?.response?.data?.error?.message ??
+        err?.message ??
+        t('attributes.delete_failed') ??
+        'Attribute silinemedi.';
+      showToast({ type: 'error', message });
+    } finally {
+      setDeleting(false);
+    }
+  }, [attribute, deleting, navigate, showToast, t]);
+
   if (loading) {
     return (
       <div className="px-6 py-12">
@@ -1566,6 +1593,8 @@ export const AttributesDetails: React.FC = () => {
     },
   ];
 
+  const attributeName = attribute?.name?.trim() || attribute?.key || attribute?.id || '';
+
   return (
     <>
       <DetailsLayout
@@ -1587,6 +1616,16 @@ export const AttributesDetails: React.FC = () => {
           setAttributeGroupsError(null);
         }}
         inlineActions={false}
+        onDelete={canDeleteAttribute ? handleDelete : undefined}
+        deleteLoading={deleting}
+        deleteButtonLabel={t('attributes.delete_action') || 'Attribute Sil'}
+        deleteDialogTitle={
+          t('attributes.delete_title', { name: attributeName }) || 'Attribute silinsin mi?'
+        }
+        deleteDialogDescription={
+          t('attributes.delete_description', { name: attributeName }) ||
+          'Bu attribute kaydı kalıcı olarak silinecek. Bu işlem geri alınamaz.'
+        }
       />
 
       <ChangeConfirmDialog

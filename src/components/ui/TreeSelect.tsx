@@ -1,11 +1,12 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, ChevronRight, Check, Search, X } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Check, ChevronDown, ChevronRight, Search, X } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
-interface TreeNode {
+export interface TreeNode {
   id: string;
   label: string;
   value: string;
+  description?: string;
   children?: TreeNode[];
   disabled?: boolean;
   icon?: React.ReactNode;
@@ -15,34 +16,171 @@ interface TreeSelectProps {
   label?: string;
   placeholder?: string;
   options: TreeNode[];
-  value?: string;
-  onChange?: (value: string) => void;
+  value?: string | null;
+  onChange?: (value: string | null) => void;
+  multiple?: boolean;
+  selectedIds?: string[];
+  onSelectionChange?: (values: string[]) => void;
   error?: string;
   helperText?: string;
   required?: boolean;
   searchable?: boolean;
   className?: string;
+  emptyState?: React.ReactNode;
+  maxTagCount?: number;
 }
+
+const findPathToNode = (nodes: TreeNode[], target: string, trail: string[] = []): string[] | null => {
+  for (const node of nodes) {
+    const nextTrail = [...trail, node.id];
+    if (node.value === target) {
+      return nextTrail;
+    }
+    if (node.children && node.children.length > 0) {
+      const match = findPathToNode(node.children, target, nextTrail);
+      if (match) {
+        return match;
+      }
+    }
+  }
+  return null;
+};
+
+const collectSelectedNodes = (nodes: TreeNode[], selectedIds: string[]): Map<string, TreeNode> => {
+  const map = new Map<string, TreeNode>();
+
+  const traverse = (list: TreeNode[]) => {
+    list.forEach((node) => {
+      if (!map.has(node.value) && selectedIds.includes(node.value)) {
+        map.set(node.value, node);
+      }
+      if (node.children && node.children.length > 0) {
+        traverse(node.children);
+      }
+    });
+  };
+
+  traverse(nodes);
+  return map;
+};
+
+interface FilterResult {
+  nodes: TreeNode[];
+  autoExpandIds: string[];
+}
+
+const filterTree = (nodes: TreeNode[], term: string): FilterResult => {
+  if (!term.trim()) {
+    return { nodes, autoExpandIds: [] };
+  }
+
+  const search = term.trim().toLowerCase();
+  const autoExpand = new Set<string>();
+
+  const filterNode = (node: TreeNode): TreeNode | null => {
+    const matchesSelf =
+      node.label.toLowerCase().includes(search) ||
+      (node.description ? node.description.toLowerCase().includes(search) : false);
+
+    const filteredChildren =
+      node.children?.map(filterNode).filter((child): child is TreeNode => Boolean(child)) ?? [];
+
+    if (filteredChildren.length > 0) {
+      autoExpand.add(node.id);
+    }
+
+    if (matchesSelf || filteredChildren.length > 0) {
+      return {
+        ...node,
+        children: filteredChildren,
+      };
+    }
+
+    return null;
+  };
+
+  const filtered = nodes
+    .map(filterNode)
+    .filter((node): node is TreeNode => Boolean(node));
+
+  return { nodes: filtered, autoExpandIds: Array.from(autoExpand) };
+};
 
 export const TreeSelect: React.FC<TreeSelectProps> = ({
   label,
-  placeholder = "Select an option",
+  placeholder = 'Select an option',
   options,
   value,
   onChange,
+  multiple = false,
+  selectedIds,
+  onSelectionChange,
   error,
   helperText,
   required,
   searchable = true,
-  className
+  className,
+  emptyState,
+  maxTagCount = 3,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+  const [internalValue, setInternalValue] = useState<string | null>(null);
+  const [internalSelectedIds, setInternalSelectedIds] = useState<string[]>([]);
+
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Close dropdown when clicking outside
+  const resolvedValue = value ?? internalValue;
+  const resolvedSelectedIds = multiple
+    ? selectedIds ?? internalSelectedIds
+    : resolvedValue
+    ? [resolvedValue]
+    : [];
+
+  const selectedSet = useMemo(() => new Set(resolvedSelectedIds), [resolvedSelectedIds]);
+
+  const { nodes: filteredOptions, autoExpandIds } = useMemo(
+    () => filterTree(options, searchTerm),
+    [options, searchTerm],
+  );
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+    if (searchTerm.trim() && autoExpandIds.length > 0) {
+      setExpandedNodes((prev) => {
+        const next = new Set(prev);
+        autoExpandIds.forEach((id) => next.add(id));
+        return next;
+      });
+    }
+  }, [autoExpandIds, searchTerm, isOpen]);
+
+  const selectedAncestorIds = useMemo(() => {
+    const ancestors = new Set<string>();
+    resolvedSelectedIds.forEach((selectedId) => {
+      const path = findPathToNode(options, selectedId);
+      if (path) {
+        path.forEach((id) => ancestors.add(id));
+      }
+    });
+    return ancestors;
+  }, [options, resolvedSelectedIds]);
+
+  useEffect(() => {
+    if (selectedAncestorIds.size === 0) {
+      return;
+    }
+    setExpandedNodes((prev) => {
+      const next = new Set(prev);
+      selectedAncestorIds.forEach((id) => next.add(id));
+      return next;
+    });
+  }, [selectedAncestorIds]);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -54,222 +192,271 @@ export const TreeSelect: React.FC<TreeSelectProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Find selected option
-  const findNodeByValue = (nodes: TreeNode[], targetValue: string): TreeNode | null => {
-    for (const node of nodes) {
-      if (node.value === targetValue) return node;
-      if (node.children) {
-        const found = findNodeByValue(node.children, targetValue);
-        if (found) return found;
-      }
+  useEffect(() => {
+    if (isOpen && searchable && inputRef.current) {
+      inputRef.current.focus();
     }
-    return null;
-  };
+  }, [isOpen, searchable]);
 
-  const selectedOption = value ? findNodeByValue(options, value) : null;
+  const selectedNodesMap = useMemo(
+    () => collectSelectedNodes(options, resolvedSelectedIds),
+    [options, resolvedSelectedIds],
+  );
 
-  // Filter nodes based on search
-  const filterNodes = (nodes: TreeNode[], search: string): TreeNode[] => {
-    if (!search) return nodes;
-    
-    return nodes.reduce((filtered: TreeNode[], node) => {
-      const matchesSearch = node.label.toLowerCase().includes(search.toLowerCase());
-      const filteredChildren = node.children ? filterNodes(node.children, search) : [];
-      
-      if (matchesSearch || filteredChildren.length > 0) {
-        filtered.push({
-          ...node,
-          children: filteredChildren.length > 0 ? filteredChildren : node.children
-        });
-        
-        // Auto-expand nodes that have matching children
-        if (filteredChildren.length > 0) {
-          setExpandedNodes(prev => new Set([...prev, node.id]));
-        }
-      }
-      
-      return filtered;
-    }, []);
-  };
+  const selectedNodes = useMemo(
+    () => resolvedSelectedIds.map((id) => selectedNodesMap.get(id)).filter((node): node is TreeNode => Boolean(node)),
+    [resolvedSelectedIds, selectedNodesMap],
+  );
 
-  const filteredOptions = filterNodes(options, searchTerm);
+  const selectedOption = !multiple && resolvedValue ? selectedNodes[0] : null;
 
   const toggleExpanded = (nodeId: string) => {
-    setExpandedNodes(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(nodeId)) {
-        newSet.delete(nodeId);
+    setExpandedNodes((prev) => {
+      const next = new Set(prev);
+      if (next.has(nodeId)) {
+        next.delete(nodeId);
       } else {
-        newSet.add(nodeId);
+        next.add(nodeId);
       }
-      return newSet;
+      return next;
     });
   };
 
-  const handleSelect = (nodeValue: string) => {
-    onChange?.(nodeValue);
+  const toggleSelection = (nodeValue: string) => {
+    const current = new Set(resolvedSelectedIds);
+    if (current.has(nodeValue)) {
+      current.delete(nodeValue);
+    } else {
+      current.add(nodeValue);
+    }
+    const next = Array.from(current);
+    if (selectedIds === undefined) {
+      setInternalSelectedIds(next);
+    }
+    onSelectionChange?.(next);
+  };
+
+  const handleNodeSelect = (node: TreeNode) => {
+    if (node.disabled) {
+      return;
+    }
+
+    if (multiple) {
+      toggleSelection(node.value);
+      return;
+    }
+
+    if (value === undefined) {
+      setInternalValue(node.value);
+    }
+    onChange?.(node.value);
     setIsOpen(false);
     setSearchTerm('');
   };
 
-  const renderNode = (node: TreeNode, level: number = 0) => {
+  const handleClear = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    if (multiple) {
+      if (selectedIds === undefined) {
+        setInternalSelectedIds([]);
+      }
+      onSelectionChange?.([]);
+    } else {
+      if (value === undefined) {
+        setInternalValue(null);
+      }
+      onChange?.(null);
+    }
+    setSearchTerm('');
+  };
+
+  const hasSelection = resolvedSelectedIds.length > 0;
+  const placeholderContent = (
+    <span className="text-sm text-muted-foreground truncate">{placeholder}</span>
+  );
+
+  const summaryContent = multiple ? (
+    hasSelection ? (
+      <div className="flex flex-wrap gap-1">
+        {selectedNodes.slice(0, maxTagCount).map((node) => (
+          <span
+            key={node.value}
+            className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-primary/10 text-primary"
+          >
+            {node.label}
+          </span>
+        ))}
+        {selectedNodes.length > maxTagCount ? (
+          <span className="text-xs text-muted-foreground">
+            +{selectedNodes.length - maxTagCount}
+          </span>
+        ) : null}
+      </div>
+    ) : (
+      placeholderContent
+    )
+  ) : selectedOption ? (
+    <span className="text-sm text-foreground truncate">{selectedOption.label}</span>
+  ) : (
+    placeholderContent
+  );
+
+  const renderNode = (node: TreeNode, level = 0): React.ReactNode => {
     const isExpanded = expandedNodes.has(node.id);
-    const hasChildren = node.children && node.children.length > 0;
-    const isSelected = value === node.value;
+    const hasChildren = Boolean(node.children && node.children.length > 0);
+    const isSelected = selectedSet.has(node.value);
+    const isActive = !multiple && resolvedValue === node.value;
 
     return (
       <div key={node.id}>
         <div
           className={cn(
-            'flex items-center space-x-2 px-3 py-2.5 hover:bg-muted cursor-pointer transition-colors duration-200 rounded-lg mx-1',
-            isSelected && 'bg-blue-50 text-blue-700',
-            node.disabled && 'opacity-50 cursor-not-allowed',
-            level > 0 && 'ml-4'
+            'flex items-start gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors duration-150',
+            (isSelected || isActive) && 'bg-primary/10 text-primary',
+            node.disabled ? 'opacity-60 cursor-not-allowed' : 'hover:bg-muted'
           )}
           style={{ paddingLeft: `${12 + level * 20}px` }}
-          onClick={() => !node.disabled && handleSelect(node.value)}
+          onClick={() => handleNodeSelect(node)}
         >
           {hasChildren ? (
             <button
-              onClick={(e) => {
-                e.stopPropagation();
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
                 toggleExpanded(node.id);
               }}
-              className="p-0.5 hover:bg-muted rounded transition-colors"
+              className="p-0.5 hover:bg-muted-foreground/10 rounded transition-colors mt-0.5"
             >
               {isExpanded ? (
-                <ChevronDown className="h-4 w-4 text-gray-500" />
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
               ) : (
-                <ChevronRight className="h-4 w-4 text-gray-500" />
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
               )}
             </button>
           ) : (
             <div className="w-5 h-5" />
           )}
-          
-          {node.icon && (
-            <div className="flex-shrink-0">
-              {node.icon}
+
+          {multiple ? (
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={(event) => {
+                event.stopPropagation();
+                toggleSelection(node.value);
+              }}
+              className="mt-0.5 h-4 w-4 rounded border-border text-primary focus:ring-primary"
+              disabled={node.disabled}
+            />
+          ) : node.icon ? (
+            <div className="flex-shrink-0 mt-1">{node.icon}</div>
+          ) : (
+            <div className="w-1" />
+          )}
+
+          <div className="flex-1">
+            <div className={cn('text-sm font-medium', node.disabled && 'text-muted-foreground')}>
+              {node.label}
             </div>
-          )}
-          
-          <span className={cn(
-            'flex-1 text-sm',
-            isSelected ? 'font-medium text-blue-700' : 'text-gray-900'
-          )}>
-            {node.label}
-          </span>
-          
-          {isSelected && (
-            <Check className="h-4 w-4 text-blue-600" />
-          )}
-        </div>
-        
-        {hasChildren && isExpanded && (
-          <div className="ml-2">
-            {node.children!.map(child => renderNode(child, level + 1))}
+            {node.description ? (
+              <div className="text-xs text-muted-foreground mt-0.5">{node.description}</div>
+            ) : null}
           </div>
-        )}
+
+          {!multiple && isSelected ? <Check className="h-4 w-4 text-primary mt-1" /> : null}
+        </div>
+
+        {hasChildren && isExpanded ? (
+          <div className="ml-4 border-l border-border/50 pl-3 space-y-1">
+            {node.children!.map((child) => renderNode(child, level + 1))}
+          </div>
+        ) : null}
       </div>
     );
   };
 
   return (
-    <div className={cn('space-y-2', className)}>
-      {label && (
-        <label className="block text-sm font-medium text-gray-700">
+    <div className={cn('space-y-2', className)} ref={dropdownRef}>
+      {label ? (
+        <label className="block text-sm font-medium text-foreground">
           {label}
-          {required && <span className="text-red-500 ml-1">*</span>}
+          {required ? <span className="text-error ml-1">*</span> : null}
         </label>
-      )}
-      
-      <div className="relative" ref={dropdownRef}>
+      ) : null}
+
+      <div className="relative">
         <button
           type="button"
-          onClick={() => setIsOpen(!isOpen)}
+          onClick={() => setIsOpen((prev) => !prev)}
           className={cn(
-            'w-full px-3 py-2.5 text-left border rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 bg-white',
-            error 
-              ? 'border-red-300 focus:border-red-500 focus:ring-red-200' 
-              : 'border-gray-300 focus:border-blue-500 focus:ring-blue-200',
-            isOpen && 'ring-2 ring-blue-200 border-blue-500'
+            'w-full px-3 py-2.5 flex items-center justify-between rounded-lg border text-left transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-1',
+            error
+              ? 'border-error focus:ring-error/30 focus:border-error'
+              : 'border-border focus:ring-primary/30 focus:border-primary',
+            isOpen && 'ring-2 ring-primary/30 border-primary bg-primary/5'
           )}
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              {selectedOption?.icon && (
-                <div className="flex-shrink-0">
-                  {selectedOption.icon}
-                </div>
-              )}
-              <span className={cn(
-                'text-sm',
-                selectedOption ? 'text-gray-900' : 'text-gray-400'
-              )}>
-                {selectedOption ? selectedOption.label : placeholder}
-              </span>
-            </div>
-            <ChevronDown className={cn(
-              'h-4 w-4 text-gray-400 transition-transform duration-200',
-              isOpen && 'rotate-180'
-            )} />
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            {summaryContent}
+          </div>
+          <div className="flex items-center gap-1 ml-2">
+            {hasSelection ? (
+              <button
+                type="button"
+                onClick={handleClear}
+                className="p-1 rounded-full hover:bg-muted transition-colors"
+              >
+                <X className="h-4 w-4 text-muted-foreground" />
+              </button>
+            ) : null}
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
           </div>
         </button>
 
-        {isOpen && (
-          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-80 overflow-hidden">
-            {searchable && (
-              <div className="p-3 border-b border-gray-200">
-                <div className="relative">
-                  <Search className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+        {isOpen ? (
+          <div className="absolute left-0 right-0 mt-2 rounded-lg border border-border bg-popover shadow-lg z-50">
+            {searchable ? (
+              <div className="p-3 border-b border-border">
+                <div className="flex items-center gap-2 rounded-lg border border-border px-2 py-1.5">
+                  <Search className="h-4 w-4 text-muted-foreground" />
                   <input
                     ref={inputRef}
-                    type="text"
-                    placeholder="Search options..."
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-9 pr-8 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                    placeholder="Search..."
+                    className="flex-1 text-sm bg-transparent outline-none"
                   />
-                  {searchTerm && (
+                  {searchTerm ? (
                     <button
+                      type="button"
                       onClick={() => setSearchTerm('')}
-                      className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 hover:bg-muted rounded"
+                      className="p-0.5 rounded hover:bg-muted transition-colors"
                     >
-                      <X className="h-3 w-3 text-gray-400" />
+                      <X className="h-4 w-4 text-muted-foreground" />
                     </button>
-                  )}
+                  ) : null}
                 </div>
               </div>
-            )}
-            
-            <div className="max-h-64 overflow-y-auto py-2">
-              {filteredOptions.length > 0 ? (
-                filteredOptions.map(node => renderNode(node))
-              ) : (
-                <div className="px-3 py-8 text-center">
-                  <div className="text-gray-400 mb-2">
-                    <Search className="h-8 w-8 mx-auto" />
-                  </div>
-                  <p className="text-sm text-gray-500">No options found</p>
-                  {searchTerm && (
-                    <p className="text-xs text-gray-400 mt-1">
-                      Try adjusting your search terms
-                    </p>
-                  )}
+            ) : null}
+
+            <div className="max-h-72 overflow-y-auto py-2 space-y-1">
+              {filteredOptions.length === 0 ? (
+                <div className="px-4 py-3 text-sm text-muted-foreground">
+                  {emptyState || 'No results found.'}
                 </div>
+              ) : (
+                filteredOptions.map((node) => renderNode(node))
               )}
             </div>
           </div>
-        )}
+        ) : null}
       </div>
-      
-      {error && (
-        <p className="text-sm text-red-600">{error}</p>
-      )}
-      
-      {helperText && !error && (
-        <p className="text-sm text-gray-500">{helperText}</p>
-      )}
+
+      {error ? (
+        <p className="text-xs text-error">{error}</p>
+      ) : helperText ? (
+        <p className="text-xs text-muted-foreground">{helperText}</p>
+      ) : null}
     </div>
   );
 };

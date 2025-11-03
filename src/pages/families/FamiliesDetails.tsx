@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Activity,
@@ -10,6 +10,7 @@ import {
   Hash,
   History as HistoryIcon,
   Layers,
+  Search,
   Tags as TagsIcon,
 } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -23,6 +24,8 @@ import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
 import { Button } from '../../components/ui/Button';
 import { AttributeGroupSelector } from '../../components/ui/AttributeGroupSelector';
+import { TreeSelect } from '../../components/ui/TreeSelect';
+import { HierarchyTreeView } from '../../components/ui/HierarchyTreeView';
 import { HistoryTable } from '../../components/common/HistoryTable';
 import { NotificationSettings } from '../../components/common/NotificationSettings';
 import { Documentation } from '../../components/common/Documentation';
@@ -32,16 +35,18 @@ import { familiesService } from '../../api/services/families.service';
 import { categoriesService } from '../../api/services/categories.service';
 import { attributeGroupsService } from '../../api/services/attribute-groups.service';
 import { localizationsService } from '../../api/services/localizations.service';
-import type { Family, Category, AttributeGroup } from '../../types';
+import type { AttributeGroup, Category, Family } from '../../types';
 import type {
-  TabConfig,
-  DocumentationSection,
   APIEndpoint,
+  DocumentationSection,
   Statistics as StatisticsType,
+  TabConfig,
 } from '../../types/common';
 import { useRequiredLanguages } from '../../hooks/useRequiredLanguages';
 import { PERMISSIONS } from '../../config/permissions';
 import type { LocalizationRecord } from '../../api/types/api.types';
+import type { TreeNode } from '../../components/ui';
+import { buildHierarchyTree } from '../../utils/hierarchy';
 
 type LocalizationState = Record<string, string>;
 type RequiredLanguage = ReturnType<typeof useRequiredLanguages>[number];
@@ -56,6 +61,14 @@ interface FamilyDetailsTabProps {
   onDescriptionChange: (code: string, value: string) => void;
   parentFamilyName?: string | null;
   categoryName?: string | null;
+  familyTree: TreeNode[];
+  familyHighlightIds: string[];
+  familySelectionTree: TreeNode[];
+  parentFamilyId: string | null;
+  onParentFamilyChange: (id: string | null) => void;
+  categoryTree: TreeNode[];
+  categoryId: string | null;
+  onCategoryChange: (id: string | null) => void;
   localizationsLoading?: boolean;
   localizationsError?: string | null;
 }
@@ -108,6 +121,14 @@ const FamilyDetailsTab: React.FC<FamilyDetailsTabProps> = ({
   onDescriptionChange,
   parentFamilyName,
   categoryName,
+  familyTree,
+  familyHighlightIds,
+  familySelectionTree,
+  parentFamilyId,
+  onParentFamilyChange,
+  categoryTree,
+  categoryId,
+  onCategoryChange,
   localizationsLoading,
   localizationsError,
 }) => {
@@ -121,12 +142,8 @@ const FamilyDetailsTab: React.FC<FamilyDetailsTabProps> = ({
         </div>
       ) : null}
 
-      <Card>
-        <CardHeader
-          title={t('families.basic_information') || 'Basic Information'}
-          subtitle={t('families.basic_information_subtitle') || 'Family için temel alanlar'}
-        />
-        <div className="px-6 pb-6 space-y-6">
+      <Card padding="lg">
+        <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <span className="text-xs font-medium text-muted-foreground">
@@ -165,9 +182,7 @@ const FamilyDetailsTab: React.FC<FamilyDetailsTabProps> = ({
                     required
                   />
                 ) : (
-                  <p className="text-sm text-foreground">
-                    {nameDraft[code]?.trim() || '—'}
-                  </p>
+                  <p className="text-sm text-foreground">{nameDraft[code]?.trim() || '—'}</p>
                 )}
               </div>
             ))}
@@ -196,77 +211,79 @@ const FamilyDetailsTab: React.FC<FamilyDetailsTabProps> = ({
         </div>
       </Card>
 
-      <Card>
-        <CardHeader
-          title={t('families.relationships_title') || 'Relationships'}
-          subtitle={
-            t('families.relationships_subtitle') ||
-            'Hierarşi ve kategori bağlantılarını görüntüleyin'
-          }
-        />
-        <div className="px-6 pb-6 space-y-4 text-sm">
+      <Card padding="lg">
+        <div className="space-y-5 text-sm">
           <div>
-            <span className="text-xs font-medium text-muted-foreground">
-              {t('families.fields.parent') || 'Parent Family'}
-            </span>
-            <div className="mt-1">
-              {family.parentFamilyId ? (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Badge variant="outline">
-                    {parentFamilyName ?? family.parentFamilyId}
-                  </Badge>
-                  <code className="text-xs text-muted-foreground">
-                    {family.parentFamilyId}
-                  </code>
-                </div>
-              ) : (
-                <span className="text-muted-foreground text-sm">
-                  {t('families.root_label') || 'Root Family'}
-                </span>
-              )}
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-muted-foreground">
+                {t('families.relationships_title') || 'Relationships'}
+              </span>
             </div>
+            {editMode ? (
+              <TreeSelect
+                label={t('families.fields.parent') || 'Parent Family'}
+                placeholder={t('families.root_label') || 'Parent yok (kök family)'}
+                options={familySelectionTree}
+                value={parentFamilyId}
+                onChange={(next) => onParentFamilyChange(next)}
+                emptyState={
+                  <span className="text-xs text-muted-foreground">
+                    {t('families.no_parent_candidates') || 'Parent family bulunamadı.'}
+                  </span>
+                }
+              />
+            ) : (
+              <HierarchyTreeView
+                nodes={familyTree}
+                activeId={family.id}
+                highlightIds={familyHighlightIds}
+                emptyState={
+                  <span className="text-sm text-muted-foreground">
+                    {t('families.hierarchy_empty') || 'Hiyerarşi bilgisi bulunamadı.'}
+                  </span>
+                }
+                className="border-none bg-transparent px-0 py-0 shadow-none"
+              />
+            )}
           </div>
+
           <div>
             <span className="text-xs font-medium text-muted-foreground">
               {t('families.fields.category') || 'Category'}
             </span>
-            <div className="mt-1">
-              {family.categoryId ? (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Badge variant="secondary">{categoryName ?? family.categoryId}</Badge>
-                  <code className="text-xs text-muted-foreground">{family.categoryId}</code>
-                </div>
-              ) : (
-                <span className="text-muted-foreground text-sm">
-                  {t('families.no_category') || 'No category linked'}
-                </span>
-              )}
-            </div>
-          </div>
-          <div>
-            <span className="text-xs font-medium text-muted-foreground">
-              {t('families.fields.hierarchy_path') || 'Hierarchy Path'}
-            </span>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {family.hierarchyPath.length > 0 ? (
-                family.hierarchyPath.map((nodeId) => (
-                  <Badge key={nodeId} variant="outline">
-                    {nodeId}
-                  </Badge>
-                ))
-              ) : (
-                <span className="text-xs text-muted-foreground">
-                  {t('families.root_label') || 'Root Family'}
-                </span>
-              )}
-            </div>
+            {editMode ? (
+              <TreeSelect
+                placeholder={t('families.select_category') || 'Kategori seçin (opsiyonel)'}
+                options={categoryTree}
+                value={categoryId}
+                onChange={(next) => onCategoryChange(next)}
+                emptyState={
+                  <span className="text-xs text-muted-foreground">
+                    {t('families.categories_empty') || 'Kategori bulunamadı.'}
+                  </span>
+                }
+                className="mt-2"
+              />
+            ) : (
+              <div className="mt-2">
+                {family.categoryId ? (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="secondary">{categoryName ?? family.categoryId}</Badge>
+                    <code className="text-xs text-muted-foreground">{family.categoryId}</code>
+                  </div>
+                ) : (
+                  <span className="text-muted-foreground text-sm">
+                    {t('families.no_category') || 'No category linked'}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </Card>
 
-      <Card>
-        <CardHeader title={t('families.metadata') || 'Metadata'} />
-        <div className="px-6 pb-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+      <Card padding="lg">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
           <div>
             <span className="text-xs font-medium text-muted-foreground">
               {t('families.created_at') || 'Created At'}
@@ -288,8 +305,7 @@ const FamilyDetailsTab: React.FC<FamilyDetailsTabProps> = ({
                 ? family.createdBy
                 : family.createdBy?.name ??
                   family.createdBy?.email ??
-                  t('families.unknown_user') ??
-                    'Unknown'}
+                  (t('families.unknown_user') || 'Unknown')}
             </p>
           </div>
           <div>
@@ -301,7 +317,7 @@ const FamilyDetailsTab: React.FC<FamilyDetailsTabProps> = ({
                 ? family.updatedBy
                 : family.updatedBy?.name ??
                   family.updatedBy?.email ??
-                  (t('families.unknown_user') !== 'families.unknown_user' ? t('families.unknown_user') : 'Unknown')}
+                  (t('families.unknown_user') || 'Unknown')}
             </p>
           </div>
         </div>
@@ -321,19 +337,58 @@ const FamilyAttributeGroupsTab: React.FC<FamilyAttributeGroupsTabProps> = ({
 }) => {
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const [searchTerm, setSearchTerm] = useState('');
 
+  const bindings = family.attributeGroupBindings ?? [];
   const attributeGroupMap = useMemo(
     () => new Map(attributeGroups.map((group) => [group.id, group])),
     [attributeGroups],
   );
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
-  const bindings = family.attributeGroupBindings ?? [];
+  const filteredGroups = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    const list = attributeGroups.filter((group) => {
+      if (!query) {
+        return true;
+      }
+      const haystack = [
+        group.name ?? '',
+        group.description ?? '',
+        ...(group.tags ?? []),
+        group.key ?? '',
+      ]
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+
+    return list.sort((a, b) => {
+      const aSelected = selectedSet.has(a.id) ? 0 : 1;
+      const bSelected = selectedSet.has(b.id) ? 0 : 1;
+      if (aSelected !== bSelected) {
+        return aSelected - bSelected;
+      }
+      return (a.name ?? a.key ?? '').localeCompare(b.name ?? b.key ?? '');
+    });
+  }, [attributeGroups, searchTerm, selectedSet]);
+
+  const handleToggleGroup = useCallback(
+    (groupId: string) => {
+      if (selectedSet.has(groupId)) {
+        onSelectionChange(selectedIds.filter((id) => id !== groupId));
+      } else {
+        onSelectionChange([...selectedIds, groupId]);
+      }
+    },
+    [onSelectionChange, selectedIds, selectedSet],
+  );
 
   if (editMode) {
     if (loading) {
       return (
-        <Card>
-          <div className="px-6 py-8 text-sm text-muted-foreground">
+        <Card padding="lg">
+          <div className="text-sm text-muted-foreground">
             {t('common.loading') || 'Loading...'}
           </div>
         </Card>
@@ -342,42 +397,143 @@ const FamilyAttributeGroupsTab: React.FC<FamilyAttributeGroupsTabProps> = ({
 
     if (error) {
       return (
-        <Card>
-          <div className="px-6 py-8 text-sm text-error">{error}</div>
+        <Card padding="lg">
+          <div className="text-sm text-error">{error}</div>
         </Card>
       );
     }
 
     if (attributeGroups.length === 0) {
       return (
-        <Card>
-          <div className="px-6 py-8 text-sm text-muted-foreground">
-            {t('families.attribute_groups.empty') ||
-              'Henüz attribute grubu tanımlı değil.'}
+        <Card padding="lg">
+          <div className="text-sm text-muted-foreground">
+            {t('families.attribute_groups.empty') || 'Tanımlı attribute grubu bulunamadı.'}
           </div>
         </Card>
       );
     }
 
     return (
-      <AttributeGroupSelector
-        groups={attributeGroups.map((group) => ({
-          id: group.id,
-          name: group.name,
-          description: group.description,
-          attributeCount:
-            group.attributeCount ?? group.attributeIds?.length ?? 0,
-        }))}
-        selectedGroups={selectedIds}
-        onSelectionChange={onSelectionChange}
-      />
+      <Card padding="lg" className="space-y-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">
+              {t('families.attribute_groups.title') || 'Attribute Grupları'}
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              {t('families.attribute_groups.helper') ||
+                'Family kaydıyla ilişkilendirilecek attribute gruplarını seçin.'}
+            </p>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+            <Badge variant="secondary" className="justify-center">
+              {selectedIds.length} / {attributeGroups.length}{' '}
+              {(t('families.attribute_groups.selected_suffix') || 'seçili').toString()}
+            </Badge>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder={
+                  t('families.attribute_groups.search_placeholder') ||
+                  'İsim, açıklama veya etiket ara...'
+                }
+                className="pl-10 w-full sm:w-64"
+              />
+            </div>
+          </div>
+        </div>
+
+        {filteredGroups.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border/60 bg-muted/40 px-4 py-10 text-center text-sm text-muted-foreground">
+            {t('families.attribute_groups.no_results') ||
+              'Aramanızla eşleşen attribute grubu bulunamadı.'}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {filteredGroups.map((group) => {
+              const isSelected = selectedSet.has(group.id);
+              const attributeCount =
+                group.attributeCount ?? group.attributeIds?.length ?? 0;
+              const tags = group.tags ?? [];
+
+              return (
+                <button
+                  type="button"
+                  key={group.id}
+                  onClick={() => handleToggleGroup(group.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      handleToggleGroup(group.id);
+                    }
+                  }}
+                  className={`group flex h-full flex-col rounded-xl border p-4 text-left transition-all ${
+                    isSelected
+                      ? 'border-primary bg-primary/5 shadow-sm'
+                      : 'border-border hover:border-primary/40 hover:bg-muted/40'
+                  } focus:outline-none focus-visible:ring-2 focus-visible:ring-primary`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+                          isSelected ? 'bg-primary text-primary-foreground' : 'bg-muted'
+                        }`}
+                      >
+                        <TagsIcon className="h-4 w-4" />
+                      </span>
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">
+                          {group.name || group.key || group.id}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {group.key ? `#${group.key}` : group.id}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge variant={isSelected ? 'default' : 'outline'} size="sm">
+                      {isSelected
+                        ? t('families.attribute_groups.selected') || 'Seçildi'
+                        : t('families.attribute_groups.select') || 'Seç'}
+                    </Badge>
+                  </div>
+
+                  {group.description ? (
+                    <p className="mt-3 line-clamp-3 text-xs text-muted-foreground">
+                      {group.description}
+                    </p>
+                  ) : null}
+
+                  <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 font-medium">
+                      <Hash className="h-3 w-3" />
+                      {attributeCount}{' '}
+                      {(t('families.attribute_groups.attribute_short') || 'attr').toString()}
+                    </span>
+                    {tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </Card>
     );
   }
 
   if (bindings.length === 0) {
     return (
-      <Card>
-        <div className="px-6 py-8 text-sm text-muted-foreground">
+      <Card padding="lg">
+        <div className="text-sm text-muted-foreground">
           {t('families.attribute_groups.empty') ||
             'Bu family için attribute grubu atanmadı.'}
         </div>
@@ -390,42 +546,42 @@ const FamilyAttributeGroupsTab: React.FC<FamilyAttributeGroupsTabProps> = ({
       {bindings.map((binding) => {
         const group = attributeGroupMap.get(binding.attributeGroupId);
         return (
-          <Card key={binding.id} padding="md">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                  <TagsIcon className="h-4 w-4 text-primary" />
-                  {group?.name ?? binding.attributeGroupId}
-                </div>
-                <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
-                  <Hash className="h-3 w-3" />
-                  <code>{binding.attributeGroupId}</code>
-                </div>
-                {group?.description ? (
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {group.description}
-                  </p>
-                ) : null}
+          <Card
+            key={binding.id}
+            padding="md"
+            className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
+          >
+            <div>
+              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <TagsIcon className="h-4 w-4 text-primary" />
+                {group?.name ?? binding.attributeGroupId}
               </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                {binding.inherited ? (
-                  <Badge variant="secondary" size="sm">
-                    {t('families.attribute_groups.inherited') || 'Inherited'}
-                  </Badge>
-                ) : null}
-                {binding.required ? (
-                  <Badge variant="outline" size="sm">
-                    {t('families.attribute_groups.required') || 'Required'}
-                  </Badge>
-                ) : null}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigate(`/attribute-groups/${binding.attributeGroupId}`)}
-                >
-                  {t('common.view') || 'Görüntüle'}
-                </Button>
+              <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
+                <Hash className="h-3 w-3" />
+                <code>{binding.attributeGroupId}</code>
               </div>
+              {group?.description ? (
+                <p className="text-xs text-muted-foreground mt-2">{group.description}</p>
+              ) : null}
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {binding.inherited ? (
+                <Badge variant="secondary" size="sm">
+                  {t('families.attribute_groups.inherited') || 'Inherited'}
+                </Badge>
+              ) : null}
+              {binding.required ? (
+                <Badge variant="outline" size="sm">
+                  {t('families.attribute_groups.required') || 'Required'}
+                </Badge>
+              ) : null}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`/attribute-groups/${binding.attributeGroupId}`)}
+              >
+                {t('common.view') || 'Görüntüle'}
+              </Button>
             </div>
           </Card>
         );
@@ -466,7 +622,7 @@ const buildFamilyApiEndpoints = (family: Family): APIEndpoint[] => [
     id: 'get-family',
     method: 'GET',
     path: `/api/families/${family.id}`,
-    description: 'Belirli family kaydını görüntüleyin.',
+    description: 'Belirli family kaydını getirin.',
     parameters: [
       { name: 'id', type: 'string', required: true, description: 'Family kimliği' },
     ],
@@ -540,6 +696,7 @@ export const FamiliesDetails: React.FC = () => {
   const { t } = useLanguage();
   const { hasPermission } = useAuth();
   const { showToast } = useToast();
+  const navigate = useNavigate();
   const requiredLanguages = useRequiredLanguages();
   const { register: registerEditActions } = useEditActionContext();
 
@@ -566,19 +723,25 @@ export const FamiliesDetails: React.FC = () => {
   const [familyOptions, setFamilyOptions] = useState<Family[]>([]);
   const [categoryOptions, setCategoryOptions] = useState<Category[]>([]);
 
-  const [localizationCache, setLocalizationCache] = useState<Record<string, LocalizationRecord>>(
-    {},
-  );
+  const [parentFamilyId, setParentFamilyId] = useState<string | null>(null);
+  const [initialParentFamilyId, setInitialParentFamilyId] = useState<string | null>(null);
+  const [categorySelectionId, setCategorySelectionId] = useState<string | null>(null);
+  const [initialCategorySelectionId, setInitialCategorySelectionId] = useState<string | null>(null);
+
+  const localizationCacheRef = useRef<Record<string, LocalizationRecord>>({});
   const [localizationsLoading, setLocalizationsLoading] = useState(false);
   const [localizationsError, setLocalizationsError] = useState<string | null>(null);
 
   const canUpdateFamily = hasPermission(PERMISSIONS.CATALOG.FAMILIES.UPDATE);
+  const canDeleteFamily = hasPermission(PERMISSIONS.CATALOG.FAMILIES.DELETE);
   const canViewAttributeGroupsTab = hasPermission(PERMISSIONS.CATALOG.ATTRIBUTE_GROUPS.VIEW);
   const canViewStatistics = hasPermission(PERMISSIONS.CATALOG.FAMILIES.VIEW);
   const canViewDocumentation = hasPermission(PERMISSIONS.CATALOG.FAMILIES.VIEW);
   const canViewApi = hasPermission(PERMISSIONS.CATALOG.FAMILIES.VIEW);
   const canViewHistory = hasPermission(PERMISSIONS.CATALOG.FAMILIES.HISTORY);
   const canViewNotifications = hasPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.VIEW);
+
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -658,25 +821,12 @@ export const FamiliesDetails: React.FC = () => {
     [requiredLanguages],
   );
 
-  const getPrimaryValue = useCallback(
-    (values: LocalizationState, fallback?: string | null): string => {
-      for (const { code } of requiredLanguages) {
-        const value = values[code]?.trim();
-        if (value) {
-          return value;
-        }
-      }
-      if (fallback && fallback.trim()) {
-        return fallback.trim();
-      }
-      return (
-        Object.values(values)
-          .map((value) => value?.trim())
-          .find((value) => value && value.length > 0) ?? ''
-      );
-    },
-    [requiredLanguages],
-  );
+  useEffect(() => {
+    setNameDraft((prev) => buildLocalizationState(prev));
+    setDescriptionDraft((prev) => buildLocalizationState(prev));
+    setInitialNameState((prev) => buildLocalizationState(prev));
+    setInitialDescriptionState((prev) => buildLocalizationState(prev));
+  }, [buildLocalizationState]);
 
   const loadLocalizationDetails = useCallback(
     async (familyData: Family, resetInitial = false) => {
@@ -705,12 +855,13 @@ export const FamiliesDetails: React.FC = () => {
       setLocalizationsLoading(true);
       setLocalizationsError(null);
       const fetched: Record<string, LocalizationRecord> = {};
+      const cacheSnapshot = localizationCacheRef.current;
 
       await Promise.all(
         ids.map(async (localizationId) => {
           try {
-            if (localizationCache[localizationId]) {
-              fetched[localizationId] = localizationCache[localizationId];
+            if (cacheSnapshot[localizationId]) {
+              fetched[localizationId] = cacheSnapshot[localizationId];
               return;
             }
             const record = await localizationsService.getById(localizationId);
@@ -718,8 +869,7 @@ export const FamiliesDetails: React.FC = () => {
           } catch (err) {
             console.error('Failed to load localization record', localizationId, err);
             setLocalizationsError(
-              t('families.failed_to_load_localizations') ||
-                'Çeviri kayıtları yüklenemedi.',
+              t('families.failed_to_load_localizations') || 'Çeviri kayıtları yüklenemedi.',
             );
           }
         }),
@@ -727,12 +877,18 @@ export const FamiliesDetails: React.FC = () => {
 
       setLocalizationsLoading(false);
 
-      const nextCache = { ...localizationCache, ...fetched };
-      setLocalizationCache(nextCache);
+      if (Object.keys(fetched).length > 0) {
+        localizationCacheRef.current = {
+          ...localizationCacheRef.current,
+          ...fetched,
+        };
+      }
 
-      const nameTranslations = nameId ? nextCache[nameId]?.translations ?? null : null;
+      const cache = localizationCacheRef.current;
+
+      const nameTranslations = nameId ? cache[nameId]?.translations ?? null : null;
       const descriptionTranslations = descriptionId
-        ? nextCache[descriptionId]?.translations ?? null
+        ? cache[descriptionId]?.translations ?? null
         : null;
 
       const nextNameState = buildLocalizationState(nameTranslations, familyData.name);
@@ -749,15 +905,8 @@ export const FamiliesDetails: React.FC = () => {
         setInitialDescriptionState(nextDescriptionState);
       }
     },
-    [buildLocalizationState, localizationCache, t],
+    [buildLocalizationState, t],
   );
-
-  useEffect(() => {
-    setNameDraft((prev) => buildLocalizationState(prev));
-    setDescriptionDraft((prev) => buildLocalizationState(prev));
-    setInitialNameState((prev) => buildLocalizationState(prev));
-    setInitialDescriptionState((prev) => buildLocalizationState(prev));
-  }, [buildLocalizationState]);
 
   useEffect(() => {
     if (!id) {
@@ -783,10 +932,15 @@ export const FamiliesDetails: React.FC = () => {
 
         setFamily(familyResponse);
         setFamilyDraft(familyResponse);
+        setParentFamilyId(familyResponse.parentFamilyId ?? null);
+        setInitialParentFamilyId(familyResponse.parentFamilyId ?? null);
+        setCategorySelectionId(familyResponse.categoryId ?? null);
+        setInitialCategorySelectionId(familyResponse.categoryId ?? null);
 
         const attributeIds = Array.isArray(familyResponse.attributeGroupIds)
           ? familyResponse.attributeGroupIds
           : [];
+
         setSelectedAttributeGroupIds(attributeIds);
         setInitialAttributeGroupIds(attributeIds);
         setFamilyOptions(familyListResponse?.items ?? []);
@@ -817,19 +971,6 @@ export const FamiliesDetails: React.FC = () => {
     };
   }, [id, loadLocalizationDetails, t]);
 
-  const displayName = useMemo(
-    () => (familyDraft ? getPrimaryValue(nameDraft, familyDraft.name) : ''),
-    [familyDraft, getPrimaryValue, nameDraft],
-  );
-
-  const displayDescription = useMemo(
-    () =>
-      familyDraft
-        ? getPrimaryValue(descriptionDraft, familyDraft.description ?? '')
-        : '',
-    [familyDraft, descriptionDraft, getPrimaryValue],
-  );
-
   const parentFamilyName = useMemo(() => {
     if (!familyDraft?.parentFamilyId) {
       return null;
@@ -848,11 +989,217 @@ export const FamiliesDetails: React.FC = () => {
     );
   }, [categoryOptions, familyDraft?.categoryId]);
 
+  const extendedFamilyOptions = useMemo(() => {
+    if (!familyDraft) {
+      return familyOptions;
+    }
+    const exists = familyOptions.some((item) => item.id === familyDraft.id);
+    return exists ? familyOptions : [...familyOptions, familyDraft];
+  }, [familyDraft, familyOptions]);
+
+  const categoryMap = useMemo(() => {
+    const map = new Map<string, Category>();
+    categoryOptions.forEach((category) => map.set(category.id, category));
+    return map;
+  }, [categoryOptions]);
+
+  const familyHierarchyTree = useMemo<TreeNode[]>(() => {
+    if (extendedFamilyOptions.length === 0) {
+      return [];
+    }
+    return buildHierarchyTree(extendedFamilyOptions, {
+      getId: (item) => item.id,
+      getParentId: (item) => item.parentFamilyId ?? null,
+      getLabel: (item) => item.name?.trim() || item.key,
+      getDescription: (item) => {
+        const parts = [`${t('families.fields.key') || 'Key'}: ${item.key}`];
+        if (item.categoryId) {
+          const relatedCategory = categoryMap.get(item.categoryId);
+          if (relatedCategory) {
+            parts.push(
+              `${t('families.fields.category') || 'Category'}: ${
+                relatedCategory.name || relatedCategory.key
+              }`,
+            );
+          }
+        }
+        return parts.join(' • ');
+      },
+    });
+  }, [extendedFamilyOptions, categoryMap, t]);
+
+  const invalidParentIds = useMemo(() => {
+    if (!familyDraft) {
+      return new Set<string>();
+    }
+    const blocked = new Set<string>([familyDraft.id]);
+    extendedFamilyOptions.forEach((item) => {
+      if (item.id !== familyDraft.id && item.hierarchyPath?.includes(familyDraft.id)) {
+        blocked.add(item.id);
+      }
+    });
+    return blocked;
+  }, [extendedFamilyOptions, familyDraft]);
+
+  const familySelectionTree = useMemo<TreeNode[]>(() => {
+    if (extendedFamilyOptions.length === 0) {
+      return [];
+    }
+    return buildHierarchyTree(extendedFamilyOptions, {
+      getId: (item) => item.id,
+      getParentId: (item) => item.parentFamilyId ?? null,
+      getLabel: (item) => item.name?.trim() || item.key,
+      getDescription: (item) => `${t('families.fields.key') || 'Key'}: ${item.key}`,
+      getDisabled: (item) => invalidParentIds.has(item.id),
+    });
+  }, [extendedFamilyOptions, invalidParentIds, t]);
+
+  const familyHighlightIds = useMemo(() => {
+    if (!familyDraft) {
+      return [];
+    }
+    const base = Array.isArray(familyDraft.hierarchyPath)
+      ? familyDraft.hierarchyPath.filter((value): value is string => Boolean(value))
+      : [];
+    const unique = new Set<string>([...base, familyDraft.id]);
+    return Array.from(unique);
+  }, [familyDraft]);
+
+  const categoryTree = useMemo<TreeNode[]>(() => {
+    if (categoryOptions.length === 0) {
+      return [];
+    }
+    return buildHierarchyTree(categoryOptions, {
+      getId: (item) => item.id,
+      getParentId: (item) => item.parentCategoryId ?? null,
+      getLabel: (item) => item.name?.trim() || item.key,
+      getDescription: (item) => `${t('families.fields.key') || 'Key'}: ${item.key}`,
+    });
+  }, [categoryOptions, t]);
+
+  const displayName = useMemo(() => {
+    if (!familyDraft) {
+      return '';
+    }
+    for (const { code } of requiredLanguages) {
+      const value = nameDraft[code]?.trim();
+      if (value) {
+        return value;
+      }
+    }
+    return familyDraft.name ?? familyDraft.key;
+  }, [familyDraft, nameDraft, requiredLanguages]);
+
+  const displayDescription = useMemo(() => {
+    if (!familyDraft) {
+      return '';
+    }
+    for (const { code } of requiredLanguages) {
+      const value = descriptionDraft[code]?.trim();
+      if (value) {
+        return value;
+      }
+    }
+    return familyDraft.description ?? '';
+  }, [descriptionDraft, familyDraft, requiredLanguages]);
+
+  const statisticsData = useMemo<StatisticsType | undefined>(() => {
+    if (!familyDraft) {
+      return undefined;
+    }
+    const bindingCount = familyDraft.attributeGroupBindings?.length ?? 0;
+    return {
+      totalCount: bindingCount,
+      activeCount: bindingCount,
+      inactiveCount: 0,
+      createdThisMonth: 0,
+      updatedThisMonth: 0,
+      usageCount: bindingCount,
+      lastUsed: familyDraft.updatedAt,
+      trends: [
+        { period: 'Jan', value: bindingCount, change: 0 },
+        { period: 'Feb', value: bindingCount, change: 0 },
+      ],
+      topUsers: familyDraft.updatedBy
+        ? [
+            {
+              userId:
+                typeof familyDraft.updatedBy === 'string'
+                  ? familyDraft.updatedBy
+                  : familyDraft.updatedBy?.id ?? 'user',
+              userName:
+                typeof familyDraft.updatedBy === 'string'
+                  ? familyDraft.updatedBy
+                  : familyDraft.updatedBy?.name ??
+                    familyDraft.updatedBy?.email ??
+                    'System',
+              count: bindingCount,
+            },
+          ]
+        : [],
+    };
+  }, [familyDraft]);
+
+  const documentationSections = useMemo<DocumentationSection[]>(() => {
+    if (!familyDraft) {
+      return [];
+    }
+    const bindings = familyDraft.attributeGroupBindings ?? [];
+    const list =
+      bindings.length > 0
+        ? bindings
+            .map(
+              (binding) =>
+                `- **${binding.attributeGroupId}** ${binding.required ? '(required)' : ''} ${
+                  binding.inherited ? '(inherited)' : ''
+                }`,
+            )
+            .join('\n')
+        : t('families.attribute_groups.empty_markdown') || 'Henüz attribute grubu bağlı değil.';
+
+    return [
+      {
+        id: 'overview',
+        title: t('families.docs.overview') || 'Genel Bakış',
+        content: `# ${familyDraft.name}\n\n- **Key:** \`${familyDraft.key}\`\n- **Attribute Group Count:** ${
+          bindings.length
+        }\n\n## Attribute Groups\n${list}`,
+        order: 0,
+        type: 'markdown',
+        lastUpdated: familyDraft.updatedAt,
+        author:
+          typeof familyDraft.updatedBy === 'string'
+            ? familyDraft.updatedBy
+            : familyDraft.updatedBy?.name ?? familyDraft.updatedBy?.email ?? 'System',
+      },
+      {
+        id: 'usage',
+        title: t('families.docs.usage') || 'Kullanım Notları',
+        content:
+          t('families.docs.usage_content') ||
+          `- Family hiyerarşisini korumak için parent atayın.\n- Attribute gruplarını ItemType ve Category seviyelerinde miras alın.`,
+        order: 1,
+        type: 'markdown',
+        lastUpdated: familyDraft.updatedAt,
+        author:
+          typeof familyDraft.createdBy === 'string'
+            ? familyDraft.createdBy
+            : familyDraft.createdBy?.name ?? familyDraft.createdBy?.email ?? 'System',
+      },
+    ];
+  }, [familyDraft, t]);
+
+  const apiEndpoints = useMemo<APIEndpoint[]>(() => {
+    if (!familyDraft) {
+      return [];
+    }
+    return buildFamilyApiEndpoints(familyDraft);
+  }, [familyDraft]);
+
   const hasNameChanges = useMemo(
     () =>
       requiredLanguages.some(
-        ({ code }) =>
-          (nameDraft[code] ?? '').trim() !== (initialNameState[code] ?? '').trim(),
+        ({ code }) => (nameDraft[code] ?? '').trim() !== (initialNameState[code] ?? '').trim(),
       ),
     [nameDraft, initialNameState, requiredLanguages],
   );
@@ -873,10 +1220,26 @@ export const FamiliesDetails: React.FC = () => {
     if (current.length !== initial.length) {
       return true;
     }
-    return current.some((idValue, index) => idValue !== initial[index]);
+    return current.some((value, index) => value !== initial[index]);
   }, [initialAttributeGroupIds, selectedAttributeGroupIds]);
 
-  const hasChanges = (hasNameChanges || hasDescriptionChanges || hasAttributeGroupChanges) && !saving;
+  const hasParentChanges = useMemo(
+    () => (parentFamilyId ?? null) !== (initialParentFamilyId ?? null),
+    [parentFamilyId, initialParentFamilyId],
+  );
+
+  const hasCategoryChanges = useMemo(
+    () => (categorySelectionId ?? null) !== (initialCategorySelectionId ?? null),
+    [categorySelectionId, initialCategorySelectionId],
+  );
+
+  const hasChanges =
+    (hasNameChanges ||
+      hasDescriptionChanges ||
+      hasAttributeGroupChanges ||
+      hasParentChanges ||
+      hasCategoryChanges) &&
+    !saving;
 
   const handleEnterEdit = useCallback(() => {
     if (!family) {
@@ -890,8 +1253,44 @@ export const FamiliesDetails: React.FC = () => {
     setNameDraft(initialNameState);
     setDescriptionDraft(initialDescriptionState);
     setSelectedAttributeGroupIds(initialAttributeGroupIds);
+    setParentFamilyId(initialParentFamilyId);
+    setCategorySelectionId(initialCategorySelectionId);
+    if (family) {
+      setFamilyDraft(family);
+    }
     setLocalizationsError(null);
-  }, [initialAttributeGroupIds, initialDescriptionState, initialNameState]);
+  }, [
+    family,
+    initialAttributeGroupIds,
+    initialCategorySelectionId,
+    initialDescriptionState,
+    initialNameState,
+    initialParentFamilyId,
+  ]);
+
+  const handleNameDraftChange = useCallback((code: string, value: string) => {
+    setNameDraft((prev) => ({ ...prev, [code]: value }));
+  }, []);
+
+  const handleDescriptionDraftChange = useCallback((code: string, value: string) => {
+    setDescriptionDraft((prev) => ({ ...prev, [code]: value }));
+  }, []);
+
+  const handleParentFamilyChange = useCallback(
+    (nextParentId: string | null) => {
+      setParentFamilyId(nextParentId);
+      setFamilyDraft((prev) => (prev ? { ...prev, parentFamilyId: nextParentId ?? null } : prev));
+    },
+    [],
+  );
+
+  const handleCategoryChange = useCallback(
+    (nextCategoryId: string | null) => {
+      setCategorySelectionId(nextCategoryId);
+      setFamilyDraft((prev) => (prev ? { ...prev, categoryId: nextCategoryId ?? null } : prev));
+    },
+    [],
+  );
 
   const handleSave = useCallback(async () => {
     if (!family || saving) {
@@ -919,8 +1318,7 @@ export const FamiliesDetails: React.FC = () => {
         } else {
           await localizationsService.update(nameLocalizationId, {
             translations,
-            comment:
-              t('families.localization_update_comment') || 'Family çevirisi güncellendi.',
+            comment: t('families.localization_update_comment') || 'Family çevirisi güncellendi.',
           });
         }
       }
@@ -931,9 +1329,7 @@ export const FamiliesDetails: React.FC = () => {
           if (descriptionLocalizationId) {
             await localizationsService.update(descriptionLocalizationId, {
               translations: {},
-              comment:
-                t('families.localization_update_comment') ||
-                'Family çevirisi güncellendi.',
+              comment: t('families.localization_update_comment') || 'Family çevirisi güncellendi.',
             });
           }
         } else if (!descriptionLocalizationId) {
@@ -947,9 +1343,7 @@ export const FamiliesDetails: React.FC = () => {
         } else {
           await localizationsService.update(descriptionLocalizationId, {
             translations,
-            comment:
-              t('families.localization_update_comment') ||
-              'Family çevirisi güncellendi.',
+            comment: t('families.localization_update_comment') || 'Family çevirisi güncellendi.',
           });
         }
       }
@@ -961,8 +1355,7 @@ export const FamiliesDetails: React.FC = () => {
       }
 
       if (
-        (descriptionLocalizationId ?? null) !==
-        (family.descriptionLocalizationId ?? null)
+        (descriptionLocalizationId ?? null) !== (family.descriptionLocalizationId ?? null)
       ) {
         payload.descriptionLocalizationId = descriptionLocalizationId;
       }
@@ -971,7 +1364,16 @@ export const FamiliesDetails: React.FC = () => {
         payload.attributeGroupIds = selectedAttributeGroupIds;
       }
 
+      if (hasParentChanges) {
+        payload.parentFamilyId = parentFamilyId ?? null;
+      }
+
+      if (hasCategoryChanges) {
+        payload.categoryId = categorySelectionId ?? null;
+      }
+
       let updatedFamily: Family | null = null;
+
       if (Object.keys(payload).length > 0) {
         updatedFamily = await familiesService.update(family.id, payload);
       } else if (hasNameChanges || hasDescriptionChanges) {
@@ -985,6 +1387,10 @@ export const FamiliesDetails: React.FC = () => {
         setFamilyDraft(updatedFamily);
         setSelectedAttributeGroupIds(updatedFamily.attributeGroupIds ?? []);
         setInitialAttributeGroupIds(updatedFamily.attributeGroupIds ?? []);
+        setParentFamilyId(updatedFamily.parentFamilyId ?? null);
+        setInitialParentFamilyId(updatedFamily.parentFamilyId ?? null);
+        setCategorySelectionId(updatedFamily.categoryId ?? null);
+        setInitialCategorySelectionId(updatedFamily.categoryId ?? null);
         await loadLocalizationDetails(updatedFamily, true);
         setEditMode(false);
         showToast({
@@ -1013,10 +1419,41 @@ export const FamiliesDetails: React.FC = () => {
     nameDraft,
     descriptionDraft,
     selectedAttributeGroupIds,
+    parentFamilyId,
+    categorySelectionId,
     loadLocalizationDetails,
     showToast,
     t,
+    initialParentFamilyId,
+    initialCategorySelectionId,
+    hasParentChanges,
+    hasCategoryChanges,
   ]);
+
+  const handleDelete = useCallback(async () => {
+    if (!family || deleting) {
+      return;
+    }
+    try {
+      setDeleting(true);
+      await familiesService.delete(family.id);
+      showToast({
+        type: 'success',
+        message: t('families.delete_success') || 'Family başarıyla silindi.',
+      });
+      navigate('/families');
+    } catch (err: any) {
+      console.error('Failed to delete family', err);
+      const message =
+        err?.response?.data?.error?.message ??
+        err?.message ??
+        t('families.delete_failed') ??
+        'Family silinemedi.';
+      showToast({ type: 'error', message });
+    } finally {
+      setDeleting(false);
+    }
+  }, [deleting, family, navigate, showToast, t]);
 
   useEffect(() => {
     if (!canUpdateFamily) {
@@ -1048,18 +1485,229 @@ export const FamiliesDetails: React.FC = () => {
     handleSave,
   ]);
 
+  const tabs = useMemo<TabConfig[]>(() => {
+    if (!familyDraft) {
+      return [];
+    }
+
+    return [
+      {
+        id: 'details',
+        label: t('families.details_tab') || 'Detaylar',
+        icon: FileText,
+        component: FamilyDetailsTab,
+        props: {
+          family: familyDraft,
+          editMode,
+          requiredLanguages,
+          nameDraft,
+          descriptionDraft,
+          onNameChange: handleNameDraftChange,
+          onDescriptionChange: handleDescriptionDraftChange,
+          parentFamilyName,
+          categoryName,
+          familyTree: familyHierarchyTree,
+          familyHighlightIds,
+          familySelectionTree: familySelectionTree,
+          parentFamilyId,
+          onParentFamilyChange: handleParentFamilyChange,
+          categoryTree,
+          categoryId: categorySelectionId,
+          onCategoryChange: handleCategoryChange,
+          localizationsLoading,
+          localizationsError,
+        },
+      },
+      {
+        id: 'attribute-groups',
+        label: t('families.attribute_groups_tab') || 'Attribute Grupları',
+        icon: TagsIcon,
+        component: FamilyAttributeGroupsTab,
+        props: {
+          family: familyDraft,
+          editMode,
+          selectedIds: selectedAttributeGroupIds,
+          onSelectionChange: setSelectedAttributeGroupIds,
+          attributeGroups,
+          loading: attributeGroupsLoading,
+          error: attributeGroupsError,
+        },
+        badge: familyDraft.attributeGroupBindings?.length ?? 0,
+        hidden: !canViewAttributeGroupsTab,
+      },
+      {
+        id: 'statistics',
+        label: t('families.statistics_tab') || 'İstatistikler',
+        icon: BarChart3,
+        component: Statistics,
+        props: {
+          entityType: 'family',
+          entityId: familyDraft.id,
+          statistics: statisticsData,
+        },
+        hidden: !canViewStatistics,
+      },
+      {
+        id: 'documentation',
+        label: t('families.documentation_tab') || 'Dokümantasyon',
+        icon: BookOpen,
+        component: Documentation,
+        props: {
+          entityType: 'family',
+          entityId: familyDraft.id,
+          sections: documentationSections,
+          editMode,
+        },
+        hidden: !canViewDocumentation,
+      },
+      {
+        id: 'api',
+        label: t('families.api_tab') || 'API',
+        icon: Globe,
+        component: APITester,
+        props: {
+          entityType: 'family',
+          entityId: familyDraft.id,
+          endpoints: apiEndpoints,
+          editMode,
+        },
+        hidden: !canViewApi,
+      },
+      {
+        id: 'history',
+        label: t('families.history_tab') || 'Geçmiş',
+        icon: HistoryIcon,
+        component: HistoryTable,
+        props: { entityType: 'Family', entityId: familyDraft.id },
+        hidden: !canViewHistory,
+      },
+      {
+        id: 'notifications',
+        label: t('families.notifications_tab') || 'Bildirimler',
+        icon: Activity,
+        component: NotificationSettings,
+        props: { entityType: 'family', entityId: familyDraft.id },
+        hidden: !canViewNotifications,
+      },
+    ];
+  }, [
+    familyDraft,
+    t,
+    editMode,
+    requiredLanguages,
+    nameDraft,
+    descriptionDraft,
+    handleNameDraftChange,
+    handleDescriptionDraftChange,
+    parentFamilyName,
+    categoryName,
+    familyHierarchyTree,
+    familyHighlightIds,
+    familySelectionTree,
+    parentFamilyId,
+    handleParentFamilyChange,
+    categoryTree,
+    categorySelectionId,
+    handleCategoryChange,
+    localizationsLoading,
+    localizationsError,
+    selectedAttributeGroupIds,
+    attributeGroups,
+    attributeGroupsLoading,
+    attributeGroupsError,
+    canViewAttributeGroupsTab,
+    canViewStatistics,
+    canViewDocumentation,
+    canViewApi,
+    canViewHistory,
+    canViewNotifications,
+    statisticsData,
+    documentationSections,
+    apiEndpoints,
+  ]);
+
+  const headerTitle = useMemo(() => {
+    if (!familyDraft) {
+      return '';
+    }
+    return (
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-2xl font-bold text-foreground">
+            {displayName || familyDraft.key}
+          </span>
+          <Badge variant="secondary">
+            {familyDraft.attributeGroupBindings?.length ?? 0}{' '}
+            {t('families.attribute_groups_short') || 'groups'}
+          </Badge>
+        </div>
+        <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+          <span>
+            <Clock className="inline h-3 w-3 mr-1" />
+            {new Date(familyDraft.updatedAt).toLocaleString()}
+          </span>
+        </div>
+      </div>
+    );
+  }, [displayName, familyDraft, t]);
+
+  if (!id) {
+    return null;
+  }
+
+  if (loading) {
+    return (
+      <div className="px-6 py-12">
+        <Card padding="lg">
+          <div className="text-sm text-muted-foreground">
+            {t('common.loading') || 'Yükleniyor...'}
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error || !family || !familyDraft) {
+    return (
+      <div className="px-6 py-12">
+        <Card padding="lg">
+          <div className="text-sm text-error">
+            {error ??
+              t('families.failed_to_load') ??
+              'Family bilgisi yüklenemedi. Lütfen daha sonra tekrar deneyin.'}
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <DetailsLayout
-      entityId={familyId}
-      loading={loading}
-      error={error}
-      entity={family}
+      title={headerTitle}
+      subtitle={displayDescription || undefined}
+      icon={<Layers className="h-6 w-6 text-white" />}
       tabs={tabs}
-      title={displayName}
-      subtitle={displayDescription}
-      onTabChange={setActiveTab}
-      activeTab={activeTab}
-      tabsConfig={tabsConfig}
+      defaultTab="details"
+      backUrl="/families"
+      editMode={editMode}
+      hasChanges={hasChanges}
+      onEdit={canUpdateFamily ? handleEnterEdit : undefined}
+      onSave={canUpdateFamily ? handleSave : undefined}
+      onCancel={canUpdateFamily ? handleCancelEdit : undefined}
+      inlineActions={false}
+      onDelete={canDeleteFamily ? handleDelete : undefined}
+      deleteLoading={deleting}
+      deleteButtonLabel={t('families.delete_action') || 'Family Sil'}
+      deleteDialogTitle={
+        t('families.delete_title', { name: displayName || familyDraft.key }) ||
+        'Family Silinsin mi?'
+      }
+      deleteDialogDescription={
+        t('families.delete_description', { name: displayName || familyDraft.key }) ||
+        'Bu family kaydı silinecek. Bu işlem geri alınamaz.'
+      }
     />
   );
 };
+
+export default FamiliesDetails;

@@ -1,8 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, Hash, Search } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, FileText, Hash, Search } from 'lucide-react';
 import { Card, CardHeader } from '../../components/ui/Card';
-import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
@@ -65,13 +64,12 @@ export const ItemTypesCreate: React.FC = () => {
       {
         id: 'relationships',
         name: t('itemTypes.steps.relationships') || 'İlişkiler',
-        description: t('itemTypes.steps.relationships_desc') || 'Kategori bağlantıları ve kodlar',
+        description: t('itemTypes.steps.relationships_desc') || 'Kategori bağlantıları ve durumlar',
       },
       {
         id: 'attributeGroups',
         name: t('itemTypes.steps.attribute_groups') || 'Attribute Grupları',
-        description:
-          t('itemTypes.steps.attribute_groups_desc') || 'Bağlanacak attribute gruplarını seçin',
+        description: t('itemTypes.steps.attribute_groups_desc') || 'Bağlanacak attribute gruplarını seçin',
       },
       {
         id: 'preview',
@@ -191,7 +189,7 @@ export const ItemTypesCreate: React.FC = () => {
       }
     };
 
-    fetchLookups();
+    void fetchLookups();
 
     return () => {
       cancelled = true;
@@ -283,8 +281,20 @@ export const ItemTypesCreate: React.FC = () => {
     });
   }, []);
 
+  const isKeyMissing = useMemo(() => form.key.trim().length === 0, [form.key]);
+
+  const missingLanguage = useMemo(
+    () => requiredLanguages.find(({ code }) => !form.names[code]?.trim()),
+    [form.names, requiredLanguages],
+  );
+
+  const isBasicStepValid = useMemo(
+    () => !isKeyMissing && !missingLanguage,
+    [isKeyMissing, missingLanguage],
+  );
+
   const validateBasicStep = useCallback((): boolean => {
-    if (!form.key.trim()) {
+    if (isKeyMissing) {
       showToast({
         type: 'error',
         message: t('itemTypes.validation.key') || 'Key zorunludur.',
@@ -292,7 +302,6 @@ export const ItemTypesCreate: React.FC = () => {
       return false;
     }
 
-    const missingLanguage = requiredLanguages.find(({ code }) => !form.names[code]?.trim());
     if (missingLanguage) {
       showToast({
         type: 'error',
@@ -304,7 +313,7 @@ export const ItemTypesCreate: React.FC = () => {
     }
 
     return true;
-  }, [form.key, form.names, requiredLanguages, showToast, t]);
+  }, [isKeyMissing, missingLanguage, showToast, t]);
 
   const handleNext = useCallback(() => {
     if (currentStep >= steps.length - 1) {
@@ -418,280 +427,305 @@ export const ItemTypesCreate: React.FC = () => {
     switch (currentStepId) {
       case 'basic':
         return (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label={t('itemTypes.fields.key') || 'Key'}
-                value={form.key}
-                onChange={(event) => updateForm({ key: event.target.value })}
-                placeholder="coffee_product_type"
-                required
-              />
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-foreground mb-1">
-                    {t('itemTypes.fields.lifecycle_status') || 'Lifecycle Durumu'}
-                  </label>
-                  <select
-                    value={form.lifecycleStatus}
-                    onChange={(event) =>
-                      updateForm({ lifecycleStatus: event.target.value as LifecycleStatus })
-                    }
-                    className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    <option value="draft">{lifecycleLabels.draft}</option>
-                    <option value="active">{lifecycleLabels.active}</option>
-                    <option value="deprecated">{lifecycleLabels.deprecated}</option>
-                  </select>
+          <Card>
+            <CardHeader
+              title={t('itemTypes.steps.basic_information') || 'Temel Bilgiler'}
+              subtitle={t('itemTypes.steps.basic_information_desc') || 'Anahtar, çeviri ve durum seçimi'}
+            />
+            <div className="px-6 pb-6 space-y-6">
+              <div className="flex items-start gap-4">
+                <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <FileText className="h-8 w-8 text-white" />
                 </div>
+                <div className="flex-1 space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input
+                      label={t('itemTypes.fields.key') || 'Key'}
+                      value={form.key}
+                      onChange={(event) => updateForm({ key: event.target.value })}
+                      placeholder="coffee_product_type"
+                      required
+                    />
 
-                <div className="flex items-center gap-2 mt-2 md:mt-6">
-                  <input
-                    id="isSystemItemType"
-                    type="checkbox"
-                    checked={form.isSystemItemType}
-                    onChange={(event) => updateForm({ isSystemItemType: event.target.checked })}
-                    className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
-                  />
-                  <label htmlFor="isSystemItemType" className="text-sm text-foreground">
-                    {t('itemTypes.fields.is_system') || 'Sistem Item Type'}
-                  </label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">
+                          {t('itemTypes.fields.lifecycle_status') || 'Lifecycle Durumu'}
+                        </label>
+                        <select
+                          value={form.lifecycleStatus}
+                          onChange={(event) =>
+                            updateForm({ lifecycleStatus: event.target.value as LifecycleStatus })
+                          }
+                          className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                        >
+                          <option value="draft">{lifecycleLabels.draft}</option>
+                          <option value="active">{lifecycleLabels.active}</option>
+                          <option value="deprecated">{lifecycleLabels.deprecated}</option>
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-2 mt-2 md:mt-6">
+                        <input
+                          id="isSystemItemType"
+                          type="checkbox"
+                          checked={form.isSystemItemType}
+                          onChange={(event) => updateForm({ isSystemItemType: event.target.checked })}
+                          className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                        />
+                        <label htmlFor="isSystemItemType" className="text-sm text-foreground">
+                          {t('itemTypes.fields.is_system') || 'Sistem Item Type'}
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {requiredLanguages.map(({ code, label }) => (
+                      <Input
+                        key={`item-type-name-${code}`}
+                        label={resolveNameLabel(code, label)}
+                        value={form.names[code] ?? ''}
+                        onChange={(event) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            names: { ...prev.names, [code]: event.target.value },
+                          }))
+                        }
+                        required
+                      />
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {requiredLanguages.map(({ code, label }) => (
+                      <Textarea
+                        key={`item-type-description-${code}`}
+                        label={resolveDescriptionLabel(code, label)}
+                        value={form.descriptions[code] ?? ''}
+                        onChange={(event) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            descriptions: { ...prev.descriptions, [code]: event.target.value },
+                          }))
+                        }
+                        rows={3}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {requiredLanguages.map(({ code, label }) => (
-                <Input
-                  key={`item-type-name-${code}`}
-                  label={resolveNameLabel(code, label)}
-                  value={form.names[code] ?? ''}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      names: { ...prev.names, [code]: event.target.value },
-                    }))
-                  }
-                  required
-                />
-              ))}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {requiredLanguages.map(({ code, label }) => (
-                <Textarea
-                  key={`item-type-description-${code}`}
-                  label={resolveDescriptionLabel(code, label)}
-                  value={form.descriptions[code] ?? ''}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      descriptions: { ...prev.descriptions, [code]: event.target.value },
-                    }))
-                  }
-                  rows={3}
-                />
-              ))}
-            </div>
-          </div>
+          </Card>
         );
 
       case 'relationships':
-        return(
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-sm font-semibold text-foreground">
-                  {t('itemTypes.fields.categories') || 'Kategoriler'}
-                </h4>
-                <Badge variant="primary" size="sm">
-                  {form.categoryIds.length}
-                </Badge>
-              </div>
-              <div className="border border-border rounded-lg p-3 max-h-60 overflow-y-auto space-y-2 text-sm">
-                {sortedCategories.length === 0 ? (
-                  <div className="text-muted-foreground">
-                    {t('itemTypes.create.no_categories') || 'Tanımlı kategori bulunamadı.'}
-                  </div>
-                ) : (
-                  sortedCategories.map((category) => {
-                    const depth = category.hierarchyPath?.length ?? 0;
-                    const label =
-                      depth > 0 ? `${'— '.repeat(depth)}${category.name}` : category.name;
-                    return (
-                      <label key={category.id} className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={form.categoryIds.includes(category.id)}
-                          onChange={() => toggleCategory(category.id)}
-                          className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
-                        />
-                        <span>{label}</span>
-                      </label>
-                    );
-                  })
-                )}
+        return (
+          <Card>
+            <CardHeader
+              title={t('itemTypes.steps.relationships') || 'İlişkiler'}
+              subtitle={t('itemTypes.steps.relationships_desc') || 'Kategori bağlantıları ve durumlar'}
+            />
+            <div className="px-6 pb-6 space-y-6">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-semibold text-foreground">
+                    {t('itemTypes.fields.categories') || 'Kategoriler'}
+                  </h4>
+                  <Badge variant="primary" size="sm">
+                    {form.categoryIds.length}
+                  </Badge>
+                </div>
+                <div className="border border-border rounded-lg p-3 max-h-60 overflow-y-auto space-y-2 text-sm">
+                  {sortedCategories.length === 0 ? (
+                    <div className="text-muted-foreground">
+                      {t('itemTypes.create.no_categories') || 'Tanımlı kategori bulunamadı.'}
+                    </div>
+                  ) : (
+                    sortedCategories.map((category) => {
+                      const depth = category.hierarchyPath?.length ?? 0;
+                      const label =
+                        depth > 0 ? `${'— '.repeat(depth)}${category.name}` : category.name;
+                      return (
+                        <label key={category.id} className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={form.categoryIds.includes(category.id)}
+                            onChange={() => toggleCategory(category.id)}
+                            className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                          />
+                          <span>{label}</span>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             </div>
-
-          </div>
+          </Card>
         );
 
       case 'attributeGroups':
         return (
-          <div className="space-y-4">
-            <Input
-              label={t('itemTypes.attribute_groups.search_label') || 'Attribute gruplarında ara'}
-              placeholder={
-                t('itemTypes.attribute_groups.search_placeholder') ||
-                'İsim, açıklama veya etikete göre filtrele'
+          <Card>
+            <CardHeader
+              title={t('itemTypes.steps.attribute_groups') || 'Attribute Grupları'}
+              subtitle={
+                t('itemTypes.steps.attribute_groups_desc') ||
+                'Bağlanacak attribute gruplarını seçin'
               }
-              value={attributeGroupSearch}
-              onChange={(event) => setAttributeGroupSearch(event.target.value)}
-              leftIcon={<Search className="h-4 w-4" />}
             />
+            <div className="px-6 pb-6 space-y-4">
+              <Input
+                label={t('itemTypes.attribute_groups.search_label') || 'Attribute gruplarında ara'}
+                placeholder={
+                  t('itemTypes.attribute_groups.search_placeholder') ||
+                  'İsim, açıklama veya etikete göre filtrele'
+                }
+                value={attributeGroupSearch}
+                onChange={(event) => setAttributeGroupSearch(event.target.value)}
+                leftIcon={<Search className="h-4 w-4" />}
+              />
 
-            {filteredAttributeGroups.length === 0 ? (
-              <div className="text-sm text-muted-foreground">
-                {attributeGroups.length === 0
-                  ? t('itemTypes.attribute_groups.empty') || 'Tanımlı attribute grubu bulunamadı.'
-                  : t('itemTypes.attribute_groups.no_results') ||
-                    'Eşleşen attribute grubu bulunamadı.'}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {filteredAttributeGroups.map((group) => {
-                  const isSelected = form.attributeGroupIds.includes(group.id);
-                  return (
-                    <button
-                      type="button"
-                      key={group.id}
-                      onClick={() => toggleAttributeGroup(group.id)}
-                      className={`relative text-left border-2 rounded-xl p-4 transition-all duration-200 ${
-                        isSelected
-                          ? 'border-primary bg-primary/10 shadow-sm'
-                          : 'border-border hover:border-primary/60 hover:bg-muted/60'
-                      }`}
-                    >
-                      {isSelected ? (
-                        <div className="absolute top-3 right-3">
-                          <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center">
-                            <Check className="h-3 w-3" />
+              {filteredAttributeGroups.length === 0 ? (
+                <div className="text-sm text-muted-foreground">
+                  {attributeGroups.length === 0
+                    ? t('itemTypes.attribute_groups.empty') || 'Tanımlı attribute grubu bulunamadı.'
+                    : t('itemTypes.attribute_groups.no_results') || 'Eşleşen attribute grubu bulunamadı.'}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {filteredAttributeGroups.map((group) => {
+                    const isSelected = form.attributeGroupIds.includes(group.id);
+                    return (
+                      <button
+                        type="button"
+                        key={group.id}
+                        onClick={() => toggleAttributeGroup(group.id)}
+                        className={`relative text-left border-2 rounded-xl p-4 transition-all duration-200 ${
+                          isSelected
+                            ? 'border-primary bg-primary/10 shadow-sm'
+                            : 'border-border hover:border-primary/60 hover:bg-muted/60'
+                        }`}
+                      >
+                        {isSelected ? (
+                          <div className="absolute top-3 right-3">
+                            <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center">
+                              <Check className="h-3 w-3" />
+                            </div>
+                          </div>
+                        ) : null}
+
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-sm font-semibold text-foreground">{group.name}</h4>
+                            <Badge variant="primary" size="sm">
+                              {group.attributeCount ?? group.attributeIds?.length ?? 0}{' '}
+                              {t('itemTypes.attribute_groups.attribute_short') || 'attr'}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground line-clamp-2">
+                            {group.description ||
+                              t('itemTypes.attribute_groups.no_description') ||
+                              'Açıklama bulunmuyor.'}
+                          </p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Hash className="h-3 w-3" />
+                            <span>{group.key ?? group.id}</span>
                           </div>
                         </div>
-                      ) : null}
-
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <h4 className="text-sm font-semibold text-foreground">{group.name}</h4>
-                          <Badge variant="primary" size="sm">
-                            {group.attributeCount ?? group.attributeIds?.length ?? 0}{' '}
-                            {t('itemTypes.attribute_groups.attribute_short') || 'attr'}
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground line-clamp-2">
-                          {group.description ||
-                            t('itemTypes.attribute_groups.no_description') ||
-                            'Açıklama bulunmuyor.'}
-                        </p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <Hash className="h-3 w-3" />
-                          <span>{group.key ?? group.id}</span>
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {selectedAttributeGroups.length > 0 ? (
-              <div className="border-t border-border pt-4">
-                <h4 className="text-sm font-medium text-foreground mb-2">
-                  {t('itemTypes.attribute_groups.selected_count', {
-                    count: selectedAttributeGroups.length,
-                  }) || `Seçilen attribute grubu: ${selectedAttributeGroups.length}`}
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {selectedAttributeGroups.map((group) => (
-                    <Badge key={group.id} variant="secondary" size="sm">
-                      {group.name}
-                    </Badge>
-                  ))}
+                      </button>
+                    );
+                  })}
                 </div>
-              </div>
-            ) : null}
-          </div>
+              )}
+
+              {selectedAttributeGroups.length > 0 ? (
+                <div className="border-t border-border pt-4">
+                  <h4 className="text-sm font-medium text-foreground mb-2">
+                    {t('itemTypes.attribute_groups.selected_count', {
+                      count: selectedAttributeGroups.length,
+                    }) || `Seçilen attribute grubu: ${selectedAttributeGroups.length}`}
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedAttributeGroups.map((group) => (
+                      <Badge key={group.id} variant="secondary" size="sm">
+                        {group.name}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </Card>
         );
 
       case 'preview':
       default:
         return (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <h4 className="text-sm font-semibold text-foreground">
-                  {t('itemTypes.preview.general') || 'Genel Bilgiler'}
-                </h4>
-                <div className="space-y-2 rounded-lg border border-border p-4 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">
-                      {t('itemTypes.fields.key') || 'Key'}
-                    </span>
-                    <span className="font-medium">{form.key.trim() || '—'}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">
-                      {t('itemTypes.fields.lifecycle_status') || 'Lifecycle Durumu'}
-                    </span>
-                    <span className="font-medium">{lifecycleLabels[form.lifecycleStatus]}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">
-                      {t('itemTypes.fields.is_system') || 'Sistem Item Type'}
-                    </span>
-                    <span className="font-medium">
-                      {form.isSystemItemType
-                        ? t('common.yes') || 'Evet'
-                        : t('common.no') || 'Hayır'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <h4 className="text-sm font-semibold text-foreground">
-                  {t('itemTypes.preview.translations') || 'Çeviriler'}
-                </h4>
-                <div className="space-y-2 rounded-lg border border-border p-4 text-sm">
-                  {requiredLanguages.map(({ code, label }) => (
-                    <div key={`preview-name-${code}`} className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">
-                          {(t('itemTypes.fields.name') !== 'itemTypes.fields.name'
-                            ? t('itemTypes.fields.name')
-                            : 'Name') + ` (${label})`}
-                        </span>
-                        <span className="font-medium">{form.names[code]?.trim() || '—'}</span>
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {(t('itemTypes.fields.description') !== 'itemTypes.fields.description'
-                          ? t('itemTypes.fields.description')
-                          : 'Description') + ` (${label})`}
-                        <span className="ml-1 text-foreground">
-                          {form.descriptions[code]?.trim() ||
-                            t('itemTypes.preview.no_description') ||
-                            '—'}
-                        </span>
-                      </div>
+          <Card>
+            <CardHeader
+              title={t('itemTypes.steps.preview') || 'Önizleme'}
+              subtitle={t('itemTypes.steps.preview_desc') || 'Kaydetmeden önce kontrol edin'}
+            />
+            <div className="px-6 pb-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold text-foreground">
+                    {t('itemTypes.preview.general') || 'Genel Bilgiler'}
+                  </h4>
+                  <div className="space-y-2 rounded-lg border border-border p-4 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">{t('itemTypes.fields.key') || 'Key'}</span>
+                      <span className="font-medium">{form.key.trim() || '—'}</span>
                     </div>
-                  ))}
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">
+                        {t('itemTypes.fields.lifecycle_status') || 'Lifecycle Durumu'}
+                      </span>
+                      <span className="font-medium">{lifecycleLabels[form.lifecycleStatus]}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">
+                        {t('itemTypes.fields.is_system') || 'Sistem Item Type'}
+                      </span>
+                      <span className="font-medium">
+                        {form.isSystemItemType ? t('common.yes') || 'Evet' : t('common.no') || 'Hayır'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold text-foreground">
+                    {t('itemTypes.preview.translations') || 'Çeviriler'}
+                  </h4>
+                  <div className="space-y-2 rounded-lg border border-border p-4 text-sm">
+                    {requiredLanguages.map(({ code, label }) => (
+                      <div key={`preview-name-${code}`} className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">
+                            {(t('itemTypes.fields.name') !== 'itemTypes.fields.name'
+                              ? t('itemTypes.fields.name')
+                              : 'Name') + ` (${label})`}
+                          </span>
+                          <span className="font-medium">{form.names[code]?.trim() || '—'}</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {(t('itemTypes.fields.description') !== 'itemTypes.fields.description'
+                            ? t('itemTypes.fields.description')
+                            : 'Description') + ` (${label})`}
+                          <span className="ml-1 text-foreground">
+                            {form.descriptions[code]?.trim() ||
+                              t('itemTypes.preview.no_description') ||
+                              '—'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <h4 className="text-sm font-semibold text-foreground">
                   {t('itemTypes.fields.categories') || 'Kategoriler'}
@@ -711,96 +745,104 @@ export const ItemTypesCreate: React.FC = () => {
                 )}
               </div>
 
-            </div>
-
-            <div className="space-y-2">
-              <h4 className="text-sm font-semibold text-foreground">
-                {t('itemTypes.attribute_groups.title') || 'Attribute Grupları'}
-              </h4>
-              {selectedAttributeGroups.length === 0 ? (
-                <div className="text-sm text-muted-foreground border border-dashed border-border rounded-lg p-4">
-                  {t('itemTypes.attribute_groups.none_selected') ||
-                    'Bu item type için attribute grubu seçilmedi.'}
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {selectedAttributeGroups.map((group) => (
-                    <div key={group.id} className="border border-border rounded-lg p-4 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium text-sm text-foreground">{group.name}</span>
-                        <Badge variant="primary" size="sm">
-                          {group.attributeCount ?? group.attributeIds?.length ?? 0}{' '}
-                          {t('itemTypes.attribute_groups.attribute_short') || 'attr'}
-                        </Badge>
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold text-foreground">
+                  {t('itemTypes.attribute_groups.title') || 'Attribute Grupları'}
+                </h4>
+                {selectedAttributeGroups.length === 0 ? (
+                  <div className="text-sm text-muted-foreground border border-dashed border-border rounded-lg p-4">
+                    {t('itemTypes.attribute_groups.none_selected') ||
+                      'Bu item type için attribute grubu seçilmedi.'}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {selectedAttributeGroups.map((group) => (
+                      <div key={group.id} className="border border-border rounded-lg p-4 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-sm text-foreground">{group.name}</span>
+                          <Badge variant="primary" size="sm">
+                            {group.attributeCount ?? group.attributeIds?.length ?? 0}{' '}
+                            {t('itemTypes.attribute_groups.attribute_short') || 'attr'}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {group.description ||
+                            t('itemTypes.attribute_groups.no_description') ||
+                            'Açıklama bulunmuyor.'}
+                        </p>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        {group.description ||
-                          t('itemTypes.attribute_groups.no_description') ||
-                          'Açıklama bulunmuyor.'}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          </Card>
         );
     }
   };
 
+  const canProceed = useCallback((): boolean => {
+    if (submitting) {
+      return false;
+    }
+    if (currentStep === steps.length - 1) {
+      return true;
+    }
+    if (currentStepId === 'basic') {
+      return isBasicStepValid;
+    }
+    return true;
+  }, [submitting, currentStep, steps.length, currentStepId, isBasicStepValid]);
+
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title={t('itemTypes.create_title') || 'Item Type Oluştur'}
-        subtitle={
-          t('itemTypes.create_subtitle') ||
-          'Lifecycle, ilişkiler ve attribute gruplarıyla yeni bir item type oluşturun.'
-        }
-      />
+    <div className="space-y-6 flex flex-col min-h-full">
+      <Card padding="lg">
+        <Stepper steps={steps} currentStep={currentStep} />
+      </Card>
 
-      <Card>
-        <CardHeader
-          title={t('itemTypes.create_form') || 'Item Type Bilgileri'}
-          subtitle={t('itemTypes.create_form_subtitle') || 'Adımları takip ederek item type kaydedin.'}
-        />
-        <div className="px-6 pb-6 space-y-6">
-          <Stepper steps={steps} currentStep={currentStep} />
-
-          {error ? <div className="text-sm text-error">{error}</div> : null}
-
+      <Card className="flex-1 flex flex-col">
+        <div className="flex-1 overflow-hidden">
           {initialLoading ? (
-            <div className="text-sm text-muted-foreground">
+            <div className="px-6 py-8 text-sm text-muted-foreground">
               {t('common.loading') || 'Yükleniyor...'}
             </div>
+          ) : error ? (
+            <div className="px-6 py-8 text-sm text-error">{error}</div>
           ) : (
-            <>
-              {renderStepContent()}
-
-              <div className="flex items-center justify-between pt-4">
-                <Button
-                  variant="outline"
-                  onClick={handleBack}
-                  disabled={currentStep === 0 || submitting}
-                >
-                  {t('common.back') || 'Geri'}
-                </Button>
-
-                <div className="flex items-center gap-2">
-                  {currentStep < steps.length - 1 ? (
-                    <Button onClick={handleNext} disabled={submitting}>
-                      {t('common.next') || 'İleri'}
-                    </Button>
-                  ) : (
-                    <Button onClick={handleSubmit} disabled={submitting}>
-                      {submitting
-                        ? t('common.saving') || 'Kaydediliyor...'
-                        : t('common.create') || 'Oluştur'}
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </>
+            <div className="flex-1 overflow-y-auto px-2 pb-6">{renderStepContent()}</div>
           )}
+        </div>
+
+        <div className="flex justify-between pt-6 border-t border-border flex-shrink-0">
+          <Button
+            variant="outline"
+            onClick={handleBack}
+            disabled={currentStep === 0 || submitting}
+            leftIcon={<ArrowLeft className="h-4 w-4" />}
+          >
+            {t('common.back') || 'Geri'}
+          </Button>
+
+          <div className="flex space-x-3">
+            {currentStep === steps.length - 1 ? (
+              <Button
+                onClick={handleSubmit}
+                loading={submitting}
+                disabled={!canProceed()}
+                leftIcon={<Check className="h-4 w-4" />}
+              >
+                {t('common.create') || 'Oluştur'}
+              </Button>
+            ) : (
+              <Button
+                onClick={handleNext}
+                disabled={!canProceed()}
+                rightIcon={<ArrowRight className="h-4 w-4" />}
+              >
+                {t('common.continue') || 'Devam'}
+              </Button>
+            )}
+          </div>
         </div>
       </Card>
     </div>

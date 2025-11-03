@@ -36,4 +36,5 @@ export { Stepper } from './Stepper';
 export { AttributeTypeCard } from './AttributeTypeCard';
 export { AttributeGroupSelector } from './AttributeGroupSelector';
 export { TreeSelect } from './TreeSelect';
-
+export { HierarchyTreeView } from './HierarchyTreeView';
+export type { TreeNode } from './TreeSelect';

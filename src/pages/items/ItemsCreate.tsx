@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Package, Check, ArrowLeft, ArrowRight } from 'lucide-react';
-import { PageHeader } from '../../components/ui/PageHeader';
+import { ArrowLeft, ArrowRight, Check, FileText, Hash, Plus, Search } from 'lucide-react';
 import { Card, CardHeader } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { Textarea } from '../../components/ui/Textarea';
 import { Badge } from '../../components/ui/Badge';
 import { Stepper } from '../../components/ui/Stepper';
 import { useToast } from '../../contexts/ToastContext';
@@ -65,12 +65,14 @@ export const ItemsCreate: React.FC = () => {
       {
         id: 'relationships' as StepId,
         name: t('items.create.steps.relationships') || 'Metadata',
-        description: t('items.create.steps.relationships_desc') || 'Assign related taxonomy values',
+        description:
+          t('items.create.steps.relationships_desc') || 'Assign related taxonomy values and identifiers',
       },
       {
         id: 'associations' as StepId,
         name: t('items.create.steps.associations') || 'Associations',
-        description: t('items.create.steps.associations_desc') || 'Link existing items via association types',
+        description:
+          t('items.create.steps.associations_desc') || 'Link existing items via association types',
       },
       {
         id: 'review' as StepId,
@@ -150,7 +152,12 @@ export const ItemsCreate: React.FC = () => {
     [itemTypes, form.itemTypeId],
   );
   const selectedCategories = useMemo(
-    () => form.categoryId ? [categories.find((c) => c.id === form.categoryId)].filter(Boolean) as Category[] : [],
+    () =>
+      form.categoryId
+        ? [categories.find((category) => category.id === form.categoryId)].filter(
+            (value): value is Category => Boolean(value),
+          )
+        : [],
     [categories, form.categoryId],
   );
   const selectedFamily = useMemo(
@@ -183,9 +190,32 @@ export const ItemsCreate: React.FC = () => {
     });
   }, []);
 
+  const hasAssociationGap = useMemo(
+    () =>
+      form.associations.some(
+        (assoc) =>
+          (assoc.associationTypeId && !assoc.targetItemId) || (!assoc.associationTypeId && assoc.targetItemId),
+      ),
+    [form.associations],
+  );
+
+  const isItemTypeStepValid = useMemo(
+    () => !loadingLookup && Boolean(form.itemTypeId),
+    [loadingLookup, form.itemTypeId],
+  );
+
+  const isRelationshipsStepValid = useMemo(
+    () => form.code.trim().length > 0,
+    [form.code],
+  );
+
+  const isAssociationsStepValid = useMemo(() => !hasAssociationGap, [hasAssociationGap]);
+
   const validateCurrentStep = useCallback(() => {
     const step = steps[currentStep];
-    if (!step) return false;
+    if (!step) {
+      return false;
+    }
 
     switch (step.id) {
       case 'itemType':
@@ -203,17 +233,15 @@ export const ItemsCreate: React.FC = () => {
         return true;
       case 'relationships':
         if (!form.code.trim()) {
-          showToast({ type: 'error', message: t('items.create.validation.code_required') || 'Kod alanı zorunludur.' });
+          showToast({
+            type: 'error',
+            message: t('items.create.validation.code_required') || 'Kod alanı zorunludur.',
+          });
           return false;
         }
         return true;
-      case 'associations':
-        const invalidRow = form.associations.find(
-          (assoc) =>
-            (assoc.associationTypeId && !assoc.targetItemId) ||
-            (!assoc.associationTypeId && assoc.targetItemId),
-        );
-        if (invalidRow) {
+      case 'associations': {
+        if (hasAssociationGap) {
           showToast({
             type: 'error',
             message:
@@ -223,11 +251,12 @@ export const ItemsCreate: React.FC = () => {
           return false;
         }
         return true;
+      }
       case 'review':
       default:
         return true;
     }
-  }, [currentStep, form.associations, form.code, form.itemTypeId, loadingLookup, showToast, steps, t]);
+  }, [currentStep, form.code, form.itemTypeId, hasAssociationGap, loadingLookup, showToast, steps, t]);
 
   const handleNext = useCallback(() => {
     if (!validateCurrentStep()) {
@@ -311,7 +340,7 @@ export const ItemsCreate: React.FC = () => {
     }
   }, [form, navigate, showToast, submitting, t, validateCurrentStep, steps.length]);
 
-  const renderItemTypeStep = () => {
+  const renderItemTypeBody = () => {
     if (loadingLookup) {
       return <div className="text-sm text-muted-foreground">{t('common.loading') || 'Yükleniyor...'}</div>;
     }
@@ -365,9 +394,9 @@ export const ItemsCreate: React.FC = () => {
     );
   };
 
-  const renderRelationshipsStep = () => (
+  const renderRelationshipsBody = () => (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="block text-xs font-medium text-foreground mb-1">
             {t('items.fields.category') || 'Category'}
@@ -454,14 +483,12 @@ export const ItemsCreate: React.FC = () => {
     </div>
   );
 
-  const renderAssociationsStep = () => (
+  const renderAssociationsBody = () => (
     <div className="space-y-6">
-      <div>
-        <p className="text-sm text-muted-foreground">
-          {t('items.create.associations_hint') ||
-            'Yeni item oluşturulduktan sonra seçilen association tipe göre mevcut itemlarla bağlantılar kurulacaktır.'}
-        </p>
-      </div>
+      <p className="text-sm text-muted-foreground">
+        {t('items.create.associations_hint') ||
+          'Yeni item oluşturulduktan sonra seçilen association tipe göre mevcut itemlarla bağlantılar kurulacaktır.'}
+      </p>
 
       <div className="space-y-4">
         {form.associations.map((assoc, index) => {
@@ -481,7 +508,9 @@ export const ItemsCreate: React.FC = () => {
                   <Input
                     label={t('items.fields.association_type_id') || 'Association Type ID'}
                     value={assoc.associationTypeId}
-                    onChange={(event) => handleAssociationChange(index, { associationTypeId: event.target.value })}
+                    onChange={(event) =>
+                      handleAssociationChange(index, { associationTypeId: event.target.value })
+                    }
                     placeholder="association-type-id"
                     required
                   />
@@ -492,7 +521,9 @@ export const ItemsCreate: React.FC = () => {
                     </label>
                     <select
                       value={assoc.targetItemId}
-                      onChange={(event) => handleAssociationChange(index, { targetItemId: event.target.value })}
+                      onChange={(event) =>
+                        handleAssociationChange(index, { targetItemId: event.target.value })
+                      }
                       className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                     >
                       <option value="">{t('items.create.select_target_item') || 'Hedef item seçin'}</option>
@@ -514,11 +545,12 @@ export const ItemsCreate: React.FC = () => {
                     placeholder="0"
                   />
 
-                  <Input
+                  <Textarea
                     label={t('items.fields.metadata') || 'Metadata (JSON veya metin)'}
                     value={assoc.metadata ?? ''}
                     onChange={(event) => handleAssociationChange(index, { metadata: event.target.value })}
                     placeholder='{"quantity": 1}'
+                    rows={3}
                   />
                 </div>
 
@@ -545,14 +577,13 @@ export const ItemsCreate: React.FC = () => {
     </div>
   );
 
-  const renderReviewStep = () => (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <Card>
-        <CardHeader
-          title={t('items.review.summary') || 'Özet'}
-          subtitle={t('items.review.summary_desc') || 'Temel bilgileri kontrol edin'}
-        />
-        <div className="px-6 pb-6 space-y-3 text-sm">
+  const renderReviewBody = () => (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="space-y-3 border border-border rounded-lg p-4 text-sm">
+          <h4 className="text-sm font-semibold text-foreground">
+            {t('items.review.summary') || 'Özet'}
+          </h4>
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">{t('items.fields.item_type') || 'Item Type'}</span>
             <span className="font-medium text-foreground">
@@ -562,7 +593,9 @@ export const ItemsCreate: React.FC = () => {
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">{t('items.fields.category') || 'Category'}</span>
             <span className="font-medium text-foreground">
-              {selectedCategories.length ? selectedCategories[0].name : t('items.review.not_selected') || 'Seçilmedi'}
+              {selectedCategories.length
+                ? selectedCategories[0].name
+                : t('items.review.not_selected') || 'Seçilmedi'}
             </span>
           </div>
           <div className="flex items-center justify-between">
@@ -590,14 +623,11 @@ export const ItemsCreate: React.FC = () => {
             </Badge>
           </div>
         </div>
-      </Card>
 
-      <Card>
-        <CardHeader
-          title={t('items.review.associations') || 'Associations'}
-          subtitle={t('items.review.associations_desc') || 'Kaydedilecek association satırları'}
-        />
-        <div className="px-6 pb-6 space-y-3 text-sm">
+        <div className="space-y-3 border border-border rounded-lg p-4 text-sm">
+          <h4 className="text-sm font-semibold text-foreground">
+            {t('items.review.associations') || 'Associations'}
+          </h4>
           {form.associations.filter((assoc) => assoc.associationTypeId && assoc.targetItemId).length === 0 ? (
             <div className="text-muted-foreground">
               {t('items.review.no_associations') || 'Association eklenmedi.'}
@@ -608,17 +638,17 @@ export const ItemsCreate: React.FC = () => {
               .map((assoc, index) => {
                 const targetItem = availableItems.find((item) => item.id === assoc.targetItemId);
                 return (
-                  <div key={`review-assoc-${index}`} className="border-b border-border pb-2">
+                  <div key={`review-assoc-${index}`} className="border-b border-border pb-2 last:border-b-0">
                     <div className="flex items-center justify-between">
-                      <span className="font-medium text-foreground">
-                        {assoc.associationTypeId}
-                      </span>
+                      <span className="font-medium text-foreground">{assoc.associationTypeId}</span>
                       <span className="text-xs text-muted-foreground">#{index + 1}</span>
                     </div>
                     <div className="mt-1 text-xs text-muted-foreground">
                       <span>{t('items.fields.target_item') || 'Target'}:</span>{' '}
                       <span className="text-foreground">
-                        {targetItem ? `${targetItem.code}${targetItem.name ? ` - ${targetItem.name}` : ''}` : assoc.targetItemId}
+                        {targetItem
+                          ? `${targetItem.code}${targetItem.name ? ` - ${targetItem.name}` : ''}`
+                          : assoc.targetItemId}
                       </span>
                     </div>
                     {assoc.orderIndex && (
@@ -636,76 +666,135 @@ export const ItemsCreate: React.FC = () => {
               })
           )}
         </div>
-      </Card>
+      </div>
     </div>
   );
 
   const renderStepContent = () => {
     const step = steps[currentStep];
-    if (!step) return null;
+    if (!step) {
+      return null;
+    }
 
     switch (step.id) {
       case 'itemType':
-        return renderItemTypeStep();
+        return (
+          <Card>
+            <CardHeader
+              title={t('items.create.item_type_title') || 'Item Type Seçimi'}
+              subtitle={t('items.create.item_type_subtitle') || 'Item tipini seçerek başlayın.'}
+            />
+            <div className="px-6 pb-6 space-y-6">{renderItemTypeBody()}</div>
+          </Card>
+        );
       case 'relationships':
-        return renderRelationshipsStep();
+        return (
+          <Card>
+            <CardHeader
+              title={t('items.create.relationships_title') || 'Metadata Bilgileri'}
+              subtitle={t('items.create.relationships_subtitle') || 'Kod ve temel alanları doldurun.'}
+            />
+            <div className="px-6 pb-6 space-y-6">{renderRelationshipsBody()}</div>
+          </Card>
+        );
       case 'associations':
-        return renderAssociationsStep();
+        return (
+          <Card>
+            <CardHeader
+              title={t('items.create.associations_title') || 'Associations'}
+              subtitle={t('items.create.associations_subtitle') || 'Mevcut itemlarla bağlantılar oluşturun.'}
+            />
+            <div className="px-6 pb-6 space-y-6">{renderAssociationsBody()}</div>
+          </Card>
+        );
       case 'review':
-        return renderReviewStep();
       default:
-        return null;
+        return (
+          <Card>
+            <CardHeader
+              title={t('items.create.review_title') || 'Önizleme'}
+              subtitle={t('items.create.review_subtitle') || 'Kaydetmeden önce bilgileri doğrulayın.'}
+            />
+            <div className="px-6 pb-6">{renderReviewBody()}</div>
+          </Card>
+        );
     }
   };
 
+  const currentStepId = steps[currentStep]?.id as StepId;
+
+  const canProceed = useCallback((): boolean => {
+    if (submitting) {
+      return false;
+    }
+    if (currentStep === steps.length - 1) {
+      return true;
+    }
+    switch (currentStepId) {
+      case 'itemType':
+        return isItemTypeStepValid;
+      case 'relationships':
+        return isRelationshipsStepValid;
+      case 'associations':
+        return isAssociationsStepValid;
+      default:
+        return true;
+    }
+  }, [submitting, currentStep, steps.length, currentStepId, isItemTypeStepValid, isRelationshipsStepValid, isAssociationsStepValid]);
+
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title={t('items.create_title') || 'Item Oluştur'}
-        subtitle={
-          t('items.create_subtitle') ||
-          'Ürün tipini seçin, metadata alanlarını doldurun ve gerekli association bağlantılarını ekleyin.'
-        }
-      />
+    <div className="space-y-6 flex flex-col min-h-full">
+      <Card padding="lg">
+        <Stepper steps={steps} currentStep={currentStep} />
+      </Card>
 
-      <Card>
-        <CardHeader
-          title={t('items.create.form_title') || 'Item Bilgileri'}
-          subtitle={t('items.create.form_subtitle') || 'Adımları tamamlayarak yeni bir item ekleyin.'}
-        />
-        <div className="px-6 pb-6 space-y-6">
-          <Stepper steps={steps} currentStep={currentStep} />
-
-          {lookupError ? (
-            <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {lookupError}
+      <Card className="flex-1 flex flex-col">
+        <div className="flex-1 overflow-hidden">
+        {loadingLookup ? (
+            <div className="px-6 py-8 text-sm text-muted-foreground">
+              {t('common.loading') || 'Yükleniyor...'}
             </div>
-          ) : null}
-
-          {renderStepContent()}
-
-          <div className="flex items-center justify-between pt-4">
-            <Button
-              variant="outline"
-              onClick={handleBack}
-              disabled={currentStep === 0 || submitting}
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              {t('common.back') || 'Geri'}
-            </Button>
-
-            <div className="flex items-center gap-2">
-              {currentStep < steps.length - 1 ? (
-                <Button onClick={handleNext} disabled={submitting || loadingLookup}>
-                  {t('common.next') || 'İleri'}
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                </Button>
-              ) : (
-                <Button onClick={handleSubmit} disabled={submitting}>
-                  {submitting ? t('common.saving') || 'Kaydediliyor...' : t('common.create') || 'Oluştur'}
-                </Button>
-              )}
+          ) : (
+            <div className="flex-1 overflow-y-auto px-2 pb-6 space-y-4">
+              {lookupError ? (
+                <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {lookupError}
+                </div>
+              ) : null}
+              {renderStepContent()}
             </div>
+          )}
+        </div>
+
+        <div className="flex justify-between pt-6 border-t border-border flex-shrink-0">
+          <Button
+            variant="outline"
+            onClick={handleBack}
+            disabled={currentStep === 0 || submitting}
+            leftIcon={<ArrowLeft className="h-4 w-4" />}
+          >
+            {t('common.back') || 'Geri'}
+          </Button>
+
+          <div className="flex space-x-3">
+            {currentStep === steps.length - 1 ? (
+              <Button
+                onClick={handleSubmit}
+                loading={submitting}
+                disabled={!canProceed()}
+                leftIcon={<Check className="h-4 w-4" />}
+              >
+                {t('common.create') || 'Oluştur'}
+              </Button>
+            ) : (
+              <Button
+                onClick={handleNext}
+                disabled={!canProceed() || loadingLookup}
+                rightIcon={<ArrowRight className="h-4 w-4" />}
+              >
+                {t('common.continue') || 'Devam'}
+              </Button>
+            )}
           </div>
         </div>
       </Card>

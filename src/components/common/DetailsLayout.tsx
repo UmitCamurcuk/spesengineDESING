@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Edit, Save, X } from 'lucide-react';
+import { ArrowLeft, Edit, Save, Trash2, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
@@ -7,6 +7,7 @@ import { Tabs, TabPanel } from '../ui/Tabs';
 import { TabConfig } from '../../types/common';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useEditActionContext } from '../../contexts/EditActionContext';
+import { Dialog } from '../ui/Dialog';
 
 interface DetailsLayoutProps {
   title: React.ReactNode;
@@ -22,6 +23,14 @@ interface DetailsLayoutProps {
   onSave?: () => void;
   onCancel?: () => void;
   inlineActions?: boolean;
+  onDelete?: () => void | Promise<void>;
+  deleteButtonLabel?: string;
+  deleteDialogTitle?: string;
+  deleteDialogDescription?: string;
+  deleteConfirmLabel?: string;
+  deleteCancelLabel?: string;
+  deleteLoading?: boolean;
+  canDelete?: boolean;
 }
 
 export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
@@ -38,6 +47,14 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
   onSave,
   onCancel,
   inlineActions = true,
+  onDelete,
+  deleteButtonLabel,
+  deleteDialogTitle,
+  deleteDialogDescription,
+  deleteConfirmLabel,
+  deleteCancelLabel,
+  deleteLoading = false,
+  canDelete = true,
 }) => {
   const navigate = useNavigate();
   const { t } = useLanguage();
@@ -96,6 +113,30 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
   const triggerSave = useCallback(() => {
     saveHandlerRef.current?.();
   }, []);
+
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  const handleDeleteConfirm = useCallback(() => {
+    if (!onDelete) {
+      return;
+    }
+    try {
+      const result = onDelete();
+      if (result && typeof (result as Promise<unknown>).then === 'function') {
+        (result as Promise<unknown>)
+          .then(() => {
+            setDeleteDialogOpen(false);
+          })
+          .catch(() => {
+            // keep dialog open on failure
+          });
+      } else {
+        setDeleteDialogOpen(false);
+      }
+    } catch {
+      // keep dialog open if delete handler throws
+    }
+  }, [onDelete]);
 
   useEffect(() => {
     if (inlineActions || !onEdit) {
@@ -164,6 +205,21 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
 
         <div className="flex items-center space-x-3">
           {headerActions}
+          {onDelete && canDelete ? (
+            <Button
+              onClick={() => setDeleteDialogOpen(true)}
+              size="sm"
+              variant="danger"
+              className="p-2 h-9 w-9"
+              aria-label={deleteButtonLabel ?? t('common.delete', { defaultValue: 'Delete' })}
+              disabled={deleteLoading}
+            >
+              <Trash2 className="h-4 w-4" />
+              <span className="sr-only">
+                {deleteButtonLabel ?? t('common.delete', { defaultValue: 'Delete' })}
+              </span>
+            </Button>
+          ) : null}
           {inlineActions && onEdit ? (
             !editMode ? (
               <Button
@@ -220,6 +276,28 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
             {t('common.no_results')}
           </div>
         </Card>
+      )}
+
+      {onDelete && (
+        <Dialog
+          open={deleteDialogOpen}
+          onClose={() => setDeleteDialogOpen(false)}
+          onConfirm={handleDeleteConfirm}
+          loading={deleteLoading}
+          type="danger"
+          title={
+            deleteDialogTitle ??
+            t('common.delete_confirmation_title', { defaultValue: 'Delete Record?' })
+          }
+          description={
+            deleteDialogDescription ??
+            t('common.delete_confirmation_message', {
+              defaultValue: 'This action cannot be undone. Are you sure you want to continue?',
+            })
+          }
+          confirmText={deleteConfirmLabel ?? t('common.delete', { defaultValue: 'Delete' })}
+          cancelText={deleteCancelLabel ?? t('common.cancel', { defaultValue: 'Cancel' })}
+        />
       )}
     </div>
   );

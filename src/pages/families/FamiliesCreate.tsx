@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, Hash, Search } from 'lucide-react';
+import { Check, Hash, Search, ArrowLeft, ArrowRight, FileText } from 'lucide-react';
 import { Card, CardHeader } from '../../components/ui/Card';
-import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
 import { Badge } from '../../components/ui/Badge';
 import { Stepper } from '../../components/ui/Stepper';
+import { TreeSelect } from '../../components/ui/TreeSelect';
 import { useToast } from '../../contexts/ToastContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useRequiredLanguages } from '../../hooks/useRequiredLanguages';
@@ -16,6 +16,8 @@ import { categoriesService } from '../../api/services/categories.service';
 import { attributeGroupsService } from '../../api/services/attribute-groups.service';
 import { localizationsService } from '../../api/services/localizations.service';
 import type { AttributeGroup, Category, Family } from '../../types';
+import { buildHierarchyTree } from '../../utils/hierarchy';
+import type { TreeNode } from '../../components/ui';
 
 interface FormState {
   key: string;
@@ -198,27 +200,29 @@ export const FamiliesCreate: React.FC = () => {
     };
   }, [t]);
 
-  const sortedFamilies = useMemo(() => {
-    const items = [...families];
-    return items.sort((a, b) => {
-      const depthDiff = (a.hierarchyPath?.length ?? 0) - (b.hierarchyPath?.length ?? 0);
-      if (depthDiff !== 0) {
-        return depthDiff;
-      }
-      return a.name.localeCompare(b.name);
+  const familyTreeOptions = useMemo<TreeNode[]>(() => {
+    if (families.length === 0) {
+      return [];
+    }
+    return buildHierarchyTree(families, {
+      getId: (item) => item.id,
+      getParentId: (item) => item.parentFamilyId ?? null,
+      getLabel: (item) => item.name?.trim() || item.key,
+      getDescription: (item) => `${t('families.fields.key') || 'Key'}: ${item.key}`,
     });
-  }, [families]);
+  }, [families, t]);
 
-  const sortedCategories = useMemo(() => {
-    const items = [...categories];
-    return items.sort((a, b) => {
-      const depthDiff = (a.hierarchyPath?.length ?? 0) - (b.hierarchyPath?.length ?? 0);
-      if (depthDiff !== 0) {
-        return depthDiff;
-      }
-      return a.name.localeCompare(b.name);
+  const categoryTreeOptions = useMemo<TreeNode[]>(() => {
+    if (categories.length === 0) {
+      return [];
+    }
+    return buildHierarchyTree(categories, {
+      getId: (item) => item.id,
+      getParentId: (item) => item.parentCategoryId ?? null,
+      getLabel: (item) => item.name?.trim() || item.key,
+      getDescription: (item) => `${t('families.fields.key') || 'Key'}: ${item.key}`,
     });
-  }, [categories]);
+  }, [categories, t]);
 
   const attributeGroupMap = useMemo(() => {
     const map = new Map<string, AttributeGroup>();
@@ -270,8 +274,20 @@ export const FamiliesCreate: React.FC = () => {
     });
   }, []);
 
+  const isKeyMissing = useMemo(() => form.key.trim().length === 0, [form.key]);
+
+  const missingLanguage = useMemo(
+    () => requiredLanguages.find(({ code }) => !form.names[code]?.trim()),
+    [form.names, requiredLanguages],
+  );
+
+  const isBasicStepValid = useMemo(
+    () => !isKeyMissing && !missingLanguage,
+    [isKeyMissing, missingLanguage],
+  );
+
   const validateBasicStep = useCallback((): boolean => {
-    if (!form.key.trim()) {
+    if (isKeyMissing) {
       showToast({
         type: 'error',
         message: t('families.validation.key') || 'Key zorunludur.',
@@ -279,7 +295,6 @@ export const FamiliesCreate: React.FC = () => {
       return false;
     }
 
-    const missingLanguage = requiredLanguages.find(({ code }) => !form.names[code]?.trim());
     if (missingLanguage) {
       showToast({
         type: 'error',
@@ -291,7 +306,7 @@ export const FamiliesCreate: React.FC = () => {
     }
 
     return true;
-  }, [form.key, form.names, requiredLanguages, showToast, t]);
+  }, [isKeyMissing, missingLanguage, showToast, t]);
 
   const handleNext = useCallback(() => {
     if (currentStep >= steps.length - 1) {
@@ -396,208 +411,217 @@ export const FamiliesCreate: React.FC = () => {
     switch (currentStepId) {
       case 'basic':
         return (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label={t('families.fields.key') || 'Key'}
-                value={form.key}
-                onChange={(event) => updateForm({ key: event.target.value })}
-                placeholder="coffee_products"
-                required
-              />
+          <Card>
+            <CardHeader
+              title={t('families.create_form') || 'Family Bilgileri'}
+              subtitle={t('families.create_form_subtitle') || 'Adımları takip ederek family kaydedin.'}
+            />
+            <div className="space-y-6">
+              <div className="flex items-start space-x-4">
+                <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <FileText className="h-8 w-8 text-white" />
+                </div>
+                <div className="flex-1 space-y-4">
+                  <Input
+                    label={t('families.fields.key') || 'Key'}
+                    value={form.key}
+                    onChange={(event) => updateForm({ key: event.target.value })}
+                    placeholder="coffee_products"
+                    required
+                  />
 
-              <div className="flex items-center gap-2 mt-2 md:mt-6">
-                <input
-                  id="isSystemFamily"
-                  type="checkbox"
-                  checked={form.isSystemFamily}
-                  onChange={(event) => updateForm({ isSystemFamily: event.target.checked })}
-                  className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
-                />
-                <label htmlFor="isSystemFamily" className="text-sm text-foreground">
-                  {t('families.fields.is_system') || 'Sistem Family'}
-                </label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {requiredLanguages.map(({ code, label }) => (
+                      <Input
+                        key={`family-name-${code}`}
+                        label={resolveNameLabel(code, label)}
+                        value={form.names[code] ?? ''}
+                        onChange={(event) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            names: { ...prev.names, [code]: event.target.value },
+                          }))
+                        }
+                        required
+                      />
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {requiredLanguages.map(({ code, label }) => (
+                      <div key={`family-description-${code}`}>
+                        <label className="block text-xs font-medium text-foreground mb-1">
+                          {resolveDescriptionLabel(code, label)}
+                        </label>
+                        <textarea
+                          value={form.descriptions[code] ?? ''}
+                          onChange={(event) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              descriptions: { ...prev.descriptions, [code]: event.target.value },
+                            }))
+                          }
+                          placeholder={t('families.fields.description_placeholder') || 'Description'}
+                          rows={3}
+                          className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center space-x-2 text-sm text-foreground">
+                    <input
+                      id="isSystemFamily"
+                      type="checkbox"
+                      checked={form.isSystemFamily}
+                      onChange={(event) => updateForm({ isSystemFamily: event.target.checked })}
+                      className="rounded border-border text-primary focus:ring-primary"
+                    />
+                    <label htmlFor="isSystemFamily">
+                      {t('families.fields.is_system') || 'Sistem Family'}
+                    </label>
+                  </div>
+                </div>
               </div>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {requiredLanguages.map(({ code, label }) => (
-                <Input
-                  key={`family-name-${code}`}
-                  label={resolveNameLabel(code, label)}
-                  value={form.names[code] ?? ''}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      names: { ...prev.names, [code]: event.target.value },
-                    }))
-                  }
-                  required
-                />
-              ))}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {requiredLanguages.map(({ code, label }) => (
-                <Textarea
-                  key={`family-description-${code}`}
-                  label={resolveDescriptionLabel(code, label)}
-                  value={form.descriptions[code] ?? ''}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      descriptions: { ...prev.descriptions, [code]: event.target.value },
-                    }))
-                  }
-                  rows={3}
-                />
-              ))}
-            </div>
-          </div>
+          </Card>
         );
 
       case 'relationships':
         return (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-xs font-medium text-foreground mb-1">
-                {t('families.fields.parent') || 'Parent Family'}
-              </label>
-              <select
-                value={form.parentFamilyId}
-                onChange={(event) => updateForm({ parentFamilyId: event.target.value })}
-                className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                <option value="">
-                  {t('families.root_label') || 'Parent yok (kök family)'}
-                </option>
-                {sortedFamilies.map((family) => {
-                  const depth = family.hierarchyPath?.length ?? 0;
-                  const prefix = depth > 0 ? `${'— '.repeat(depth)}${family.name}` : family.name;
-                  return (
-                    <option key={family.id} value={family.id}>
-                      {prefix}
-                    </option>
-                  );
-                })}
-              </select>
-              <p className="text-xs text-muted-foreground mt-1">
-                {t('families.create.parent_helper') ||
-                  'Opsiyonel: Mevcut bir family altında konumlandırabilirsiniz.'}
-              </p>
-            </div>
+          <Card>
+            <CardHeader
+              title={t('families.steps.relationships') || 'İlişkiler'}
+              subtitle={t('families.steps.relationships_desc') || 'Parent ve kategori seçimi'}
+            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <TreeSelect
+                  label={t('families.fields.parent') || 'Parent Family'}
+                  placeholder={t('families.root_label') || 'Parent yok (kök family)'}
+                  options={familyTreeOptions}
+                  value={form.parentFamilyId || null}
+                  onChange={(next) => updateForm({ parentFamilyId: next ?? '' })}
+                  emptyState={
+                    <span className="text-xs text-muted-foreground">
+                      {t('families.no_parent_candidates') || 'Parent family bulunamadı.'}
+                    </span>
+                  }
+                />
+                <p className="text-xs text-muted-foreground mt-2">
+                  {t('families.create.parent_helper') ||
+                    'Opsiyonel: Mevcut bir family altında konumlandırabilirsiniz.'}
+                </p>
+              </div>
 
-            <div>
-              <label className="block text-xs font-medium text-foreground mb-1">
-                {t('families.fields.category') || 'Kategori'}
-              </label>
-              <select
-                value={form.categoryId}
-                onChange={(event) => updateForm({ categoryId: event.target.value })}
-                className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                <option value="">
-                  {t('families.select_category') || 'Kategori seçin (opsiyonel)'}
-                </option>
-                {sortedCategories.map((category) => {
-                  const depth = category.hierarchyPath?.length ?? 0;
-                  const prefix =
-                    depth > 0 ? `${'— '.repeat(depth)}${category.name}` : category.name;
-                  return (
-                    <option key={category.id} value={category.id}>
-                      {prefix}
-                    </option>
-                  );
-                })}
-              </select>
+              <div>
+                <TreeSelect
+                  label={t('families.fields.category') || 'Kategori'}
+                  placeholder={t('families.select_category') || 'Kategori seçin (opsiyonel)'}
+                  options={categoryTreeOptions}
+                  value={form.categoryId || null}
+                  onChange={(next) => updateForm({ categoryId: next ?? '' })}
+                  emptyState={
+                    <span className="text-xs text-muted-foreground">
+                      {t('families.categories_empty') || 'Kategori bulunamadı.'}
+                    </span>
+                  }
+                />
+              </div>
             </div>
-          </div>
+          </Card>
         );
 
       case 'attributeGroups':
         return (
-          <div className="space-y-4">
-            <Input
-              label={t('families.attribute_groups.search_label') || 'Attribute gruplarında ara'}
-              placeholder={
-                t('families.attribute_groups.search_placeholder') || 'İsim, açıklama veya etikete göre filtrele'
-              }
-              value={attributeGroupSearch}
-              onChange={(event) => setAttributeGroupSearch(event.target.value)}
-              leftIcon={<Search className="h-4 w-4" />}
+          <Card>
+            <CardHeader
+              title={t('families.steps.attribute_groups') || 'Attribute Grupları'}
+              subtitle={t('families.steps.attribute_groups_desc') || 'Bağlanacak attribute grupları'}
             />
+            <div className="space-y-4">
+              <Input
+                label={t('families.attribute_groups.search_label') || 'Attribute gruplarında ara'}
+                placeholder={
+                  t('families.attribute_groups.search_placeholder') || 'İsim, açıklama veya etikete göre filtrele'
+                }
+                value={attributeGroupSearch}
+                onChange={(event) => setAttributeGroupSearch(event.target.value)}
+                leftIcon={<Search className="h-4 w-4" />}
+              />
 
-            {filteredAttributeGroups.length === 0 ? (
-              <div className="text-sm text-muted-foreground">
-                {attributeGroups.length === 0
-                  ? t('families.attribute_groups.empty') || 'Tanımlı attribute grubu bulunamadı.'
-                  : t('families.attribute_groups.no_results') ||
-                    'Eşleşen attribute grubu bulunamadı.'}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {filteredAttributeGroups.map((group) => {
-                  const isSelected = form.attributeGroupIds.includes(group.id);
-                  return (
-                    <button
-                      type="button"
-                      key={group.id}
-                      onClick={() => toggleAttributeGroup(group.id)}
-                      className={`relative text-left border-2 rounded-xl p-4 transition-all duration-200 ${
-                        isSelected
-                          ? 'border-primary bg-primary/10 shadow-sm'
-                          : 'border-border hover:border-primary/60 hover:bg-muted/60'
-                      }`}
-                    >
-                      {isSelected ? (
-                        <div className="absolute top-3 right-3">
-                          <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center">
-                            <Check className="h-3 w-3" />
+              {filteredAttributeGroups.length === 0 ? (
+                <div className="text-sm text-muted-foreground">
+                  {attributeGroups.length === 0
+                    ? t('families.attribute_groups.empty') || 'Tanımlı attribute grubu bulunamadı.'
+                    : t('families.attribute_groups.no_results') ||
+                      'Eşleşen attribute grubu bulunamadı.'}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {filteredAttributeGroups.map((group) => {
+                    const isSelected = form.attributeGroupIds.includes(group.id);
+                    return (
+                      <button
+                        type="button"
+                        key={group.id}
+                        onClick={() => toggleAttributeGroup(group.id)}
+                        className={`relative text-left border-2 rounded-xl p-4 transition-all duration-200 ${
+                          isSelected
+                            ? 'border-primary bg-primary/10 shadow-sm'
+                            : 'border-border hover:border-primary/60 hover:bg-muted/60'
+                        }`}
+                      >
+                        {isSelected ? (
+                          <div className="absolute top-3 right-3">
+                            <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center">
+                              <Check className="h-3 w-3" />
+                            </div>
+                          </div>
+                        ) : null}
+
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-sm font-semibold text-foreground">{group.name}</h4>
+                            <Badge variant="primary" size="sm">
+                              {group.attributeCount ?? group.attributeIds?.length ?? 0}{' '}
+                              {t('families.attribute_groups.attribute_short') || 'attr'}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground line-clamp-2">
+                            {group.description ||
+                              t('families.attribute_groups.no_description') ||
+                              'Açıklama bulunmuyor.'}
+                          </p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Hash className="h-3 w-3" />
+                            <span>{group.key ?? group.id}</span>
                           </div>
                         </div>
-                      ) : null}
-
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <h4 className="text-sm font-semibold text-foreground">{group.name}</h4>
-                          <Badge variant="primary" size="sm">
-                            {group.attributeCount ?? group.attributeIds?.length ?? 0}{' '}
-                            {t('families.attribute_groups.attribute_short') || 'attr'}
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground line-clamp-2">
-                          {group.description ||
-                            t('families.attribute_groups.no_description') ||
-                            'Açıklama bulunmuyor.'}
-                        </p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <Hash className="h-3 w-3" />
-                          <span>{group.key ?? group.id}</span>
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {selectedAttributeGroups.length > 0 ? (
-              <div className="border-t border-border pt-4">
-                <h4 className="text-sm font-medium text-foreground mb-2">
-                  {t('families.attribute_groups.selected_count', {
-                    count: selectedAttributeGroups.length,
-                  }) || `Seçilen attribute grubu: ${selectedAttributeGroups.length}`}
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {selectedAttributeGroups.map((group) => (
-                    <Badge key={group.id} variant="secondary" size="sm">
-                      {group.name}
-                    </Badge>
-                  ))}
+                      </button>
+                    );
+                  })}
                 </div>
-              </div>
-            ) : null}
-          </div>
+              )}
+
+              {selectedAttributeGroups.length > 0 ? (
+                <div className="border-t border-border pt-4">
+                  <h4 className="text-sm font-medium text-foreground mb-2">
+                    {t('families.attribute_groups.selected_count', {
+                      count: selectedAttributeGroups.length,
+                    }) || `Seçilen attribute grubu: ${selectedAttributeGroups.length}`}
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedAttributeGroups.map((group) => (
+                      <Badge key={group.id} variant="secondary" size="sm">
+                        {group.name}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </Card>
         );
 
       case 'preview':
@@ -610,174 +634,193 @@ export const FamiliesCreate: React.FC = () => {
           : null;
 
         return (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <h4 className="text-sm font-semibold text-foreground">
-                  {t('families.preview.general') || 'Genel Bilgiler'}
-                </h4>
-                <div className="space-y-2 rounded-lg border border-border p-4 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">
-                      {t('families.fields.key') || 'Key'}
-                    </span>
-                    <span className="font-medium">{form.key.trim() || '—'}</span>
+          <Card>
+            <CardHeader
+              title={t('families.steps.preview') || 'Önizleme'}
+              subtitle={t('families.steps.preview_desc') || 'Kaydetmeden önce kontrol edin'}
+            />
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium text-foreground mb-2">
+                    {t('families.preview.general') || 'Genel Bilgiler'}
+                  </h4>
+                  <div className="space-y-2 rounded-lg border border-border p-4 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">
+                        {t('families.fields.key') || 'Key'}
+                      </span>
+                      <span className="font-medium">{form.key.trim() || '—'}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">
+                        {t('families.fields.parent') || 'Parent'}
+                      </span>
+                      <span className="font-medium">
+                        {selectedParent
+                          ? selectedParent.name
+                          : t('families.root_label') || 'Parent yok'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">
+                        {t('families.fields.category') || 'Kategori'}
+                      </span>
+                      <span className="font-medium">
+                        {selectedCategory
+                          ? selectedCategory.name
+                          : t('families.select_category_placeholder') || 'Seçilmedi'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">
+                        {t('families.fields.is_system') || 'Sistem Family'}
+                      </span>
+                      <span className="font-medium">
+                        {form.isSystemFamily
+                          ? t('common.yes') || 'Evet'
+                          : t('common.no') || 'Hayır'}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">
-                      {t('families.fields.parent') || 'Parent'}
-                    </span>
-                    <span className="font-medium">
-                      {selectedParent
-                        ? selectedParent.name
-                        : t('families.root_label') || 'Parent yok'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">
-                      {t('families.fields.category') || 'Kategori'}
-                    </span>
-                    <span className="font-medium">
-                      {selectedCategory
-                        ? selectedCategory.name
-                        : t('families.select_category_placeholder') || 'Seçilmedi'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">
-                      {t('families.fields.is_system') || 'Sistem Family'}
-                    </span>
-                    <span className="font-medium">
-                      {form.isSystemFamily
-                        ? t('common.yes') || 'Evet'
-                        : t('common.no') || 'Hayır'}
-                    </span>
+                </div>
+
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium text-foreground mb-2">
+                    {t('families.preview.translations') || 'Çeviriler'}
+                  </h4>
+                  <div className="space-y-2 rounded-lg border border-border p-4 text-sm">
+                    {requiredLanguages.map(({ code, label }) => (
+                      <div key={`preview-name-${code}`} className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">
+                            {(t('families.fields.name') !== 'families.fields.name'
+                              ? t('families.fields.name')
+                              : 'Name') + ` (${label})`}
+                          </span>
+                          <span className="font-medium">{form.names[code]?.trim() || '—'}</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {(t('families.fields.description') !== 'families.fields.description'
+                            ? t('families.fields.description')
+                            : 'Description') + ` (${label})`}
+                          <span className="ml-1 text-foreground">
+                            {form.descriptions[code]?.trim() ||
+                              t('families.preview.no_description') ||
+                              '—'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <h4 className="text-sm font-semibold text-foreground">
-                  {t('families.preview.translations') || 'Çeviriler'}
+                <h4 className="text-sm font-medium text-foreground mb-2">
+                  {t('families.attribute_groups.title') || 'Attribute Grupları'}
                 </h4>
-                <div className="space-y-2 rounded-lg border border-border p-4 text-sm">
-                  {requiredLanguages.map(({ code, label }) => (
-                    <div key={`preview-name-${code}`} className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">
-                          {(t('families.fields.name') !== 'families.fields.name'
-                            ? t('families.fields.name')
-                            : 'Name') + ` (${label})`}
-                        </span>
-                        <span className="font-medium">{form.names[code]?.trim() || '—'}</span>
+                {selectedAttributeGroups.length === 0 ? (
+                  <div className="text-sm text-muted-foreground border border-dashed border-border rounded-lg p-4">
+                    {t('families.attribute_groups.none_selected') ||
+                      'Bu family için attribute grubu seçilmedi.'}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {selectedAttributeGroups.map((group) => (
+                      <div key={group.id} className="border border-border rounded-lg p-4 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-sm text-foreground">{group.name}</span>
+                          <Badge variant="primary" size="sm">
+                            {group.attributeCount ?? group.attributeIds?.length ?? 0}{' '}
+                            {t('families.attribute_groups.attribute_short') || 'attr'}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {group.description ||
+                            t('families.attribute_groups.no_description') ||
+                            'Açıklama bulunmuyor.'}
+                        </p>
                       </div>
-                      <div className="text-xs text-muted-foreground">
-                        {(t('families.fields.description') !== 'families.fields.description'
-                          ? t('families.fields.description')
-                          : 'Description') + ` (${label})`}
-                        <span className="ml-1 text-foreground">
-                          {form.descriptions[code]?.trim() ||
-                            t('families.preview.no_description') ||
-                            '—'}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
-
-            <div className="space-y-2">
-              <h4 className="text-sm font-semibold text-foreground">
-                {t('families.attribute_groups.title') || 'Attribute Grupları'}
-              </h4>
-              {selectedAttributeGroups.length === 0 ? (
-                <div className="text-sm text-muted-foreground border border-dashed border-border rounded-lg p-4">
-                  {t('families.attribute_groups.none_selected') ||
-                    'Bu family için attribute grubu seçilmedi.'}
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {selectedAttributeGroups.map((group) => (
-                    <div key={group.id} className="border border-border rounded-lg p-4 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium text-sm text-foreground">{group.name}</span>
-                        <Badge variant="primary" size="sm">
-                          {group.attributeCount ?? group.attributeIds?.length ?? 0}{' '}
-                          {t('families.attribute_groups.attribute_short') || 'attr'}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {group.description ||
-                          t('families.attribute_groups.no_description') ||
-                          'Açıklama bulunmuyor.'}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+          </Card>
         );
       }
     }
   };
 
+  const canProceed = useCallback((): boolean => {
+    if (submitting) {
+      return false;
+    }
+    if (currentStep === steps.length - 1) {
+      return true;
+    }
+    if (currentStepId === 'basic') {
+      return isBasicStepValid;
+    }
+    return true;
+  }, [submitting, currentStep, steps.length, currentStepId, isBasicStepValid]);
+
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title={t('families.create_title') || 'Family Oluştur'}
-        subtitle={
-          t('families.create_subtitle') ||
-          'Hiyerarşi ve attribute gruplarıyla yeni bir family oluşturun.'
-        }
-      />
-
-      <Card>
-        <CardHeader
-          title={t('families.create_form') || 'Family Bilgileri'}
-          subtitle={t('families.create_form_subtitle') || 'Adımları takip ederek family kaydedin.'}
-        />
-        <div className="px-6 pb-6 space-y-6">
-          <Stepper steps={steps} currentStep={currentStep} />
-
-          {error ? <div className="text-sm text-error">{error}</div> : null}
-
-          {initialLoading ? (
-            <div className="text-sm text-muted-foreground">
-              {t('common.loading') || 'Yükleniyor...'}
-            </div>
-          ) : (
-            <>
-              {renderStepContent()}
-
-              <div className="flex items-center justify-between pt-4">
-                <Button
-                  variant="outline"
-                  onClick={handleBack}
-                  disabled={currentStep === 0 || submitting}
-                >
-                  {t('common.back') || 'Geri'}
-                </Button>
-
-                <div className="flex items-center gap-2">
-                  {currentStep < steps.length - 1 ? (
-                    <Button onClick={handleNext} disabled={submitting}>
-                      {t('common.next') || 'İleri'}
-                    </Button>
-                  ) : (
-                    <Button onClick={handleSubmit} disabled={submitting}>
-                      {submitting
-                        ? t('common.saving') || 'Kaydediliyor...'
-                        : t('common.create') || 'Oluştur'}
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+    <div className="space-y-6 flex flex-col min-h-full">
+      <Card padding="lg">
+        <Stepper steps={steps} currentStep={currentStep} />
       </Card>
+
+      {error ? (
+        <Card>
+          <div className="text-sm text-error">{error}</div>
+        </Card>
+      ) : null}
+
+      {initialLoading ? (
+        <Card>
+          <div className="text-sm text-muted-foreground">
+            {t('common.loading') || 'Yükleniyor...'}
+          </div>
+        </Card>
+      ) : (
+        <Card className="flex-1 flex flex-col">
+          <div className="flex-1 overflow-hidden">{renderStepContent()}</div>
+
+          <div className="flex justify-between pt-6 border-t border-border flex-shrink-0">
+            <Button
+              variant="outline"
+              onClick={handleBack}
+              disabled={currentStep === 0 || submitting}
+              leftIcon={<ArrowLeft className="h-4 w-4" />}
+            >
+              {t('common.back') || 'Geri'}
+            </Button>
+
+            <div className="flex space-x-3">
+              {currentStep === steps.length - 1 ? (
+                <Button
+                  onClick={handleSubmit}
+                  loading={submitting}
+                  disabled={!canProceed()}
+                  leftIcon={<Check className="h-4 w-4" />}
+                >
+                  {t('common.create') || 'Oluştur'}
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleNext}
+                  disabled={!canProceed()}
+                  rightIcon={<ArrowRight className="h-4 w-4" />}
+                >
+                  {t('common.continue') || 'Devam'}
+                </Button>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
     </div>
   );
 };

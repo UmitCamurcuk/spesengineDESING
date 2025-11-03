@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Tags as TagsIcon,
   FileText,
@@ -506,6 +506,7 @@ export const AttributeGroupsDetails: React.FC = () => {
   const { hasPermission } = useAuth();
   const requiredLanguages = useRequiredLanguages();
   const { register: registerEditActions } = useEditActionContext();
+  const navigate = useNavigate();
 
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -534,6 +535,7 @@ export const AttributeGroupsDetails: React.FC = () => {
   const [localizationCache, setLocalizationCache] = useState<Record<string, LocalizationRecord>>({});
   const [localizationsLoading, setLocalizationsLoading] = useState(false);
   const [localizationsError, setLocalizationsError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const buildLocalizationState = useCallback(
     (translations?: Record<string, string> | null, fallback?: string): LocalizationState => {
@@ -671,6 +673,7 @@ export const AttributeGroupsDetails: React.FC = () => {
   );
 
   const canUpdateGroup = hasPermission(PERMISSIONS.CATALOG.ATTRIBUTE_GROUPS.UPDATE);
+  const canDeleteGroup = hasPermission(PERMISSIONS.CATALOG.ATTRIBUTE_GROUPS.DELETE);
   const canViewAttributesTab = hasPermission(PERMISSIONS.CATALOG.ATTRIBUTES.VIEW);
   const canViewHistory = hasPermission(PERMISSIONS.CATALOG.ATTRIBUTE_GROUPS.HISTORY);
   const canViewNotifications = hasPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.VIEW);
@@ -1135,6 +1138,32 @@ export const AttributeGroupsDetails: React.FC = () => {
     buildTranslationPayload,
   ]);
 
+  const handleDelete = useCallback(async () => {
+    if (!group || deleting) {
+      return;
+    }
+    try {
+      setDeleting(true);
+      await attributeGroupsService.delete(group.id);
+      showToast({
+        type: 'success',
+        message:
+          t('attributeGroups.delete_success') || 'Attribute grubu başarıyla silindi.',
+      });
+      navigate('/attribute-groups');
+    } catch (err: any) {
+      console.error('Failed to delete attribute group', err);
+      const message =
+        err?.response?.data?.error?.message ??
+        err?.message ??
+        t('attributeGroups.delete_failed') ??
+        'Attribute grubu silinemedi.';
+      showToast({ type: 'error', message });
+    } finally {
+      setDeleting(false);
+    }
+  }, [group, deleting, showToast, t, navigate]);
+
   const statisticsData: StatisticsType | null = useMemo(() => {
     if (!group) {
       return null;
@@ -1401,6 +1430,8 @@ ${attributesList}
 
   const hasChanges = (hasDetailsChanges || hasAttributeAssignmentChanges) && !saving;
 
+  const groupName = group?.name?.trim() || group?.key || group?.id || '';
+
   useEffect(() => {
     if (!canUpdateGroup) {
       registerEditActions(null);
@@ -1461,6 +1492,16 @@ ${attributesList}
       onSave={canUpdateGroup ? handleSave : undefined}
       onCancel={canUpdateGroup ? handleCancelEdit : undefined}
       inlineActions={false}
+      onDelete={canDeleteGroup ? handleDelete : undefined}
+      deleteLoading={deleting}
+      deleteButtonLabel={t('attributeGroups.delete_action') || 'Attribute Grubu Sil'}
+      deleteDialogTitle={
+        t('attributeGroups.delete_title', { name: groupName }) || 'Attribute grubu silinsin mi?'
+      }
+      deleteDialogDescription={
+        t('attributeGroups.delete_description', { name: groupName }) ||
+        'Bu attribute grubu kalıcı olarak silinecek. Bu işlem geri alınamaz.'
+      }
     />
   );
 };
