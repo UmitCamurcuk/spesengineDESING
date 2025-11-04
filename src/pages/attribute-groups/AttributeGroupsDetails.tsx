@@ -872,6 +872,8 @@ export const AttributeGroupsDetails: React.FC = () => {
   const hasDetailsChanges =
     hasNameChanges || hasDescriptionChanges || hasNoteChanges || hasDisplayOrderChange || hasTagsChange;
 
+  const hasChanges = (hasDetailsChanges || hasAttributeAssignmentChanges) && !saving;
+
   const handleNameDraftChange = useCallback((code: string, value: string) => {
     setNameDraft((prev) => ({ ...prev, [code]: value }));
     setDetailsErrors((prev) => {
@@ -1136,6 +1138,36 @@ export const AttributeGroupsDetails: React.FC = () => {
     showToast,
     t,
     buildTranslationPayload,
+  ]);
+
+  useEffect(() => {
+    if (!canUpdateGroup) {
+      registerEditActions(null);
+      return;
+    }
+
+    registerEditActions({
+      isEditing: editMode,
+      canEdit: !editMode && !loading,
+      canSave: editMode && hasChanges && !saving,
+      onEdit: handleEnterEdit,
+      onCancel: handleCancelEdit,
+      onSave: handleSave,
+    });
+
+    return () => {
+      registerEditActions(null);
+    };
+  }, [
+    registerEditActions,
+    canUpdateGroup,
+    editMode,
+    loading,
+    saving,
+    hasChanges,
+    handleEnterEdit,
+    handleCancelEdit,
+    handleSave,
   ]);
 
   const handleDelete = useCallback(async () => {
@@ -1428,39 +1460,7 @@ ${attributesList}
     },
   ];
 
-  const hasChanges = (hasDetailsChanges || hasAttributeAssignmentChanges) && !saving;
-
   const groupName = group?.name?.trim() || group?.key || group?.id || '';
-
-  useEffect(() => {
-    if (!canUpdateGroup) {
-      registerEditActions(null);
-      return;
-    }
-
-    registerEditActions({
-      isEditing: editMode,
-      canEdit: !editMode && !loading,
-      canSave: editMode && hasChanges && !saving,
-      onEdit: handleEnterEdit,
-      onCancel: handleCancelEdit,
-      onSave: handleSave,
-    });
-
-    return () => {
-      registerEditActions(null);
-    };
-  }, [
-    registerEditActions,
-    canUpdateGroup,
-    editMode,
-    loading,
-    saving,
-    hasChanges,
-    handleEnterEdit,
-    handleCancelEdit,
-    handleSave,
-  ]);
 
   return (
     <DetailsLayout

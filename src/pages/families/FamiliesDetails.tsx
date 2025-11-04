@@ -10,8 +10,9 @@ import {
   Hash,
   History as HistoryIcon,
   Layers,
-  Search,
+  Plus,
   Tags as TagsIcon,
+  X,
 } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -24,6 +25,8 @@ import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
 import { Button } from '../../components/ui/Button';
 import { AttributeGroupSelector } from '../../components/ui/AttributeGroupSelector';
+import { Modal } from '../../components/ui/Modal';
+import { ATTRIBUTE_TYPE_META } from '../../components/ui/AttributeTypeCard';
 import { TreeSelect } from '../../components/ui/TreeSelect';
 import { HierarchyTreeView } from '../../components/ui/HierarchyTreeView';
 import { HistoryTable } from '../../components/common/HistoryTable';
@@ -35,7 +38,7 @@ import { familiesService } from '../../api/services/families.service';
 import { categoriesService } from '../../api/services/categories.service';
 import { attributeGroupsService } from '../../api/services/attribute-groups.service';
 import { localizationsService } from '../../api/services/localizations.service';
-import type { AttributeGroup, Category, Family } from '../../types';
+import type { Attribute, AttributeGroup, Category, Family } from '../../types';
 import type {
   APIEndpoint,
   DocumentationSection,
@@ -337,51 +340,260 @@ const FamilyAttributeGroupsTab: React.FC<FamilyAttributeGroupsTabProps> = ({
 }) => {
   const { t } = useLanguage();
   const navigate = useNavigate();
-  const [searchTerm, setSearchTerm] = useState('');
 
   const bindings = family.attributeGroupBindings ?? [];
   const attributeGroupMap = useMemo(
     () => new Map(attributeGroups.map((group) => [group.id, group])),
     [attributeGroups],
   );
-  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const bindingMap = useMemo(
+    () =>
+      new Map<string, (typeof bindings)[number]>(
+        bindings.map((binding) => [binding.attributeGroupId, binding]),
+      ),
+    [bindings],
+  );
+  const [selectorOpen, setSelectorOpen] = useState(false);
+  const [selectorSelection, setSelectorSelection] = useState<string[]>([]);
 
-  const filteredGroups = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase();
-    const list = attributeGroups.filter((group) => {
-      if (!query) {
-        return true;
-      }
-      const haystack = [
-        group.name ?? '',
-        group.description ?? '',
-        ...(group.tags ?? []),
-        group.key ?? '',
-      ]
-        .join(' ')
-        .toLowerCase();
-      return haystack.includes(query);
-    });
+  useEffect(() => {
+    if (selectorOpen) {
+      setSelectorSelection(selectedIds);
+    }
+  }, [selectorOpen, selectedIds]);
 
-    return list.sort((a, b) => {
-      const aSelected = selectedSet.has(a.id) ? 0 : 1;
-      const bSelected = selectedSet.has(b.id) ? 0 : 1;
-      if (aSelected !== bSelected) {
-        return aSelected - bSelected;
-      }
-      return (a.name ?? a.key ?? '').localeCompare(b.name ?? b.key ?? '');
-    });
-  }, [attributeGroups, searchTerm, selectedSet]);
+  const resolvedItems = useMemo(() => {
+    if (editMode) {
+      const sourceIds =
+        selectedIds.length > 0
+          ? selectedIds
+          : bindings.map((binding) => binding.attributeGroupId);
 
-  const handleToggleGroup = useCallback(
+      return sourceIds.map((groupId) => ({
+        groupId,
+        group: attributeGroupMap.get(groupId),
+        binding: bindingMap.get(groupId) ?? null,
+      }));
+    }
+
+    return bindings.map((binding) => ({
+      groupId: binding.attributeGroupId,
+      group: attributeGroupMap.get(binding.attributeGroupId),
+      binding,
+    }));
+  }, [attributeGroupMap, bindingMap, bindings, editMode, selectedIds]);
+
+  const handleRemoveGroup = useCallback(
     (groupId: string) => {
-      if (selectedSet.has(groupId)) {
-        onSelectionChange(selectedIds.filter((id) => id !== groupId));
-      } else {
-        onSelectionChange([...selectedIds, groupId]);
-      }
+      onSelectionChange(selectedIds.filter((id) => id !== groupId));
     },
-    [onSelectionChange, selectedIds, selectedSet],
+    [onSelectionChange, selectedIds],
+  );
+
+  const handleOpenSelector = useCallback(() => {
+    setSelectorOpen(true);
+  }, []);
+
+  const handleCloseSelector = useCallback(() => {
+    setSelectorOpen(false);
+  }, []);
+
+  const handleApplySelection = useCallback(() => {
+    onSelectionChange(selectorSelection);
+    setSelectorOpen(false);
+  }, [onSelectionChange, selectorSelection]);
+
+  const handleSelectorChange = useCallback((ids: string[]) => {
+    setSelectorSelection(ids);
+  }, []);
+
+  const renderAttributeTypeLabel = useCallback(
+    (type: Attribute['type']) => {
+      const meta = ATTRIBUTE_TYPE_META[type];
+      const key = meta?.translation
+        ? `attributes.types.${meta.translation}`
+        : undefined;
+      return (key ? t(key) : meta?.translation) || type;
+    },
+    [t],
+  );
+
+  const renderAttributeCard = useCallback(
+    (attribute: Attribute) => {
+      const typeLabel = renderAttributeTypeLabel(attribute.type);
+      const attributeTags = attribute.tags ?? [];
+
+      return (
+        <div
+          key={attribute.id}
+          className="rounded-lg border border-border bg-muted/40 p-4 transition hover:border-primary/40 hover:bg-muted/60"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-foreground">{attribute.name}</p>
+              <p className="mt-1 font-mono text-xs text-muted-foreground">
+                {attribute.key ?? attribute.id}
+              </p>
+            </div>
+            <Badge variant="secondary" size="sm">
+              {typeLabel}
+            </Badge>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {attribute.required ? (
+              <Badge variant="primary" size="sm">
+                {t('common.required') || 'Zorunlu'}
+              </Badge>
+            ) : null}
+            {attribute.unique ? (
+              <Badge variant="primary" size="sm">
+                {t('attributes.unique') || 'Unique'}
+              </Badge>
+            ) : null}
+            {attributeTags.map((tag) => (
+              <Badge key={tag} variant="default" size="sm">
+                {tag}
+              </Badge>
+            ))}
+          </div>
+          {attribute.description ? (
+            <p className="mt-3 line-clamp-3 text-xs text-muted-foreground">
+              {attribute.description}
+            </p>
+          ) : null}
+        </div>
+      );
+    },
+    [renderAttributeTypeLabel, t],
+  );
+
+  const renderGroupCard = useCallback(
+    (groupId: string, binding: (typeof bindings)[number] | null, group?: AttributeGroup) => {
+      if (!group) {
+        return (
+          <Card key={groupId} padding="lg" className="space-y-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              <TagsIcon className="h-4 w-4 text-primary" />
+              {groupId}
+            </div>
+            <div className="rounded-lg border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
+              {t('families.attribute_groups.missing_details') ||
+                'Attribute grubu bilgisi alınamadı.'}
+            </div>
+          </Card>
+        );
+      }
+
+      const attributes = group.attributes ?? [];
+      const attributeCount = attributes.length || group.attributeCount || 0;
+      const groupTags = group.tags ?? [];
+
+      return (
+        <Card key={groupId} padding="lg" className="space-y-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <TagsIcon className="h-4 w-4" />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">
+                    {group.name ?? group.key ?? groupId}
+                  </p>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1">
+                      <Hash className="h-3 w-3" />
+                      <code>{group.key ?? groupId}</code>
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <Layers className="h-3 w-3" />
+                      {attributeCount}{' '}
+                      {(t('families.attribute_groups.attribute_count_suffix') || 'attribute').toString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              {group.description ? (
+                <p className="text-xs text-muted-foreground">{group.description}</p>
+              ) : null}
+              {groupTags.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {groupTags.map((tag) => (
+                    <Badge key={tag} variant="default" size="sm">
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {binding?.inherited ? (
+                <Badge variant="secondary" size="sm">
+                  {t('families.attribute_groups.inherited') || 'Inherited'}
+                </Badge>
+              ) : null}
+              {binding?.required ? (
+                <Badge variant="primary" size="sm">
+                  {t('families.attribute_groups.required') || 'Required'}
+                </Badge>
+              ) : null}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`/attribute-groups/${groupId}`)}
+              >
+                {t('common.view') || 'Görüntüle'}
+              </Button>
+              {editMode ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleRemoveGroup(groupId)}
+                  className="text-error hover:text-error"
+                >
+                  <X className="mr-2 h-4 w-4" />
+                  {t('common.remove') || 'Kaldır'}
+                </Button>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                {t('families.attribute_groups.attributes_title') || 'Attribute Listesi'}
+              </p>
+              {attributeCount > 0 ? (
+                <Badge variant="secondary" size="sm">
+                  {attributeCount}
+                </Badge>
+              ) : null}
+            </div>
+            {attributes.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
+                {t('families.attribute_groups.no_attributes') ||
+                  'Bu attribute grubuna bağlı attribute bulunmuyor.'}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {attributes
+                  .slice()
+                  .sort((a, b) => (a.name || a.key || '').localeCompare(b.name || b.key || ''))
+                  .map((attribute) => renderAttributeCard(attribute))}
+              </div>
+            )}
+          </div>
+        </Card>
+      );
+    },
+    [
+      bindings,
+      editMode,
+      handleRemoveGroup,
+      navigate,
+      renderAttributeCard,
+      t,
+    ],
   );
 
   if (editMode) {
@@ -414,123 +626,95 @@ const FamilyAttributeGroupsTab: React.FC<FamilyAttributeGroupsTabProps> = ({
     }
 
     return (
-      <Card padding="lg" className="space-y-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-foreground">
-              {t('families.attribute_groups.title') || 'Attribute Grupları'}
-            </h3>
-            <p className="text-xs text-muted-foreground">
-              {t('families.attribute_groups.helper') ||
-                'Family kaydıyla ilişkilendirilecek attribute gruplarını seçin.'}
-            </p>
-          </div>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-            <Badge variant="secondary" className="justify-center">
-              {selectedIds.length} / {attributeGroups.length}{' '}
-              {(t('families.attribute_groups.selected_suffix') || 'seçili').toString()}
-            </Badge>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder={
-                  t('families.attribute_groups.search_placeholder') ||
-                  'İsim, açıklama veya etiket ara...'
-                }
-                className="pl-10 w-full sm:w-64"
-              />
+      <>
+        <Card padding="lg" className="space-y-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">
+                {t('families.attribute_groups.title') || 'Attribute Grupları'}
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                {t('families.attribute_groups.helper') ||
+                  'Family kaydı ile ilişkilendirilecek attribute gruplarını yönetin.'}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <Badge variant="secondary" className="justify-center">
+                {selectedIds.length} / {attributeGroups.length}{' '}
+                {(t('families.attribute_groups.selected_suffix') || 'seçili').toString()}
+              </Badge>
+              <Button size="sm" onClick={handleOpenSelector}>
+                <Plus className="mr-2 h-4 w-4" />
+                {t('families.attribute_groups.add') || 'Attribute Grubu Ekle'}
+              </Button>
             </div>
           </div>
+
+          {resolvedItems.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border/80 bg-muted/40 px-6 py-12 text-center text-sm text-muted-foreground">
+              {t('families.attribute_groups.empty_selection') ||
+                'Bu family için henüz attribute grubu seçilmedi. Yeni bir attribute grubu eklemek için butonu kullanın.'}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {resolvedItems.map(({ groupId, group, binding }) =>
+                renderGroupCard(groupId, binding ?? null, group),
+              )}
+            </div>
+          )}
+        </Card>
+
+        <Modal
+          isOpen={selectorOpen}
+          onClose={handleCloseSelector}
+          size="xl"
+          title={t('families.attribute_groups.selector_title') || 'Attribute Grubu Seç'}
+        >
+          <div className="space-y-6">
+            <AttributeGroupSelector
+              groups={attributeGroups.map((group) => ({
+                id: group.id,
+                name: group.name,
+                description: group.description,
+                attributeCount: group.attributeCount ?? group.attributeIds?.length ?? group.attributes?.length ?? 0,
+              }))}
+              selectedGroups={selectorSelection}
+              onSelectionChange={handleSelectorChange}
+            />
+
+            <div className="flex items-center justify-end gap-2">
+              <Button variant="outline" onClick={handleCloseSelector}>
+                {t('common.cancel') || 'Vazgeç'}
+              </Button>
+              <Button onClick={handleApplySelection}>
+                {t('common.apply') || 'Uygula'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      </>
+    );
+  }
+
+  if (loading) {
+    return (
+      <Card padding="lg">
+        <div className="text-sm text-muted-foreground">
+          {t('common.loading') || 'Loading...'}
         </div>
-
-        {filteredGroups.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border/60 bg-muted/40 px-4 py-10 text-center text-sm text-muted-foreground">
-            {t('families.attribute_groups.no_results') ||
-              'Aramanızla eşleşen attribute grubu bulunamadı.'}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {filteredGroups.map((group) => {
-              const isSelected = selectedSet.has(group.id);
-              const attributeCount =
-                group.attributeCount ?? group.attributeIds?.length ?? 0;
-              const tags = group.tags ?? [];
-
-              return (
-                <button
-                  type="button"
-                  key={group.id}
-                  onClick={() => handleToggleGroup(group.id)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      handleToggleGroup(group.id);
-                    }
-                  }}
-                  className={`group flex h-full flex-col rounded-xl border p-4 text-left transition-all ${
-                    isSelected
-                      ? 'border-primary bg-primary/5 shadow-sm'
-                      : 'border-border hover:border-primary/40 hover:bg-muted/40'
-                  } focus:outline-none focus-visible:ring-2 focus-visible:ring-primary`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`flex h-8 w-8 items-center justify-center rounded-lg ${
-                          isSelected ? 'bg-primary text-primary-foreground' : 'bg-muted'
-                        }`}
-                      >
-                        <TagsIcon className="h-4 w-4" />
-                      </span>
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">
-                          {group.name || group.key || group.id}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {group.key ? `#${group.key}` : group.id}
-                        </p>
-                      </div>
-                    </div>
-                    <Badge variant={isSelected ? 'default' : 'outline'} size="sm">
-                      {isSelected
-                        ? t('families.attribute_groups.selected') || 'Seçildi'
-                        : t('families.attribute_groups.select') || 'Seç'}
-                    </Badge>
-                  </div>
-
-                  {group.description ? (
-                    <p className="mt-3 line-clamp-3 text-xs text-muted-foreground">
-                      {group.description}
-                    </p>
-                  ) : null}
-
-                  <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 font-medium">
-                      <Hash className="h-3 w-3" />
-                      {attributeCount}{' '}
-                      {(t('families.attribute_groups.attribute_short') || 'attr').toString()}
-                    </span>
-                    {tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
       </Card>
     );
   }
 
-  if (bindings.length === 0) {
+  if (error) {
+    return (
+      <Card padding="lg">
+        <div className="text-sm text-error">{error}</div>
+      </Card>
+    );
+  }
+
+  if (bindings.length === 0 || resolvedItems.length === 0) {
     return (
       <Card padding="lg">
         <div className="text-sm text-muted-foreground">
@@ -542,50 +726,10 @@ const FamilyAttributeGroupsTab: React.FC<FamilyAttributeGroupsTabProps> = ({
   }
 
   return (
-    <div className="space-y-3">
-      {bindings.map((binding) => {
-        const group = attributeGroupMap.get(binding.attributeGroupId);
-        return (
-          <Card
-            key={binding.id}
-            padding="md"
-            className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
-          >
-            <div>
-              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                <TagsIcon className="h-4 w-4 text-primary" />
-                {group?.name ?? binding.attributeGroupId}
-              </div>
-              <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
-                <Hash className="h-3 w-3" />
-                <code>{binding.attributeGroupId}</code>
-              </div>
-              {group?.description ? (
-                <p className="text-xs text-muted-foreground mt-2">{group.description}</p>
-              ) : null}
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              {binding.inherited ? (
-                <Badge variant="secondary" size="sm">
-                  {t('families.attribute_groups.inherited') || 'Inherited'}
-                </Badge>
-              ) : null}
-              {binding.required ? (
-                <Badge variant="outline" size="sm">
-                  {t('families.attribute_groups.required') || 'Required'}
-                </Badge>
-              ) : null}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate(`/attribute-groups/${binding.attributeGroupId}`)}
-              >
-                {t('common.view') || 'Görüntüle'}
-              </Button>
-            </div>
-          </Card>
-        );
-      })}
+    <div className="space-y-4">
+      {resolvedItems.map(({ groupId, binding, group }) =>
+        renderGroupCard(groupId, binding, group),
+      )}
     </div>
   );
 };

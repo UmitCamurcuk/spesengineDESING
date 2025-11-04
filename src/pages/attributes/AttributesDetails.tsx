@@ -761,6 +761,7 @@ export const AttributesDetails: React.FC = () => {
   const { t } = useLanguage();
   const { hasPermission } = useAuth();
   const { showToast } = useToast();
+  const navigate = useNavigate();
   const requiredLanguages = useRequiredLanguages();
 
   const canUpdateAttribute = hasPermission(PERMISSIONS.CATALOG.ATTRIBUTES.UPDATE);
