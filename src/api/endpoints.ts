@@ -63,6 +63,7 @@ export const API_ENDPOINTS = {
     BY_ID: (id: string) => `/item-types/${id}`,
     ATTRIBUTES: (id: string) => `/item-types/${id}/attributes`,
     ITEMS: (id: string) => `/item-types/${id}/items`,
+    COLUMN_CONFIG: (id: string) => `/item-types/${id}/column-config`,
   },
   
   // Categories management
@@ -105,6 +106,16 @@ export const API_ENDPOINTS = {
     BY_SOURCE: (sourceId: string) => `/associations/source/${sourceId}`,
     BY_TARGET: (targetId: string) => `/associations/target/${targetId}`,
     BY_TYPE: (type: string) => `/associations/type/${type}`,
+  },
+  ASSOCIATION_TYPES: {
+    BASE: '/association-types',
+    BY_ID: (id: string) => `/association-types/${id}`,
+    COLUMN_CONFIG: (associationTypeId: string) =>
+      `/association-types/${associationTypeId}/column-config`,
+  },
+  ASSOCIATION_RULES: {
+    BASE: '/association-rules',
+    BY_ID: (id: string) => `/association-rules/${id}`,
   },
   
   NOTIFICATIONS: {

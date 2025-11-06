@@ -1,7 +1,12 @@
 import apiClient from '../client/axios';
 import { API_ENDPOINTS } from '../endpoints';
 import type { ApiSuccessResponse } from '../types/api.types';
-import type { Association, UserReference } from '../../types';
+import type {
+  Association,
+  UserReference,
+  AssociationColumnConfig,
+  AssociationColumnDefinition,
+} from '../../types';
 
 type BackendUserSummary =
   | (UserReference & {
@@ -53,6 +58,63 @@ const mapAssociation = (association: BackendAssociation): Association => ({
   updatedBy: mapUser(association.updatedBy),
 });
 
+type BackendAssociationColumnDefinition = {
+  key: string;
+  source: AssociationColumnDefinition['source'];
+  labelLocalizationId?: string | null;
+  visible: boolean;
+  order: number;
+  width?: number | null;
+  alignment?: AssociationColumnDefinition['alignment'] | null;
+  options?: Record<string, unknown> | null;
+};
+
+type BackendAssociationColumnConfig = {
+  id?: string;
+  associationTypeId?: string;
+  role: 'source' | 'target';
+  columns: BackendAssociationColumnDefinition[];
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+const mapAssociationColumnDefinition = (
+  definition: BackendAssociationColumnDefinition,
+  index: number,
+): AssociationColumnDefinition => ({
+  key: definition.key,
+  source: definition.source,
+  labelLocalizationId: definition.labelLocalizationId ?? undefined,
+  visible: Boolean(definition.visible),
+  order: definition.order ?? index,
+  width: definition.width ?? undefined,
+  alignment: definition.alignment ?? 'start',
+  options: definition.options ?? undefined,
+});
+
+const mapAssociationColumnConfig = (
+  config?: BackendAssociationColumnConfig | null,
+): AssociationColumnConfig | null => {
+  if (!config) {
+    return null;
+  }
+  return {
+    id: config.id,
+    associationTypeId: config.associationTypeId,
+    role: config.role,
+    columns: (config.columns ?? []).map((column, index) =>
+      mapAssociationColumnDefinition(column, index),
+    ),
+    createdAt: config.createdAt,
+    updatedAt: config.updatedAt,
+  };
+};
+
+export interface AssociationColumnConfigPayload {
+  role: 'source' | 'target';
+  columns: AssociationColumnDefinition[];
+}
+
 export interface AssociationListParams {
   associationTypeId?: string;
   sourceItemId?: string;
@@ -101,6 +163,40 @@ export const associationsService = {
   async delete(id: string): Promise<void> {
     await apiClient.delete(API_ENDPOINTS.ASSOCIATIONS.BY_ID(id));
   },
+
+  async getColumnConfig(
+    associationTypeId: string,
+    role: 'source' | 'target',
+  ): Promise<AssociationColumnConfig | null> {
+    const response = await apiClient.get<ApiSuccessResponse<BackendAssociationColumnConfig | null>>(
+      API_ENDPOINTS.ASSOCIATION_TYPES.COLUMN_CONFIG(associationTypeId),
+      {
+        params: { role },
+      },
+    );
+    return mapAssociationColumnConfig(response.data.data);
+  },
+
+  async updateColumnConfig(
+    associationTypeId: string,
+    payload: AssociationColumnConfigPayload,
+  ): Promise<AssociationColumnConfig> {
+    const response = await apiClient.put<ApiSuccessResponse<BackendAssociationColumnConfig>>(
+      API_ENDPOINTS.ASSOCIATION_TYPES.COLUMN_CONFIG(associationTypeId),
+      payload,
+    );
+    return (
+      mapAssociationColumnConfig(response.data.data) ?? {
+        associationTypeId,
+        role: payload.role,
+        columns: payload.columns,
+      }
+    );
+  },
 };
 
-export type { BackendAssociation };
+export type {
+  BackendAssociation,
+  BackendAssociationColumnConfig,
+  BackendAssociationColumnDefinition,
+};

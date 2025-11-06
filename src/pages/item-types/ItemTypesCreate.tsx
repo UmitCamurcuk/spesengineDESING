@@ -24,6 +24,7 @@ interface FormState {
   descriptions: Record<string, string>;
   lifecycleStatus: LifecycleStatus;
   isSystemItemType: boolean;
+  showInNavbar: boolean;
   categoryIds: string[];
   attributeGroupIds: string[];
 }
@@ -42,6 +43,7 @@ export const ItemTypesCreate: React.FC = () => {
     descriptions: {},
     lifecycleStatus: 'draft',
     isSystemItemType: false,
+    showInNavbar: false,
     categoryIds: [],
     attributeGroupIds: [],
   });
@@ -374,6 +376,7 @@ export const ItemTypesCreate: React.FC = () => {
         categoryIds: form.categoryIds,
         lifecycleStatus: form.lifecycleStatus,
         isSystemItemType: form.isSystemItemType,
+        showInNavbar: form.showInNavbar,
         attributeGroupIds: form.attributeGroupIds,
       };
 
@@ -404,6 +407,7 @@ export const ItemTypesCreate: React.FC = () => {
     form.isSystemItemType,
     form.key,
     form.lifecycleStatus,
+    form.showInNavbar,
     form.names,
     navigate,
     showToast,
@@ -464,16 +468,26 @@ export const ItemTypesCreate: React.FC = () => {
                           <option value="deprecated">{lifecycleLabels.deprecated}</option>
                         </select>
                       </div>
-                      <div className="flex items-center gap-2 mt-2 md:mt-6">
-                        <input
-                          id="isSystemItemType"
-                          type="checkbox"
-                          checked={form.isSystemItemType}
-                          onChange={(event) => updateForm({ isSystemItemType: event.target.checked })}
-                          className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
-                        />
-                        <label htmlFor="isSystemItemType" className="text-sm text-foreground">
-                          {t('itemTypes.fields.is_system') || 'Sistem Item Type'}
+                      <div className="flex flex-col gap-3 mt-2 md:mt-6">
+                        <label htmlFor="isSystemItemType" className="inline-flex items-center gap-2 text-sm text-foreground">
+                          <input
+                            id="isSystemItemType"
+                            type="checkbox"
+                            checked={form.isSystemItemType}
+                            onChange={(event) => updateForm({ isSystemItemType: event.target.checked })}
+                            className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                          />
+                          <span>{t('itemTypes.fields.is_system') || 'Sistem Item Type'}</span>
+                        </label>
+                        <label htmlFor="showInNavbar" className="inline-flex items-center gap-2 text-sm text-foreground">
+                          <input
+                            id="showInNavbar"
+                            type="checkbox"
+                            checked={form.showInNavbar}
+                            onChange={(event) => updateForm({ showInNavbar: event.target.checked })}
+                            className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                          />
+                          <span>{t('itemTypes.fields.show_in_navbar') || 'Navbar’da Göster'}</span>
                         </label>
                       </div>
                     </div>
@@ -690,6 +704,14 @@ export const ItemTypesCreate: React.FC = () => {
                       </span>
                       <span className="font-medium">
                         {form.isSystemItemType ? t('common.yes') || 'Evet' : t('common.no') || 'Hayır'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">
+                        {t('itemTypes.fields.show_in_navbar') || 'Navbar’da Göster'}
+                      </span>
+                      <span className="font-medium">
+                        {form.showInNavbar ? t('common.yes') || 'Evet' : t('common.no') || 'Hayır'}
                       </span>
                     </div>
                   </div>

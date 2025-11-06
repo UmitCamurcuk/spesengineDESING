@@ -75,6 +75,8 @@ export interface ItemListParams {
   status?: 'draft' | 'active' | 'inactive' | 'archived';
   limit?: number;
   skip?: number;
+  categoryIds?: string[];
+  familyIds?: string[];
 }
 
 export const itemsService = {

@@ -1,12 +1,29 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Activity, BarChart3, BookOpen, Database, FileText, Globe, History as HistoryIcon, Tags } from 'lucide-react';
+import {
+  Activity,
+  ArrowDown,
+  ArrowUp,
+  BarChart3,
+  BookOpen,
+  Database,
+  FileText,
+  Globe,
+  GripVertical,
+  History as HistoryIcon,
+  Plus,
+  Tags,
+  Trash2,
+} from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { DetailsLayout } from '../../components/common/DetailsLayout';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
+import { Button } from '../../components/ui/Button';
+import { Select } from '../../components/ui/Select';
+import { Checkbox } from '../../components/ui/Checkbox';
 import { Statistics } from '../../components/common/Statistics';
 import { Documentation } from '../../components/common/Documentation';
 import { APITester } from '../../components/common/APITester';
@@ -16,7 +33,14 @@ import { categoriesService } from '../../api/services/categories.service';
 import { familiesService } from '../../api/services/families.service';
 import { itemTypesService } from '../../api/services/item-types.service';
 import { attributeGroupsService } from '../../api/services/attribute-groups.service';
-import type { AttributeGroup, Category, Family, ItemType, AttributeGroupBinding } from '../../types';
+import type {
+  AttributeGroup,
+  Category,
+  Family,
+  ItemType,
+  AttributeGroupBinding,
+  ItemTypeColumnDefinition,
+} from '../../types';
 import type {
   APIEndpoint,
   DocumentationSection,
@@ -27,6 +51,13 @@ import { PERMISSIONS } from '../../config/permissions';
 
 type AttributeGroupMap = Map<string, AttributeGroup>;
 type EntityMap = Map<string, string>;
+type AvailableColumn = {
+  key: string;
+  label: string;
+  source: ItemTypeColumnDefinition['source'];
+  helper?: string;
+  options?: Record<string, unknown>;
+};
 
 interface ItemTypeDetailsTabProps {
   itemType: ItemType;
@@ -37,6 +68,12 @@ interface ItemTypeDetailsTabProps {
 interface ItemTypeAttributeGroupsTabProps {
   bindings: AttributeGroupBinding[];
   attributeGroups: AttributeGroupMap;
+}
+
+interface ItemTypeColumnConfigTabProps {
+  itemType: ItemType;
+  attributeGroups: AttributeGroupMap;
+  canEdit: boolean;
 }
 
 const ItemTypeDetailsTab: React.FC<ItemTypeDetailsTabProps> = ({
@@ -97,6 +134,16 @@ const ItemTypeDetailsTab: React.FC<ItemTypeDetailsTabProps> = ({
               {itemType.isSystemItemType
                 ? t('item_types.labels.system') || 'System'
                 : t('item_types.labels.standard') || 'Standard'}
+            </Badge>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-muted-foreground">
+              {t('item_types.fields.show_in_navbar') || 'Show in Navbar'}
+            </span>
+            <Badge variant={itemType.showInNavbar ? 'primary' : 'secondary'}>
+              {itemType.showInNavbar
+                ? t('common.active') || 'Active'
+                : t('common.inactive') || 'Inactive'}
             </Badge>
           </div>
         </div>
@@ -254,6 +301,446 @@ const ItemTypeAttributeGroupsTab: React.FC<ItemTypeAttributeGroupsTabProps> = ({
   );
 };
 
+const ItemTypeColumnConfigTab: React.FC<ItemTypeColumnConfigTabProps> = ({
+  itemType,
+  attributeGroups,
+  canEdit,
+}) => {
+  const { t } = useLanguage();
+  const { showToast } = useToast();
+  const [activeContext, setActiveContext] = useState<'list' | 'navbar'>('list');
+  const [columns, setColumns] = useState<ItemTypeColumnDefinition[]>([]);
+  const [initialColumns, setInitialColumns] = useState<ItemTypeColumnDefinition[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedColumnKey, setSelectedColumnKey] = useState('');
+
+  const metaColumns = useMemo(
+    () => [
+      {
+        key: 'meta.code',
+        label: t('item_types.column_labels.code') || 'Item Code',
+        source: 'meta' as const,
+        helper: t('item_types.column_descriptions.code') || 'Internal item code',
+      },
+      {
+        key: 'meta.name',
+        label: t('item_types.column_labels.name') || 'Item Name',
+        source: 'meta' as const,
+        helper: t('item_types.column_descriptions.name') || 'Primary display name',
+      },
+      {
+        key: 'meta.status',
+        label: t('item_types.column_labels.status') || 'Status',
+        source: 'meta' as const,
+      },
+      {
+        key: 'meta.createdAt',
+        label: t('item_types.column_labels.created_at') || 'Created At',
+        source: 'meta' as const,
+      },
+      {
+        key: 'meta.updatedAt',
+        label: t('item_types.column_labels.updated_at') || 'Updated At',
+        source: 'meta' as const,
+      },
+    ],
+    [t],
+  );
+
+  const attributeColumns = useMemo(() => {
+    const map = new Map<string, AvailableColumn>();
+    attributeGroups.forEach((group) => {
+      group.attributes?.forEach((attribute) => {
+        if (!map.has(attribute.id)) {
+          map.set(attribute.id, {
+            key: `attribute.${attribute.id}`,
+            label: attribute.name || attribute.key || attribute.id,
+            source: 'attribute' as const,
+            helper: group.name ? `${group.name}` : undefined,
+            options: { attributeId: attribute.id },
+          });
+        }
+      });
+    });
+    return Array.from(map.values());
+  }, [attributeGroups]);
+
+  const allColumns: AvailableColumn[] = useMemo(() => [...metaColumns, ...attributeColumns], [metaColumns, attributeColumns]);
+
+  const columnLabelMap = useMemo(() => {
+    const map = new Map<string, string>();
+    allColumns.forEach((column) => map.set(column.key, column.label));
+    return map;
+  }, [allColumns]);
+
+  const normalizeColumns = useCallback((list: ItemTypeColumnDefinition[]) =>
+    list
+      .slice()
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      .map((column, index) => ({ ...column, order: index })),
+  []);
+
+  const loadColumns = useCallback(
+    async (context: 'list' | 'navbar') => {
+      if (!itemType?.id) {
+        return;
+      }
+      try {
+        setLoading(true);
+        setError(null);
+        const config = await itemTypesService.getColumnConfig(itemType.id, context);
+        if (config && config.columns.length > 0) {
+          const normalized = normalizeColumns(config.columns);
+          setColumns(normalized);
+          setInitialColumns(normalized);
+        } else {
+          const defaults: ItemTypeColumnDefinition[] =
+            context === 'navbar'
+              ? [
+                  {
+                    key: 'meta.name',
+                    source: 'meta',
+                    visible: true,
+                    order: 0,
+                  },
+                ]
+              : [
+                  { key: 'meta.code', source: 'meta', visible: true, order: 0 },
+                  { key: 'meta.name', source: 'meta', visible: true, order: 1 },
+                  { key: 'meta.status', source: 'meta', visible: true, order: 2 },
+                ];
+          const normalized = normalizeColumns(defaults);
+          setColumns(normalized);
+          setInitialColumns(normalized);
+        }
+        setSelectedColumnKey('');
+      } catch (err: any) {
+        console.error('Failed to load column config', err);
+        setError(
+          err?.response?.data?.error?.message ||
+            t('item_types.column_config.load_failed') ||
+            'Kolon konfigürasyonu yüklenemedi.',
+        );
+      } finally {
+        setLoading(false);
+      }
+    },
+    [itemType?.id, normalizeColumns, t],
+  );
+
+  useEffect(() => {
+    void loadColumns(activeContext);
+  }, [activeContext, loadColumns]);
+
+  const unusedColumns = useMemo(() => {
+    const existingKeys = new Set(columns.map((column) => column.key));
+    return allColumns.filter((column) => !existingKeys.has(column.key));
+  }, [allColumns, columns]);
+
+  const resolveColumnLabel = useCallback(
+    (column: ItemTypeColumnDefinition) =>
+      columnLabelMap.get(column.key) || column.key,
+    [columnLabelMap],
+  );
+
+  const resolveSourceLabel = useCallback(
+    (source: ItemTypeColumnDefinition['source']) => {
+      switch (source) {
+        case 'attribute':
+          return t('item_types.column_source.attribute') || 'Attribute';
+        case 'meta':
+          return t('item_types.column_source.meta') || 'Meta';
+        case 'association':
+          return t('item_types.column_source.association') || 'Association';
+        case 'computed':
+          return t('item_types.column_source.computed') || 'Computed';
+        default:
+          return source;
+      }
+    },
+    [t],
+  );
+
+  const isDirty = useMemo(() => {
+    const current = JSON.stringify(normalizeColumns(columns));
+    const initial = JSON.stringify(normalizeColumns(initialColumns));
+    return current !== initial;
+  }, [columns, initialColumns, normalizeColumns]);
+
+  const handleContextChange = (nextContext: 'list' | 'navbar') => {
+    if (saving || loading) {
+      return;
+    }
+    setActiveContext(nextContext);
+  };
+
+  const handleToggleVisible = (index: number, value: boolean) => {
+    setColumns((prev) => {
+      const next = prev.slice();
+      next[index] = { ...next[index], visible: value };
+      return next;
+    });
+  };
+
+  const handleMoveColumn = (index: number, direction: 'up' | 'down') => {
+    setColumns((prev) => {
+      const next = prev.slice();
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= next.length) {
+        return prev;
+      }
+      const temp = next[index];
+      next[index] = next[targetIndex];
+      next[targetIndex] = temp;
+      return normalizeColumns(next);
+    });
+  };
+
+  const handleRemoveColumn = (index: number) => {
+    setColumns((prev) => normalizeColumns(prev.filter((_, i) => i !== index)));
+  };
+
+  const handleAddColumn = () => {
+    if (!selectedColumnKey) {
+      return;
+    }
+    const option = allColumns.find((column) => column.key === selectedColumnKey);
+    if (!option) {
+      return;
+    }
+    setColumns((prev) =>
+      normalizeColumns([
+        ...prev,
+        {
+          key: option.key,
+          source: option.source,
+          visible: true,
+          order: prev.length,
+          options: option.options,
+        },
+      ]),
+    );
+    setSelectedColumnKey('');
+  };
+
+  const handleReset = () => {
+    setColumns(normalizeColumns(initialColumns));
+    setSelectedColumnKey('');
+  };
+
+  const handleSave = async () => {
+    if (!canEdit || saving || !isDirty) {
+      return;
+    }
+    try {
+      setSaving(true);
+      const payload = {
+        context: activeContext,
+        columns: normalizeColumns(columns),
+      };
+      const updated = await itemTypesService.updateColumnConfig(itemType.id, payload);
+      const normalized = normalizeColumns(updated.columns ?? []);
+      setColumns(normalized);
+      setInitialColumns(normalized);
+      showToast({
+        type: 'success',
+        message:
+          t('item_types.column_config.save_success') || 'Kolon konfigürasyonu kaydedildi.',
+      });
+    } catch (err: any) {
+      console.error('Failed to save column config', err);
+      const message =
+        err?.response?.data?.error?.message ||
+        t('item_types.column_config.save_failed') ||
+        'Kolon konfigürasyonu kaydedilemedi.';
+      showToast({ type: 'error', message });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const contextOptions: Array<{ value: 'list' | 'navbar'; label: string }> = [
+    { value: 'list', label: t('item_types.column_context.list') || 'Item List' },
+    { value: 'navbar', label: t('item_types.column_context.navbar') || 'Navbar' },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <Card padding="lg" className="space-y-4">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">
+              {t('item_types.column_config.title') || 'Column Configuration'}
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              {t('item_types.column_config.subtitle') ||
+                'Liste ve navbar görünümlerinde hangi sütunların gösterileceğini seçin.'}
+            </p>
+          </div>
+          <div className="inline-flex rounded-lg border border-border bg-muted/40 p-1">
+            {contextOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => handleContextChange(option.value)}
+                className={
+                  option.value === activeContext
+                    ? 'px-3 py-1.5 text-xs font-medium rounded-md bg-background shadow-sm'
+                    : 'px-3 py-1.5 text-xs font-medium rounded-md text-muted-foreground hover:text-foreground'
+                }
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {activeContext === 'navbar' && !itemType.showInNavbar ? (
+          <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+            {t('item_types.column_config.navbar_inactive') ||
+              'Bu item type navbar’da gösterilmiyor. Navbar kolonları yalnızca showInNavbar etkinleştirildiğinde kullanılır.'}
+          </div>
+        ) : null}
+
+        {error ? (
+          <div className="rounded-md border border-error/40 bg-error/10 px-3 py-2 text-xs text-error">
+            {error}
+          </div>
+        ) : null}
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex-1 max-w-xs">
+            <Select
+              value={selectedColumnKey}
+              onChange={(event) => setSelectedColumnKey(event.target.value)}
+              placeholder={
+                unusedColumns.length === 0
+                  ? t('item_types.column_config.no_more_columns') || 'Eklenebilir başka kolon yok'
+                  : t('item_types.column_config.select_column_placeholder') ||
+                    'Eklenecek kolonu seçin'
+              }
+              options={unusedColumns.map((column) => ({
+                value: column.key,
+                label: column.label,
+              }))}
+              disabled={unusedColumns.length === 0 || !canEdit}
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleAddColumn}
+              disabled={!canEdit || !selectedColumnKey}
+              leftIcon={<Plus className="h-3.5 w-3.5" />}
+            >
+              {t('item_types.column_config.add_column') || 'Kolon Ekle'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleReset}
+              disabled={!canEdit || !isDirty || saving}
+            >
+              {t('common.reset') || 'Sıfırla'}
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={!canEdit || !isDirty || saving}
+              loading={saving}
+            >
+              {t('common.save') || 'Kaydet'}
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      <Card padding="lg" className="space-y-4">
+        {loading ? (
+          <div className="text-sm text-muted-foreground">
+            {t('common.loading') || 'Yükleniyor...'}
+          </div>
+        ) : columns.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border/60 bg-muted/40 px-4 py-10 text-center text-sm text-muted-foreground">
+            {t('item_types.column_config.no_columns') || 'Henüz bir kolon seçilmedi.'}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {columns.map((column, index) => {
+              const label = resolveColumnLabel(column);
+              const sourceLabel = resolveSourceLabel(column.source);
+              const helper = columnLabelMap.get(column.key)
+                ? allColumns.find((option) => option.key === column.key)?.helper
+                : undefined;
+
+              return (
+                <div
+                  key={`${column.key}-${index}`}
+                  className="flex flex-col gap-3 rounded-lg border border-border bg-background px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="mt-1 text-muted-foreground">
+                      <GripVertical className="h-4 w-4" />
+                    </span>
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{label}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {sourceLabel} • {column.key}
+                      </p>
+                      {helper ? (
+                        <p className="text-xs text-muted-foreground mt-1">{helper}</p>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      size="sm"
+                      checked={column.visible}
+                      onChange={(event) => handleToggleVisible(index, event.target.checked)}
+                      disabled={!canEdit}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleMoveColumn(index, 'up')}
+                      disabled={!canEdit || index === 0}
+                      className="px-2"
+                    >
+                      <ArrowUp className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleMoveColumn(index, 'down')}
+                      disabled={!canEdit || index === columns.length - 1}
+                      className="px-2"
+                    >
+                      <ArrowDown className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleRemoveColumn(index)}
+                      disabled={!canEdit}
+                      className="px-2 text-error hover:text-error"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+};
+
+
 const buildItemTypeApiEndpoints = (itemType: ItemType): APIEndpoint[] => [
   {
     id: 'list-item-types',
@@ -324,6 +811,7 @@ const ItemTypesDetails: React.FC = () => {
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   const canDelete = hasPermission(PERMISSIONS.CATALOG.ITEM_TYPES.DELETE);
+  const canUpdate = hasPermission(PERMISSIONS.CATALOG.ITEM_TYPES.UPDATE);
   const canViewStatistics = hasPermission(PERMISSIONS.CATALOG.ITEM_TYPES.VIEW);
   const canViewDocumentation = hasPermission(PERMISSIONS.CATALOG.ITEM_TYPES.VIEW);
   const canViewApi = hasPermission(PERMISSIONS.CATALOG.ITEM_TYPES.VIEW);
@@ -568,6 +1056,17 @@ const ItemTypesDetails: React.FC = () => {
       props: {
         bindings,
         attributeGroups: attributeGroupMap,
+      },
+    },
+    {
+      id: 'column-config',
+      label: t('item_types.column_config_tab') || 'Column Settings',
+      icon: Database,
+      component: ItemTypeColumnConfigTab,
+      props: {
+        itemType,
+        attributeGroups: attributeGroupMap,
+        canEdit: canUpdate,
       },
     },
     {

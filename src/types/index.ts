@@ -169,6 +169,7 @@ export interface ItemType {
   linkedFamilyIds: string[];
   lifecycleStatus: 'draft' | 'active' | 'deprecated';
   isSystemItemType: boolean;
+  showInNavbar: boolean;
   version: number;
   attributeGroupIds: string[];
   attributeGroupBindings: AttributeGroupBinding[];
@@ -177,6 +178,51 @@ export interface ItemType {
   updatedAt: string;
   createdBy?: UserReference | string | null;
   updatedBy?: UserReference | string | null;
+}
+
+export type ColumnAlignment = 'start' | 'center' | 'end';
+export type ItemTypeColumnSource = 'attribute' | 'meta' | 'association' | 'computed';
+
+export interface ItemTypeColumnDefinition {
+  key: string;
+  source: ItemTypeColumnSource;
+  labelLocalizationId?: string;
+  visible: boolean;
+  order: number;
+  width?: number;
+  alignment?: ColumnAlignment;
+  options?: Record<string, unknown>;
+}
+
+export interface ItemTypeColumnConfig {
+  id?: string;
+  itemTypeId?: string;
+  context: 'list' | 'detail' | 'navbar';
+  columns: ItemTypeColumnDefinition[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type AssociationColumnSource = 'attribute' | 'meta' | 'relationship' | 'computed';
+
+export interface AssociationColumnDefinition {
+  key: string;
+  source: AssociationColumnSource;
+  labelLocalizationId?: string;
+  visible: boolean;
+  order: number;
+  width?: number;
+  alignment?: ColumnAlignment;
+  options?: Record<string, unknown>;
+}
+
+export interface AssociationColumnConfig {
+  id?: string;
+  associationTypeId?: string;
+  role: 'source' | 'target';
+  columns: AssociationColumnDefinition[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Item {
@@ -206,6 +252,52 @@ export interface Association {
   targetItemId: string | null;
   metadata?: Record<string, any> | null;
   orderIndex?: number | null;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: UserReference | string | null;
+  updatedBy?: UserReference | string | null;
+}
+
+export interface AssociationType {
+  id: string;
+  tenantId?: string;
+  key: string;
+  nameLocalizationId: string;
+  descriptionLocalizationId?: string | null;
+  name: string;
+  nameLanguage?: string | null;
+  description?: string | null;
+  descriptionLanguage?: string | null;
+  sourceItemTypeId?: string | null;
+  targetItemTypeId?: string | null;
+  cardinality: 'one-to-one' | 'one-to-many' | 'many-to-one' | 'many-to-many';
+  isRequired: boolean;
+  direction: 'directed' | 'undirected';
+  metadataSchema?: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: UserReference | string | null;
+  updatedBy?: UserReference | string | null;
+}
+
+export interface AssociationRule {
+  id: string;
+  tenantId?: string;
+  associationTypeId?: string | null;
+  appliesTo: 'source' | 'target';
+  nameLocalizationId?: string | null;
+  descriptionLocalizationId?: string | null;
+  name?: string | null;
+  nameLanguage?: string | null;
+  description?: string | null;
+  descriptionLanguage?: string | null;
+  sourceCategoryIds: string[];
+  sourceFamilyIds: string[];
+  targetCategoryIds: string[];
+  targetFamilyIds: string[];
+  minTargets: number;
+  maxTargets?: number | null;
+  metadataSchema?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
   createdBy?: UserReference | string | null;

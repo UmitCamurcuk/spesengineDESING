@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, FileText, Hash, Plus, Search } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Plus } from 'lucide-react';
 import { Card, CardHeader } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -14,9 +14,22 @@ import { itemTypesService } from '../../api/services/item-types.service';
 import { categoriesService } from '../../api/services/categories.service';
 import { familiesService } from '../../api/services/families.service';
 import { associationsService } from '../../api/services/associations.service';
-import type { ItemType, Category, Family, Item } from '../../types';
+import { associationTypesService } from '../../api/services/association-types.service';
+import { associationRulesService } from '../../api/services/association-rules.service';
+import { attributeGroupsService } from '../../api/services/attribute-groups.service';
+import type {
+  ItemType,
+  Category,
+  Family,
+  Item,
+  AttributeGroup,
+  AttributeGroupBinding,
+  AssociationType,
+  AssociationRule,
+} from '../../types';
+import type { Attribute } from '../../types';
 
-type StepId = 'itemType' | 'relationships' | 'associations' | 'review';
+type StepId = 'itemType' | 'category' | 'family' | 'associations' | 'attributes' | 'review';
 
 type AssociationDraft = {
   associationTypeId: string;
@@ -34,6 +47,7 @@ interface FormState {
   sku: string;
   status: 'draft' | 'active' | 'inactive' | 'archived';
   associations: AssociationDraft[];
+  attributeValues: Record<string, string>;
 }
 
 const statusOptions: Array<{ value: FormState['status']; label: string }> = [
@@ -59,25 +73,38 @@ export const ItemsCreate: React.FC = () => {
     () => [
       {
         id: 'itemType' as StepId,
-        name: t('items.create.steps.item_type') || 'Item Type',
-        description: t('items.create.steps.item_type_desc') || 'Select the base item type',
+        name: t('items.create.steps.item_type') || 'Ürün Tipi',
+        description: t('items.create.steps.item_type_desc') || 'İşleyeceğiniz item tipini seçin.',
       },
       {
-        id: 'relationships' as StepId,
-        name: t('items.create.steps.relationships') || 'Metadata',
+        id: 'category' as StepId,
+        name: t('items.create.steps.category') || 'Kategori Seçimi',
         description:
-          t('items.create.steps.relationships_desc') || 'Assign related taxonomy values and identifiers',
+          t('items.create.steps.category_desc') || 'Item için ilgili kategori seçimini yapın.',
+      },
+      {
+        id: 'family' as StepId,
+        name: t('items.create.steps.family') || 'Aile Seçimi',
+        description:
+          t('items.create.steps.family_desc') || 'Seçilen kategoriye bağlı ailelerden birini seçin.',
       },
       {
         id: 'associations' as StepId,
-        name: t('items.create.steps.associations') || 'Associations',
+        name: t('items.create.steps.associations') || 'İlişkiler',
         description:
-          t('items.create.steps.associations_desc') || 'Link existing items via association types',
+          t('items.create.steps.associations_desc') || 'Diğer itemlarla zorunlu ilişkileri tanımlayın.',
+      },
+      {
+        id: 'attributes' as StepId,
+        name: t('items.create.steps.attributes') || 'Öznitelikler',
+        description:
+          t('items.create.steps.attributes_desc') ||
+          'Kod, durum ve zorunlu attribute değerlerini girin.',
       },
       {
         id: 'review' as StepId,
-        name: t('items.create.steps.review') || 'Review',
-        description: t('items.create.steps.review_desc') || 'Verify before saving',
+        name: t('items.create.steps.review') || 'Gözden Geçir',
+        description: t('items.create.steps.review_desc') || 'Kaydetmeden önce detayları doğrulayın.',
       },
     ],
     [t],
@@ -91,13 +118,21 @@ export const ItemsCreate: React.FC = () => {
     externalCode: '',
     sku: '',
     status: 'draft',
-    associations: [{ ...defaultAssociationRow }],
+    associations: [],
+    attributeValues: {},
   });
   const [currentStep, setCurrentStep] = useState(0);
   const [itemTypes, setItemTypes] = useState<ItemType[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [families, setFamilies] = useState<Family[]>([]);
+  const [attributeGroups, setAttributeGroups] = useState<AttributeGroup[]>([]);
   const [availableItems, setAvailableItems] = useState<Item[]>([]);
+  const [associationTypes, setAssociationTypes] = useState<AssociationType[]>([]);
+  const [associationRulesByType, setAssociationRulesByType] = useState<Record<string, AssociationRule[]>>({});
+  const [ruleSelections, setRuleSelections] = useState<Record<string, string[]>>({});
+  const [ruleTargetItems, setRuleTargetItems] = useState<Record<string, Item[]>>({});
+  const [ruleLoadingState, setRuleLoadingState] = useState<Record<string, boolean>>({});
+  const [ruleErrors, setRuleErrors] = useState<Record<string, string | null>>({});
   const [loadingLookup, setLoadingLookup] = useState(true);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -109,11 +144,20 @@ export const ItemsCreate: React.FC = () => {
       try {
         setLoadingLookup(true);
         setLookupError(null);
-        const [itemTypeResult, categoryResult, familyResult, itemsResult] = await Promise.all([
+        const [
+          itemTypeResult,
+          categoryResult,
+          familyResult,
+          attributeGroupResult,
+          itemsResult,
+          associationTypeResult,
+        ] = await Promise.all([
           itemTypesService.list({ limit: 200 }),
           categoriesService.list({ limit: 200 }),
           familiesService.list({ limit: 200 }),
+          attributeGroupsService.list(),
           itemsService.list({ limit: 200 }),
+          associationTypesService.list(),
         ]);
 
         if (cancelled) {
@@ -124,6 +168,8 @@ export const ItemsCreate: React.FC = () => {
         setCategories(categoryResult.items ?? []);
         setFamilies(familyResult.items ?? []);
         setAvailableItems(itemsResult.items ?? []);
+        setAttributeGroups(attributeGroupResult ?? []);
+        setAssociationTypes(associationTypeResult.items ?? []);
       } catch (error: any) {
         if (!cancelled) {
           console.error('Failed to load item create lookups', error);
@@ -151,33 +197,123 @@ export const ItemsCreate: React.FC = () => {
     () => itemTypes.find((type) => type.id === form.itemTypeId) ?? null,
     [itemTypes, form.itemTypeId],
   );
-  const selectedCategories = useMemo(
-    () =>
-      form.categoryId
-        ? [categories.find((category) => category.id === form.categoryId)].filter(
-            (value): value is Category => Boolean(value),
-          )
-        : [],
-    [categories, form.categoryId],
-  );
-  const selectedFamily = useMemo(
-    () => families.find((family) => family.id === form.familyId) ?? null,
-    [families, form.familyId],
-  );
+  const availableCategories = useMemo(() => {
+    if (!form.itemTypeId) {
+      return categories;
+    }
+    return categories.filter((category) => {
+      if (Array.isArray(category.linkedItemTypeIds) && category.linkedItemTypeIds.length > 0) {
+        return category.linkedItemTypeIds.includes(form.itemTypeId);
+      }
+      return !category.defaultItemTypeId || category.defaultItemTypeId === form.itemTypeId;
+    });
+  }, [categories, form.itemTypeId]);
+
+  const selectedCategory = useMemo(() => {
+    if (!form.categoryId) {
+      return null;
+    }
+    return availableCategories.find((category) => category.id === form.categoryId) ?? null;
+  }, [availableCategories, form.categoryId]);
+
+  const availableFamilies = useMemo(() => {
+    if (!form.categoryId) {
+      return [] as Family[];
+    }
+    return families.filter((family) => (family.categoryId ?? null) === form.categoryId);
+  }, [families, form.categoryId]);
+
+  const selectedFamily = useMemo(() => {
+    if (!form.familyId) {
+      return null;
+    }
+    return availableFamilies.find((family) => family.id === form.familyId) ?? null;
+  }, [availableFamilies, form.familyId]);
+
+  const relevantAssociationTypes = useMemo(() => {
+    if (!form.itemTypeId) {
+      return [] as AssociationType[];
+    }
+    return associationTypes.filter(
+      (type) => (type.sourceItemTypeId ?? '') === form.itemTypeId,
+    );
+  }, [associationTypes, form.itemTypeId]);
+
+  const applicableRules = useMemo(() => {
+    const results: Array<{ type: AssociationType; rule: AssociationRule }> = [];
+    if (!form.categoryId) {
+      return results;
+    }
+
+    const matchesRule = (rule: AssociationRule) => {
+      const categoryMatch =
+        (rule.sourceCategoryIds ?? []).length === 0 ||
+        (form.categoryId ? (rule.sourceCategoryIds ?? []).includes(form.categoryId) : false);
+      const familyMatch =
+        (rule.sourceFamilyIds ?? []).length === 0 ||
+        (form.familyId ? (rule.sourceFamilyIds ?? []).includes(form.familyId) : false);
+      return categoryMatch && familyMatch;
+    };
+
+    relevantAssociationTypes.forEach((type) => {
+      const rules = associationRulesByType[type.id] ?? [];
+      rules.forEach((rule) => {
+        if (matchesRule(rule)) {
+          results.push({ type, rule });
+        }
+      });
+    });
+
+    return results;
+  }, [associationRulesByType, form.categoryId, form.familyId, relevantAssociationTypes]);
+
+  const ruleMetaMap = useMemo(() => {
+    const map = new Map<string, { type: AssociationType; rule: AssociationRule }>();
+    applicableRules.forEach(({ type, rule }) => map.set(rule.id, { type, rule }));
+    return map;
+  }, [applicableRules]);
 
   const updateForm = useCallback((patch: Partial<FormState>) => {
     setForm((prev) => ({ ...prev, ...patch }));
   }, []);
 
-  const handleAssociationChange = useCallback(
-    (index: number, patch: Partial<AssociationDraft>) => {
-      setForm((prev) => {
-        const next = [...prev.associations];
-        next[index] = { ...next[index], ...patch };
-        return { ...prev, associations: next };
-      });
-    },
-  []);
+  const handleSelectItemType = useCallback((itemTypeId: string) => {
+    setForm((prev) => ({
+      ...prev,
+      itemTypeId,
+      categoryId: '',
+      familyId: '',
+      associations: [],
+      attributeValues: {},
+    }));
+    setRuleSelections({});
+    setRuleTargetItems({});
+    setRuleErrors({});
+    setRuleLoadingState({});
+  }, []);
+
+  const handleSelectCategory = useCallback((categoryId: string) => {
+    setForm((prev) => ({
+      ...prev,
+      categoryId,
+      familyId: '',
+    }));
+  }, []);
+
+  const handleSelectFamily = useCallback((familyId: string) => {
+    setForm((prev) => ({
+      ...prev,
+      familyId,
+    }));
+  }, []);
+
+  const handleAssociationChange = useCallback((index: number, patch: Partial<AssociationDraft>) => {
+    setForm((prev) => {
+      const next = [...prev.associations];
+      next[index] = { ...next[index], ...patch };
+      return { ...prev, associations: next };
+    });
+  }, []);
 
   const addAssociationRow = useCallback(() => {
     setForm((prev) => ({ ...prev, associations: [...prev.associations, { ...defaultAssociationRow }] }));
@@ -186,9 +322,23 @@ export const ItemsCreate: React.FC = () => {
   const removeAssociationRow = useCallback((index: number) => {
     setForm((prev) => {
       const next = prev.associations.filter((_, idx) => idx !== index);
-      return { ...prev, associations: next.length > 0 ? next : [{ ...defaultAssociationRow }] };
+      return { ...prev, associations: next };
     });
   }, []);
+
+  const ensureAssociationRules = useCallback(
+    async (associationTypeId: string): Promise<AssociationRule[]> => {
+      const cached = associationRulesByType[associationTypeId];
+      if (cached) {
+        return cached;
+      }
+      const response = await associationRulesService.list({ associationTypeId });
+      const rules = response.items ?? [];
+      setAssociationRulesByType((prev) => ({ ...prev, [associationTypeId]: rules }));
+      return rules;
+    },
+    [associationRulesByType],
+  );
 
   const hasAssociationGap = useMemo(
     () =>
@@ -199,17 +349,262 @@ export const ItemsCreate: React.FC = () => {
     [form.associations],
   );
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadRules = async () => {
+      for (const type of relevantAssociationTypes) {
+        if (cancelled) break;
+        if (!associationRulesByType[type.id]) {
+          try {
+            await ensureAssociationRules(type.id);
+          } catch (error) {
+            console.error('Failed to load association rules', error);
+          }
+        }
+      }
+    };
+
+    if (relevantAssociationTypes.length > 0) {
+      void loadRules();
+    } else {
+      setRuleSelections({});
+      setRuleTargetItems({});
+      setRuleErrors({});
+      setRuleLoadingState({});
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [associationRulesByType, ensureAssociationRules, relevantAssociationTypes]);
+
+  useEffect(() => {
+    setRuleSelections((prev) => {
+      const next: Record<string, string[]> = {};
+      applicableRules.forEach(({ rule }) => {
+        if (prev[rule.id]) {
+          next[rule.id] = prev[rule.id];
+        } else {
+          next[rule.id] = [];
+        }
+      });
+
+      const prevKeys = Object.keys(prev);
+      const nextKeys = Object.keys(next);
+      if (
+        prevKeys.length === nextKeys.length &&
+        nextKeys.every((key) => prev[key] === next[key])
+      ) {
+        return prev;
+      }
+      return next;
+    });
+
+    setRuleTargetItems((prev) => {
+      const next: Record<string, Item[]> = {};
+      applicableRules.forEach(({ rule }) => {
+        if (prev[rule.id]) {
+          next[rule.id] = prev[rule.id];
+        }
+      });
+      const prevKeys = Object.keys(prev);
+      const nextKeys = Object.keys(next);
+      if (
+        prevKeys.length === nextKeys.length &&
+        prevKeys.every((key) => prev[key] === next[key])
+      ) {
+        return prev;
+      }
+      return next;
+    });
+
+    setRuleErrors((prev) => {
+      const next: Record<string, string | null> = {};
+      applicableRules.forEach(({ rule }) => {
+        if (prev.hasOwnProperty(rule.id)) {
+          next[rule.id] = prev[rule.id] ?? null;
+        } else {
+          next[rule.id] = null;
+        }
+      });
+      const prevKeys = Object.keys(prev);
+      const nextKeys = Object.keys(next);
+      if (
+        prevKeys.length === nextKeys.length &&
+        nextKeys.every((key) => prev[key] === next[key])
+      ) {
+        return prev;
+      }
+      return next;
+    });
+
+    setRuleLoadingState((prev) => {
+      const next: Record<string, boolean> = {};
+      applicableRules.forEach(({ rule }) => {
+        next[rule.id] = prev[rule.id] ?? false;
+      });
+      const prevKeys = Object.keys(prev);
+      const nextKeys = Object.keys(next);
+      if (
+        prevKeys.length === nextKeys.length &&
+        nextKeys.every((key) => prev[key] === next[key])
+      ) {
+        return prev;
+      }
+      return next;
+    });
+  }, [applicableRules]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchTargetItems = async () => {
+      for (const { type, rule } of applicableRules) {
+        if (cancelled) break;
+        if (!type.targetItemTypeId || ruleTargetItems[rule.id]) {
+          continue;
+        }
+
+        setRuleLoadingState((prev) => ({ ...prev, [rule.id]: true }));
+        setRuleErrors((prev) => ({ ...prev, [rule.id]: null }));
+
+        try {
+          const response = await itemsService.list({
+            itemTypeId: type.targetItemTypeId,
+            status: 'active',
+            limit: 500,
+            categoryIds: (rule.targetCategoryIds ?? []).length > 0 ? rule.targetCategoryIds : undefined,
+            familyIds: (rule.targetFamilyIds ?? []).length > 0 ? rule.targetFamilyIds : undefined,
+          });
+
+          if (!cancelled) {
+            const items = (response.items ?? []).filter((item) => {
+              const categoryMatch =
+                (rule.targetCategoryIds ?? []).length === 0 ||
+                (item.categoryId ? (rule.targetCategoryIds ?? []).includes(item.categoryId) : false);
+              const familyMatch =
+                (rule.targetFamilyIds ?? []).length === 0 ||
+                (item.familyId ? (rule.targetFamilyIds ?? []).includes(item.familyId) : false);
+              return categoryMatch && familyMatch;
+            });
+            setRuleTargetItems((prev) => ({ ...prev, [rule.id]: items }));
+          }
+        } catch (error: any) {
+          if (!cancelled) {
+            console.error('Failed to load association target items', error);
+            setRuleErrors((prev) => ({
+              ...prev,
+              [rule.id]:
+                error?.response?.data?.error?.message ??
+                t('items.create.association_targets_failed') ??
+                'Hedef itemlar yüklenemedi. Lütfen daha sonra tekrar deneyin.',
+            }));
+            setRuleTargetItems((prev) => ({ ...prev, [rule.id]: [] }));
+          }
+        } finally {
+          if (!cancelled) {
+            setRuleLoadingState((prev) => ({ ...prev, [rule.id]: false }));
+          }
+        }
+      }
+    };
+
+    if (applicableRules.length > 0) {
+      void fetchTargetItems();
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [applicableRules, ruleTargetItems, t]);
+
+  const relevantAttributeGroupIds = useMemo(() => {
+    const ids = new Set<string>();
+    const collect = (entity?: { attributeGroupIds?: string[]; attributeGroupBindings?: AttributeGroupBinding[] }) => {
+      if (!entity) return;
+      (entity.attributeGroupIds ?? []).forEach((id) => {
+        if (id) ids.add(id);
+      });
+      (entity.attributeGroupBindings ?? []).forEach((binding) => {
+        if (binding.attributeGroupId) {
+          ids.add(binding.attributeGroupId);
+        }
+      });
+    };
+    collect(selectedItemType ?? undefined);
+    collect(selectedCategory ?? undefined);
+    collect(selectedFamily ?? undefined);
+    return ids;
+  }, [selectedItemType, selectedCategory, selectedFamily]);
+
+  const relevantAttributeGroups = useMemo(
+    () => attributeGroups.filter((group) => relevantAttributeGroupIds.has(group.id)),
+    [attributeGroups, relevantAttributeGroupIds],
+  );
+
+  const attributeDefinitions = useMemo(() => {
+    const map = new Map<string, Attribute>();
+    relevantAttributeGroups.forEach((group) => {
+      (group.attributes ?? []).forEach((attribute) => {
+        if (!map.has(attribute.id)) {
+          map.set(attribute.id, attribute);
+        }
+      });
+    });
+    return Array.from(map.values());
+  }, [relevantAttributeGroups]);
+
+  useEffect(() => {
+    setForm((prev) => {
+      const validAttributeIds = new Set(attributeDefinitions.map((attribute) => attribute.id));
+      const nextValues: Record<string, string> = {};
+      let changed = false;
+      Object.entries(prev.attributeValues).forEach(([key, value]) => {
+        if (validAttributeIds.has(key)) {
+          nextValues[key] = value;
+        } else {
+          changed = true;
+        }
+      });
+      if (!changed) {
+        return prev;
+      }
+      return {
+        ...prev,
+        attributeValues: nextValues,
+      };
+    });
+  }, [attributeDefinitions]);
+
+  const handleAttributeValueChange = useCallback((attributeId: string, value: string) => {
+    setForm((prev) => ({
+      ...prev,
+      attributeValues: { ...prev.attributeValues, [attributeId]: value },
+    }));
+  }, []);
+
   const isItemTypeStepValid = useMemo(
     () => !loadingLookup && Boolean(form.itemTypeId),
     [loadingLookup, form.itemTypeId],
   );
 
-  const isRelationshipsStepValid = useMemo(
-    () => form.code.trim().length > 0,
-    [form.code],
+  const isCategoryStepValid = useMemo(
+    () => Boolean(form.itemTypeId) && Boolean(form.categoryId),
+    [form.itemTypeId, form.categoryId],
+  );
+
+  const isFamilyStepValid = useMemo(
+    () => Boolean(form.categoryId) && Boolean(form.familyId),
+    [form.categoryId, form.familyId],
   );
 
   const isAssociationsStepValid = useMemo(() => !hasAssociationGap, [hasAssociationGap]);
+
+  const isAttributesStepValid = useMemo(
+    () => form.code.trim().length > 0,
+    [form.code],
+  );
 
   const validateCurrentStep = useCallback(() => {
     const step = steps[currentStep];
@@ -231,16 +626,66 @@ export const ItemsCreate: React.FC = () => {
           return false;
         }
         return true;
-      case 'relationships':
-        if (!form.code.trim()) {
+      case 'category':
+        if (!form.itemTypeId) {
           showToast({
             type: 'error',
-            message: t('items.create.validation.code_required') || 'Kod alanı zorunludur.',
+            message: t('items.create.validation.item_type_first') || 'Önce item tipini seçin.',
+          });
+          return false;
+        }
+        if (!form.categoryId) {
+          showToast({
+            type: 'error',
+            message: t('items.create.validation.category_required') || 'Kategori seçimi zorunludur.',
           });
           return false;
         }
         return true;
-      case 'associations': {
+      case 'family':
+        if (!form.categoryId) {
+          showToast({
+            type: 'error',
+            message: t('items.create.validation.category_first') || 'Önce kategori seçin.',
+          });
+          return false;
+        }
+        if (!form.familyId) {
+          showToast({
+            type: 'error',
+            message: t('items.create.validation.family_required') || 'Family seçimi zorunludur.',
+          });
+          return false;
+        }
+        return true;
+      case 'associations':
+        for (const { type, rule } of applicableRules) {
+          const selections = ruleSelections[rule.id] ?? [];
+          if (rule.minTargets > 0 && selections.length < rule.minTargets) {
+            const label = rule.name || type.name || type.key;
+            showToast({
+              type: 'error',
+              message:
+                t('items.create.validation.rule_min_targets', { rule: label, min: String(rule.minTargets) }) ||
+                `"${label}" kuralı için en az ${rule.minTargets} hedef seçilmelidir.`,
+            });
+            return false;
+          }
+          if (rule.maxTargets && rule.maxTargets > 0 && selections.length > rule.maxTargets) {
+            const label = rule.name || type.name || type.key;
+            showToast({
+              type: 'error',
+              message:
+                t('items.create.validation.rule_max_targets', {
+                  rule: label,
+                  max: String(rule.maxTargets),
+                }) ||
+                `"${label}" kuralı için en fazla ${rule.maxTargets} hedef seçilebilir.`,
+            });
+            return false;
+          }
+        }
+
         if (hasAssociationGap) {
           showToast({
             type: 'error',
@@ -251,12 +696,20 @@ export const ItemsCreate: React.FC = () => {
           return false;
         }
         return true;
-      }
+      case 'attributes':
+        if (!form.code.trim()) {
+          showToast({
+            type: 'error',
+            message: t('items.create.validation.code_required') || 'Kod alanı zorunludur.',
+          });
+          return false;
+        }
+        return true;
       case 'review':
       default:
         return true;
     }
-  }, [currentStep, form.code, form.itemTypeId, hasAssociationGap, loadingLookup, showToast, steps, t]);
+  }, [currentStep, form.categoryId, form.code, form.familyId, form.itemTypeId, hasAssociationGap, loadingLookup, showToast, steps, t]);
 
   const handleNext = useCallback(() => {
     if (!validateCurrentStep()) {
@@ -281,7 +734,7 @@ export const ItemsCreate: React.FC = () => {
     try {
       setSubmitting(true);
 
-      const payload = {
+      const payload: Record<string, unknown> = {
         itemTypeId: form.itemTypeId,
         categoryId: form.categoryId ? form.categoryId : null,
         familyId: form.familyId ? form.familyId : null,
@@ -291,15 +744,28 @@ export const ItemsCreate: React.FC = () => {
         status: form.status,
       };
 
+      if (Object.keys(form.attributeValues).length > 0) {
+        payload.attributes = form.attributeValues;
+      }
+
       const created = await itemsService.create(payload);
 
-      const validAssociations = form.associations.filter(
+      const ruleAssociations = applicableRules.flatMap(({ type, rule }) => {
+        const selections = ruleSelections[rule.id] ?? [];
+        return selections.map((targetId, index) => ({
+          associationTypeId: type.id,
+          targetItemId: targetId,
+          orderIndex: index + 1,
+        }));
+      });
+
+      const manualAssociations = form.associations.filter(
         (assoc) => assoc.associationTypeId.trim().length > 0 && assoc.targetItemId.trim().length > 0,
       );
 
-      for (const assoc of validAssociations) {
+      for (const assoc of [...ruleAssociations, ...manualAssociations]) {
         let metadataPayload: Record<string, unknown> | undefined;
-        const trimmedMetadata = assoc.metadata?.trim();
+        const trimmedMetadata = 'metadata' in assoc ? assoc.metadata?.trim() : undefined;
         if (trimmedMetadata) {
           try {
             metadataPayload = JSON.parse(trimmedMetadata);
@@ -308,8 +774,13 @@ export const ItemsCreate: React.FC = () => {
           }
         }
 
-        const orderIndexValue = assoc.orderIndex?.trim();
-        const orderIndex = orderIndexValue ? Number(orderIndexValue) : undefined;
+        let orderIndex: number | undefined;
+        if ('orderIndex' in assoc && typeof assoc.orderIndex === 'string') {
+          const orderIndexValue = assoc.orderIndex?.trim();
+          orderIndex = orderIndexValue ? Number(orderIndexValue) : undefined;
+        } else if ('orderIndex' in assoc && typeof assoc.orderIndex === 'number') {
+          orderIndex = assoc.orderIndex;
+        }
 
         await associationsService.create({
           associationTypeId: assoc.associationTypeId.trim(),
@@ -338,7 +809,7 @@ export const ItemsCreate: React.FC = () => {
     } finally {
       setSubmitting(false);
     }
-  }, [form, navigate, showToast, submitting, t, validateCurrentStep, steps.length]);
+  }, [applicableRules, form, navigate, ruleSelections, showToast, submitting, t, validateCurrentStep, steps.length]);
 
   const renderItemTypeBody = () => {
     if (loadingLookup) {
@@ -361,7 +832,7 @@ export const ItemsCreate: React.FC = () => {
             <button
               type="button"
               key={itemType.id}
-              onClick={() => updateForm({ itemTypeId: itemType.id })}
+              onClick={() => handleSelectItemType(itemType.id)}
               className={`relative text-left border-2 rounded-xl p-4 transition-all duration-200 ${
                 isSelected
                   ? 'border-primary bg-primary/10 shadow-sm'
@@ -394,49 +865,134 @@ export const ItemsCreate: React.FC = () => {
     );
   };
 
-  const renderRelationshipsBody = () => (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <label className="block text-xs font-medium text-foreground mb-1">
-            {t('items.fields.category') || 'Category'}
-          </label>
-          <select
-            value={form.categoryId}
-            onChange={(event) => updateForm({ categoryId: event.target.value })}
-            className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            <option value="">{t('items.create.select_category') || 'Kategori seçin (opsiyonel)'}</option>
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
-          </select>
+  const renderCategoryBody = () => {
+    if (!form.itemTypeId) {
+      return (
+        <div className="rounded-md border border-dashed border-border p-6 text-sm text-muted-foreground">
+          {t('items.create.select_item_type_first') || 'Önce item tipini seçmelisiniz.'}
         </div>
+      );
+    }
 
-        <div>
-          <label className="block text-xs font-medium text-foreground mb-1">
-            {t('items.fields.family') || 'Family'}
-          </label>
-          <select
-            value={form.familyId}
-            onChange={(event) => updateForm({ familyId: event.target.value })}
-            className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            <option value="">{t('items.create.select_family') || 'Family seçin (opsiyonel)'}</option>
-            {families.map((family) => (
-              <option key={family.id} value={family.id}>
-                {family.name}
-              </option>
-            ))}
-          </select>
+    if (availableCategories.length === 0) {
+      return (
+        <div className="rounded-md border border-dashed border-border p-6 text-sm text-muted-foreground">
+          {t('items.create.no_categories_for_type') ||
+            'Bu item tipi için ilişkilendirilmiş kategori bulunamadı.'}
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {availableCategories.map((category) => {
+            const isSelected = form.categoryId === category.id;
+            return (
+              <button
+                type="button"
+                key={category.id}
+                onClick={() => handleSelectCategory(category.id)}
+                className={`relative text-left border-2 rounded-xl p-4 transition-all duration-200 ${
+                  isSelected
+                    ? 'border-primary bg-primary/10 shadow-sm'
+                    : 'border-border hover:border-primary/60 hover:bg-muted/60'
+                }`}
+              >
+                {isSelected ? (
+                  <div className="absolute top-3 right-3">
+                    <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow">
+                      <Check className="h-3 w-3" />
+                    </div>
+                  </div>
+                ) : null}
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-foreground">{category.name}</h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {category.description || t('items.create.no_description') || '—'}
+                    </p>
+                  </div>
+                  <Badge variant="secondary" size="sm">
+                    {category.attributeGroupCount ?? category.attributeGroupIds?.length ?? 0}{' '}
+                    {t('items.create.attribute_group_short') || 'groups'}
+                  </Badge>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
+    );
+  };
 
+  const renderFamilyBody = () => {
+    if (!form.itemTypeId) {
+      return (
+        <div className="rounded-md border border-dashed border-border p-6 text-sm text-muted-foreground">
+          {t('items.create.select_item_type_first') || 'Önce item tipini seçmelisiniz.'}
+        </div>
+      );
+    }
+
+    if (!form.categoryId) {
+      return (
+        <div className="rounded-md border border-dashed border-border p-6 text-sm text-muted-foreground">
+          {t('items.create.select_category_first') || 'Önce kategori seçmelisiniz.'}
+        </div>
+      );
+    }
+
+    if (availableFamilies.length === 0) {
+      return (
+        <div className="rounded-md border border-dashed border-border p-6 text-sm text-muted-foreground">
+          {t('items.create.no_families_for_category') || 'Seçilen kategori için aile bulunamadı.'}
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {availableFamilies.map((family) => {
+            const isSelected = form.familyId === family.id;
+            return (
+              <button
+                type="button"
+                key={family.id}
+                onClick={() => handleSelectFamily(family.id)}
+                className={`relative text-left border-2 rounded-xl p-4 transition-all duration-200 ${
+                  isSelected
+                    ? 'border-primary bg-primary/10 shadow-sm'
+                    : 'border-border hover:border-primary/60 hover:bg-muted/60'
+                }`}
+              >
+                {isSelected ? (
+                  <div className="absolute top-3 right-3">
+                    <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow">
+                      <Check className="h-3 w-3" />
+                    </div>
+                  </div>
+                ) : null}
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">{family.name}</h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {family.description || t('items.create.no_description') || '—'}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  const renderAttributesBody = () => (
+    <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Input
-          label={t('items.fields.code') || 'Code'}
+          label={t('items.fields.code') || 'Kod'}
           value={form.code}
           onChange={(event) => updateForm({ code: event.target.value })}
           placeholder="ITEM-001"
@@ -444,7 +1000,7 @@ export const ItemsCreate: React.FC = () => {
         />
 
         <Input
-          label={t('items.fields.external_code') || 'External Code'}
+          label={t('items.fields.external_code') || 'Harici Kod'}
           value={form.externalCode}
           onChange={(event) => updateForm({ externalCode: event.target.value })}
           placeholder="ERP-12345"
@@ -461,7 +1017,7 @@ export const ItemsCreate: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <label className="block text-xs font-medium text-foreground mb-1">
-            {t('items.fields.status') || 'Status'}
+            {t('items.fields.status') || 'Durum'}
           </label>
           <select
             value={form.status}
@@ -474,50 +1030,238 @@ export const ItemsCreate: React.FC = () => {
               </option>
             ))}
           </select>
-          <p className="text-xs text-muted-foreground mt-1">
-            {t('items.create.status_helper') ||
-              'Yayınlanma durumunu belirleyin. Taslak olarak kaydedebilirsiniz.'}
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div>
+          <h4 className="text-sm font-semibold text-foreground">
+            {t('items.create.attribute_section_title') || 'Öznitelik Değerleri'}
+          </h4>
+          <p className="text-xs text-muted-foreground">
+            {t('items.create.attribute_section_subtitle') ||
+              'Seçilen item tipi, kategori ve aileye bağlı attribute değerlerini girin.'}
           </p>
         </div>
+
+        {attributeDefinitions.length === 0 ? (
+          <div className="rounded-md border border-dashed border-border p-4 text-xs text-muted-foreground">
+            {t('items.create.no_attributes_available') || 'Bu seçim için öznitelik bulunmuyor.'}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {attributeDefinitions.map((attribute) => (
+              <div key={attribute.id} className="space-y-2">
+                <label className="block text-xs font-medium text-foreground">
+                  {attribute.name}
+                </label>
+                <Input
+                  value={form.attributeValues[attribute.id] ?? ''}
+                  onChange={(event) => handleAttributeValueChange(attribute.id, event.target.value)}
+                  placeholder={attribute.description || attribute.key || attribute.id}
+                />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
+
+  const handleRuleSelectionChange = useCallback((ruleId: string, values: string[]) => {
+    setRuleSelections((prev) => ({ ...prev, [ruleId]: values }));
+  }, []);
 
   const renderAssociationsBody = () => (
     <div className="space-y-6">
       <p className="text-sm text-muted-foreground">
         {t('items.create.associations_hint') ||
-          'Yeni item oluşturulduktan sonra seçilen association tipe göre mevcut itemlarla bağlantılar kurulacaktır.'}
+          'Association kuralları doğrultusunda hedef item seçimlerini tamamlayın. Kurallar yoksa manuel satırlar ekleyebilirsiniz.'}
       </p>
 
-      <div className="space-y-4">
-        {form.associations.map((assoc, index) => {
-          const targetItem = availableItems.find((item) => item.id === assoc.targetItemId);
-          return (
-            <Card key={`association-row-${index}`}>
-              <CardHeader
-                title={`${t('items.create.association_row') || 'Association'} #${index + 1}`}
-                subtitle={
-                  assoc.associationTypeId
-                    ? t('items.create.association_row_selected') || 'Association yapılandırması'
-                    : t('items.create.association_row_subtitle') || 'Association ayrıntılarını girin'
-                }
-              />
-              <div className="px-6 pb-6 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input
-                    label={t('items.fields.association_type_id') || 'Association Type ID'}
-                    value={assoc.associationTypeId}
-                    onChange={(event) =>
-                      handleAssociationChange(index, { associationTypeId: event.target.value })
-                    }
-                    placeholder="association-type-id"
-                    required
-                  />
+      {form.itemTypeId ? (
+        <div className="space-y-4">
+          {applicableRules.length === 0 ? (
+            <div className="rounded-md border border-dashed border-border p-4 text-xs text-muted-foreground">
+              {t('items.create.no_association_rules') ||
+                'Seçili kategori ve aile için tanımlı association kuralı bulunamadı. Gerekiyorsa manuel satırlar ekleyin.'}
+            </div>
+          ) : (
+            applicableRules.map(({ type, rule }, index) => {
+              const selections = ruleSelections[rule.id] ?? [];
+              const targetItems = ruleTargetItems[rule.id] ?? [];
+              const loading = ruleLoadingState[rule.id];
+              const error = ruleErrors[rule.id];
+              const ruleLabel = rule.name || type.name || type.key;
+              const maxTargets = rule.maxTargets && rule.maxTargets > 0 ? rule.maxTargets : null;
 
+              return (
+                <Card key={rule.id}>
+                  <CardHeader
+                    title={`${type.name || type.key} — ${ruleLabel}`}
+                    subtitle={
+                      t('items.create.rule_card_summary', {
+                        min: String(rule.minTargets),
+                        max: maxTargets ? String(maxTargets) : t('items.create.rule_unlimited') || 'Sınırsız',
+                      }) || `Min ${rule.minTargets} / Max ${maxTargets ?? '∞'}`
+                    }
+                  />
+                  <div className="px-6 pb-6 space-y-3 text-xs">
+                    <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
+                      <Badge variant="secondary">#{index + 1}</Badge>
+                      <span>{t('items.create.rule_applies_to') || 'Yön'}: </span>
+                      <span className="text-foreground">
+                        {rule.appliesTo === 'source'
+                          ? t('associations.fields.applies_to_source') || 'Kaynak Bazlı'
+                          : t('associations.fields.applies_to_target') || 'Hedef Bazlı'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-muted-foreground">
+                      <div>
+                        {t('items.create.rule_source_scope') || 'Kaynak kapsamı'}:{' '}
+                        {(rule.sourceCategoryIds ?? []).length === 0 && (rule.sourceFamilyIds ?? []).length === 0
+                          ? t('common.all') || 'Tümü'
+                          : [
+                              ...(rule.sourceCategoryIds ?? []).map(
+                                (id) => categories.find((category) => category.id === id)?.name ?? id,
+                              ),
+                              ...(rule.sourceFamilyIds ?? []).map(
+                                (id) => families.find((family) => family.id === id)?.name ?? id,
+                              ),
+                            ].join(', ')}
+                      </div>
+                      <div>
+                        {t('items.create.rule_target_scope') || 'Hedef kapsamı'}:{' '}
+                        {(rule.targetCategoryIds ?? []).length === 0 && (rule.targetFamilyIds ?? []).length === 0
+                          ? t('common.all') || 'Tümü'
+                          : [
+                              ...(rule.targetCategoryIds ?? []).map(
+                                (id) => categories.find((category) => category.id === id)?.name ?? id,
+                              ),
+                              ...(rule.targetFamilyIds ?? []).map(
+                                (id) => families.find((family) => family.id === id)?.name ?? id,
+                              ),
+                            ].join(', ')}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-foreground mb-1">
+                        {t('items.create.select_rule_targets') || 'Hedef itemları seçin'}
+                      </label>
+                      <select
+                        multiple
+                        value={selections}
+                        onChange={(event) => {
+                          let values = Array.from(event.target.selectedOptions, (option) => option.value);
+                          if (maxTargets && values.length > maxTargets) {
+                            values = values.slice(0, maxTargets);
+                            showToast({
+                              type: 'warning',
+                              message:
+                                t('items.create.validation.rule_max_targets', {
+                                  rule: ruleLabel,
+                                  max: String(maxTargets),
+                                }) || `En fazla ${maxTargets} hedef seçebilirsiniz.`,
+                            });
+                          }
+                          handleRuleSelectionChange(rule.id, values);
+                        }}
+                        className="w-full px-3 py-2 h-40 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                      >
+                        {targetItems.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.code} {item.name ? `- ${item.name}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-3">
+                        <span>
+                          {t('items.create.rule_selection_summary', {
+                            selected: String(selections.length),
+                            min: String(rule.minTargets),
+                            max: maxTargets ? String(maxTargets) : '∞',
+                          }) || `Seçilen: ${selections.length} / Min: ${rule.minTargets} / Max: ${maxTargets ?? '∞'}`}
+                        </span>
+                        {loading ? <Badge variant="outline">{t('common.loading') || 'Yükleniyor...'}</Badge> : null}
+                        {!loading && targetItems.length === 0 ? (
+                          <Badge variant="destructive">
+                            {t('items.create.no_target_items') || 'Uygun hedef item bulunamadı'}
+                          </Badge>
+                        ) : null}
+                      </div>
+                      {error ? (
+                        <div className="mt-2 rounded border border-destructive bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                          {error}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </Card>
+              );
+            })
+          )}
+        </div>
+      ) : (
+        <div className="rounded-md border border-dashed border-border p-4 text-xs text-muted-foreground">
+          {t('items.create.select_item_type_first') || 'Önce item tipini seçmelisiniz.'}
+        </div>
+      )}
+
+      <Card>
+        <CardHeader
+          title={t('items.create.manual_associations_title') || 'Manuel Association Satırları'}
+          subtitle={
+            t('items.create.manual_associations_subtitle') ||
+            'Kurallar dışında association eklemek isterseniz bu alanı kullanabilirsiniz.'
+          }
+          action={
+            <Button variant="outline" size="sm" onClick={addAssociationRow}>
+              <Plus className="h-4 w-4 mr-2" />
+              {t('items.create.add_association') || 'Association Satırı Ekle'}
+            </Button>
+          }
+        />
+        <div className="px-6 pb-6 space-y-4">
+          {form.associations.length === 0 ? (
+            <div className="rounded-md border border-dashed border-border p-4 text-xs text-muted-foreground">
+              {t('items.create.no_manual_associations') ||
+                'Manuel association satırı eklemek için yukarıdaki butonu kullanın.'}
+            </div>
+          ) : null}
+
+          {form.associations.map((assoc, index) => {
+            const associationType = associationTypes.find((type) => type.id === assoc.associationTypeId);
+            const manualTargets = associationType?.targetItemTypeId
+              ? availableItems.filter((item) => item.itemTypeId === associationType.targetItemTypeId)
+              : availableItems;
+
+            return (
+              <div key={`manual-association-${index}`} className="rounded-lg border border-border p-4 space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-foreground mb-1">
-                      {t('items.fields.target_item') || 'Target Item'}
+                      {t('items.fields.association_type_id') || 'Association Tipi'}
+                    </label>
+                    <select
+                      value={assoc.associationTypeId}
+                      onChange={(event) =>
+                        handleAssociationChange(index, { associationTypeId: event.target.value })
+                      }
+                      className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    >
+                      <option value="">{t('items.create.select_association_type') || 'Association tipi seçin'}</option>
+                      {associationTypes.map((type) => (
+                        <option key={type.id} value={type.id}>
+                          {type.name || type.key}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-foreground mb-1">
+                      {t('items.fields.target_item') || 'Hedef Item'}
                     </label>
                     <select
                       value={assoc.targetItemId}
@@ -527,7 +1271,7 @@ export const ItemsCreate: React.FC = () => {
                       className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                     >
                       <option value="">{t('items.create.select_target_item') || 'Hedef item seçin'}</option>
-                      {availableItems.map((item) => (
+                      {manualTargets.map((item) => (
                         <option key={item.id} value={item.id}>
                           {item.code} {item.name ? `- ${item.name}` : ''}
                         </option>
@@ -536,7 +1280,7 @@ export const ItemsCreate: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <Input
                     label={t('items.fields.order_index') || 'Order Index'}
                     type="number"
@@ -544,7 +1288,6 @@ export const ItemsCreate: React.FC = () => {
                     onChange={(event) => handleAssociationChange(index, { orderIndex: event.target.value })}
                     placeholder="0"
                   />
-
                   <Textarea
                     label={t('items.fields.metadata') || 'Metadata (JSON veya metin)'}
                     value={assoc.metadata ?? ''}
@@ -555,92 +1298,164 @@ export const ItemsCreate: React.FC = () => {
                 </div>
 
                 <div className="flex justify-end">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => removeAssociationRow(index)}
-                    disabled={form.associations.length === 1}
-                  >
+                  <Button variant="ghost" size="sm" onClick={() => removeAssociationRow(index)}>
                     {t('common.remove') || 'Kaldır'}
                   </Button>
                 </div>
               </div>
-            </Card>
-          );
-        })}
-      </div>
-
-      <Button variant="outline" onClick={addAssociationRow}>
-        <Plus className="h-4 w-4 mr-2" />
-        {t('items.create.add_association') || 'Association Satırı Ekle'}
-      </Button>
+            );
+          })}
+        </div>
+      </Card>
     </div>
   );
 
-  const renderReviewBody = () => (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="space-y-3 border border-border rounded-lg p-4 text-sm">
-          <h4 className="text-sm font-semibold text-foreground">
-            {t('items.review.summary') || 'Özet'}
-          </h4>
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">{t('items.fields.item_type') || 'Item Type'}</span>
-            <span className="font-medium text-foreground">
-              {selectedItemType?.name || t('items.review.not_selected') || 'Seçilmedi'}
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">{t('items.fields.category') || 'Category'}</span>
-            <span className="font-medium text-foreground">
-              {selectedCategories.length
-                ? selectedCategories[0].name
-                : t('items.review.not_selected') || 'Seçilmedi'}
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">{t('items.fields.family') || 'Family'}</span>
-            <span className="font-medium text-foreground">
-              {selectedFamily?.name || t('items.review.not_selected') || 'Seçilmedi'}
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">{t('items.fields.code') || 'Code'}</span>
-            <span className="font-medium text-foreground">{form.code.trim() || '—'}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">{t('items.fields.external_code') || 'External Code'}</span>
-            <span className="font-medium text-foreground">{form.externalCode.trim() || '—'}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">{t('items.fields.sku') || 'SKU'}</span>
-            <span className="font-medium text-foreground">{form.sku.trim() || '—'}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">{t('items.fields.status') || 'Status'}</span>
-            <Badge variant="secondary" size="sm">
-              {t(`items.status_${form.status}`) || form.status}
-            </Badge>
-          </div>
-        </div>
+  const renderReviewBody = () => {
+    const ruleReviewData = applicableRules.map(({ type, rule }) => {
+      const selections = ruleSelections[rule.id] ?? [];
+      const targets = ruleTargetItems[rule.id] ?? [];
+      const targetMap = new Map(targets.map((item) => [item.id, item]));
+      return {
+        type,
+        rule,
+        selections,
+        items: selections.map((id) => targetMap.get(id) ?? null),
+      };
+    });
 
-        <div className="space-y-3 border border-border rounded-lg p-4 text-sm">
-          <h4 className="text-sm font-semibold text-foreground">
-            {t('items.review.associations') || 'Associations'}
-          </h4>
-          {form.associations.filter((assoc) => assoc.associationTypeId && assoc.targetItemId).length === 0 ? (
-            <div className="text-muted-foreground">
-              {t('items.review.no_associations') || 'Association eklenmedi.'}
+    const totalRuleSelections = ruleReviewData.reduce((total, entry) => total + entry.selections.length, 0);
+    const manualReviewData = form.associations.filter(
+      (assoc) => assoc.associationTypeId && assoc.targetItemId,
+    );
+
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="space-y-3 border border-border rounded-lg p-4 text-sm">
+            <h4 className="text-sm font-semibold text-foreground">
+              {t('items.review.summary') || 'Özet'}
+            </h4>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">{t('items.fields.item_type') || 'Item Type'}</span>
+              <span className="font-medium text-foreground">
+                {selectedItemType?.name || t('items.review.not_selected') || 'Seçilmedi'}
+              </span>
             </div>
-          ) : (
-            form.associations
-              .filter((assoc) => assoc.associationTypeId && assoc.targetItemId)
-              .map((assoc, index) => {
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">{t('items.fields.category') || 'Category'}</span>
+              <span className="font-medium text-foreground">
+                {selectedCategory?.name || t('items.review.not_selected') || 'Seçilmedi'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">{t('items.fields.family') || 'Family'}</span>
+              <span className="font-medium text-foreground">
+                {selectedFamily?.name || t('items.review.not_selected') || 'Seçilmedi'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">{t('items.fields.code') || 'Code'}</span>
+              <span className="font-medium text-foreground">{form.code.trim() || '—'}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">{t('items.fields.external_code') || 'External Code'}</span>
+              <span className="font-medium text-foreground">{form.externalCode.trim() || '—'}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">{t('items.fields.sku') || 'SKU'}</span>
+              <span className="font-medium text-foreground">{form.sku.trim() || '—'}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">{t('items.fields.status') || 'Status'}</span>
+              <Badge variant="secondary" size="sm">
+                {t(`items.status_${form.status}`) || form.status}
+              </Badge>
+            </div>
+          </div>
+
+          <div className="space-y-3 border border-border rounded-lg p-4 text-sm">
+            <h4 className="text-sm font-semibold text-foreground">
+              {t('items.review.attributes') || 'Öznitelikler'}
+            </h4>
+            {attributeDefinitions.length === 0 ? (
+              <div className="text-muted-foreground">
+                {t('items.review.no_attributes') || 'Bu seçim için attribute bulunmuyor.'}
+              </div>
+            ) : (
+              attributeDefinitions.map((attribute) => (
+                <div key={`review-attr-${attribute.id}`} className="flex items-center justify-between">
+                  <span className="text-muted-foreground">{attribute.name}</span>
+                  <span className="font-medium text-foreground">
+                    {form.attributeValues[attribute.id]?.trim() || '—'}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="space-y-3 border border-border rounded-lg p-4 text-sm">
+            <h4 className="text-sm font-semibold text-foreground">
+              {t('items.review.rule_associations') || 'Kural Bazlı Associations'}
+            </h4>
+            {totalRuleSelections === 0 ? (
+              <div className="text-muted-foreground text-xs">
+                {t('items.review.no_rule_associations') || 'Kurallardan doğan association seçimi yapılmadı.'}
+              </div>
+            ) : (
+              ruleReviewData.map((entry, index) => (
+                <div key={`review-rule-${entry.rule.id}`} className="border-b border-border pb-3 last:border-b-0">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-foreground">
+                      {entry.type.name || entry.type.key} — {entry.rule.name || entry.rule.id}
+                    </span>
+                    <span className="text-xs text-muted-foreground">#{index + 1}</span>
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground space-y-1">
+                    {entry.selections.map((targetId, targetIndex) => {
+                      const item = entry.items[targetIndex];
+                      return (
+                        <div key={`${entry.rule.id}-${targetId}`} className="flex items-center justify-between">
+                          <span>
+                            {item
+                              ? `${item.code}${item.name ? ` - ${item.name}` : ''}`
+                              : targetId}
+                          </span>
+                          <span className="text-muted-foreground">{t('items.fields.order_index') || 'Order'}: {targetIndex + 1}</span>
+                        </div>
+                      );
+                    })}
+                    <div>
+                      {t('items.create.rule_selection_summary', {
+                        selected: String(entry.selections.length),
+                        min: String(entry.rule.minTargets),
+                        max:
+                          entry.rule.maxTargets && entry.rule.maxTargets > 0
+                            ? String(entry.rule.maxTargets)
+                            : t('items.create.rule_unlimited') || 'Sınırsız',
+                      }) || `Seçilen: ${entry.selections.length} / Min: ${entry.rule.minTargets} / Max: ${entry.rule.maxTargets ?? '∞'}`}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="space-y-3 border border-border rounded-lg p-4 text-sm">
+            <h4 className="text-sm font-semibold text-foreground">
+              {t('items.review.manual_associations') || 'Manuel Associations'}
+            </h4>
+            {manualReviewData.length === 0 ? (
+              <div className="text-muted-foreground">
+                {t('items.review.no_associations') || 'Association eklenmedi.'}
+              </div>
+            ) : (
+              manualReviewData.map((assoc, index) => {
                 const targetItem = availableItems.find((item) => item.id === assoc.targetItemId);
+                const assocType = associationTypes.find((type) => type.id === assoc.associationTypeId);
                 return (
                   <div key={`review-assoc-${index}`} className="border-b border-border pb-2 last:border-b-0">
                     <div className="flex items-center justify-between">
-                      <span className="font-medium text-foreground">{assoc.associationTypeId}</span>
+                      <span className="font-medium text-foreground">{assocType?.name || assoc.associationTypeId}</span>
                       <span className="text-xs text-muted-foreground">#{index + 1}</span>
                     </div>
                     <div className="mt-1 text-xs text-muted-foreground">
@@ -664,11 +1479,12 @@ export const ItemsCreate: React.FC = () => {
                   </div>
                 );
               })
-          )}
+            )}
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderStepContent = () => {
     const step = steps[currentStep];
@@ -687,14 +1503,24 @@ export const ItemsCreate: React.FC = () => {
             <div className="px-6 pb-6 space-y-6">{renderItemTypeBody()}</div>
           </Card>
         );
-      case 'relationships':
+      case 'category':
         return (
           <Card>
             <CardHeader
-              title={t('items.create.relationships_title') || 'Metadata Bilgileri'}
-              subtitle={t('items.create.relationships_subtitle') || 'Kod ve temel alanları doldurun.'}
+              title={t('items.create.category_title') || 'Kategori Seçimi'}
+              subtitle={t('items.create.category_subtitle') || 'Item için kullanılacak kategoriyi seçin.'}
             />
-            <div className="px-6 pb-6 space-y-6">{renderRelationshipsBody()}</div>
+            <div className="px-6 pb-6 space-y-6">{renderCategoryBody()}</div>
+          </Card>
+        );
+      case 'family':
+        return (
+          <Card>
+            <CardHeader
+              title={t('items.create.family_title') || 'Aile Seçimi'}
+              subtitle={t('items.create.family_subtitle') || 'Seçilen kategoriye bağlı ailelerden birini seçin.'}
+            />
+            <div className="px-6 pb-6 space-y-6">{renderFamilyBody()}</div>
           </Card>
         );
       case 'associations':
@@ -705,6 +1531,16 @@ export const ItemsCreate: React.FC = () => {
               subtitle={t('items.create.associations_subtitle') || 'Mevcut itemlarla bağlantılar oluşturun.'}
             />
             <div className="px-6 pb-6 space-y-6">{renderAssociationsBody()}</div>
+          </Card>
+        );
+      case 'attributes':
+        return (
+          <Card>
+            <CardHeader
+              title={t('items.create.attributes_title') || 'Öznitelik Değerleri'}
+              subtitle={t('items.create.attributes_subtitle') || 'Kod ve attribute alanlarını doldurun.'}
+            />
+            <div className="px-6 pb-6 space-y-6">{renderAttributesBody()}</div>
           </Card>
         );
       case 'review':
@@ -733,14 +1569,28 @@ export const ItemsCreate: React.FC = () => {
     switch (currentStepId) {
       case 'itemType':
         return isItemTypeStepValid;
-      case 'relationships':
-        return isRelationshipsStepValid;
+      case 'category':
+        return isCategoryStepValid;
+      case 'family':
+        return isFamilyStepValid;
       case 'associations':
         return isAssociationsStepValid;
+      case 'attributes':
+        return isAttributesStepValid;
       default:
         return true;
     }
-  }, [submitting, currentStep, steps.length, currentStepId, isItemTypeStepValid, isRelationshipsStepValid, isAssociationsStepValid]);
+  }, [
+    submitting,
+    currentStep,
+    steps.length,
+    currentStepId,
+    isItemTypeStepValid,
+    isCategoryStepValid,
+    isFamilyStepValid,
+    isAssociationsStepValid,
+    isAttributesStepValid,
+  ]);
 
   return (
     <div className="space-y-6 flex flex-col min-h-full">
