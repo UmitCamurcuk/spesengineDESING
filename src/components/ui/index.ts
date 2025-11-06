@@ -38,3 +38,5 @@ export { AttributeGroupSelector } from './AttributeGroupSelector';
 export { TreeSelect } from './TreeSelect';
 export { HierarchyTreeView } from './HierarchyTreeView';
 export type { TreeNode } from './TreeSelect';
+export { TreeView } from './TreeView';
+export type { TreeViewNode } from './TreeView';

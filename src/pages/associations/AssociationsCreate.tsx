@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Layers, Plus, Trash2 } from 'lucide-react';
 import { Stepper } from '../../components/ui/Stepper';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
 import { Card, CardHeader } from '../../components/ui/Card';
+import { TreeView, type TreeViewNode } from '../../components/ui/TreeView';
+import type { TreeNode } from '../../components/ui/TreeSelect';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Badge } from '../../components/ui/Badge';
 import { Checkbox } from '../../components/ui/Checkbox';
@@ -13,6 +15,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useRequiredLanguages } from '../../hooks/useRequiredLanguages';
 import { cn } from '../../utils/cn';
+import { buildHierarchyTree } from '../../utils/hierarchy';
 import { itemTypesService } from '../../api/services/item-types.service';
 import { categoriesService } from '../../api/services/categories.service';
 import { familiesService } from '../../api/services/families.service';
@@ -64,6 +67,24 @@ interface RuleDraft {
   attributeFilters: AttributeFilter[];
   metadataJson: string;
 }
+
+const cloneTreeNodes = (
+  nodes: TreeNode[],
+  mapper?: (node: TreeNode) => Partial<TreeViewNode>,
+): TreeViewNode[] =>
+  nodes.map((node) => {
+    const overrides = mapper?.(node) ?? {};
+    const baseChildren = node.children ? cloneTreeNodes(node.children as TreeNode[], mapper) : undefined;
+    const next: TreeViewNode = {
+      ...node,
+      selectable: overrides.selectable ?? true,
+      icon: overrides.icon ?? node.icon,
+      meta: overrides.meta,
+      tone: overrides.tone,
+      children: overrides.children ?? baseChildren,
+    };
+    return next;
+  });
 
 const parseJsonMetadata = (value: string): Record<string, unknown> | null => {
   const trimmed = value.trim();
@@ -273,6 +294,12 @@ export const AssociationsCreate: React.FC = () => {
     [categories],
   );
 
+  const categoriesById = useMemo(() => {
+    const map = new Map<string, Category>();
+    categories.forEach((category) => map.set(category.id, category));
+    return map;
+  }, [categories]);
+
   const sortedFamilies = useMemo(
     () => [...families].sort((a, b) => a.name.localeCompare(b.name)),
     [families],
@@ -299,23 +326,119 @@ export const AssociationsCreate: React.FC = () => {
     return map;
   }, [sortedFamilies]);
 
-  const sourceCategoryOptions = useMemo(() => {
-    const ids = sourceItemType?.categoryIds ?? [];
-    if (!ids.length) {
-      return sortedCategories;
-    }
-    const allowed = new Set(ids);
-    return sortedCategories.filter((category) => allowed.has(category.id));
-  }, [sortedCategories, sourceItemType]);
+  const buildCategoryTreeNodes = useCallback(
+    (categoryIds: string[] | null | undefined): TreeViewNode[] => {
+      if (!categoryIds || categoryIds.length === 0) {
+        return [];
+      }
+      const allowedSet = new Set(categoryIds);
+      const extendedSet = new Set<string>(allowedSet);
 
-  const targetCategoryOptions = useMemo(() => {
-    const ids = targetItemType?.categoryIds ?? [];
-    if (!ids.length) {
-      return sortedCategories;
-    }
-    const allowed = new Set(ids);
-    return sortedCategories.filter((category) => allowed.has(category.id));
-  }, [sortedCategories, targetItemType]);
+      categoryIds.forEach((categoryId) => {
+        let currentParentId = categoriesById.get(categoryId)?.parentCategoryId ?? null;
+        while (currentParentId) {
+          if (extendedSet.has(currentParentId)) {
+            break;
+          }
+          extendedSet.add(currentParentId);
+          currentParentId = categoriesById.get(currentParentId)?.parentCategoryId ?? null;
+        }
+      });
+
+      const filteredCategories = categories.filter((category) => extendedSet.has(category.id));
+      if (!filteredCategories.length) {
+        return [];
+      }
+
+      const tree = buildHierarchyTree(filteredCategories, {
+        getId: (category) => category.id,
+        getParentId: (category) => category.parentCategoryId ?? null,
+        getLabel: (category) => category.name || category.key || category.id,
+      });
+
+      return cloneTreeNodes(tree, (node) => ({
+        selectable: allowedSet.has(node.id),
+      }));
+    },
+    [categories, categoriesById],
+  );
+
+  const buildFamilyTreeNodes = useCallback(
+    (categoryIds: string[], allowedSet: Set<string>): TreeViewNode[] => {
+      if (!categoryIds.length || allowedSet.size === 0) {
+        return [];
+      }
+
+      const validCategoryIds = categoryIds.filter((id) => allowedSet.has(id));
+      if (!validCategoryIds.length) {
+        return [];
+      }
+
+      const filteredCategories = categories.filter((category) => validCategoryIds.includes(category.id));
+      if (!filteredCategories.length) {
+        return [];
+      }
+
+      const categoryTree = buildHierarchyTree(filteredCategories, {
+        getId: (category) => category.id,
+        getParentId: (category) => category.parentCategoryId ?? null,
+        getLabel: (category) => category.name || category.key || category.id,
+      });
+
+      const attachFamilies = (nodes: TreeNode[]): TreeViewNode[] =>
+        nodes
+          .map((node) => {
+            const nestedCategories = node.children ? attachFamilies(node.children as TreeNode[]) : [];
+
+            const familyList = familiesByCategory.get(node.id) ?? [];
+            const familyTree = buildHierarchyTree(familyList, {
+              getId: (family) => family.id,
+              getParentId: (family) => family.parentFamilyId ?? null,
+              getLabel: (family) => family.name || family.key || family.id,
+            });
+            const familyNodes = cloneTreeNodes(familyTree, () => ({
+              selectable: true,
+              icon: <Layers className="h-3.5 w-3.5 text-muted-foreground" />,
+            }));
+
+            const children = [...nestedCategories, ...familyNodes];
+            return {
+              ...node,
+              selectable: false,
+              children,
+            };
+          })
+          .filter((node) => node.children && node.children.length > 0);
+
+      return attachFamilies(categoryTree);
+    },
+    [categories, familiesByCategory],
+  );
+
+  const sourceAllowedCategorySet = useMemo(
+    () => new Set(sourceItemType?.categoryIds ?? []),
+    [sourceItemType],
+  );
+
+  const targetAllowedCategorySet = useMemo(
+    () => new Set(targetItemType?.categoryIds ?? []),
+    [targetItemType],
+  );
+
+  const sourceCategoryTree = useMemo(
+    () => buildCategoryTreeNodes(sourceItemType?.categoryIds ?? []),
+    [buildCategoryTreeNodes, sourceItemType],
+  );
+
+  const targetCategoryTree = useMemo(
+    () => buildCategoryTreeNodes(targetItemType?.categoryIds ?? []),
+    [buildCategoryTreeNodes, targetItemType],
+  );
+
+  const scopeFamilyTree = useMemo(
+    () => buildFamilyTreeNodes(defaultScope.categoryIds, sourceAllowedCategorySet),
+    [buildFamilyTreeNodes, defaultScope.categoryIds, sourceAllowedCategorySet],
+  );
 
   const getFamiliesForCategories = useCallback(
     (categoryIds: string[]) => {
@@ -378,10 +501,16 @@ export const AssociationsCreate: React.FC = () => {
     if (lookupsLoading) {
       return;
     }
-    const allowedIds = new Set(sourceCategoryOptions.map((category) => category.id));
+
+    const filterBySourceItemType = (ids: string[]) => {
+      if (!details.sourceItemTypeId || sourceAllowedCategorySet.size === 0) {
+        return [];
+      }
+      return ids.filter((id) => sourceAllowedCategorySet.has(id));
+    };
+
     setDefaultScope((prev) => {
-      const filteredCategoryIds =
-        allowedIds.size === 0 ? prev.categoryIds : prev.categoryIds.filter((id) => allowedIds.has(id));
+      const filteredCategoryIds = filterBySourceItemType(prev.categoryIds);
       const filteredFamilyIds = clampFamilySelection(filteredCategoryIds, prev.familyIds);
       if (
         filteredCategoryIds.length === prev.categoryIds.length &&
@@ -394,10 +523,10 @@ export const AssociationsCreate: React.FC = () => {
         familyIds: filteredFamilyIds,
       };
     });
+
     setRules((prev) =>
       prev.map((rule) => {
-        const filteredSourceCategoryIds =
-          allowedIds.size === 0 ? rule.sourceCategoryIds : rule.sourceCategoryIds.filter((id) => allowedIds.has(id));
+        const filteredSourceCategoryIds = filterBySourceItemType(rule.sourceCategoryIds);
         const filteredSourceFamilyIds = clampFamilySelection(filteredSourceCategoryIds, rule.sourceFamilyIds);
         if (
           filteredSourceCategoryIds.length === rule.sourceCategoryIds.length &&
@@ -412,17 +541,28 @@ export const AssociationsCreate: React.FC = () => {
         };
       }),
     );
-  }, [clampFamilySelection, lookupsLoading, sourceCategoryOptions]);
+  }, [
+    clampFamilySelection,
+    details.sourceItemTypeId,
+    lookupsLoading,
+    sourceAllowedCategorySet,
+  ]);
 
   useEffect(() => {
     if (lookupsLoading) {
       return;
     }
-    const allowedIds = new Set(targetCategoryOptions.map((category) => category.id));
+
+    const filterByTargetItemType = (ids: string[]) => {
+      if (!details.targetItemTypeId || targetAllowedCategorySet.size === 0) {
+        return [];
+      }
+      return ids.filter((id) => targetAllowedCategorySet.has(id));
+    };
+
     setRules((prev) =>
       prev.map((rule) => {
-        const filteredTargetCategoryIds =
-          allowedIds.size === 0 ? rule.targetCategoryIds : rule.targetCategoryIds.filter((id) => allowedIds.has(id));
+        const filteredTargetCategoryIds = filterByTargetItemType(rule.targetCategoryIds);
         const filteredTargetFamilyIds = clampFamilySelection(filteredTargetCategoryIds, rule.targetFamilyIds);
         if (
           filteredTargetCategoryIds.length === rule.targetCategoryIds.length &&
@@ -437,7 +577,12 @@ export const AssociationsCreate: React.FC = () => {
         };
       }),
     );
-  }, [clampFamilySelection, lookupsLoading, targetCategoryOptions]);
+  }, [
+    clampFamilySelection,
+    details.targetItemTypeId,
+    lookupsLoading,
+    targetAllowedCategorySet,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1180,9 +1325,23 @@ export const AssociationsCreate: React.FC = () => {
   };
 
   const renderScopeStep = () => {
-    const scopedFamilies = getFamiliesForCategories(defaultScope.categoryIds);
-    const scopeCategorySelectDisabled = !details.sourceItemTypeId && itemTypes.length > 0;
-    const familySelectDisabled = scopeCategorySelectDisabled || defaultScope.categoryIds.length === 0;
+    const scopeCategorySelectDisabled =
+      !details.sourceItemTypeId || sourceCategoryTree.length === 0;
+    const familySelectionUnavailable =
+      scopeCategorySelectDisabled || defaultScope.categoryIds.length === 0 || scopeFamilyTree.length === 0;
+
+    const categoryEmptyState = scopeCategorySelectDisabled
+      ? details.sourceItemTypeId
+        ? t('associations.create.scope_categories_empty_for_type') ||
+          'Bu item tipine ait kategori bulunmuyor.'
+        : t('associations.create.scope_categories_disabled') || 'Önce kaynak item tipini seçin.'
+      : t('associations.create.scope_categories_hint') || 'Uygun kategori bulunamadı.';
+
+    const familyEmptyState = scopeCategorySelectDisabled
+      ? t('associations.create.scope_families_disabled') || 'Önce kaynak item tipini seçin.'
+      : defaultScope.categoryIds.length === 0
+        ? t('associations.create.scope_families_select_categories') || 'Önce kategori seçmelisiniz.'
+        : t('associations.create.scope_families_empty') || 'Seçilen kategorilere ait family bulunamadı.';
 
     return (
       <div className="space-y-6">
@@ -1195,68 +1354,36 @@ export const AssociationsCreate: React.FC = () => {
         >
           <div className="grid gap-6 lg:grid-cols-2">
             <div>
-              <label className="block text-xs font-medium text-foreground mb-1">
+              <p className="text-xs font-medium text-foreground mb-2">
                 {t('associations.fields.source_categories') || 'Kaynak Kategoriler'}
-              </label>
-              <select
-                multiple
-                disabled={scopeCategorySelectDisabled || sourceCategoryOptions.length === 0}
-                value={defaultScope.categoryIds}
-                onChange={(event) => {
-                  const values = Array.from(event.target.selectedOptions, (option) => option.value);
-                  handleDefaultScopeChange('categoryIds', values);
-                }}
-                className={cn(
-                  'w-full px-3 py-2 h-48 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary',
-                  scopeCategorySelectDisabled || sourceCategoryOptions.length === 0
-                    ? 'border-border/70 bg-muted/60 text-muted-foreground cursor-not-allowed'
-                    : 'border-border',
-                )}
-              >
-                {sourceCategoryOptions.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-muted-foreground mt-2">
-                {scopeCategorySelectDisabled
-                  ? t('associations.create.scope_categories_disabled') ||
-                    'Önce kaynak item tipini seçin.'
-                  : t('associations.create.scope_categories_hint') ||
-                    'Seçilmezse tüm kategorilerde geçerli olur.'}
               </p>
+              <TreeView
+                nodes={sourceCategoryTree}
+                mode="edit"
+                selectionMode="multiple"
+                selectedIds={defaultScope.categoryIds}
+                onSelectionChange={(ids) => handleDefaultScopeChange('categoryIds', ids)}
+                className="max-h-80 overflow-y-auto"
+                emptyState={<span className="text-xs text-muted-foreground">{categoryEmptyState}</span>}
+              />
             </div>
-
             <div>
-              <label className="block text-xs font-medium text-foreground mb-1">
+              <p className="text-xs font-medium text-foreground mb-2">
                 {t('associations.fields.source_families') || 'Kaynak Aileler'}
-              </label>
-              <select
-                multiple
-                disabled={familySelectDisabled}
-                value={defaultScope.familyIds}
-                onChange={(event) => {
-                  const values = Array.from(event.target.selectedOptions, (option) => option.value);
-                  handleDefaultScopeChange('familyIds', values);
-                }}
-                className={cn(
-                  'w-full px-3 py-2 h-48 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary',
-                  familySelectDisabled ? 'bg-muted/60 text-muted-foreground cursor-not-allowed' : 'border-border',
-                )}
-              >
-                {(familySelectDisabled ? sortedFamilies : scopedFamilies).map((family) => (
-                  <option key={family.id} value={family.id}>
-                    {family.name}
-                  </option>
-                ))}
-              </select>
+              </p>
+              <TreeView
+                nodes={scopeFamilyTree}
+                mode="edit"
+                selectionMode="multiple"
+                selectedIds={defaultScope.familyIds}
+                onSelectionChange={(ids) => handleDefaultScopeChange('familyIds', ids)}
+                className="max-h-80 overflow-y-auto"
+                emptyState={<span className="text-xs text-muted-foreground">{familyEmptyState}</span>}
+              />
               <p className="text-xs text-muted-foreground mt-2">
-                {familySelectDisabled
-                  ? t('associations.create.scope_families_disabled') ||
-                    (scopeCategorySelectDisabled
-                      ? 'Önce kaynak item tipini ve kategori seçin.'
-                      : 'Önce kategori seçerseniz ilgili aileler listelenir.')
+                {familySelectionUnavailable
+                  ? t('associations.create.scope_families_hint_select_category') ||
+                    'Kategori seçtikten sonra aileleri belirleyebilirsiniz.'
                   : t('associations.create.scope_families_hint') ||
                     'Boş bırakırsanız seçilen kategorilerdeki tüm aileler geçerli olur.'}
               </p>
@@ -1312,12 +1439,16 @@ export const AssociationsCreate: React.FC = () => {
       ) : null}
 
       {rules.map((rule, index) => {
-        const sourceFamilies = getFamiliesForCategories(rule.sourceCategoryIds);
-        const targetFamilies = getFamiliesForCategories(rule.targetCategoryIds);
-        const disableSourceCategories = !details.sourceItemTypeId && itemTypes.length > 0;
-        const disableTargetCategories = !details.targetItemTypeId && itemTypes.length > 0;
-        const disableSourceFamilies = disableSourceCategories || rule.sourceCategoryIds.length === 0;
-        const disableTargetFamilies = disableTargetCategories || rule.targetCategoryIds.length === 0;
+        const disableSourceCategories =
+          !details.sourceItemTypeId || sourceCategoryTree.length === 0;
+        const disableTargetCategories =
+          !details.targetItemTypeId || targetCategoryTree.length === 0;
+        const ruleSourceFamilyTree = buildFamilyTreeNodes(rule.sourceCategoryIds, sourceAllowedCategorySet);
+        const ruleTargetFamilyTree = buildFamilyTreeNodes(rule.targetCategoryIds, targetAllowedCategorySet);
+        const disableSourceFamilies =
+          disableSourceCategories || rule.sourceCategoryIds.length === 0 || ruleSourceFamilyTree.length === 0;
+        const disableTargetFamilies =
+          disableTargetCategories || rule.targetCategoryIds.length === 0 || ruleTargetFamilyTree.length === 0;
 
         return (
           <SectionCard
@@ -1343,149 +1474,115 @@ export const AssociationsCreate: React.FC = () => {
             <div className="space-y-6">
               <div className="grid gap-6 lg:grid-cols-2">
                 <div>
-                  <label className="block text-xs font-medium text-foreground mb-1">
+                  <p className="text-xs font-medium text-foreground mb-2">
                     {t('associations.fields.source_categories') || 'Kaynak Kategoriler'}
-                  </label>
-                  <select
-                    multiple
-                    disabled={disableSourceCategories || sourceCategoryOptions.length === 0}
-                    value={rule.sourceCategoryIds}
-                    onChange={(event) => {
-                      const values = Array.from(event.target.selectedOptions, (option) => option.value);
+                  </p>
+                  <TreeView
+                    nodes={sourceCategoryTree}
+                    mode="edit"
+                    selectionMode="multiple"
+                    selectedIds={rule.sourceCategoryIds}
+                    onSelectionChange={(ids) =>
                       updateRule(rule.id, (current) => ({
                         ...current,
-                        sourceCategoryIds: values,
-                        sourceFamilyIds: clampFamilySelection(values, current.sourceFamilyIds),
-                      }));
-                    }}
-                    className={cn(
-                      'w-full px-3 py-2 h-36 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary',
-                      disableSourceCategories || sourceCategoryOptions.length === 0
-                        ? 'border-border/70 bg-muted/60 text-muted-foreground cursor-not-allowed'
-                        : 'border-border',
-                    )}
-                  >
-                    {sourceCategoryOptions.map((category) => (
-                      <option key={category.id} value={category.id}>
-                        {category.name}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {disableSourceCategories
-                      ? t('associations.create.scope_categories_disabled') ||
-                        'Önce kaynak item tipini seçin.'
-                      : t('associations.create.rule_source_hint') ||
-                        'Boş bırakırsanız tüm kategorilerde tetiklenir.'}
-                  </p>
+                        sourceCategoryIds: ids,
+                        sourceFamilyIds: clampFamilySelection(ids, current.sourceFamilyIds),
+                      }))
+                    }
+                    className="max-h-72 overflow-y-auto"
+                    emptyState={
+                      <span className="text-xs text-muted-foreground">
+                        {disableSourceCategories
+                          ? t('associations.create.scope_categories_disabled') || 'Önce kaynak item tipini seçin.'
+                          : t('associations.create.rule_source_hint') ||
+                            'Boş bırakırsanız tüm kategorilerde tetiklenir.'}
+                      </span>
+                    }
+                  />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-foreground mb-1">
+                  <p className="text-xs font-medium text-foreground mb-2">
                     {t('associations.fields.source_families') || 'Kaynak Aileler'}
-                  </label>
-                  <select
-                    multiple
-                    disabled={disableSourceFamilies}
-                    value={rule.sourceFamilyIds}
-                    onChange={(event) => {
-                      const values = Array.from(event.target.selectedOptions, (option) => option.value);
+                  </p>
+                  <TreeView
+                    nodes={ruleSourceFamilyTree}
+                    mode="edit"
+                    selectionMode="multiple"
+                    selectedIds={rule.sourceFamilyIds}
+                    onSelectionChange={(ids) =>
                       updateRule(rule.id, (current) => ({
                         ...current,
-                        sourceFamilyIds: clampFamilySelection(current.sourceCategoryIds, values),
-                      }));
-                    }}
-                    className={cn(
-                      'w-full px-3 py-2 h-36 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary',
-                      disableSourceFamilies ? 'bg-muted/60 text-muted-foreground cursor-not-allowed' : 'border-border',
-                    )}
-                  >
-                    {(disableSourceFamilies ? sortedFamilies : sourceFamilies).map((family) => (
-                      <option key={family.id} value={family.id}>
-                        {family.name}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {disableSourceFamilies
-                      ? t('associations.create.scope_families_disabled') ||
-                        'Önce kategori seçerseniz aile filtreleyebilirsiniz.'
-                      : t('associations.create.scope_families_hint') ||
-                        'Boş bırakırsanız seçilen kategorilerdeki tüm aileler geçerli olur.'}
-                  </p>
+                        sourceFamilyIds: ids,
+                      }))
+                    }
+                    className="max-h-72 overflow-y-auto"
+                    emptyState={
+                      <span className="text-xs text-muted-foreground">
+                        {disableSourceFamilies
+                          ? t('associations.create.scope_families_disabled') ||
+                            'Önce kategori seçerseniz aile filtreleyebilirsiniz.'
+                          : t('associations.create.scope_families_hint') ||
+                            'Boş bırakırsanız seçilen kategorilerdeki tüm aileler geçerli olur.'}
+                      </span>
+                    }
+                  />
                 </div>
               </div>
 
               <div className="grid gap-6 lg:grid-cols-2">
                 <div>
-                  <label className="block text-xs font-medium text-foreground mb-1">
+                  <p className="text-xs font-medium text-foreground mb-2">
                     {t('associations.fields.target_categories') || 'Hedef Kategoriler'}
-                  </label>
-                  <select
-                    multiple
-                    disabled={disableTargetCategories || targetCategoryOptions.length === 0}
-                    value={rule.targetCategoryIds}
-                    onChange={(event) => {
-                      const values = Array.from(event.target.selectedOptions, (option) => option.value);
+                  </p>
+                  <TreeView
+                    nodes={targetCategoryTree}
+                    mode="edit"
+                    selectionMode="multiple"
+                    selectedIds={rule.targetCategoryIds}
+                    onSelectionChange={(ids) =>
                       updateRule(rule.id, (current) => ({
                         ...current,
-                        targetCategoryIds: values,
-                        targetFamilyIds: clampFamilySelection(values, current.targetFamilyIds),
-                      }));
-                    }}
-                    className={cn(
-                      'w-full px-3 py-2 h-36 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary',
-                      disableTargetCategories || targetCategoryOptions.length === 0
-                        ? 'border-border/70 bg-muted/60 text-muted-foreground cursor-not-allowed'
-                        : 'border-border',
-                    )}
-                  >
-                    {targetCategoryOptions.map((category) => (
-                      <option key={category.id} value={category.id}>
-                        {category.name}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {disableTargetCategories
-                      ? t('associations.create.rule_target_disabled') ||
-                        'Önce hedef item tipini seçin.'
-                      : t('associations.create.rule_target_hint') ||
-                        'Boş bırakılırsa hedef tarafında tüm kategoriler listelenir.'}
-                  </p>
+                        targetCategoryIds: ids,
+                        targetFamilyIds: clampFamilySelection(ids, current.targetFamilyIds),
+                      }))
+                    }
+                    className="max-h-72 overflow-y-auto"
+                    emptyState={
+                      <span className="text-xs text-muted-foreground">
+                        {disableTargetCategories
+                          ? t('associations.create.rule_target_disabled') || 'Önce hedef item tipini seçin.'
+                          : t('associations.create.rule_target_hint') ||
+                            'Boş bırakılırsa hedef tarafında tüm kategoriler listelenir.'}
+                      </span>
+                    }
+                  />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-foreground mb-1">
+                  <p className="text-xs font-medium text-foreground mb-2">
                     {t('associations.fields.target_families') || 'Hedef Aileler'}
-                  </label>
-                  <select
-                    multiple
-                    disabled={disableTargetFamilies}
-                    value={rule.targetFamilyIds}
-                    onChange={(event) => {
-                      const values = Array.from(event.target.selectedOptions, (option) => option.value);
+                  </p>
+                  <TreeView
+                    nodes={ruleTargetFamilyTree}
+                    mode="edit"
+                    selectionMode="multiple"
+                    selectedIds={rule.targetFamilyIds}
+                    onSelectionChange={(ids) =>
                       updateRule(rule.id, (current) => ({
                         ...current,
-                        targetFamilyIds: clampFamilySelection(current.targetCategoryIds, values),
-                      }));
-                    }}
-                    className={cn(
-                      'w-full px-3 py-2 h-36 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary',
-                      disableTargetFamilies ? 'bg-muted/60 text-muted-foreground cursor-not-allowed' : 'border-border',
-                    )}
-                  >
-                    {(disableTargetFamilies ? sortedFamilies : targetFamilies).map((family) => (
-                      <option key={family.id} value={family.id}>
-                        {family.name}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {disableTargetFamilies
-                      ? t('associations.create.rule_target_families_disabled') ||
-                        'Önce hedef kategorileri seçin.'
-                      : t('associations.create.scope_families_hint') ||
-                        'Boş bırakırsanız seçilen kategorilerdeki tüm aileler gösterilir.'}
-                  </p>
+                        targetFamilyIds: ids,
+                      }))
+                    }
+                    className="max-h-72 overflow-y-auto"
+                    emptyState={
+                      <span className="text-xs text-muted-foreground">
+                        {disableTargetFamilies
+                          ? t('associations.create.rule_target_families_disabled') ||
+                            'Önce hedef kategorileri seçin.'
+                          : t('associations.create.scope_families_hint') ||
+                            'Boş bırakırsanız seçilen kategorilerdeki tüm aileler gösterilir.'}
+                      </span>
+                    }
+                  />
                 </div>
               </div>
             </div>
