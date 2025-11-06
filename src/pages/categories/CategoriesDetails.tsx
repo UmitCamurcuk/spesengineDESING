@@ -74,6 +74,7 @@ interface CategoryDetailsTabProps {
   linkedFamilyIds: string[];
   onLinkedFamiliesChange: (ids: string[]) => void;
   familyDisplayMap: Map<string, string>;
+  categoryMap: Map<string, Category>;
   localizationsLoading?: boolean;
   localizationsError?: string | null;
 }
@@ -150,6 +151,7 @@ const CategoryDetailsTab: React.FC<CategoryDetailsTabProps> = ({
   linkedFamilyIds,
   onLinkedFamiliesChange,
   familyDisplayMap,
+  categoryMap,
   localizationsLoading,
   localizationsError,
 }) => {
@@ -1537,6 +1539,7 @@ const CategoriesDetails: React.FC = () => {
         linkedFamilyIds,
         onLinkedFamiliesChange: handleLinkedFamiliesChange,
         familyDisplayMap,
+        categoryMap,
         localizationsLoading,
         localizationsError,
       },
