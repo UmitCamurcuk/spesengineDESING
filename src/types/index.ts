@@ -225,6 +225,14 @@ export interface AssociationColumnConfig {
   updatedAt?: string;
 }
 
+export interface AssociationTypeItemRef {
+  id: string;
+  key: string;
+  nameLocalizationId?: string | null;
+  name?: string | null;
+  nameLanguage?: string | null;
+}
+
 export interface Item {
   id: string;
   itemTypeId: string | null;
@@ -270,6 +278,8 @@ export interface AssociationType {
   descriptionLanguage?: string | null;
   sourceItemTypeId?: string | null;
   targetItemTypeId?: string | null;
+  sourceItemType?: AssociationTypeItemRef | null;
+  targetItemType?: AssociationTypeItemRef | null;
   cardinality: 'one-to-one' | 'one-to-many' | 'many-to-one' | 'many-to-many';
   isRequired: boolean;
   direction: 'directed' | 'undirected';

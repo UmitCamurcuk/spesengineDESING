@@ -24,6 +24,7 @@ export interface TreeViewProps {
   className?: string;
   emptyState?: React.ReactNode;
   defaultExpandAll?: boolean;
+  cascade?: boolean;
 }
 
 const collectInitialExpanded = (
@@ -68,6 +69,7 @@ export const TreeView: React.FC<TreeViewProps> = ({
   className,
   emptyState,
   defaultExpandAll = false,
+  cascade = false,
 }) => {
   const [internalSelected, setInternalSelected] = useState<string[]>([]);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() =>
@@ -80,6 +82,42 @@ export const TreeView: React.FC<TreeViewProps> = ({
   const highlightSet = useMemo(() => new Set(highlightIds ?? []), [highlightIds]);
 
   const parentMap = useMemo(() => flattenParentMap(nodes), [nodes]);
+
+  const descendantsMap = useMemo(() => {
+    const map = new Map<string, string[]>();
+
+    const traverse = (node: TreeViewNode): string[] => {
+      const collected: string[] = [];
+      if (node.children && node.children.length > 0) {
+        node.children.forEach((child) => {
+          collected.push(child.id);
+          const childDesc = traverse(child);
+          collected.push(...childDesc);
+        });
+      }
+      map.set(node.id, collected);
+      return collected;
+    };
+
+    nodes.forEach((node) => traverse(node));
+    return map;
+  }, [nodes]);
+
+  const resolvedSelectedSet = useMemo(() => {
+    if (!cascade) {
+      return selectedSet;
+    }
+    const expanded = new Set<string>();
+    const expand = (id: string) => {
+      if (expanded.has(id)) {
+        return;
+      }
+      expanded.add(id);
+      (descendantsMap.get(id) ?? []).forEach(expand);
+    };
+    selectedSet.forEach(expand);
+    return expanded;
+  }, [cascade, descendantsMap, selectedSet]);
 
   useEffect(() => {
     if (previousNodesRef.current !== nodes) {
@@ -129,36 +167,100 @@ export const TreeView: React.FC<TreeViewProps> = ({
     [parentMap],
   );
 
+  const collectBranchIds = useCallback(
+    (nodeId: string) => [nodeId, ...(descendantsMap.get(nodeId) ?? [])],
+    [descendantsMap],
+  );
+
+  const expandImplicitSelection = useCallback(
+    (next: Set<string>, nodeId: string) => {
+      if (!cascade || next.has(nodeId)) {
+        return;
+      }
+      const ancestor = parentMap.get(nodeId);
+      if (!ancestor) {
+        return;
+      }
+      if (next.has(ancestor)) {
+        next.delete(ancestor);
+        collectBranchIds(ancestor).forEach((id) => next.add(id));
+      }
+      expandImplicitSelection(next, ancestor);
+    },
+    [cascade, collectBranchIds, parentMap],
+  );
+
+  const pruneEmptyAncestors = useCallback(
+    (next: Set<string>, nodeId: string) => {
+      if (!cascade) {
+        return;
+      }
+      let ancestor = parentMap.get(nodeId);
+      while (ancestor) {
+        const descendantIds = descendantsMap.get(ancestor) ?? [];
+        const hasSelectedDescendant = descendantIds.some((descendantId) => next.has(descendantId));
+        if (!hasSelectedDescendant) {
+          next.delete(ancestor);
+          ancestor = parentMap.get(ancestor);
+        } else {
+          break;
+        }
+      }
+    },
+    [cascade, descendantsMap, parentMap],
+  );
+
   const toggleSelection = useCallback(
     (nodeId: string) => {
       if (selectionMode === 'none') {
         return;
       }
+
+      const branchIds = cascade ? collectBranchIds(nodeId) : [nodeId];
+      const next = new Set(selectedSet);
+      const referenceSet = cascade ? resolvedSelectedSet : selectedSet;
+      const isCurrentlySelected = referenceSet.has(nodeId);
+
       if (selectionMode === 'single') {
-        if (selectedSet.has(nodeId)) {
-          updateSelection([]);
-        } else {
-          updateSelection([nodeId]);
+        next.clear();
+        if (!isCurrentlySelected) {
+          branchIds.forEach((id) => next.add(id));
           ensureAncestorsExpanded(nodeId);
         }
+        updateSelection(Array.from(next));
         return;
       }
 
-      const next = new Set(selectedSet);
-      if (next.has(nodeId)) {
-        next.delete(nodeId);
+      if (isCurrentlySelected) {
+        if (cascade) {
+          expandImplicitSelection(next, nodeId);
+        }
+        branchIds.forEach((id) => next.delete(id));
+        pruneEmptyAncestors(next, nodeId);
       } else {
-        next.add(nodeId);
+        branchIds.forEach((id) => next.add(id));
         ensureAncestorsExpanded(nodeId);
       }
+
       updateSelection(Array.from(next));
     },
-    [ensureAncestorsExpanded, selectedSet, selectionMode, updateSelection],
+    [
+      cascade,
+      collectBranchIds,
+      ensureAncestorsExpanded,
+      expandImplicitSelection,
+      pruneEmptyAncestors,
+      parentMap,
+      resolvedSelectedSet,
+      selectedSet,
+      selectionMode,
+      updateSelection,
+    ],
   );
 
   useEffect(() => {
-    resolvedSelectedIds.forEach((id) => ensureAncestorsExpanded(id));
-  }, [ensureAncestorsExpanded, resolvedSelectedIds]);
+    (cascade ? resolvedSelectedSet : selectedSet).forEach((id) => ensureAncestorsExpanded(id));
+  }, [cascade, ensureAncestorsExpanded, resolvedSelectedSet, selectedSet]);
 
   const renderNodes = useCallback(
     (treeNodes: TreeViewNode[], depth = 0): React.ReactNode =>
@@ -166,7 +268,8 @@ export const TreeView: React.FC<TreeViewProps> = ({
         const hasChildren = Boolean(node.children && node.children.length > 0);
         const isExpanded = expandedNodes.has(node.id);
         const isSelectable = node.selectable !== false && selectionMode !== 'none';
-        const isSelected = selectedSet.has(node.id);
+        const displaySelectedSet = cascade ? resolvedSelectedSet : selectedSet;
+        const isSelected = displaySelectedSet.has(node.id);
         const isHighlighted = highlightSet.has(node.id);
         const getDefaultIcon = () =>
           hasChildren ? (
@@ -250,7 +353,7 @@ export const TreeView: React.FC<TreeViewProps> = ({
           </div>
         );
       }),
-    [expandedNodes, highlightSet, mode, selectedSet, selectionMode, toggleExpand, toggleSelection],
+    [cascade, expandedNodes, highlightSet, mode, resolvedSelectedSet, selectedSet, selectionMode, toggleExpand, toggleSelection],
   );
 
   const content = useMemo(() => {

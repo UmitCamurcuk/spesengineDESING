@@ -8,7 +8,6 @@ import { Textarea } from '../../components/ui/Textarea';
 import { Card, CardHeader } from '../../components/ui/Card';
 import { TreeView, type TreeViewNode } from '../../components/ui/TreeView';
 import type { TreeNode } from '../../components/ui/TreeSelect';
-import { PageHeader } from '../../components/ui/PageHeader';
 import { Badge } from '../../components/ui/Badge';
 import { Checkbox } from '../../components/ui/Checkbox';
 import { useToast } from '../../contexts/ToastContext';
@@ -30,7 +29,13 @@ import {
 } from '../../api/services/association-rules.service';
 import type { ItemType, Category, Family } from '../../types';
 
-type StepId = 'details' | 'scope' | 'ruleFilters' | 'ruleConstraints' | 'review';
+type StepId =
+  | 'details'
+  | 'behavior'
+  | 'scope'
+  | 'ruleFilters'
+  | 'ruleConstraints'
+  | 'review';
 
 type CardinalityOption = AssociationTypeCreateRequest['cardinality'];
 type DirectionOption = NonNullable<AssociationTypeCreateRequest['direction']>;
@@ -85,6 +90,27 @@ const cloneTreeNodes = (
     };
     return next;
   });
+
+const compactSelection = (ids: string[], childrenMap: Map<string, string[]>): string[] => {
+  const selectedSet = new Set(ids);
+  const resultSet = new Set(ids);
+
+  const pruneChildren = (nodeId: string) => {
+    if (!selectedSet.has(nodeId)) {
+      return;
+    }
+    const children = childrenMap.get(nodeId) ?? [];
+    children.forEach((childId) => {
+      if (selectedSet.has(childId)) {
+        resultSet.delete(childId);
+        pruneChildren(childId);
+      }
+    });
+  };
+
+  ids.forEach(pruneChildren);
+  return Array.from(resultSet);
+};
 
 const parseJsonMetadata = (value: string): Record<string, unknown> | null => {
   const trimmed = value.trim();
@@ -144,6 +170,21 @@ const DIRECTION_OPTIONS: Array<{
 
 const buildEmptyAttributeFilter = (): AttributeFilter => ({ key: '', value: '' });
 
+const clampFamiliesToCategories = (
+  categoryIds: string[],
+  familyIds: string[],
+  familiesByCategory: Map<string, Family[]>,
+): string[] => {
+  if (!categoryIds.length || !familyIds.length) {
+    return [];
+  }
+  const allowedIds = new Set<string>();
+  categoryIds.forEach((categoryId) => {
+    (familiesByCategory.get(categoryId) ?? []).forEach((family) => allowedIds.add(family.id));
+  });
+  return familyIds.filter((familyId) => allowedIds.has(familyId));
+};
+
 interface SectionCardProps {
   title: string;
   subtitle?: string;
@@ -178,6 +219,13 @@ export const AssociationsCreate: React.FC = () => {
         description:
           t('associations.create.steps.details_desc') ||
           'Association tipinin ana özelliklerini tanımlayın.',
+      },
+      {
+        id: 'behavior' as StepId,
+        name: t('associations.create.details_behavior_title') || 'İlişki Ayarları',
+        description:
+          t('associations.create.details_behavior_subtitle') ||
+          'Kaynak/hedef item tiplerini ve cardinality ayarlarını seçin.',
       },
       {
         id: 'scope' as StepId,
@@ -304,6 +352,39 @@ export const AssociationsCreate: React.FC = () => {
     () => [...families].sort((a, b) => a.name.localeCompare(b.name)),
     [families],
   );
+
+  const categoryIdSet = useMemo(() => new Set(categories.map((category) => category.id)), [categories]);
+  const familyIdSet = useMemo(() => new Set(families.map((family) => family.id)), [families]);
+
+  const categoryChildrenMap = useMemo(() => {
+    const map = new Map<string, string[]>();
+    categories.forEach((category) => {
+      const parentId = category.parentCategoryId;
+      if (!parentId) {
+        return;
+      }
+      const list = map.get(parentId) ?? [];
+      list.push(category.id);
+      map.set(parentId, list);
+    });
+    return map;
+  }, [categories]);
+
+  const familyChildrenMap = useMemo(() => {
+    const map = new Map<string, string[]>();
+    families.forEach((family) => {
+      if (!family.parentFamilyId) {
+        return;
+      }
+      const list = map.get(family.parentFamilyId) ?? [];
+      list.push(family.id);
+      map.set(family.parentFamilyId, list);
+    });
+    return map;
+  }, [families]);
+
+  const getCompactCategoryIds = useCallback((ids: string[]) => compactSelection(ids, categoryChildrenMap), [categoryChildrenMap]);
+  const getCompactFamilyIds = useCallback((ids: string[]) => compactSelection(ids, familyChildrenMap), [familyChildrenMap]);
 
   const sourceItemType = useMemo(
     () => itemTypes.find((type) => type.id === details.sourceItemTypeId) ?? null,
@@ -435,35 +516,23 @@ export const AssociationsCreate: React.FC = () => {
     [buildCategoryTreeNodes, targetItemType],
   );
 
+  const scopeSelectedCategoryIds = useMemo(
+    () => defaultScope.categoryIds.filter((id) => categoryIdSet.has(id)),
+    [categoryIdSet, defaultScope.categoryIds],
+  );
+
   const scopeFamilyTree = useMemo(
-    () => buildFamilyTreeNodes(defaultScope.categoryIds, sourceAllowedCategorySet),
-    [buildFamilyTreeNodes, defaultScope.categoryIds, sourceAllowedCategorySet],
+    () => buildFamilyTreeNodes(scopeSelectedCategoryIds, sourceAllowedCategorySet),
+    [buildFamilyTreeNodes, scopeSelectedCategoryIds, sourceAllowedCategorySet],
   );
 
-  const getFamiliesForCategories = useCallback(
-    (categoryIds: string[]) => {
-      if (categoryIds.length === 0) {
-        return sortedFamilies;
-      }
-      const allowedIds = new Set<string>();
-      categoryIds.forEach((id) => {
-        const list = familiesByCategory.get(id) ?? [];
-        list.forEach((family) => allowedIds.add(family.id));
-      });
-      return sortedFamilies.filter((family) => allowedIds.has(family.id));
-    },
-    [familiesByCategory, sortedFamilies],
+  const scopeCategorySummaryIds = useMemo(
+    () => getCompactCategoryIds(defaultScope.categoryIds),
+    [defaultScope.categoryIds, getCompactCategoryIds],
   );
-
-  const clampFamilySelection = useCallback(
-    (categoryIds: string[], familyIds: string[]) => {
-      if (categoryIds.length === 0 || familyIds.length === 0) {
-        return [];
-      }
-      const allowedIds = new Set(getFamiliesForCategories(categoryIds).map((family) => family.id));
-      return familyIds.filter((id) => allowedIds.has(id));
-    },
-    [getFamiliesForCategories],
+  const scopeFamilySummaryIds = useMemo(
+    () => getCompactFamilyIds(defaultScope.familyIds),
+    [defaultScope.familyIds, getCompactFamilyIds],
   );
 
   const buildEmptyRule = useCallback((): RuleDraft => {
@@ -471,14 +540,16 @@ export const AssociationsCreate: React.FC = () => {
       typeof crypto !== 'undefined' && crypto.randomUUID
         ? crypto.randomUUID()
         : `rule-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    const scopedFamilies = clampFamilySelection(defaultScope.categoryIds, defaultScope.familyIds);
+    const compactCategories = getCompactCategoryIds(defaultScope.categoryIds);
+    const scopedFamilies = clampFamiliesToCategories(compactCategories, defaultScope.familyIds, familiesByCategory);
+    const compactFamilies = getCompactFamilyIds(scopedFamilies);
     return {
       id: baseId,
       nameTranslations: ensureTranslations({}),
       descriptionTranslations: ensureTranslations({}),
       appliesTo: 'source',
-      sourceCategoryIds: [...defaultScope.categoryIds],
-      sourceFamilyIds: scopedFamilies,
+      sourceCategoryIds: compactCategories,
+      sourceFamilyIds: compactFamilies,
       targetCategoryIds: [],
       targetFamilyIds: [],
       minTargets: 1,
@@ -486,7 +557,7 @@ export const AssociationsCreate: React.FC = () => {
       attributeFilters: [],
       metadataJson: '',
     };
-  }, [clampFamilySelection, defaultScope.categoryIds, defaultScope.familyIds, ensureTranslations]);
+  }, [defaultScope.categoryIds, defaultScope.familyIds, ensureTranslations, familiesByCategory, getCompactCategoryIds, getCompactFamilyIds]);
 
   useEffect(() => {
     setRules((prev) => {
@@ -511,7 +582,7 @@ export const AssociationsCreate: React.FC = () => {
 
     setDefaultScope((prev) => {
       const filteredCategoryIds = filterBySourceItemType(prev.categoryIds);
-      const filteredFamilyIds = clampFamilySelection(filteredCategoryIds, prev.familyIds);
+      const filteredFamilyIds = clampFamiliesToCategories(filteredCategoryIds, prev.familyIds, familiesByCategory);
       if (
         filteredCategoryIds.length === prev.categoryIds.length &&
         filteredFamilyIds.length === prev.familyIds.length
@@ -527,7 +598,11 @@ export const AssociationsCreate: React.FC = () => {
     setRules((prev) =>
       prev.map((rule) => {
         const filteredSourceCategoryIds = filterBySourceItemType(rule.sourceCategoryIds);
-        const filteredSourceFamilyIds = clampFamilySelection(filteredSourceCategoryIds, rule.sourceFamilyIds);
+        const filteredSourceFamilyIds = clampFamiliesToCategories(
+          filteredSourceCategoryIds,
+          rule.sourceFamilyIds,
+          familiesByCategory,
+        );
         if (
           filteredSourceCategoryIds.length === rule.sourceCategoryIds.length &&
           filteredSourceFamilyIds.length === rule.sourceFamilyIds.length
@@ -541,12 +616,7 @@ export const AssociationsCreate: React.FC = () => {
         };
       }),
     );
-  }, [
-    clampFamilySelection,
-    details.sourceItemTypeId,
-    lookupsLoading,
-    sourceAllowedCategorySet,
-  ]);
+  }, [details.sourceItemTypeId, familiesByCategory, lookupsLoading, sourceAllowedCategorySet]);
 
   useEffect(() => {
     if (lookupsLoading) {
@@ -563,7 +633,11 @@ export const AssociationsCreate: React.FC = () => {
     setRules((prev) =>
       prev.map((rule) => {
         const filteredTargetCategoryIds = filterByTargetItemType(rule.targetCategoryIds);
-        const filteredTargetFamilyIds = clampFamilySelection(filteredTargetCategoryIds, rule.targetFamilyIds);
+        const filteredTargetFamilyIds = clampFamiliesToCategories(
+          filteredTargetCategoryIds,
+          rule.targetFamilyIds,
+          familiesByCategory,
+        );
         if (
           filteredTargetCategoryIds.length === rule.targetCategoryIds.length &&
           filteredTargetFamilyIds.length === rule.targetFamilyIds.length
@@ -577,12 +651,7 @@ export const AssociationsCreate: React.FC = () => {
         };
       }),
     );
-  }, [
-    clampFamilySelection,
-    details.targetItemTypeId,
-    lookupsLoading,
-    targetAllowedCategorySet,
-  ]);
+  }, [details.targetItemTypeId, familiesByCategory, lookupsLoading, targetAllowedCategorySet]);
 
   useEffect(() => {
     let cancelled = false;
@@ -678,26 +747,45 @@ export const AssociationsCreate: React.FC = () => {
   const handleDefaultScopeChange = useCallback(
     (field: keyof DefaultSourceScope, values: string[]) => {
       setDefaultScope((prev) => {
-        const nextCategoryIds = field === 'categoryIds' ? values : prev.categoryIds;
-        const rawFamilyIds = field === 'familyIds' ? values : prev.familyIds;
+        if (field === 'categoryIds') {
+          const uniqueCategoryIds = Array.from(new Set(values.filter((id) => categoryIdSet.has(id))));
+          const compactCategories = getCompactCategoryIds(uniqueCategoryIds);
+          return {
+            categoryIds: compactCategories,
+            familyIds: clampFamiliesToCategories(compactCategories, prev.familyIds, familiesByCategory),
+          };
+        }
+        const uniqueFamilyIds = Array.from(new Set(values.filter((id) => familyIdSet.has(id))));
+        const filteredFamilies = clampFamiliesToCategories(prev.categoryIds, uniqueFamilyIds, familiesByCategory);
+        const compactFamilies = getCompactFamilyIds(filteredFamilies);
         return {
-          categoryIds: nextCategoryIds,
-          familyIds: clampFamilySelection(nextCategoryIds, rawFamilyIds),
+          ...prev,
+          familyIds: compactFamilies,
         };
       });
     },
-    [clampFamilySelection],
+    [categoryIdSet, familiesByCategory, familyIdSet, getCompactCategoryIds, getCompactFamilyIds],
   );
 
   const applyDefaultScopeToRules = useCallback(() => {
+    const compactCategories = getCompactCategoryIds(defaultScope.categoryIds);
+    const compactFamilies = getCompactFamilyIds(
+      clampFamiliesToCategories(compactCategories, defaultScope.familyIds, familiesByCategory),
+    );
     setRules((prev) =>
       prev.map((rule) => ({
         ...rule,
-        sourceCategoryIds: [...defaultScope.categoryIds],
-        sourceFamilyIds: clampFamilySelection(defaultScope.categoryIds, defaultScope.familyIds),
+        sourceCategoryIds: [...compactCategories],
+        sourceFamilyIds: [...compactFamilies],
       })),
     );
-  }, [clampFamilySelection, defaultScope]);
+  }, [
+    defaultScope.familyIds,
+    defaultScope.categoryIds,
+    familiesByCategory,
+    getCompactCategoryIds,
+    getCompactFamilyIds,
+  ]);
 
   const addRule = useCallback(() => {
     setRules((prev) => [...prev, buildEmptyRule()]);
@@ -844,15 +932,6 @@ export const AssociationsCreate: React.FC = () => {
           });
           return false;
         }
-        if (!details.sourceItemTypeId || !details.targetItemTypeId) {
-          showToast({
-            type: 'error',
-            message:
-              t('associations.create.validation.item_types') ||
-              'Kaynak ve hedef item tiplerini seçmelisiniz.',
-          });
-          return false;
-        }
         if (hasAnyTranslation(details.descriptionTranslations)) {
           const missingDescriptionLang = requiredLanguages.find(
             ({ code }) => !details.descriptionTranslations[code]?.trim(),
@@ -863,6 +942,32 @@ export const AssociationsCreate: React.FC = () => {
               message:
                 t('associations.create.validation.description_required') ||
                 `${missingDescriptionLang.label} ${t('common.description') || 'Açıklama'} alanı zorunludur.`,
+            });
+            return false;
+          }
+        }
+        return true;
+      }
+      case 'behavior': {
+        if (!details.sourceItemTypeId || !details.targetItemTypeId) {
+          showToast({
+            type: 'error',
+            message:
+              t('associations.create.validation.item_types') ||
+              'Kaynak ve hedef item tiplerini seçmelisiniz.',
+          });
+          return false;
+        }
+        if (details.metadataSchema.trim()) {
+          try {
+            parseJsonMetadata(details.metadataSchema);
+          } catch (error: any) {
+            showToast({
+              type: 'error',
+              message:
+                error?.message ??
+                t('associations.create.validation.metadata') ??
+                'Association metadata JSON formatında olmalıdır.',
             });
             return false;
           }
@@ -971,21 +1076,6 @@ export const AssociationsCreate: React.FC = () => {
           }
         }
 
-        if (details.metadataSchema.trim()) {
-          try {
-            parseJsonMetadata(details.metadataSchema);
-          } catch (error: any) {
-            showToast({
-              type: 'error',
-              message:
-                error?.message ??
-                t('associations.create.validation.metadata') ??
-                'Association metadata JSON formatında olmalıdır.',
-            });
-            return false;
-          }
-        }
-
         return true;
       }
       case 'review':
@@ -1050,8 +1140,16 @@ export const AssociationsCreate: React.FC = () => {
 
       const createdType = await associationTypesService.create(typePayload);
 
+      const compactedRules = rules.map((rule) => ({
+        ...rule,
+        sourceCategoryIds: getCompactCategoryIds(rule.sourceCategoryIds),
+        sourceFamilyIds: getCompactFamilyIds(rule.sourceFamilyIds),
+        targetCategoryIds: getCompactCategoryIds(rule.targetCategoryIds),
+        targetFamilyIds: getCompactFamilyIds(rule.targetFamilyIds),
+      }));
+
       await Promise.all(
-        rules.map(async (rule, index) => {
+        compactedRules.map(async (rule, index) => {
           let nameLocalizationId: string | null = null;
           let descriptionLocalizationId: string | null = null;
 
@@ -1097,73 +1195,81 @@ export const AssociationsCreate: React.FC = () => {
 
       showToast({
         type: 'success',
-        message: t('associations.create.success') || 'Association type başarıyla oluşturuldu.',
+        message: t('association_types.create.success') || 'Association type başarıyla oluşturuldu.',
       });
 
-      navigate('/associations');
+      navigate('/association-types');
     } catch (error: any) {
       console.error('Failed to create association type', error);
       showToast({
         type: 'error',
         message:
           error?.response?.data?.error?.message ??
-          t('associations.create.failed') ??
-          'Association oluşturulamadı. Lütfen tekrar deneyin.',
+          t('association_types.create.failed') ??
+          'Association type oluşturulamadı. Lütfen tekrar deneyin.',
       });
     } finally {
       setSubmitting(false);
     }
   }, [buildRuleMetadataPayload, buildTranslationsPayload, details, navigate, rules, showToast, t, validateCurrentStep]);
 
-  const renderDetailsStep = () => {
-    const cardinalityLocale = language?.toLowerCase().startsWith('en') ? 'en' : 'tr';
+  const renderDetailsStep = () => (
+    <div className="space-y-6">
+      <SectionCard
+        title={
+          t('associations.create.details_identity_title') ||
+          t('associations.create.details_basic_title') ||
+          'Anahtar & Çeviriler'
+        }
+        subtitle={
+          t('associations.create.details_identity_subtitle') ||
+          t('associations.create.details_basic_subtitle') ||
+          'Association anahtarını ve tüm zorunlu dil çevirilerini girin.'
+        }
+      >
+        <div className="space-y-4">
+          <Input
+            label={t('associations.fields.key') || 'Association Anahtarı'}
+            value={details.key}
+            onChange={(event) => handleDetailsChange({ key: event.target.value })}
+            placeholder="order_fabric"
+            required
+          />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {requiredLanguages.map((lang) => (
+              <Input
+                key={`name-${lang.code}`}
+                label={`${t('common.name') || 'Ad'} (${lang.label})`}
+                value={details.nameTranslations[lang.code] ?? ''}
+                onChange={(event) =>
+                  handleDetailsTranslationChange('nameTranslations', lang.code, event.target.value)
+                }
+                required
+              />
+            ))}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {requiredLanguages.map((lang) => (
+              <Textarea
+                key={`description-${lang.code}`}
+                label={`${t('common.description') || 'Açıklama'} (${lang.label})`}
+                value={details.descriptionTranslations[lang.code] ?? ''}
+                onChange={(event) =>
+                  handleDetailsTranslationChange('descriptionTranslations', lang.code, event.target.value)
+                }
+                rows={3}
+              />
+            ))}
+          </div>
+        </div>
+      </SectionCard>
+    </div>
+  );
 
+  const renderRelationshipStep = () => {
+    const cardinalityLocale = language?.toLowerCase().startsWith('en') ? 'en' : 'tr';
     return (
       <div className="space-y-6">
-        <SectionCard
-          title={t('associations.create.details_basic_title') || 'Temel Bilgiler'}
-          subtitle={
-            t('associations.create.details_basic_subtitle') ||
-            'Association anahtarını ve tüm zorunlu dil çevirilerini girin.'
-          }
-        >
-          <div className="space-y-4">
-            <Input
-              label={t('associations.fields.key') || 'Association Anahtarı'}
-              value={details.key}
-              onChange={(event) => handleDetailsChange({ key: event.target.value })}
-              placeholder="order_fabric"
-              required
-            />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {requiredLanguages.map((lang) => (
-                <Input
-                  key={`name-${lang.code}`}
-                  label={`${t('common.name') || 'Ad'} (${lang.label})`}
-                  value={details.nameTranslations[lang.code] ?? ''}
-                  onChange={(event) =>
-                    handleDetailsTranslationChange('nameTranslations', lang.code, event.target.value)
-                  }
-                  required
-                />
-              ))}
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {requiredLanguages.map((lang) => (
-                <Textarea
-                  key={`description-${lang.code}`}
-                  label={`${t('common.description') || 'Açıklama'} (${lang.label})`}
-                  value={details.descriptionTranslations[lang.code] ?? ''}
-                  onChange={(event) =>
-                    handleDetailsTranslationChange('descriptionTranslations', lang.code, event.target.value)
-                  }
-                  rows={3}
-                />
-              ))}
-            </div>
-          </div>
-        </SectionCard>
-
         <SectionCard
           title={t('associations.create.details_behavior_title') || 'İlişki Ayarları'}
           subtitle={
@@ -1232,17 +1338,15 @@ export const AssociationsCreate: React.FC = () => {
                           ? 'border-primary bg-primary/5 shadow-sm'
                           : 'border-border hover:border-foreground/60',
                       )}
-                      onClick={() => handleDetailsChange({ cardinality: option.value })}
+                      onClick={() => handleDetailsChange({ cardinality: option.value as CardinalityOption })}
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm font-semibold">{option.label}</span>
-                        {active ? (
-                          <Badge variant="secondary" className="text-xs">
-                            {t('common.selected') || 'Seçili'}
-                          </Badge>
-                        ) : null}
-                      </div>
+                      <div className="text-sm font-semibold">{option.label}</div>
                       <p className="text-xs text-muted-foreground mt-1">{description}</p>
+                      {active ? (
+                        <Badge variant="outline" size="sm" className="mt-2">
+                          {t('common.selected') || 'Seçili'}
+                        </Badge>
+                      ) : null}
                     </button>
                   );
                 })}
@@ -1265,7 +1369,7 @@ export const AssociationsCreate: React.FC = () => {
                           'rounded-2xl border px-4 py-3 text-left transition focus:outline-none focus:ring-2 focus:ring-primary/40',
                           active
                             ? 'border-primary bg-primary/5 shadow-sm'
-                            : 'border-border hover:border-foreground/60',
+                            : 'border-border hover-border-foreground/60',
                         )}
                         onClick={() => handleDetailsChange({ direction: option.value as DirectionOption })}
                       >
@@ -1324,7 +1428,8 @@ export const AssociationsCreate: React.FC = () => {
     );
   };
 
-  const renderScopeStep = () => {
+
+const renderScopeStep = () => {
     const scopeCategorySelectDisabled =
       !details.sourceItemTypeId || sourceCategoryTree.length === 0;
     const familySelectionUnavailable =
@@ -1361,6 +1466,7 @@ export const AssociationsCreate: React.FC = () => {
                 nodes={sourceCategoryTree}
                 mode="edit"
                 selectionMode="multiple"
+                cascade
                 selectedIds={defaultScope.categoryIds}
                 onSelectionChange={(ids) => handleDefaultScopeChange('categoryIds', ids)}
                 className="max-h-80 overflow-y-auto"
@@ -1375,6 +1481,7 @@ export const AssociationsCreate: React.FC = () => {
                 nodes={scopeFamilyTree}
                 mode="edit"
                 selectionMode="multiple"
+                cascade
                 selectedIds={defaultScope.familyIds}
                 onSelectionChange={(ids) => handleDefaultScopeChange('familyIds', ids)}
                 className="max-h-80 overflow-y-auto"
@@ -1408,9 +1515,9 @@ export const AssociationsCreate: React.FC = () => {
               <span className="font-medium text-foreground">
                 {t('associations.review.categories') || 'Kategoriler'}:
               </span>{' '}
-              {defaultScope.categoryIds.length === 0
+              {scopeCategorySummaryIds.length === 0
                 ? t('common.all') || 'Tümü'
-                : defaultScope.categoryIds
+                : scopeCategorySummaryIds
                     .map((id) => sortedCategories.find((category) => category.id === id)?.name ?? id)
                     .join(', ')}
             </div>
@@ -1418,9 +1525,9 @@ export const AssociationsCreate: React.FC = () => {
               <span className="font-medium text-foreground">
                 {t('associations.review.families') || 'Aileler'}:
               </span>{' '}
-              {defaultScope.familyIds.length === 0
+              {scopeFamilySummaryIds.length === 0
                 ? t('common.all') || 'Tümü'
-                : defaultScope.familyIds
+                : scopeFamilySummaryIds
                     .map((id) => sortedFamilies.find((family) => family.id === id)?.name ?? id)
                     .join(', ')}
             </div>
@@ -1481,13 +1588,24 @@ export const AssociationsCreate: React.FC = () => {
                     nodes={sourceCategoryTree}
                     mode="edit"
                     selectionMode="multiple"
+                    cascade
                     selectedIds={rule.sourceCategoryIds}
                     onSelectionChange={(ids) =>
-                      updateRule(rule.id, (current) => ({
-                        ...current,
-                        sourceCategoryIds: ids,
-                        sourceFamilyIds: clampFamilySelection(ids, current.sourceFamilyIds),
-                      }))
+                      updateRule(rule.id, (current) => {
+                        const uniqueCategoryIds = Array.from(new Set(ids.filter((id) => categoryIdSet.has(id))));
+                        const compactCategories = getCompactCategoryIds(uniqueCategoryIds);
+                        const filteredFamilies = clampFamiliesToCategories(
+                          compactCategories,
+                          current.sourceFamilyIds,
+                          familiesByCategory,
+                        );
+                        const compactFamilies = getCompactFamilyIds(filteredFamilies);
+                        return {
+                          ...current,
+                          sourceCategoryIds: compactCategories,
+                          sourceFamilyIds: compactFamilies,
+                        };
+                      })
                     }
                     className="max-h-72 overflow-y-auto"
                     emptyState={
@@ -1508,19 +1626,28 @@ export const AssociationsCreate: React.FC = () => {
                     nodes={ruleSourceFamilyTree}
                     mode="edit"
                     selectionMode="multiple"
+                    cascade
                     selectedIds={rule.sourceFamilyIds}
                     onSelectionChange={(ids) =>
-                      updateRule(rule.id, (current) => ({
-                        ...current,
-                        sourceFamilyIds: ids,
-                      }))
+                      updateRule(rule.id, (current) => {
+                        const uniqueFamilyIds = Array.from(new Set(ids.filter((id) => familyIdSet.has(id))));
+                        const filteredFamilies = clampFamiliesToCategories(
+                          current.sourceCategoryIds,
+                          uniqueFamilyIds,
+                          familiesByCategory,
+                        );
+                        return {
+                          ...current,
+                          sourceFamilyIds: getCompactFamilyIds(filteredFamilies),
+                        };
+                      })
                     }
                     className="max-h-72 overflow-y-auto"
                     emptyState={
                       <span className="text-xs text-muted-foreground">
                         {disableSourceFamilies
                           ? t('associations.create.scope_families_disabled') ||
-                            'Önce kategori seçerseniz aile filtreleyebilirsiniz.'
+                            'Önce kategori seçerseniz aileler listelenir.'
                           : t('associations.create.scope_families_hint') ||
                             'Boş bırakırsanız seçilen kategorilerdeki tüm aileler geçerli olur.'}
                       </span>
@@ -1538,13 +1665,24 @@ export const AssociationsCreate: React.FC = () => {
                     nodes={targetCategoryTree}
                     mode="edit"
                     selectionMode="multiple"
+                    cascade
                     selectedIds={rule.targetCategoryIds}
                     onSelectionChange={(ids) =>
-                      updateRule(rule.id, (current) => ({
-                        ...current,
-                        targetCategoryIds: ids,
-                        targetFamilyIds: clampFamilySelection(ids, current.targetFamilyIds),
-                      }))
+                      updateRule(rule.id, (current) => {
+                        const uniqueCategoryIds = Array.from(new Set(ids.filter((id) => categoryIdSet.has(id))));
+                        const compactCategories = getCompactCategoryIds(uniqueCategoryIds);
+                        const filteredFamilies = clampFamiliesToCategories(
+                          compactCategories,
+                          current.targetFamilyIds,
+                          familiesByCategory,
+                        );
+                        const compactFamilies = getCompactFamilyIds(filteredFamilies);
+                        return {
+                          ...current,
+                          targetCategoryIds: compactCategories,
+                          targetFamilyIds: compactFamilies,
+                        };
+                      })
                     }
                     className="max-h-72 overflow-y-auto"
                     emptyState={
@@ -1565,12 +1703,21 @@ export const AssociationsCreate: React.FC = () => {
                     nodes={ruleTargetFamilyTree}
                     mode="edit"
                     selectionMode="multiple"
+                    cascade
                     selectedIds={rule.targetFamilyIds}
                     onSelectionChange={(ids) =>
-                      updateRule(rule.id, (current) => ({
-                        ...current,
-                        targetFamilyIds: ids,
-                      }))
+                      updateRule(rule.id, (current) => {
+                        const uniqueFamilyIds = Array.from(new Set(ids.filter((id) => familyIdSet.has(id))));
+                        const filteredFamilies = clampFamiliesToCategories(
+                          current.targetCategoryIds,
+                          uniqueFamilyIds,
+                          familiesByCategory,
+                        );
+                        return {
+                          ...current,
+                          targetFamilyIds: getCompactFamilyIds(filteredFamilies),
+                        };
+                      })
                     }
                     className="max-h-72 overflow-y-auto"
                     emptyState={
@@ -1838,126 +1985,133 @@ export const AssociationsCreate: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
           <div>
             <span className="font-medium text-foreground">{t('associations.review.categories') || 'Kategoriler'}:</span>{' '}
-            {defaultScope.categoryIds.length === 0
+            {scopeCategorySummaryIds.length === 0
               ? t('common.all') || 'Tümü'
-              : defaultScope.categoryIds
+              : scopeCategorySummaryIds
                   .map((id) => categories.find((category) => category.id === id)?.name ?? id)
                   .join(', ')}
           </div>
           <div>
             <span className="font-medium text-foreground">{t('associations.review.families') || 'Aileler'}:</span>{' '}
-            {defaultScope.familyIds.length === 0
+            {scopeFamilySummaryIds.length === 0
               ? t('common.all') || 'Tümü'
-              : defaultScope.familyIds
+              : scopeFamilySummaryIds
                   .map((id) => families.find((family) => family.id === id)?.name ?? id)
                   .join(', ')}
           </div>
         </div>
       </SectionCard>
 
-      {rules.map((rule, index) => (
-        <SectionCard
-          key={`review-rule-${rule.id}`}
-          title={`${t('associations.create.rule_card_title') || 'Kural'} #${index + 1}`}
-          subtitle={
-            hasAnyTranslation(rule.nameTranslations)
-              ? resolveTranslationValue(rule.nameTranslations)
-              : undefined
-          }
-        >
-          <div className="space-y-3 text-sm">
-            {hasAnyTranslation(rule.descriptionTranslations) ? (
-              <div>
-                <span className="font-medium text-foreground">{t('common.description') || 'Açıklama'}:</span>{' '}
-                {resolveTranslationValue(rule.descriptionTranslations)}
-              </div>
-            ) : null}
+      {rules.map((rule, index) => {
+        const ruleSourceCategorySummary = getCompactCategoryIds(rule.sourceCategoryIds);
+        const ruleSourceFamilySummary = getCompactFamilyIds(rule.sourceFamilyIds);
+        const ruleTargetCategorySummary = getCompactCategoryIds(rule.targetCategoryIds);
+        const ruleTargetFamilySummary = getCompactFamilyIds(rule.targetFamilyIds);
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        return (
+          <SectionCard
+            key={`review-rule-${rule.id}`}
+            title={`${t('associations.create.rule_card_title') || 'Kural'} #${index + 1}`}
+            subtitle={
+              hasAnyTranslation(rule.nameTranslations)
+                ? resolveTranslationValue(rule.nameTranslations)
+                : undefined
+            }
+          >
+            <div className="space-y-3 text-sm">
+              {hasAnyTranslation(rule.descriptionTranslations) ? (
+                <div>
+                  <span className="font-medium text-foreground">{t('common.description') || 'Açıklama'}:</span>{' '}
+                  {resolveTranslationValue(rule.descriptionTranslations)}
+                </div>
+              ) : null}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <span className="font-medium text-foreground">
+                    {t('associations.fields.applies_to') || 'Yönlendirme'}:
+                  </span>{' '}
+                  {rule.appliesTo === 'source'
+                    ? t('associations.fields.applies_to_source') || 'Kaynak Bazlı'
+                    : t('associations.fields.applies_to_target') || 'Hedef Bazlı'}
+                </div>
+                <div>
+                  <span className="font-medium text-foreground">
+                    {t('associations.fields.min_targets') || 'Minimum Hedef'} /{' '}
+                    {t('associations.fields.max_targets') || 'Maksimum Hedef'}:
+                  </span>{' '}
+                  {rule.minTargets} / {rule.maxTargets ?? (t('common.unlimited') || 'Sınırsız')}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <span className="font-medium text-foreground">
+                    {t('associations.review.rule_source_categories') || 'Kaynak Kategoriler'}:
+                  </span>{' '}
+                  {ruleSourceCategorySummary.length === 0
+                    ? t('common.all') || 'Tümü'
+                    : ruleSourceCategorySummary
+                        .map((id) => categories.find((category) => category.id === id)?.name ?? id)
+                        .join(', ')}
+                </div>
+                <div>
+                  <span className="font-medium text-foreground">
+                    {t('associations.review.rule_source_families') || 'Kaynak Aileler'}:
+                  </span>{' '}
+                  {ruleSourceFamilySummary.length === 0
+                    ? t('common.all') || 'Tümü'
+                    : ruleSourceFamilySummary
+                        .map((id) => families.find((family) => family.id === id)?.name ?? id)
+                        .join(', ')}
+                </div>
+                <div>
+                  <span className="font-medium text-foreground">
+                    {t('associations.review.rule_target_categories') || 'Hedef Kategoriler'}:
+                  </span>{' '}
+                  {ruleTargetCategorySummary.length === 0
+                    ? t('common.all') || 'Tümü'
+                    : ruleTargetCategorySummary
+                        .map((id) => categories.find((category) => category.id === id)?.name ?? id)
+                        .join(', ')}
+                </div>
+                <div>
+                  <span className="font-medium text-foreground">
+                    {t('associations.review.rule_target_families') || 'Hedef Aileler'}:
+                  </span>{' '}
+                  {ruleTargetFamilySummary.length === 0
+                    ? t('common.all') || 'Tümü'
+                    : ruleTargetFamilySummary
+                        .map((id) => families.find((family) => family.id === id)?.name ?? id)
+                        .join(', ')}
+                </div>
+              </div>
+
               <div>
                 <span className="font-medium text-foreground">
-                  {t('associations.fields.applies_to') || 'Yönlendirme'}:
+                  {t('associations.fields.attribute_filters') || 'Attribute Filtreleri'}:
                 </span>{' '}
-                {rule.appliesTo === 'source'
-                  ? t('associations.fields.applies_to_source') || 'Kaynak Bazlı'
-                  : t('associations.fields.applies_to_target') || 'Hedef Bazlı'}
+                {rule.attributeFilters.length === 0
+                  ? t('common.none') || 'Yok'
+                  : rule.attributeFilters
+                      .map((filter) => `${filter.key || '—'}=${filter.value || '—'}`)
+                      .join(', ')}
               </div>
-              <div>
-                <span className="font-medium text-foreground">
-                  {t('associations.fields.min_targets') || 'Minimum Hedef'} /{' '}
-                  {t('associations.fields.max_targets') || 'Maksimum Hedef'}:
-                </span>{' '}
-                {rule.minTargets} / {rule.maxTargets ?? (t('common.unlimited') || 'Sınırsız')}
-              </div>
+
+              {rule.metadataJson.trim() ? (
+                <div>
+                  <span className="font-medium text-foreground">
+                    {t('associations.fields.rule_metadata') || 'Kural Metadata'}:
+                  </span>
+                  <pre className="mt-1 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground whitespace-pre-wrap">
+                    {rule.metadataJson}
+                  </pre>
+                </div>
+              ) : null}
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <span className="font-medium text-foreground">
-                  {t('associations.review.rule_source_categories') || 'Kaynak Kategoriler'}:
-                </span>{' '}
-                {rule.sourceCategoryIds.length === 0
-                  ? t('common.all') || 'Tümü'
-                  : rule.sourceCategoryIds
-                      .map((id) => categories.find((category) => category.id === id)?.name ?? id)
-                      .join(', ')}
-              </div>
-              <div>
-                <span className="font-medium text-foreground">
-                  {t('associations.review.rule_source_families') || 'Kaynak Aileler'}:
-                </span>{' '}
-                {rule.sourceFamilyIds.length === 0
-                  ? t('common.all') || 'Tümü'
-                  : rule.sourceFamilyIds
-                      .map((id) => families.find((family) => family.id === id)?.name ?? id)
-                      .join(', ')}
-              </div>
-              <div>
-                <span className="font-medium text-foreground">
-                  {t('associations.review.rule_target_categories') || 'Hedef Kategoriler'}:
-                </span>{' '}
-                {rule.targetCategoryIds.length === 0
-                  ? t('common.all') || 'Tümü'
-                  : rule.targetCategoryIds
-                      .map((id) => categories.find((category) => category.id === id)?.name ?? id)
-                      .join(', ')}
-              </div>
-              <div>
-                <span className="font-medium text-foreground">
-                  {t('associations.review.rule_target_families') || 'Hedef Aileler'}:
-                </span>{' '}
-                {rule.targetFamilyIds.length === 0
-                  ? t('common.all') || 'Tümü'
-                  : rule.targetFamilyIds
-                      .map((id) => families.find((family) => family.id === id)?.name ?? id)
-                      .join(', ')}
-              </div>
-            </div>
-
-            <div>
-              <span className="font-medium text-foreground">
-                {t('associations.fields.attribute_filters') || 'Attribute Filtreleri'}:
-              </span>{' '}
-              {rule.attributeFilters.length === 0
-                ? t('common.none') || 'Yok'
-                : rule.attributeFilters
-                    .map((filter) => `${filter.key || '—'}=${filter.value || '—'}`)
-                    .join(', ')}
-            </div>
-
-            {rule.metadataJson.trim() ? (
-              <div>
-                <span className="font-medium text-foreground">
-                  {t('associations.fields.rule_metadata') || 'Kural Metadata'}:
-                </span>
-                <pre className="mt-1 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground whitespace-pre-wrap">
-                  {rule.metadataJson}
-                </pre>
-              </div>
-            ) : null}
-          </div>
-        </SectionCard>
-      ))}
+          </SectionCard>
+        );
+      })}
     </div>
   );
 
@@ -1966,6 +2120,8 @@ export const AssociationsCreate: React.FC = () => {
     switch (step) {
       case 'details':
         return renderDetailsStep();
+      case 'behavior':
+        return renderRelationshipStep();
       case 'scope':
         return renderScopeStep();
       case 'ruleFilters':
@@ -2012,18 +2168,6 @@ export const AssociationsCreate: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={t('associations.create_title') || 'Association Oluştur'}
-        description={
-          t('associations.create_subtitle') ||
-          'Yeni association tipleri ve kuralları tanımlayarak sipariş akışlarını yönetin.'
-        }
-        breadcrumbs={[
-          { label: t('navigation.associations') || 'Associations', href: '/associations' },
-          { label: t('associations.create_title') || 'Association Oluştur' },
-        ]}
-      />
-
       <Card>
         <div className="px-6 py-6">
           <Stepper

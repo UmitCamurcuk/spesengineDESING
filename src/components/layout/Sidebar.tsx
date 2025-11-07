@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Home,
@@ -21,6 +21,7 @@ import {
   ChevronDown,
   ChevronRight,
   FileStack,
+  GitMerge,
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -33,56 +34,96 @@ type MenuItem = {
   href?: string;
   icon: React.ComponentType<{ className?: string }>;
   permission?: string;
+  fallback?: string;
   children?: MenuItem[];
 };
+
+const filterMenuItems = (items: MenuItem[], hasPermission: (permission: string) => boolean): MenuItem[] =>
+  items
+    .map((item) => {
+      if (item.permission && !hasPermission(item.permission)) {
+        return null;
+      }
+      if (item.children && item.children.length > 0) {
+        const filteredChildren = filterMenuItems(item.children, hasPermission);
+        if (filteredChildren.length === 0) {
+          return null;
+        }
+        return { ...item, children: filteredChildren };
+      }
+      return item;
+    })
+    .filter(Boolean) as MenuItem[];
 
 const menuItems: MenuItem[] = [
   {
     name: 'navigation.dashboard',
     href: '/dashboard',
     icon: Home,
+    fallback: 'Dashboard',
   },
   {
     name: 'navigation.items',
     href: '/items',
     icon: Package,
     permission: PERMISSIONS.CATALOG.ITEMS.LIST,
+    fallback: 'Itemlar',
   },
   {
     name: 'navigation.item_types',
     href: '/item-types',
     icon: Database,
     permission: PERMISSIONS.CATALOG.ITEM_TYPES.LIST,
+    fallback: 'Item Tipleri',
   },
   {
     name: 'navigation.categories',
     href: '/categories',
     icon: FolderTree,
     permission: PERMISSIONS.CATALOG.CATEGORIES.LIST,
+    fallback: 'Kategoriler',
   },
   {
     name: 'navigation.families',
     href: '/families',
     icon: Layers,
     permission: PERMISSIONS.CATALOG.FAMILIES.LIST,
+    fallback: 'Aileler',
   },
   {
     name: 'navigation.attribute_groups',
     href: '/attribute-groups',
     icon: Tags,
     permission: PERMISSIONS.CATALOG.ATTRIBUTE_GROUPS.LIST,
+    fallback: 'Attribute Grupları',
   },
   {
     name: 'navigation.attributes',
     href: '/attributes',
     icon: FileText,
     permission: PERMISSIONS.CATALOG.ATTRIBUTES.LIST,
+    fallback: 'Attribute\'lar',
   },
   {
     name: 'navigation.associations',
-    href: '/associations',
     icon: Zap,
-    permission: PERMISSIONS.SYSTEM.ASSOCIATIONS.LIST,
+    fallback: 'İlişkiler',
+    children: [
+      {
+        name: 'navigation.association_types',
+        href: '/association-types',
+        icon: Layers,
+        permission: PERMISSIONS.SYSTEM.ASSOCIATIONS.LIST,
+        fallback: 'Association Tipleri',
+      },
+      {
+        name: 'navigation.associations_records',
+        href: '/associations',
+        icon: GitMerge,
+        permission: PERMISSIONS.SYSTEM.ASSOCIATIONS.LIST,
+        fallback: 'Association Kayıtları',
+      },
+    ],
   },
 ];
 
@@ -91,18 +132,21 @@ const systemMenuItems: MenuItem[] = [
     name: 'navigation.notifications',
     icon: Bell,
     permission: PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.LIST,
+    fallback: 'Bildirimler',
     children: [
       {
         name: 'notifications.rules.title',
         href: '/notifications/rules',
         icon: Bell,
         permission: PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.LIST,
+        fallback: 'Kural Tanımları',
       },
       {
         name: 'notifications.templates.title',
         href: '/notifications/templates',
         icon: FileStack,
         permission: PERMISSIONS.SYSTEM.NOTIFICATIONS.TEMPLATES.LIST,
+        fallback: 'Şablonlar',
       },
     ],
   },
@@ -111,30 +155,35 @@ const systemMenuItems: MenuItem[] = [
     href: '/users',
     icon: Users,
     permission: PERMISSIONS.SYSTEM.USERS.LIST,
+    fallback: 'Kullanıcılar',
   },
   {
     name: 'navigation.roles',
     href: '/roles',
     icon: Shield,
     permission: PERMISSIONS.SYSTEM.ROLES.LIST,
+    fallback: 'Roller',
   },
   {
     name: 'navigation.permissions',
     href: '/permissions',
     icon: Key,
     permission: PERMISSIONS.SYSTEM.PERMISSIONS.LIST,
+    fallback: 'İzinler',
   },
   {
     name: 'navigation.permission_groups',
     href: '/permission-groups',
     icon: ShieldCheck,
     permission: PERMISSIONS.SYSTEM.PERMISSION_GROUPS.LIST,
+    fallback: 'İzin Grupları',
   },
   {
     name: 'navigation.localizations',
     href: '/localizations',
     icon: Globe,
     permission: PERMISSIONS.SYSTEM.LOCALIZATIONS.LIST,
+    fallback: 'Çeviriler',
   },
 ];
 
@@ -157,16 +206,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, isOpen, onClose }) 
       [menuName]: !prev[menuName]
     }));
   };
-
-  const primaryMenu = useMemo(
-    () => menuItems.filter((item) => !item.permission || hasPermission(item.permission)),
-    [hasPermission],
+  
+  const resolveLabel = useCallback(
+    (item: MenuItem) => {
+      const translated = t(item.name);
+      if (!translated || translated === item.name) {
+        return item.fallback ?? item.name;
+      }
+      return translated;
+    },
+    [t],
   );
 
-  const secondaryMenu = useMemo(
-    () => systemMenuItems.filter((item) => !item.permission || hasPermission(item.permission)),
-    [hasPermission],
-  );
+  const primaryMenu = useMemo(() => filterMenuItems(menuItems, hasPermission), [hasPermission]);
+
+  const secondaryMenu = useMemo(() => filterMenuItems(systemMenuItems, hasPermission), [hasPermission]);
 
   return (
     <aside className={cn('bg-sidebar border-r border-sidebar-border w-52 flex flex-col', className)}>
@@ -202,8 +256,83 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, isOpen, onClose }) 
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t('navigation.content')}</h3>
           </div>
         {primaryMenu.map((item) => {
+          if (item.children && item.children.length > 0) {
+            const hasActiveChild = item.children.some(
+              (child) => child.href && location.pathname.startsWith(child.href),
+            );
+            const manualState = expandedMenus[item.name];
+            const isExpanded = typeof manualState === 'boolean' ? manualState : hasActiveChild;
+
+            return (
+              <div key={item.name}>
+                <button
+                  onClick={() => toggleMenu(item.name)}
+                  className={cn(
+                    'w-full flex items-center space-x-2.5 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 group',
+                    hasActiveChild
+                      ? 'text-sidebar-active-foreground'
+                      : 'text-sidebar-foreground hover:bg-muted hover:text-foreground',
+                  )}
+                >
+                  <item.icon
+                    className={cn(
+                      'h-4 w-4 transition-colors duration-200',
+                      hasActiveChild
+                        ? 'text-sidebar-active-foreground'
+                        : 'text-muted-foreground group-hover:text-foreground',
+                    )}
+                  />
+                  <span className="flex-1 text-left">{resolveLabel(item)}</span>
+                  {isExpanded ? (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </button>
+                {isExpanded && (
+                  <div className="ml-4 mt-1 space-y-0.5">
+                    {item.children.map((child) => {
+                      if (!child.href) return null;
+                      const isActive = location.pathname.startsWith(child.href);
+                      return (
+                        <Link
+                          key={child.name}
+                          to={child.href}
+                          onClick={onClose}
+                          className={cn(
+                            'flex items-center space-x-2 px-3 py-1.5 rounded-md text-xs transition-colors duration-150 group',
+                            isActive
+                              ? 'bg-sidebar-active text-sidebar-active-foreground shadow-sm'
+                              : 'text-sidebar-foreground hover:bg-muted hover:text-foreground',
+                          )}
+                        >
+                          <child.icon
+                            className={cn(
+                              'h-3 w-3 transition-colors duration-200',
+                              isActive
+                                ? 'text-sidebar-active-foreground'
+                                : 'text-muted-foreground group-hover:text-foreground',
+                            )}
+                          />
+                          <span className="text-xs">{resolveLabel(child)}</span>
+                          {isActive && (
+                            <div className="ml-auto w-1.5 h-1.5 bg-sidebar-active-foreground rounded-full"></div>
+                          )}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          if (!item.href) {
+            return null;
+          }
+
           const isActive = location.pathname.startsWith(item.href);
-          
+
           return (
             <Link
               key={item.name}
@@ -213,18 +342,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, isOpen, onClose }) 
                 'flex items-center space-x-2.5 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 group',
                 isActive
                   ? 'bg-sidebar-active text-sidebar-active-foreground shadow-sm'
-                  : 'text-sidebar-foreground hover:bg-muted hover:text-foreground'
+                  : 'text-sidebar-foreground hover:bg-muted hover:text-foreground',
               )}
             >
               <item.icon
                 className={cn(
-                  'h-4 w-4 transition-colors duration-150', 
-                  isActive 
-                    ? 'text-sidebar-active-foreground' 
-                    : 'text-muted-foreground group-hover:text-foreground'
-                )} 
+                  'h-4 w-4 transition-colors duration-150',
+                  isActive
+                    ? 'text-sidebar-active-foreground'
+                    : 'text-muted-foreground group-hover:text-foreground',
+                )}
               />
-              <span>{t(item.name)}</span>
+              <span>{resolveLabel(item)}</span>
               {isActive && (
                 <div className="ml-auto w-1.5 h-1.5 bg-sidebar-active-foreground rounded-full"></div>
               )}
@@ -261,7 +390,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, isOpen, onClose }) 
                           : 'text-muted-foreground group-hover:text-foreground'
                       )} 
                     />
-                    <span className="flex-1 text-left">{t(item.name)}</span>
+                    <span className="flex-1 text-left">{resolveLabel(item)}</span>
                     {isExpanded ? (
                       <ChevronDown className="h-4 w-4 text-muted-foreground" />
                     ) : (
@@ -294,7 +423,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, isOpen, onClose }) 
                                   : 'text-muted-foreground group-hover:text-foreground'
                               )} 
                             />
-                            <span className="text-xs">{t(child.name)}</span>
+                            <span className="text-xs">{resolveLabel(child)}</span>
                             {isActive && (
                               <div className="ml-auto w-1.5 h-1.5 bg-sidebar-active-foreground rounded-full"></div>
                             )}
@@ -329,7 +458,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, isOpen, onClose }) 
                       : 'text-muted-foreground group-hover:text-foreground'
                   )} 
                 />
-                <span>{t(item.name)}</span>
+                <span>{resolveLabel(item)}</span>
                 {isActive && (
                   <div className="ml-auto w-1.5 h-1.5 bg-sidebar-active-foreground rounded-full"></div>
                 )}

@@ -70,9 +70,10 @@ import { LocalizationsDetails } from './pages/localizations/LocalizationsDetails
 import { LocalizationsCreate } from './pages/localizations/LocalizationsCreate';
 
 // Associations
-import { AssociationsList } from './pages/associations/AssociationsList';
-import { AssociationsDetails } from './pages/associations/AssociationsDetails';
+import { AssociationTypesList } from './pages/associations/AssociationTypesList';
+import { AssociationTypeDetails } from './pages/associations/AssociationTypeDetails';
 import { AssociationsCreate } from './pages/associations/AssociationsCreate';
+import { AssociationsRecordsList } from './pages/associations/AssociationsRecordsList';
 
 // Notifications
 import { NotificationRulesList } from './pages/notifications/NotificationRulesList';
@@ -138,9 +139,10 @@ const GuardedLocalizationsList = withPermission(PERMISSIONS.SYSTEM.LOCALIZATIONS
 const GuardedLocalizationsDetails = withPermission(PERMISSIONS.SYSTEM.LOCALIZATIONS.VIEW)(LocalizationsDetails);
 const GuardedLocalizationsCreate = withPermission(PERMISSIONS.SYSTEM.LOCALIZATIONS.CREATE)(LocalizationsCreate);
 
-const GuardedAssociationsList = withPermission(PERMISSIONS.SYSTEM.ASSOCIATIONS.LIST)(AssociationsList);
-const GuardedAssociationsDetails = withPermission(PERMISSIONS.SYSTEM.ASSOCIATIONS.VIEW)(AssociationsDetails);
-const GuardedAssociationsCreate = withPermission(PERMISSIONS.SYSTEM.ASSOCIATIONS.CREATE)(AssociationsCreate);
+const GuardedAssociationTypesList = withPermission(PERMISSIONS.SYSTEM.ASSOCIATIONS.LIST)(AssociationTypesList);
+const GuardedAssociationTypeDetails = withPermission(PERMISSIONS.SYSTEM.ASSOCIATIONS.VIEW)(AssociationTypeDetails);
+const GuardedAssociationTypesCreate = withPermission(PERMISSIONS.SYSTEM.ASSOCIATIONS.CREATE)(AssociationsCreate);
+const GuardedAssociationsList = withPermission(PERMISSIONS.SYSTEM.ASSOCIATIONS.LIST)(AssociationsRecordsList);
 
 const GuardedNotificationRulesList = withPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.LIST)(NotificationRulesList);
 const GuardedNotificationRulesDetails = withPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.VIEW)(NotificationRulesDetails);
@@ -235,9 +237,10 @@ const CREATE_ACTIONS: CreateActionConfig[] = [
     labelKey: 'users.create_title',
   },
   {
-    basePath: '/associations',
-    createPath: '/associations/create',
-    labelKey: 'associations.create_title',
+    basePath: '/association-types',
+    createPath: '/association-types/create',
+    labelKey: 'association_types.create_title',
+    permission: PERMISSIONS.SYSTEM.ASSOCIATIONS.CREATE,
   },
   {
     basePath: '/notifications/rules',
@@ -271,7 +274,7 @@ const EDIT_ACTIONS: EditActionConfig[] = [
   { basePath: '/permission-groups', permission: PERMISSIONS.SYSTEM.PERMISSION_GROUPS.UPDATE },
   { basePath: '/localizations', permission: PERMISSIONS.SYSTEM.LOCALIZATIONS.UPDATE },
   { basePath: '/users', permission: PERMISSIONS.SYSTEM.USERS.UPDATE },
-  { basePath: '/associations' },
+  { basePath: '/association-types' },
   { basePath: '/notifications/rules', permission: PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.UPDATE },
   { basePath: '/notifications/channels', permission: PERMISSIONS.SYSTEM.NOTIFICATIONS.CHANNELS.UPDATE },
   { basePath: '/notifications/templates', permission: PERMISSIONS.SYSTEM.NOTIFICATIONS.TEMPLATES.UPDATE },
@@ -429,9 +432,10 @@ const AppContentInner: React.FC = () => {
         <Route path="/localizations/create" element={<GuardedLocalizationsCreate />} />
         
         {/* Associations Routes */}
+        <Route path="/association-types" element={<GuardedAssociationTypesList />} />
+        <Route path="/association-types/create" element={<GuardedAssociationTypesCreate />} />
+        <Route path="/association-types/:id" element={<GuardedAssociationTypeDetails />} />
         <Route path="/associations" element={<GuardedAssociationsList />} />
-        <Route path="/associations/:id" element={<GuardedAssociationsDetails />} />
-        <Route path="/associations/create" element={<GuardedAssociationsCreate />} />
         
         {/* Notifications Routes */}
               <Route path="/notifications/rules" element={<GuardedNotificationRulesList />} />

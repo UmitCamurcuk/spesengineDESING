@@ -12,17 +12,25 @@ interface StepperProps {
   steps: Step[];
   currentStep: number;
   className?: string;
+  onStepChange?: (index: number) => void;
 }
 
 export const Stepper: React.FC<StepperProps> = ({
   steps,
   currentStep,
   className,
+  onStepChange,
 }) => {
+  const handleStepClick = (index: number) => {
+    if (onStepChange) {
+      onStepChange(index);
+    }
+  };
+
   return (
     <div className={cn('w-full', className)}>
       {/* Desktop Stepper */}
-      <div className="hidden md:flex items-center justify-between">
+      <div className="hidden md:flex items-start justify-between gap-4">
         {steps.map((step, index) => {
           const isActive = index === currentStep;
           const isCompleted = index < currentStep;
@@ -30,43 +38,49 @@ export const Stepper: React.FC<StepperProps> = ({
 
           return (
             <React.Fragment key={step.id}>
-              <div className="flex items-center">
-                <div
-                  className={cn(
-                    'flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all duration-200',
-                    isCompleted
-                      ? 'bg-primary border-primary text-white'
-                      : isActive
-                      ? 'border-primary text-primary bg-primary/10'
-                      : 'border-border text-muted-foreground bg-background'
-                  )}
+              <div className="flex flex-1 flex-col items-center text-center px-3">
+                <button
+                  type="button"
+                  onClick={() => handleStepClick(index)}
+                  className="focus:outline-none"
                 >
-                  {isCompleted ? (
-                    <Check className="h-5 w-5" />
-                  ) : (
-                    <span className="text-sm font-medium">{index + 1}</span>
-                  )}
-                </div>
-                <div className="ml-3">
-                  <p
+                  <div
                     className={cn(
-                      'text-sm font-medium',
-                      isActive || isCompleted ? 'text-foreground' : 'text-muted-foreground'
+                      'flex items-center justify-center w-12 h-12 rounded-full border-2 text-sm font-semibold transition-all duration-200',
+                      isCompleted
+                        ? 'bg-primary border-primary text-white shadow-sm'
+                        : isActive
+                        ? 'border-primary text-primary bg-primary/10 shadow-sm'
+                        : 'border-border text-muted-foreground bg-background',
                     )}
                   >
-                    {step.name}
-                  </p>
-                  {step.description && (
-                    <p className="text-xs text-muted-foreground mt-1">{step.description}</p>
+                    {isCompleted ? (
+                      <Check className="h-4 w-4" />
+                    ) : (
+                      index + 1
+                    )}
+                  </div>
+                </button>
+                <p
+                  className={cn(
+                    'mt-3 text-sm font-semibold leading-snug',
+                    isActive || isCompleted ? 'text-foreground' : 'text-muted-foreground',
                   )}
-                </div>
+                >
+                  {step.name}
+                </p>
+                {step.description ? (
+                  <p className="text-[11px] text-muted-foreground mt-1 leading-snug max-w-[12rem]">
+                    {step.description}
+                  </p>
+                ) : null}
               </div>
-              
+
               {!isLast && (
                 <div
                   className={cn(
-                    'flex-1 h-0.5 mx-4 transition-all duration-200',
-                    isCompleted ? 'bg-primary' : 'bg-border'
+                    'flex-1 h-px mt-6 transition-all duration-200',
+                    isCompleted ? 'bg-primary' : 'bg-border',
                   )}
                 />
               )}
@@ -77,96 +91,31 @@ export const Stepper: React.FC<StepperProps> = ({
 
       {/* Mobile Stepper */}
       <div className="md:hidden">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-3">
           <div className="text-sm font-medium text-foreground">
-            Step {currentStep + 1} of {steps.length}
+            Step {currentStep + 1} / {steps.length}
           </div>
-          <div className="text-sm text-muted-foreground">
+          <div className="text-xs text-muted-foreground uppercase tracking-wide">
             {Math.round(((currentStep + 1) / steps.length) * 100)}%
           </div>
         </div>
-        
-        {/* Progress Bar */}
-        <div className="w-full bg-border rounded-full h-2 mb-4">
-          <div 
+
+        <div className="w-full bg-border rounded-full h-2 mb-4 overflow-hidden">
+          <div
             className="bg-primary h-2 rounded-full transition-all duration-300"
             style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
           />
         </div>
-        
-        {/* Current Step Info */}
+
         <div className="text-center">
-          <h3 className="text-lg font-semibold text-foreground">
-            {steps[currentStep].name}
-          </h3>
+          <h3 className="text-base font-semibold text-foreground">{steps[currentStep].name}</h3>
           {steps[currentStep].description && (
-            <p className="text-sm text-muted-foreground mt-1">
+            <p className="text-xs text-muted-foreground mt-1 leading-snug">
               {steps[currentStep].description}
             </p>
           )}
         </div>
       </div>
-    </div>
-  );
-};
-
-export const Stepper2: React.FC<StepperProps> = ({
-  steps,
-  currentStep,
-  className,
-}) => {
-  return (
-    <div className={cn('w-full', className)}>
-      {steps.map((step, index) => {
-        const isActive = index === currentStep;
-        const isCompleted = index < currentStep;
-        const isLast = index === steps.length - 1;
-
-        return (
-          <React.Fragment key={step.id}>
-            <div className="flex items-center">
-              <div
-                className={cn(
-                  'flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all duration-200',
-                  isCompleted
-                    ? 'bg-primary border-primary text-white'
-                    : isActive
-                    ? 'border-primary text-primary bg-primary/10'
-                    : 'border-border text-muted-foreground bg-background'
-                )}
-              >
-                {isCompleted ? (
-                  <Check className="h-5 w-5" />
-                ) : (
-                  <span className="text-sm font-medium">{index + 1}</span>
-                )}
-              </div>
-              <div className="ml-3">
-                <p
-                  className={cn(
-                    'text-sm font-medium',
-                    isActive || isCompleted ? 'text-foreground' : 'text-muted-foreground'
-                  )}
-                >
-                  {step.name}
-                </p>
-                {step.description && (
-                  <p className="text-xs text-muted-foreground mt-1">{step.description}</p>
-                )}
-              </div>
-            </div>
-            
-            {!isLast && (
-              <div
-                className={cn(
-                  'flex-1 h-0.5 mx-4 transition-all duration-200',
-                  isCompleted ? 'bg-primary' : 'bg-border'
-                )}
-              />
-            )}
-          </React.Fragment>
-        );
-      })}
     </div>
   );
 };

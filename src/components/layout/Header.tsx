@@ -36,10 +36,23 @@ interface HeaderProps {
   actions?: React.ReactNode;
 }
 
+const HIDE_TITLE_ROUTES = ['/association-types/create'];
+
 const getPageTitle = (pathname: string, t: (key: string) => string) => {
   const segments = pathname.split('/').filter(Boolean);
   
   if (segments.length === 0) return t('navigation.dashboard');
+
+  const associationTypesLabelRaw = t('navigation.association_types');
+  const associationTypesLabel =
+    associationTypesLabelRaw && associationTypesLabelRaw !== 'navigation.association_types'
+      ? associationTypesLabelRaw
+      : 'Association Tipleri';
+  const associationsRecordsLabelRaw = t('navigation.associations_records');
+  const associationsRecordsLabel =
+    associationsRecordsLabelRaw && associationsRecordsLabelRaw !== 'navigation.associations_records'
+      ? associationsRecordsLabelRaw
+      : 'Association Kayıtları';
   
   const pageMap: Record<string, string> = {
     'dashboard': t('navigation.dashboard'),
@@ -54,7 +67,8 @@ const getPageTitle = (pathname: string, t: (key: string) => string) => {
     'permissions': t('navigation.permissions'),
     'permission-groups': t('navigation.permission_groups'),
     'localizations': t('navigation.localizations'),
-    'associations': t('navigation.associations'),
+    'association-types': associationTypesLabel,
+    'associations': associationsRecordsLabel,
     'profile': 'Profil',
   };
   
@@ -77,6 +91,17 @@ const getBreadcrumbs = (pathname: string, t: (key: string) => string) => {
   const breadcrumbs = [{ name: t('navigation.dashboard'), path: '/dashboard' }];
   
   if (segments.length === 0) return breadcrumbs;
+
+  const associationTypesLabelRaw = t('navigation.association_types');
+  const associationTypesLabel =
+    associationTypesLabelRaw && associationTypesLabelRaw !== 'navigation.association_types'
+      ? associationTypesLabelRaw
+      : 'Association Tipleri';
+  const associationsRecordsLabelRaw = t('navigation.associations_records');
+  const associationsRecordsLabel =
+    associationsRecordsLabelRaw && associationsRecordsLabelRaw !== 'navigation.associations_records'
+      ? associationsRecordsLabelRaw
+      : 'Association Kayıtları';
   
   const pageMap: Record<string, string> = {
     'dashboard': t('navigation.dashboard'),
@@ -91,7 +116,8 @@ const getBreadcrumbs = (pathname: string, t: (key: string) => string) => {
     'permissions': t('navigation.permissions'),
     'permission-groups': t('navigation.permission_groups'),
     'localizations': t('navigation.localizations'),
-    'associations': t('navigation.associations'),
+    'association-types': associationTypesLabel,
+    'associations': associationsRecordsLabel,
     'profile': 'Profil',
   };
   
@@ -125,6 +151,10 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onMenuClick, act
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const shouldHideTitle = useMemo(
+    () => HIDE_TITLE_ROUTES.some((route) => location.pathname.startsWith(route)),
+    [location.pathname],
+  );
   
   const entityMetadata = useMemo(
     () =>
@@ -385,31 +415,35 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onMenuClick, act
 
           {/* Page Title & Breadcrumbs */}
           <div className="flex-1 min-w-0">
-            <h1 className="text-base sm:text-lg font-semibold text-foreground truncate">
-              {pageTitle}
-            </h1>
-            
-            {/* Desktop Breadcrumbs */}
-            <div className="hidden sm:flex items-center space-x-1 mt-0.5">
-              {breadcrumbs.map((crumb, index) => (
-                <React.Fragment key={`${crumb.path}-${index}`}>
-                  {index > 0 && (
-                    <span className="text-muted-foreground text-sm">/</span>
-                  )}
-                  <button
-                    onClick={() => navigate(crumb.path)}
-                    className={`text-xs transition-colors ${
-                      index === breadcrumbs.length - 1
-                        ? 'text-muted-foreground cursor-default'
-                        : 'text-primary hover:text-primary-hover'
-                    }`}
-                    disabled={index === breadcrumbs.length - 1}
-                  >
-                    {index === 0 ? <Home className="h-3 w-3" /> : crumb.name}
-                  </button>
-                </React.Fragment>
-              ))}
-            </div>
+            {shouldHideTitle ? null : (
+              <>
+                <h1 className="text-base sm:text-lg font-semibold text-foreground truncate">
+                  {pageTitle}
+                </h1>
+
+                {/* Desktop Breadcrumbs */}
+                <div className="hidden sm:flex items-center space-x-1 mt-0.5">
+                  {breadcrumbs.map((crumb, index) => (
+                    <React.Fragment key={`${crumb.path}-${index}`}>
+                      {index > 0 && (
+                        <span className="text-muted-foreground text-sm">/</span>
+                      )}
+                      <button
+                        onClick={() => navigate(crumb.path)}
+                        className={`text-xs transition-colors ${
+                          index === breadcrumbs.length - 1
+                            ? 'text-muted-foreground cursor-default'
+                            : 'text-primary hover:text-primary-hover'
+                        }`}
+                        disabled={index === breadcrumbs.length - 1}
+                      >
+                        {index === 0 ? <Home className="h-3 w-3" /> : crumb.name}
+                      </button>
+                    </React.Fragment>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
         <div className="flex items-center space-x-2 sm:space-x-3">

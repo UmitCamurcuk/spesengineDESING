@@ -1,7 +1,7 @@
 import apiClient from '../client/axios';
 import { API_ENDPOINTS } from '../endpoints';
 import type { ApiSuccessResponse } from '../types/api.types';
-import type { AssociationType, UserReference } from '../../types';
+import type { AssociationType, AssociationTypeItemRef, UserReference } from '../../types';
 
 type BackendUserSummary =
   | (UserReference & {
@@ -9,6 +9,14 @@ type BackendUserSummary =
     })
   | string
   | null;
+
+type BackendAssociationTypeItemRef = {
+  id: string;
+  key: string;
+  nameLocalizationId?: string | null;
+  name?: string | null;
+  nameLanguage?: string | null;
+};
 
 type BackendAssociationType = {
   id: string;
@@ -22,6 +30,8 @@ type BackendAssociationType = {
   descriptionLanguage?: string | null;
   sourceItemTypeId?: string | null;
   targetItemTypeId?: string | null;
+  sourceItemType?: BackendAssociationTypeItemRef | null;
+  targetItemType?: BackendAssociationTypeItemRef | null;
   cardinality: AssociationType['cardinality'];
   isRequired: boolean;
   direction: AssociationType['direction'];
@@ -60,6 +70,24 @@ const mapAssociationType = (type: BackendAssociationType): AssociationType => ({
   descriptionLanguage: type.descriptionLanguage ?? null,
   sourceItemTypeId: type.sourceItemTypeId ?? null,
   targetItemTypeId: type.targetItemTypeId ?? null,
+  sourceItemType: type.sourceItemType
+    ? {
+        id: type.sourceItemType.id,
+        key: type.sourceItemType.key,
+        nameLocalizationId: type.sourceItemType.nameLocalizationId ?? null,
+        name: type.sourceItemType.name ?? null,
+        nameLanguage: type.sourceItemType.nameLanguage ?? null,
+      }
+    : null,
+  targetItemType: type.targetItemType
+    ? {
+        id: type.targetItemType.id,
+        key: type.targetItemType.key,
+        nameLocalizationId: type.targetItemType.nameLocalizationId ?? null,
+        name: type.targetItemType.name ?? null,
+        nameLanguage: type.targetItemType.nameLanguage ?? null,
+      }
+    : null,
   cardinality: type.cardinality,
   isRequired: Boolean(type.isRequired),
   direction: type.direction,
@@ -85,6 +113,16 @@ export interface AssociationTypeCreateRequest {
   isRequired?: boolean;
   direction?: AssociationType['direction'];
   metadataSchema?: Record<string, unknown> | null;
+}
+
+export interface AssociationTypeUpdateRequest {
+  nameLocalizationId?: string;
+  descriptionLocalizationId?: string | null;
+  cardinality?: AssociationType['cardinality'];
+  isRequired?: boolean;
+  direction?: AssociationType['direction'];
+  metadataSchema?: Record<string, unknown> | null;
+  comment?: string;
 }
 
 export const associationTypesService = {
@@ -115,6 +153,14 @@ export const associationTypesService = {
   async create(payload: AssociationTypeCreateRequest): Promise<AssociationType> {
     const response = await apiClient.post<ApiSuccessResponse<BackendAssociationType>>(
       API_ENDPOINTS.ASSOCIATION_TYPES.BASE,
+      payload,
+    );
+    return mapAssociationType(response.data.data);
+  },
+
+  async update(id: string, payload: AssociationTypeUpdateRequest): Promise<AssociationType> {
+    const response = await apiClient.put<ApiSuccessResponse<BackendAssociationType>>(
+      API_ENDPOINTS.ASSOCIATION_TYPES.BY_ID(id),
       payload,
     );
     return mapAssociationType(response.data.data);

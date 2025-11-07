@@ -20,9 +20,10 @@ export const LazyAttributeGroupsCreate = lazy(() => import('../../pages/attribut
 export const LazyAttributesList = lazy(() => import('../../pages/attributes/AttributesList'));
 export const LazyAttributesDetails = lazy(() => import('../../pages/attributes/AttributesDetails'));
 export const LazyAttributesCreate = lazy(() => import('../../pages/attributes/AttributesCreate'));
-export const LazyAssociationsList = lazy(() => import('../../pages/associations/AssociationsList'));
-export const LazyAssociationsDetails = lazy(() => import('../../pages/associations/AssociationsDetails'));
-export const LazyAssociationsCreate = lazy(() => import('../../pages/associations/AssociationsCreate'));
+export const LazyAssociationTypesList = lazy(() => import('../../pages/associations/AssociationTypesList'));
+export const LazyAssociationTypeDetails = lazy(() => import('../../pages/associations/AssociationTypeDetails'));
+export const LazyAssociationTypesCreate = lazy(() => import('../../pages/associations/AssociationsCreate'));
+export const LazyAssociationsRecordsList = lazy(() => import('../../pages/associations/AssociationsRecordsList'));
 export const LazyUsersList = lazy(() => import('../../pages/users/UsersList'));
 export const LazyUsersDetails = lazy(() => import('../../pages/users/UsersDetails'));
 export const LazyUsersCreate = lazy(() => import('../../pages/users/UsersCreate'));

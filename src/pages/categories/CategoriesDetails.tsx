@@ -74,7 +74,7 @@ interface CategoryDetailsTabProps {
   linkedFamilyIds: string[];
   onLinkedFamiliesChange: (ids: string[]) => void;
   familyDisplayMap: Map<string, string>;
-  categoryMap: Map<string, Category>;
+  categoryLookup: Map<string, Category>;
   localizationsLoading?: boolean;
   localizationsError?: string | null;
 }
@@ -151,7 +151,7 @@ const CategoryDetailsTab: React.FC<CategoryDetailsTabProps> = ({
   linkedFamilyIds,
   onLinkedFamiliesChange,
   familyDisplayMap,
-  categoryMap,
+  categoryLookup,
   localizationsLoading,
   localizationsError,
 }) => {
@@ -364,7 +364,7 @@ const CategoryDetailsTab: React.FC<CategoryDetailsTabProps> = ({
                       {category.parentCategoryId ? (
                         <div className="flex items-center gap-2 flex-wrap">
                           <Badge variant="outline">
-                            {categoryMap.get(category.parentCategoryId)?.name ??
+                            {categoryLookup.get(category.parentCategoryId)?.name ??
                               category.parentCategoryId}
                           </Badge>
                           <code className="text-xs text-muted-foreground">
@@ -979,7 +979,7 @@ const CategoriesDetails: React.FC = () => {
     return exists ? categoryOptions : [...categoryOptions, categoryDraft];
   }, [categoryDraft, categoryOptions]);
 
-  const categoryMap = useMemo(() => {
+  const categoryLookup = useMemo(() => {
     const map = new Map<string, Category>();
     extendedCategoryOptions.forEach((item) => map.set(item.id, item));
     return map;
@@ -1539,7 +1539,7 @@ const CategoriesDetails: React.FC = () => {
         linkedFamilyIds,
         onLinkedFamiliesChange: handleLinkedFamiliesChange,
         familyDisplayMap,
-        categoryMap,
+        categoryLookup,
         localizationsLoading,
         localizationsError,
       },

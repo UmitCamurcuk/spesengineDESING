@@ -1,13 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Zap } from 'lucide-react';
+import { Zap } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable } from '../../components/ui/DataTable';
-import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { useAuth } from '../../contexts/AuthContext';
-import { PERMISSIONS } from '../../config/permissions';
 import { associationsService } from '../../api/services/associations.service';
 import { itemsService } from '../../api/services/items.service';
 import type { Association, Item } from '../../types';
@@ -19,12 +16,9 @@ type ItemLookup = {
   name?: string | null;
 };
 
-export const AssociationsList: React.FC = () => {
+export const AssociationsRecordsList: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useLanguage();
-  const { hasPermission } = useAuth();
-
-  const canCreateAssociation = hasPermission(PERMISSIONS.SYSTEM.ASSOCIATIONS.CREATE);
 
   const [associations, setAssociations] = useState<Association[]>([]);
   const [itemsLookup, setItemsLookup] = useState<Map<string, ItemLookup>>(new Map());
@@ -56,7 +50,7 @@ export const AssociationsList: React.FC = () => {
       console.error('Failed to load associations', err);
       setError(
         err?.response?.data?.error?.message ??
-          t('associations.failed_to_load') ??
+          t('associations.records.failed_to_load') ??
           'Association listesi yüklenemedi. Lütfen daha sonra tekrar deneyin.',
       );
     } finally {
@@ -82,7 +76,7 @@ export const AssociationsList: React.FC = () => {
     () => [
       {
         key: 'associationTypeId',
-        title: t('associations.columns.type') || 'Association Type',
+        title: t('associations.records.columns.type') || 'Association Type',
         render: (_: unknown, association: Association) => (
           <Badge variant="primary" size="sm">
             {association.associationTypeId ?? '—'}
@@ -91,21 +85,21 @@ export const AssociationsList: React.FC = () => {
       },
       {
         key: 'sourceItemId',
-        title: t('associations.columns.source_item') || 'Source Item',
+        title: t('associations.records.columns.source_item') || 'Source Item',
         render: (_: unknown, association: Association) => (
           <span className="text-sm text-foreground">{resolveItemLabel(association.sourceItemId)}</span>
         ),
       },
       {
         key: 'targetItemId',
-        title: t('associations.columns.target_item') || 'Target Item',
+        title: t('associations.records.columns.target_item') || 'Target Item',
         render: (_: unknown, association: Association) => (
           <span className="text-sm text-foreground">{resolveItemLabel(association.targetItemId)}</span>
         ),
       },
       {
         key: 'orderIndex',
-        title: t('associations.columns.order') || 'Order',
+        title: t('associations.records.columns.order') || 'Order',
         render: (_: unknown, association: Association) => (
           <span className="text-sm text-muted-foreground">
             {association.orderIndex ?? '—'}
@@ -114,7 +108,7 @@ export const AssociationsList: React.FC = () => {
       },
       {
         key: 'updatedAt',
-        title: t('associations.columns.updated_at') || 'Updated',
+        title: t('associations.records.columns.updated_at') || 'Updated',
         render: (_: unknown, association: Association) => (
           <UserInfoWithRole user={association.updatedBy} date={association.updatedAt} />
         ),
@@ -123,25 +117,13 @@ export const AssociationsList: React.FC = () => {
     [resolveItemLabel, t],
   );
 
-  const handleRowClick = useCallback(
-    (association: Association) => {
-      navigate(`/associations/${association.id}`);
-    },
-    [navigate],
-  );
-
   return (
     <div className="h-full flex flex-col">
       <PageHeader
-        title={t('associations.title') || 'Associations'}
-        subtitle={t('associations.subtitle') || 'Itemlar arasında ilişkileri yönetin'}
-        actions={
-          canCreateAssociation ? (
-            <Button onClick={() => navigate('/associations/create')}>
-              <Plus className="h-4 w-4 mr-2" />
-              {t('associations.create_title') || 'Create Association'}
-            </Button>
-          ) : undefined
+        title={t('associations.records.title') || 'Associations'}
+        subtitle={
+          t('associations.records.subtitle') ||
+          'Oluşturulmuş item ilişkilerini ve bağlantıları görüntüleyin.'
         }
       />
 
@@ -156,20 +138,14 @@ export const AssociationsList: React.FC = () => {
           data={associations}
           columns={columns}
           loading={loading}
-          searchPlaceholder={t('associations.search_placeholder') || 'Search associations...'}
-          onRowClick={handleRowClick}
+          searchPlaceholder={t('associations.records.search_placeholder') || 'Search associations...'}
           emptyState={{
             icon: <Zap className="h-12 w-12" />,
-            title: t('associations.empty_state') || 'Henüz association oluşturulmadı.',
+            title: t('associations.records.empty_state') || 'Henüz association kaydı yok.',
             description:
-              t('associations.empty_state_description') ||
-              'Katalog öğeleri arasında ilişki oluşturmak için yeni association ekleyin.',
-            action: canCreateAssociation ? (
-              <Button onClick={() => navigate('/associations/create')}>
-                <Plus className="h-4 w-4 mr-2" />
-                {t('associations.create_title') || 'Create Association'}
-              </Button>
-            ) : undefined,
+              t('associations.records.empty_state_description') ||
+              'Item oluştururken ilişkiler otomatik olarak burada listelenir.',
+            action: undefined,
           }}
         />
       </div>
@@ -177,4 +153,4 @@ export const AssociationsList: React.FC = () => {
   );
 };
 
-export default AssociationsList;
+export default AssociationsRecordsList;
