@@ -225,7 +225,7 @@ export const AssociationsCreate: React.FC = () => {
         name: t('associations.create.details_behavior_title') || 'İlişki Ayarları',
         description:
           t('associations.create.details_behavior_subtitle') ||
-          'Kaynak/hedef item tiplerini ve cardinality ayarlarını seçin.',
+          'Kaynak/hedef öğe tiplerini ve cardinality ayarlarını seçin.',
       },
       {
         id: 'scope' as StepId,
@@ -954,7 +954,7 @@ export const AssociationsCreate: React.FC = () => {
             type: 'error',
             message:
               t('associations.create.validation.item_types') ||
-              'Kaynak ve hedef item tiplerini seçmelisiniz.',
+              'Kaynak ve hedef öğe tiplerini seçmelisiniz.',
           });
           return false;
         }
@@ -1274,14 +1274,14 @@ export const AssociationsCreate: React.FC = () => {
           title={t('associations.create.details_behavior_title') || 'İlişki Ayarları'}
           subtitle={
             t('associations.create.details_behavior_subtitle') ||
-            'Kaynak/hedef item tiplerini, kardinaliteyi ve yönü belirleyin.'
+            'Kaynak/hedef öğe tiplerini, kardinaliteyi ve yönü belirleyin.'
           }
         >
           <div className="space-y-5">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-foreground mb-1">
-                  {t('associations.fields.source_item_type') || 'Kaynak Item Tipi'}
+                  {t('associations.fields.source_item_type') || 'Kaynak Öğe Tipi'}
                 </label>
                 <select
                   value={details.sourceItemTypeId}
@@ -1289,7 +1289,7 @@ export const AssociationsCreate: React.FC = () => {
                   className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 >
                   <option value="">
-                    {t('associations.create.select_source_item_type') || 'Kaynak item tipi seçin'}
+                    {t('associations.create.select_source_item_type') || 'Kaynak öğe tipi seçin'}
                   </option>
                   {itemTypes.map((type) => (
                     <option key={type.id} value={type.id}>
@@ -1300,7 +1300,7 @@ export const AssociationsCreate: React.FC = () => {
               </div>
               <div>
                 <label className="block text-xs font-medium text-foreground mb-1">
-                  {t('associations.fields.target_item_type') || 'Hedef Item Tipi'}
+                  {t('associations.fields.target_item_type') || 'Hedef Öğe Tipi'}
                 </label>
                 <select
                   value={details.targetItemTypeId}
@@ -1308,7 +1308,7 @@ export const AssociationsCreate: React.FC = () => {
                   className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 >
                   <option value="">
-                    {t('associations.create.select_target_item_type') || 'Hedef item tipi seçin'}
+                    {t('associations.create.select_target_item_type') || 'Hedef öğe tipi seçin'}
                   </option>
                   {itemTypes.map((type) => (
                     <option key={type.id} value={type.id}>
@@ -1390,7 +1390,7 @@ export const AssociationsCreate: React.FC = () => {
                     {t('associations.fields.is_required') || 'Zorunlu Association'}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {t('associations.create.details_required_hint') || 'Zorunlu olduğunda item oluştururken atlanamaz.'}
+                    {t('associations.create.details_required_hint') || 'Zorunlu olduğunda öğe oluştururken atlanamaz.'}
                   </p>
                 </div>
                 <Checkbox
@@ -1438,12 +1438,12 @@ const renderScopeStep = () => {
     const categoryEmptyState = scopeCategorySelectDisabled
       ? details.sourceItemTypeId
         ? t('associations.create.scope_categories_empty_for_type') ||
-          'Bu item tipine ait kategori bulunmuyor.'
-        : t('associations.create.scope_categories_disabled') || 'Önce kaynak item tipini seçin.'
+          'Bu öğe tipine ait kategori bulunmuyor.'
+        : t('associations.create.scope_categories_disabled') || 'Önce kaynak öğe tipini seçin.'
       : t('associations.create.scope_categories_hint') || 'Uygun kategori bulunamadı.';
 
     const familyEmptyState = scopeCategorySelectDisabled
-      ? t('associations.create.scope_families_disabled') || 'Önce kaynak item tipini seçin.'
+      ? t('associations.create.scope_families_disabled') || 'Önce kaynak öğe tipini seçin.'
       : defaultScope.categoryIds.length === 0
         ? t('associations.create.scope_families_select_categories') || 'Önce kategori seçmelisiniz.'
         : t('associations.create.scope_families_empty') || 'Seçilen kategorilere ait family bulunamadı.';
@@ -1611,7 +1611,7 @@ const renderScopeStep = () => {
                     emptyState={
                       <span className="text-xs text-muted-foreground">
                         {disableSourceCategories
-                          ? t('associations.create.scope_categories_disabled') || 'Önce kaynak item tipini seçin.'
+                          ? t('associations.create.scope_categories_disabled') || 'Önce kaynak öğe tipini seçin.'
                           : t('associations.create.rule_source_hint') ||
                             'Boş bırakırsanız tüm kategorilerde tetiklenir.'}
                       </span>
@@ -1688,7 +1688,7 @@ const renderScopeStep = () => {
                     emptyState={
                       <span className="text-xs text-muted-foreground">
                         {disableTargetCategories
-                          ? t('associations.create.rule_target_disabled') || 'Önce hedef item tipini seçin.'
+                          ? t('associations.create.rule_target_disabled') || 'Önce hedef öğe tipini seçin.'
                           : t('associations.create.rule_target_hint') ||
                             'Boş bırakılırsa hedef tarafında tüm kategoriler listelenir.'}
                       </span>
@@ -1894,7 +1894,7 @@ const renderScopeStep = () => {
               )}
               <p className="text-xs text-muted-foreground">
                 {t('associations.create.attribute_filters_hint') ||
-                  'Örnek: source item attribute’unda kumaş_türü=rose ise bu kural tetiklensin.'}
+                  'Örnek: kaynak öğe attribute’unda kumaş_türü=rose ise bu kural tetiklensin.'}
               </p>
             </div>
 
@@ -1938,13 +1938,13 @@ const renderScopeStep = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             <div>
               <span className="font-medium text-foreground">
-                {t('associations.review.source_item_type') || 'Kaynak Item Tipi'}:
+                {t('associations.review.source_item_type') || 'Kaynak Öğe Tipi'}:
               </span>{' '}
               {itemTypes.find((type) => type.id === details.sourceItemTypeId)?.name || '—'}
             </div>
             <div>
               <span className="font-medium text-foreground">
-                {t('associations.review.target_item_type') || 'Hedef Item Tipi'}:
+                {t('associations.review.target_item_type') || 'Hedef Öğe Tipi'}:
               </span>{' '}
               {itemTypes.find((type) => type.id === details.targetItemTypeId)?.name || '—'}
             </div>

@@ -79,6 +79,17 @@ const safeSetItem = (key: string, value: string): void => {
   }
 };
 
+const safeRemoveItem = (key: string): void => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  try {
+    localStorage.removeItem(key);
+  } catch (error) {
+    console.warn('LanguageContext: unable to access localStorage.removeItem', error);
+  }
+};
+
 const safeReadBundle = (cacheKey: string): CachedLocalizationBundle | null => {
   const raw = safeGetItem(storageKeyForBundle(cacheKey));
   if (!raw) {
@@ -107,6 +118,10 @@ const safeWriteBundle = (cacheKey: string, bundle: LocalizationExportBundle): vo
     fetchedAt: Date.now(),
   };
   safeSetItem(storageKeyForBundle(cacheKey), JSON.stringify(payload));
+  const [tenantPart, languagePart] = cacheKey.split(':', 2);
+  if (tenantPart && tenantPart !== GLOBAL_TENANT_KEY && languagePart) {
+    safeRemoveItem(storageKeyForBundle(`${GLOBAL_TENANT_KEY}:${languagePart}`));
+  }
 };
 
 const createEmptyBundle = (): LocalizationExportBundle => ({

@@ -150,7 +150,7 @@ export const AttributeGroupsList: React.FC = () => {
     <div className="flex flex-col h-full">
       <PageHeader
         title={t('attributeGroups.title') || 'Attribute Grupları'}
-        subtitle={t('attributeGroups.subtitle') || 'Ürün verisi için kullanılan attribute grupları'}
+        subtitle={t('attributeGroups.subtitle') || 'Öğe verisi için kullanılan attribute grupları'}
         actions={
           canCreateGroup
             ? [

@@ -29,6 +29,7 @@ import { Documentation } from '../../components/common/Documentation';
 import { APITester } from '../../components/common/APITester';
 import { NotificationSettings } from '../../components/common/NotificationSettings';
 import { HistoryTable } from '../../components/common/HistoryTable';
+import { ChangeConfirmDialog } from '../../components/ui/ChangeConfirmDialog';
 import { categoriesService } from '../../api/services/categories.service';
 import { familiesService } from '../../api/services/families.service';
 import { itemTypesService } from '../../api/services/item-types.service';
@@ -59,10 +60,24 @@ type AvailableColumn = {
   options?: Record<string, unknown>;
 };
 
+type ChangeSummary = {
+  field: string;
+  oldValue: string | number | boolean | null;
+  newValue: string | number | boolean | null;
+};
+
+interface ItemTypeEditFormState {
+  lifecycleStatus: ItemType['lifecycleStatus'];
+  showInNavbar: boolean;
+}
+
 interface ItemTypeDetailsTabProps {
   itemType: ItemType;
   categoryNames: string[];
   familyNames: string[];
+  editMode: boolean;
+  formState: ItemTypeEditFormState | null;
+  onFormChange: (patch: Partial<ItemTypeEditFormState>) => void;
 }
 
 interface ItemTypeAttributeGroupsTabProps {
@@ -80,8 +95,19 @@ const ItemTypeDetailsTab: React.FC<ItemTypeDetailsTabProps> = ({
   itemType,
   categoryNames,
   familyNames,
+  editMode,
+  formState,
+  onFormChange,
 }) => {
   const { t } = useLanguage();
+  const lifecycleOptions = useMemo(
+    () => [
+      { value: 'draft', label: t('item_types.lifecycle.draft') || 'Taslak' },
+      { value: 'active', label: t('item_types.lifecycle.active') || 'Aktif' },
+      { value: 'deprecated', label: t('item_types.lifecycle.deprecated') || 'Kaldırıldı' },
+    ],
+    [t],
+  );
 
   const resolveUserDisplay = (user: ItemType['createdBy']) => {
     if (!user) {
@@ -100,9 +126,9 @@ const ItemTypeDetailsTab: React.FC<ItemTypeDetailsTabProps> = ({
         ? 'secondary'
         : 'warning';
 
+  const lifecycleValue = formState?.lifecycleStatus ?? itemType.lifecycleStatus;
   const lifecycleLabel =
-    t(`item_types.lifecycle.${itemType.lifecycleStatus}`) ??
-    itemType.lifecycleStatus.toUpperCase();
+    t(`item_types.lifecycle.${lifecycleValue}`) ?? lifecycleValue.toUpperCase();
 
   return (
     <div className="space-y-6">
@@ -118,7 +144,20 @@ const ItemTypeDetailsTab: React.FC<ItemTypeDetailsTabProps> = ({
             <span className="text-xs font-medium text-muted-foreground">
               {t('item_types.fields.lifecycle_status') || 'Lifecycle Status'}
             </span>
-            <Badge variant={lifecycleVariant}>{lifecycleLabel}</Badge>
+            {editMode ? (
+              <Select
+                value={lifecycleValue}
+                onChange={(event) =>
+                  onFormChange({
+                    lifecycleStatus: event.target.value as ItemType['lifecycleStatus'],
+                  })
+                }
+                options={lifecycleOptions}
+                className="mt-1 text-sm"
+              />
+            ) : (
+              <Badge variant={lifecycleVariant}>{lifecycleLabel}</Badge>
+            )}
           </div>
           <div>
             <span className="text-xs font-medium text-muted-foreground">
@@ -140,11 +179,23 @@ const ItemTypeDetailsTab: React.FC<ItemTypeDetailsTabProps> = ({
             <span className="text-xs font-medium text-muted-foreground">
               {t('item_types.fields.show_in_navbar') || 'Show in Navbar'}
             </span>
-            <Badge variant={itemType.showInNavbar ? 'primary' : 'secondary'}>
-              {itemType.showInNavbar
-                ? t('common.active') || 'Active'
-                : t('common.inactive') || 'Inactive'}
-            </Badge>
+            {editMode ? (
+              <Checkbox
+                checked={formState?.showInNavbar ?? itemType.showInNavbar ?? false}
+                onChange={(event) => onFormChange({ showInNavbar: event.target.checked })}
+                label={
+                  (formState?.showInNavbar ?? itemType.showInNavbar)
+                    ? t('common.active') || 'Active'
+                    : t('common.inactive') || 'Inactive'
+                }
+              />
+            ) : (
+              <Badge variant={itemType.showInNavbar ? 'primary' : 'secondary'}>
+                {itemType.showInNavbar
+                  ? t('common.active') || 'Active'
+                  : t('common.inactive') || 'Inactive'}
+              </Badge>
+            )}
           </div>
         </div>
       </Card>
@@ -809,6 +860,11 @@ const ItemTypesDetails: React.FC = () => {
   const [families, setFamilies] = useState<Family[]>([]);
   const [attributeGroups, setAttributeGroups] = useState<AttributeGroup[]>([]);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editForm, setEditForm] = useState<ItemTypeEditFormState | null>(null);
+  const [commentDialogOpen, setCommentDialogOpen] = useState(false);
+  const [pendingChanges, setPendingChanges] = useState<ChangeSummary[]>([]);
 
   const canDelete = hasPermission(PERMISSIONS.CATALOG.ITEM_TYPES.DELETE);
   const canUpdate = hasPermission(PERMISSIONS.CATALOG.ITEM_TYPES.UPDATE);
@@ -869,6 +925,15 @@ const ItemTypesDetails: React.FC = () => {
       cancelled = true;
     };
   }, [id, t]);
+
+  useEffect(() => {
+    if (itemType) {
+      setEditForm({
+        lifecycleStatus: itemType.lifecycleStatus,
+        showInNavbar: Boolean(itemType.showInNavbar),
+      });
+    }
+  }, [itemType]);
 
   const categoryMap = useMemo<EntityMap>(() => {
     const next = new Map<string, string>();
@@ -972,6 +1037,144 @@ const ItemTypesDetails: React.FC = () => {
     return buildItemTypeApiEndpoints(itemType);
   }, [itemType]);
 
+  const handleFormChange = useCallback((patch: Partial<ItemTypeEditFormState>) => {
+    setEditForm((prev) => (prev ? { ...prev, ...patch } : prev));
+  }, []);
+
+  const hasChanges = useMemo(() => {
+    if (!itemType || !editForm) {
+      return false;
+    }
+    if (editForm.lifecycleStatus !== itemType.lifecycleStatus) {
+      return true;
+    }
+    if (editForm.showInNavbar !== Boolean(itemType.showInNavbar)) {
+      return true;
+    }
+    return false;
+  }, [editForm, itemType]);
+
+  const buildChangeSummary = useCallback((): ChangeSummary[] => {
+    if (!itemType || !editForm) {
+      return [];
+    }
+    const summary: ChangeSummary[] = [];
+    if (editForm.lifecycleStatus !== itemType.lifecycleStatus) {
+      summary.push({
+        field: t('item_types.fields.lifecycle_status') || 'Lifecycle Status',
+        oldValue:
+          t(`item_types.lifecycle.${itemType.lifecycleStatus}`) ??
+          itemType.lifecycleStatus.toUpperCase(),
+        newValue:
+          t(`item_types.lifecycle.${editForm.lifecycleStatus}`) ??
+          editForm.lifecycleStatus.toUpperCase(),
+      });
+    }
+    if (editForm.showInNavbar !== Boolean(itemType.showInNavbar)) {
+      summary.push({
+        field: t('item_types.fields.show_in_navbar') || 'Show in Navbar',
+        oldValue: itemType.showInNavbar
+          ? t('common.yes') || 'Yes'
+          : t('common.no') || 'No',
+        newValue: editForm.showInNavbar
+          ? t('common.yes') || 'Yes'
+          : t('common.no') || 'No',
+      });
+    }
+    return summary;
+  }, [editForm, itemType, t]);
+
+  const handleEnterEdit = useCallback(() => {
+    if (!itemType) {
+      return;
+    }
+    setEditMode(true);
+  }, [itemType]);
+
+  const handleCancelEdit = useCallback(() => {
+    if (!itemType) {
+      return;
+    }
+    setEditForm({
+      lifecycleStatus: itemType.lifecycleStatus,
+      showInNavbar: Boolean(itemType.showInNavbar),
+    });
+    setEditMode(false);
+  }, [itemType]);
+
+  const performSave = useCallback(
+    async (comment: string) => {
+      if (!itemType || !editForm) {
+        return;
+      }
+      try {
+        setSaving(true);
+        const payload: Record<string, unknown> = { comment };
+        if (editForm.lifecycleStatus !== itemType.lifecycleStatus) {
+          payload.lifecycleStatus = editForm.lifecycleStatus;
+        }
+        if (editForm.showInNavbar !== Boolean(itemType.showInNavbar)) {
+          payload.showInNavbar = editForm.showInNavbar;
+        }
+        if (Object.keys(payload).length === 1) {
+          // only comment, no actual change
+          setSaving(false);
+          showToast({
+            type: 'info',
+            message: t('item_types.no_changes') || 'Güncellenecek değişiklik yok.',
+          });
+          return;
+        }
+        const updated = await itemTypesService.update(itemType.id, payload);
+        setItemType(updated);
+        setEditForm({
+          lifecycleStatus: updated.lifecycleStatus,
+          showInNavbar: Boolean(updated.showInNavbar),
+        });
+        setEditMode(false);
+        showToast({
+          type: 'success',
+          message: t('item_types.update_success') || 'Item type başarıyla güncellendi.',
+        });
+      } catch (err: any) {
+        console.error('Failed to update item type', err);
+        const message =
+          (err?.response?.data?.error?.message ??
+          err?.message ??
+          t('item_types.update_failed')) || 'Item type güncellenemedi.';
+        showToast({ type: 'error', message });
+      } finally {
+        setSaving(false);
+      }
+    },
+    [editForm, itemType, showToast, t],
+  );
+
+  const handleSaveRequest = useCallback(() => {
+    if (!hasChanges) {
+      showToast({
+        type: 'info',
+        message: t('item_types.no_changes') || 'Güncellenecek değişiklik yok.',
+      });
+      return;
+    }
+    const summary = buildChangeSummary();
+    setPendingChanges(summary);
+    setCommentDialogOpen(true);
+  }, [buildChangeSummary, hasChanges, showToast, t]);
+
+  const handleCommentDialogClose = useCallback(() => {
+    setCommentDialogOpen(false);
+  }, []);
+
+  const handleConfirmSave = useCallback(
+    async (comment: string) => {
+      setCommentDialogOpen(false);
+      await performSave(comment);
+    },
+    [performSave],
+  );
+
   const handleDelete = async () => {
     if (!itemType || deleteLoading) {
       return;
@@ -1037,17 +1240,20 @@ const ItemTypesDetails: React.FC = () => {
   const bindings = itemType.attributeGroupBindings ?? [];
 
   const tabs: TabConfig[] = [
-    {
-      id: 'details',
-      label: t('item_types.details_tab') || 'Details',
-      icon: FileText,
-      component: ItemTypeDetailsTab,
-      props: {
-        itemType,
-        categoryNames,
-        familyNames,
+      {
+        id: 'details',
+        label: t('item_types.details_tab') || 'Details',
+        icon: FileText,
+        component: ItemTypeDetailsTab,
+        props: {
+          itemType,
+          categoryNames,
+          familyNames,
+          editMode,
+          formState: editForm,
+          onFormChange: handleFormChange,
+        },
       },
-    },
     {
       id: 'attribute-groups',
       label: t('item_types.attribute_groups_tab') || 'Attribute Groups',
@@ -1140,28 +1346,43 @@ const ItemTypesDetails: React.FC = () => {
   );
 
   return (
-    <DetailsLayout
-      title={headerTitle}
-      subtitle={undefined}
-      icon={<Database className="h-6 w-6 text-white" />}
-      tabs={tabs}
-      defaultTab="details"
-      backUrl="/item-types"
-      editMode={false}
-      hasChanges={false}
-      inlineActions={false}
-      onDelete={canDelete ? handleDelete : undefined}
-      deleteLoading={deleteLoading}
-      deleteButtonLabel={t('item_types.delete_action') || 'Delete Item Type'}
-      deleteDialogTitle={
-        t('item_types.delete_title', { name: itemType.name ?? itemType.key }) ||
-        'Delete this item type?'
-      }
-      deleteDialogDescription={
-        t('item_types.delete_description', { name: itemType.name ?? itemType.key }) ||
-        'This item type will be permanently removed. This action cannot be undone.'
-      }
-    />
+    <>
+      <DetailsLayout
+        title={headerTitle}
+        subtitle={undefined}
+        icon={<Database className="h-6 w-6 text-white" />}
+        tabs={tabs}
+        defaultTab="details"
+        backUrl="/item-types"
+        editMode={editMode}
+        hasChanges={hasChanges && !saving}
+        onEdit={canUpdate ? handleEnterEdit : undefined}
+        onSave={canUpdate ? handleSaveRequest : undefined}
+        onCancel={canUpdate ? handleCancelEdit : undefined}
+        inlineActions={false}
+        onDelete={canDelete ? handleDelete : undefined}
+        deleteLoading={deleteLoading}
+        deleteButtonLabel={t('item_types.delete_action') || 'Delete Item Type'}
+        deleteDialogTitle={
+          t('item_types.delete_title', { name: itemType.name ?? itemType.key }) ||
+          'Delete this item type?'
+        }
+        deleteDialogDescription={
+          t('item_types.delete_description', { name: itemType.name ?? itemType.key }) ||
+          'This item type will be permanently removed. This action cannot be undone.'
+        }
+      />
+
+      <ChangeConfirmDialog
+        open={commentDialogOpen}
+        onClose={handleCommentDialogClose}
+        onConfirm={handleConfirmSave}
+        changes={pendingChanges}
+        loading={saving}
+        entityName={itemType.name ?? itemType.key}
+        title={t('item_types.review_changes_title') || 'Review Changes'}
+      />
+    </>
   );
 };
 

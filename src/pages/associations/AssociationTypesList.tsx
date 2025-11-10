@@ -46,6 +46,19 @@ export const AssociationTypesList: React.FC = () => {
     void fetchData();
   }, [fetchData]);
 
+  const resolveItemTypeLabel = useCallback(
+    (ref: AssociationType['sourceItemType'], fallbackId?: string | null) => {
+      if (ref?.name?.trim()) {
+        return ref.name;
+      }
+      if (ref?.key?.trim()) {
+        return ref.key;
+      }
+      return fallbackId || '—';
+    },
+    [],
+  );
+
   const columns = useMemo(
     () => [
       {
@@ -68,11 +81,11 @@ export const AssociationTypesList: React.FC = () => {
         render: (_: unknown, type: AssociationType) => (
           <div className="flex items-center gap-2">
             <Badge variant="outline" size="sm">
-              {type.sourceItemType?.name || type.sourceItemType?.key || type.sourceItemTypeId || '—'}
+              {resolveItemTypeLabel(type.sourceItemType, type.sourceItemTypeId)}
             </Badge>
             <span className="text-xs text-muted-foreground">→</span>
             <Badge variant="outline" size="sm">
-              {type.targetItemType?.name || type.targetItemType?.key || type.targetItemTypeId || '—'}
+              {resolveItemTypeLabel(type.targetItemType, type.targetItemTypeId)}
             </Badge>
           </div>
         ),
@@ -103,7 +116,7 @@ export const AssociationTypesList: React.FC = () => {
         ),
       },
     ],
-    [t],
+    [resolveItemTypeLabel, t],
   );
 
   return (

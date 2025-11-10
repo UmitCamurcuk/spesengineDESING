@@ -1,7 +1,14 @@
 import apiClient from '../client/axios';
 import { API_ENDPOINTS } from '../endpoints';
 import type { ApiSuccessResponse } from '../types/api.types';
-import type { AssociationType, AssociationTypeItemRef, UserReference } from '../../types';
+import type {
+  AssociationType,
+  AssociationTypeItemRef,
+  AttributeGroupBinding,
+  CategoryFamilySummary,
+  HierarchyNode,
+  UserReference,
+} from '../../types';
 
 type BackendUserSummary =
   | (UserReference & {
@@ -16,6 +23,33 @@ type BackendAssociationTypeItemRef = {
   nameLocalizationId?: string | null;
   name?: string | null;
   nameLanguage?: string | null;
+  descriptionLocalizationId?: string | null;
+  description?: string | null;
+  descriptionLanguage?: string | null;
+  categoryIds?: string[];
+  linkedFamilyIds?: string[];
+  attributeGroupIds?: string[];
+  attributeGroupBindings?: BackendAttributeGroupBinding[];
+  attributeGroupCount?: number;
+};
+
+type BackendHierarchyNode = {
+  id: string;
+  key: string;
+  nameLocalizationId?: string | null;
+  name: string;
+};
+
+type BackendCategoryFamilySummary = BackendHierarchyNode & {
+  hierarchy: BackendHierarchyNode[];
+  fullPath: string;
+};
+
+type BackendAttributeGroupBinding = {
+  id: string;
+  attributeGroupId: string;
+  inherited: boolean;
+  required: boolean;
 };
 
 type BackendAssociationType = {
@@ -32,6 +66,10 @@ type BackendAssociationType = {
   targetItemTypeId?: string | null;
   sourceItemType?: BackendAssociationTypeItemRef | null;
   targetItemType?: BackendAssociationTypeItemRef | null;
+  sourceCategories?: BackendCategoryFamilySummary[] | null;
+  targetCategories?: BackendCategoryFamilySummary[] | null;
+  sourceFamilies?: BackendCategoryFamilySummary[] | null;
+  targetFamilies?: BackendCategoryFamilySummary[] | null;
   cardinality: AssociationType['cardinality'];
   isRequired: boolean;
   direction: AssociationType['direction'];
@@ -41,6 +79,22 @@ type BackendAssociationType = {
   createdBy?: BackendUserSummary;
   updatedBy?: BackendUserSummary;
 };
+
+const mapHierarchyNode = (node: BackendHierarchyNode): HierarchyNode => ({
+  id: node.id,
+  key: node.key,
+  nameLocalizationId: node.nameLocalizationId ?? null,
+  name: node.name,
+});
+
+const mapCategoryFamilySummary = (summary: BackendCategoryFamilySummary): CategoryFamilySummary => ({
+  id: summary.id,
+  key: summary.key,
+  nameLocalizationId: summary.nameLocalizationId ?? null,
+  name: summary.name,
+  fullPath: summary.fullPath,
+  hierarchy: Array.isArray(summary.hierarchy) ? summary.hierarchy.map(mapHierarchyNode) : [],
+});
 
 const mapUser = (user?: BackendUserSummary): UserReference | string | null => {
   if (user === undefined || user === null) {
@@ -57,6 +111,18 @@ const mapUser = (user?: BackendUserSummary): UserReference | string | null => {
     role: user.role,
   };
 };
+
+const mapAttributeBindings = (
+  bindings?: BackendAttributeGroupBinding[] | null,
+): AttributeGroupBinding[] =>
+  Array.isArray(bindings)
+    ? bindings.map((binding) => ({
+        id: binding.id,
+        attributeGroupId: binding.attributeGroupId,
+        inherited: Boolean(binding.inherited),
+        required: Boolean(binding.required),
+      }))
+    : [];
 
 const mapAssociationType = (type: BackendAssociationType): AssociationType => ({
   id: type.id,
@@ -77,6 +143,14 @@ const mapAssociationType = (type: BackendAssociationType): AssociationType => ({
         nameLocalizationId: type.sourceItemType.nameLocalizationId ?? null,
         name: type.sourceItemType.name ?? null,
         nameLanguage: type.sourceItemType.nameLanguage ?? null,
+        descriptionLocalizationId: type.sourceItemType.descriptionLocalizationId ?? null,
+        description: type.sourceItemType.description ?? null,
+        descriptionLanguage: type.sourceItemType.descriptionLanguage ?? null,
+        categoryIds: type.sourceItemType.categoryIds ?? [],
+        linkedFamilyIds: type.sourceItemType.linkedFamilyIds ?? [],
+        attributeGroupIds: type.sourceItemType.attributeGroupIds ?? [],
+        attributeGroupBindings: mapAttributeBindings(type.sourceItemType.attributeGroupBindings),
+        attributeGroupCount: type.sourceItemType.attributeGroupCount ?? 0,
       }
     : null,
   targetItemType: type.targetItemType
@@ -86,8 +160,28 @@ const mapAssociationType = (type: BackendAssociationType): AssociationType => ({
         nameLocalizationId: type.targetItemType.nameLocalizationId ?? null,
         name: type.targetItemType.name ?? null,
         nameLanguage: type.targetItemType.nameLanguage ?? null,
+        descriptionLocalizationId: type.targetItemType.descriptionLocalizationId ?? null,
+        description: type.targetItemType.description ?? null,
+        descriptionLanguage: type.targetItemType.descriptionLanguage ?? null,
+        categoryIds: type.targetItemType.categoryIds ?? [],
+        linkedFamilyIds: type.targetItemType.linkedFamilyIds ?? [],
+        attributeGroupIds: type.targetItemType.attributeGroupIds ?? [],
+        attributeGroupBindings: mapAttributeBindings(type.targetItemType.attributeGroupBindings),
+        attributeGroupCount: type.targetItemType.attributeGroupCount ?? 0,
       }
     : null,
+  sourceCategories: Array.isArray(type.sourceCategories)
+    ? type.sourceCategories.map(mapCategoryFamilySummary)
+    : [],
+  targetCategories: Array.isArray(type.targetCategories)
+    ? type.targetCategories.map(mapCategoryFamilySummary)
+    : [],
+  sourceFamilies: Array.isArray(type.sourceFamilies)
+    ? type.sourceFamilies.map(mapCategoryFamilySummary)
+    : [],
+  targetFamilies: Array.isArray(type.targetFamilies)
+    ? type.targetFamilies.map(mapCategoryFamilySummary)
+    : [],
   cardinality: type.cardinality,
   isRequired: Boolean(type.isRequired),
   direction: type.direction,
@@ -164,5 +258,9 @@ export const associationTypesService = {
       payload,
     );
     return mapAssociationType(response.data.data);
+  },
+
+  async delete(id: string): Promise<void> {
+    await apiClient.delete(API_ENDPOINTS.ASSOCIATION_TYPES.BY_ID(id));
   },
 };

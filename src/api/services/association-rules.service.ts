@@ -1,7 +1,12 @@
 import apiClient from '../client/axios';
 import { API_ENDPOINTS } from '../endpoints';
 import type { ApiSuccessResponse } from '../types/api.types';
-import type { AssociationRule, UserReference } from '../../types';
+import type {
+  AssociationRule,
+  CategoryFamilySummary,
+  HierarchyNode,
+  UserReference,
+} from '../../types';
 
 type BackendUserSummary =
   | (UserReference & {
@@ -9,6 +14,18 @@ type BackendUserSummary =
     })
   | string
   | null;
+
+type BackendHierarchyNode = {
+  id: string;
+  key: string;
+  nameLocalizationId?: string | null;
+  name: string;
+};
+
+type BackendCategoryFamilySummary = BackendHierarchyNode & {
+  hierarchy: BackendHierarchyNode[];
+  fullPath: string;
+};
 
 type BackendAssociationRule = {
   id: string;
@@ -25,6 +42,10 @@ type BackendAssociationRule = {
   sourceFamilyIds?: string[];
   targetCategoryIds?: string[];
   targetFamilyIds?: string[];
+  sourceCategories?: BackendCategoryFamilySummary[];
+  targetCategories?: BackendCategoryFamilySummary[];
+  sourceFamilies?: BackendCategoryFamilySummary[];
+  targetFamilies?: BackendCategoryFamilySummary[];
   minTargets: number;
   maxTargets?: number | null;
   metadataSchema?: Record<string, unknown> | null;
@@ -50,6 +71,22 @@ const mapUser = (user?: BackendUserSummary): UserReference | string | null => {
   };
 };
 
+const mapHierarchyNode = (node: BackendHierarchyNode): HierarchyNode => ({
+  id: node.id,
+  key: node.key,
+  nameLocalizationId: node.nameLocalizationId ?? null,
+  name: node.name,
+});
+
+const mapSummary = (summary: BackendCategoryFamilySummary): CategoryFamilySummary => ({
+  id: summary.id,
+  key: summary.key,
+  nameLocalizationId: summary.nameLocalizationId ?? null,
+  name: summary.name,
+  fullPath: summary.fullPath,
+  hierarchy: Array.isArray(summary.hierarchy) ? summary.hierarchy.map(mapHierarchyNode) : [],
+});
+
 const mapAssociationRule = (rule: BackendAssociationRule): AssociationRule => ({
   id: rule.id,
   tenantId: rule.tenantId,
@@ -65,6 +102,18 @@ const mapAssociationRule = (rule: BackendAssociationRule): AssociationRule => ({
   sourceFamilyIds: rule.sourceFamilyIds ?? [],
   targetCategoryIds: rule.targetCategoryIds ?? [],
   targetFamilyIds: rule.targetFamilyIds ?? [],
+  sourceCategories: Array.isArray(rule.sourceCategories)
+    ? rule.sourceCategories.map(mapSummary)
+    : [],
+  targetCategories: Array.isArray(rule.targetCategories)
+    ? rule.targetCategories.map(mapSummary)
+    : [],
+  sourceFamilies: Array.isArray(rule.sourceFamilies)
+    ? rule.sourceFamilies.map(mapSummary)
+    : [],
+  targetFamilies: Array.isArray(rule.targetFamilies)
+    ? rule.targetFamilies.map(mapSummary)
+    : [],
   minTargets: rule.minTargets,
   maxTargets: rule.maxTargets ?? null,
   metadataSchema: rule.metadataSchema ?? null,

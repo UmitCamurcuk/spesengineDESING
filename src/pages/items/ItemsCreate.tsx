@@ -1,14 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Check, Plus } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Layers, Plus } from 'lucide-react';
 import { Card, CardHeader } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
 import { Badge } from '../../components/ui/Badge';
 import { Stepper } from '../../components/ui/Stepper';
+import { TreeView, type TreeViewNode } from '../../components/ui/TreeView';
+import type { TreeNode } from '../../components/ui/TreeSelect';
 import { useToast } from '../../contexts/ToastContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { buildHierarchyTree } from '../../utils/hierarchy';
 import { itemsService } from '../../api/services/items.service';
 import { itemTypesService } from '../../api/services/item-types.service';
 import { categoriesService } from '../../api/services/categories.service';
@@ -29,7 +32,7 @@ import type {
 } from '../../types';
 import type { Attribute } from '../../types';
 
-type StepId = 'itemType' | 'category' | 'family' | 'associations' | 'attributes' | 'review';
+type StepId = 'itemType' | 'category' | 'associations' | 'attributes' | 'review';
 
 type AssociationDraft = {
   associationTypeId: string;
@@ -42,20 +45,9 @@ interface FormState {
   itemTypeId: string;
   categoryId: string;
   familyId: string;
-  code: string;
-  externalCode: string;
-  sku: string;
-  status: 'draft' | 'active' | 'inactive' | 'archived';
   associations: AssociationDraft[];
   attributeValues: Record<string, string>;
 }
-
-const statusOptions: Array<{ value: FormState['status']; label: string }> = [
-  { value: 'draft', label: 'Draft' },
-  { value: 'active', label: 'Active' },
-  { value: 'inactive', label: 'Inactive' },
-  { value: 'archived', label: 'Archived' },
-];
 
 const defaultAssociationRow: AssociationDraft = {
   associationTypeId: '',
@@ -63,6 +55,20 @@ const defaultAssociationRow: AssociationDraft = {
   orderIndex: '',
   metadata: '',
 };
+
+const cloneTreeNodes = (
+  nodes: TreeNode[],
+  mapper?: (node: TreeNode) => Partial<TreeViewNode>,
+): TreeViewNode[] =>
+  nodes.map((node) => {
+    const overrides = mapper?.(node) ?? {};
+    const baseChildren = node.children ? cloneTreeNodes(node.children as TreeNode[], mapper) : undefined;
+    return {
+      ...node,
+      ...overrides,
+      children: overrides.children ?? baseChildren,
+    };
+  });
 
 export const ItemsCreate: React.FC = () => {
   const navigate = useNavigate();
@@ -73,33 +79,27 @@ export const ItemsCreate: React.FC = () => {
     () => [
       {
         id: 'itemType' as StepId,
-        name: t('items.create.steps.item_type') || 'Ürün Tipi',
-        description: t('items.create.steps.item_type_desc') || 'İşleyeceğiniz item tipini seçin.',
+        name: t('items.create.steps.item_type') || 'Öğe Tipi',
+        description: t('items.create.steps.item_type_desc') || 'İşleyeceğiniz öğe tipini seçin.',
       },
       {
         id: 'category' as StepId,
-        name: t('items.create.steps.category') || 'Kategori Seçimi',
+        name: t('items.create.steps.category') || 'Kategori ve Aile Seçimi',
         description:
-          t('items.create.steps.category_desc') || 'Item için ilgili kategori seçimini yapın.',
-      },
-      {
-        id: 'family' as StepId,
-        name: t('items.create.steps.family') || 'Aile Seçimi',
-        description:
-          t('items.create.steps.family_desc') || 'Seçilen kategoriye bağlı ailelerden birini seçin.',
+          t('items.create.steps.category_desc') || 'Kategori ve bağlı aile seçimini tamamlayın.',
       },
       {
         id: 'associations' as StepId,
         name: t('items.create.steps.associations') || 'İlişkiler',
         description:
-          t('items.create.steps.associations_desc') || 'Diğer itemlarla zorunlu ilişkileri tanımlayın.',
+          t('items.create.steps.associations_desc') || 'Diğer öğelerle zorunlu ilişkileri tanımlayın.',
       },
       {
         id: 'attributes' as StepId,
         name: t('items.create.steps.attributes') || 'Öznitelikler',
         description:
           t('items.create.steps.attributes_desc') ||
-          'Kod, durum ve zorunlu attribute değerlerini girin.',
+          'Zorunlu öznitelik değerlerini girin.',
       },
       {
         id: 'review' as StepId,
@@ -114,10 +114,6 @@ export const ItemsCreate: React.FC = () => {
     itemTypeId: '',
     categoryId: '',
     familyId: '',
-    code: '',
-    externalCode: '',
-    sku: '',
-    status: 'draft',
     associations: [],
     attributeValues: {},
   });
@@ -230,6 +226,157 @@ export const ItemsCreate: React.FC = () => {
     return availableFamilies.find((family) => family.id === form.familyId) ?? null;
   }, [availableFamilies, form.familyId]);
 
+  const categoriesById = useMemo(
+    () => new Map(categories.map((category) => [category.id, category])),
+    [categories],
+  );
+
+  const familiesById = useMemo(
+    () => new Map(families.map((family) => [family.id, family])),
+    [families],
+  );
+
+  const categoryLineage = useMemo(() => {
+  if (!selectedCategory) {
+    return [] as Category[];
+  }
+  const lineage: Category[] = [];
+  const seen = new Set<string>();
+  const enqueue = (category: Category) => {
+    if (seen.has(category.id)) {
+      return;
+    }
+    seen.add(category.id);
+    lineage.push(category);
+  };
+
+  enqueue(selectedCategory);
+  (selectedCategory.hierarchyPath ?? []).forEach((ancestorId) => {
+    const ancestor = categoriesById.get(ancestorId);
+    if (ancestor) {
+      enqueue(ancestor);
+    }
+  });
+
+  let parentId = selectedCategory.parentCategoryId ?? null;
+  while (parentId) {
+    const parent = categoriesById.get(parentId);
+    if (!parent) {
+      break;
+    }
+    enqueue(parent);
+    parentId = parent.parentCategoryId ?? null;
+  }
+
+  return lineage;
+}, [selectedCategory, categoriesById]);
+
+const familyLineage = useMemo(() => {
+  if (!selectedFamily) {
+    return [] as Family[];
+  }
+  const lineage: Family[] = [];
+  const seen = new Set<string>();
+  const enqueue = (family: Family) => {
+    if (seen.has(family.id)) {
+      return;
+    }
+    seen.add(family.id);
+    lineage.push(family);
+  };
+
+  enqueue(selectedFamily);
+  (selectedFamily.hierarchyPath ?? []).forEach((ancestorId) => {
+    const ancestor = familiesById.get(ancestorId);
+    if (ancestor) {
+      enqueue(ancestor);
+    }
+  });
+
+  let parentId = selectedFamily.parentFamilyId ?? null;
+  while (parentId) {
+    const parent = familiesById.get(parentId);
+    if (!parent) {
+      break;
+    }
+    enqueue(parent);
+    parentId = parent.parentFamilyId ?? null;
+  }
+
+  return lineage;
+}, [selectedFamily, familiesById]);
+
+const familiesByCategory = useMemo(() => {
+  const map = new Map<string, Family[]>();
+  families.forEach((family) => {
+      const categoryId = family.categoryId ?? null;
+      if (!categoryId) {
+        return;
+      }
+      const list = map.get(categoryId) ?? [];
+      list.push(family);
+      map.set(categoryId, list);
+    });
+    return map;
+  }, [families]);
+
+  const allowedCategoryIds = useMemo(
+    () => new Set(availableCategories.map((category) => category.id)),
+    [availableCategories],
+  );
+
+  const categoryTreeNodes = useMemo(() => {
+    if (!allowedCategoryIds.size) {
+      return [];
+    }
+
+    const extendedIds = new Set(allowedCategoryIds);
+    allowedCategoryIds.forEach((categoryId) => {
+      let currentParentId = categoriesById.get(categoryId)?.parentCategoryId ?? null;
+      while (currentParentId) {
+        if (extendedIds.has(currentParentId)) {
+          break;
+        }
+        extendedIds.add(currentParentId);
+        currentParentId = categoriesById.get(currentParentId)?.parentCategoryId ?? null;
+      }
+    });
+
+    const filteredCategories = categories.filter((category) => extendedIds.has(category.id));
+    if (!filteredCategories.length) {
+      return [];
+    }
+
+    const tree = buildHierarchyTree(filteredCategories, {
+      getId: (category) => category.id,
+      getParentId: (category) => category.parentCategoryId ?? null,
+      getLabel: (category) => category.name || category.key || category.id,
+    });
+
+    return cloneTreeNodes(tree, (node) => ({
+      selectable: allowedCategoryIds.has(node.id),
+    }));
+  }, [allowedCategoryIds, categories, categoriesById]);
+
+  const familyTreeNodes = useMemo(() => {
+    if (!form.categoryId) {
+      return [];
+    }
+    const familyList = familiesByCategory.get(form.categoryId) ?? [];
+    if (familyList.length === 0) {
+      return [];
+    }
+    const tree = buildHierarchyTree(familyList, {
+      getId: (family) => family.id,
+      getParentId: (family) => family.parentFamilyId ?? null,
+      getLabel: (family) => family.name || family.key || family.id,
+    });
+    return cloneTreeNodes(tree, () => ({
+      selectable: true,
+      icon: <Layers className="h-3.5 w-3.5 text-muted-foreground" />,
+    }));
+  }, [familiesByCategory, form.categoryId]);
+
   const relevantAssociationTypes = useMemo(() => {
     if (!form.itemTypeId) {
       return [] as AssociationType[];
@@ -306,6 +453,22 @@ export const ItemsCreate: React.FC = () => {
       familyId,
     }));
   }, []);
+
+  const handleCategoryTreeSelection = useCallback(
+    (ids: string[]) => {
+      const nextId = ids[0] ?? '';
+      handleSelectCategory(nextId);
+    },
+    [handleSelectCategory],
+  );
+
+  const handleFamilyTreeSelection = useCallback(
+    (ids: string[]) => {
+      const nextId = ids[0] ?? '';
+      handleSelectFamily(nextId);
+    },
+    [handleSelectFamily],
+  );
 
   const handleAssociationChange = useCallback((index: number, patch: Partial<AssociationDraft>) => {
     setForm((prev) => {
@@ -472,7 +635,6 @@ export const ItemsCreate: React.FC = () => {
         try {
           const response = await itemsService.list({
             itemTypeId: type.targetItemTypeId,
-            status: 'active',
             limit: 500,
             categoryIds: (rule.targetCategoryIds ?? []).length > 0 ? rule.targetCategoryIds : undefined,
             familyIds: (rule.targetFamilyIds ?? []).length > 0 ? rule.targetFamilyIds : undefined,
@@ -498,7 +660,7 @@ export const ItemsCreate: React.FC = () => {
               [rule.id]:
                 error?.response?.data?.error?.message ??
                 t('items.create.association_targets_failed') ??
-                'Hedef itemlar yüklenemedi. Lütfen daha sonra tekrar deneyin.',
+                'Hedef öğeler yüklenemedi. Lütfen daha sonra tekrar deneyin.',
             }));
             setRuleTargetItems((prev) => ({ ...prev, [rule.id]: [] }));
           }
@@ -519,41 +681,53 @@ export const ItemsCreate: React.FC = () => {
     };
   }, [applicableRules, ruleTargetItems, t]);
 
-  const relevantAttributeGroupIds = useMemo(() => {
-    const ids = new Set<string>();
+  const { allowedAttributeGroupIds, requiredAttributeGroupIds } = useMemo(() => {
+    const allowed = new Set<string>();
+    const required = new Set<string>();
     const collect = (entity?: { attributeGroupIds?: string[]; attributeGroupBindings?: AttributeGroupBinding[] }) => {
       if (!entity) return;
       (entity.attributeGroupIds ?? []).forEach((id) => {
-        if (id) ids.add(id);
+        if (id) allowed.add(id);
       });
       (entity.attributeGroupBindings ?? []).forEach((binding) => {
         if (binding.attributeGroupId) {
-          ids.add(binding.attributeGroupId);
+          allowed.add(binding.attributeGroupId);
+          if (binding.required) {
+            required.add(binding.attributeGroupId);
+          }
         }
       });
     };
     collect(selectedItemType ?? undefined);
-    collect(selectedCategory ?? undefined);
-    collect(selectedFamily ?? undefined);
-    return ids;
-  }, [selectedItemType, selectedCategory, selectedFamily]);
+    categoryLineage.forEach((category) => collect(category));
+    familyLineage.forEach((family) => collect(family));
+    return {
+      allowedAttributeGroupIds: allowed,
+      requiredAttributeGroupIds: required,
+    };
+  }, [selectedItemType, categoryLineage, familyLineage]);
 
   const relevantAttributeGroups = useMemo(
-    () => attributeGroups.filter((group) => relevantAttributeGroupIds.has(group.id)),
-    [attributeGroups, relevantAttributeGroupIds],
+    () => attributeGroups.filter((group) => allowedAttributeGroupIds.has(group.id)),
+    [attributeGroups, allowedAttributeGroupIds],
   );
 
   const attributeDefinitions = useMemo(() => {
     const map = new Map<string, Attribute>();
     relevantAttributeGroups.forEach((group) => {
+      const groupIsRequired = requiredAttributeGroupIds.has(group.id);
       (group.attributes ?? []).forEach((attribute) => {
-        if (!map.has(attribute.id)) {
-          map.set(attribute.id, attribute);
+        const existing = map.get(attribute.id);
+        const effectiveRequired = Boolean(groupIsRequired || attribute.required);
+        if (!existing) {
+          map.set(attribute.id, { ...attribute, required: effectiveRequired });
+        } else if (!existing.required && effectiveRequired) {
+          map.set(attribute.id, { ...existing, required: true });
         }
       });
     });
     return Array.from(map.values());
-  }, [relevantAttributeGroups]);
+  }, [relevantAttributeGroups, requiredAttributeGroupIds]);
 
   useEffect(() => {
     setForm((prev) => {
@@ -590,21 +764,13 @@ export const ItemsCreate: React.FC = () => {
   );
 
   const isCategoryStepValid = useMemo(
-    () => Boolean(form.itemTypeId) && Boolean(form.categoryId),
-    [form.itemTypeId, form.categoryId],
-  );
-
-  const isFamilyStepValid = useMemo(
-    () => Boolean(form.categoryId) && Boolean(form.familyId),
-    [form.categoryId, form.familyId],
+    () => Boolean(form.itemTypeId) && Boolean(form.categoryId) && Boolean(form.familyId),
+    [form.itemTypeId, form.categoryId, form.familyId],
   );
 
   const isAssociationsStepValid = useMemo(() => !hasAssociationGap, [hasAssociationGap]);
 
-  const isAttributesStepValid = useMemo(
-    () => form.code.trim().length > 0,
-    [form.code],
-  );
+  const isAttributesStepValid = useMemo(() => true, []);
 
   const validateCurrentStep = useCallback(() => {
     const step = steps[currentStep];
@@ -621,7 +787,7 @@ export const ItemsCreate: React.FC = () => {
         if (!form.itemTypeId) {
           showToast({
             type: 'error',
-            message: t('items.create.validation.item_type') || 'Lütfen bir item type seçin.',
+            message: t('items.create.validation.item_type') || 'Lütfen bir öğe tipi seçin.',
           });
           return false;
         }
@@ -630,7 +796,7 @@ export const ItemsCreate: React.FC = () => {
         if (!form.itemTypeId) {
           showToast({
             type: 'error',
-            message: t('items.create.validation.item_type_first') || 'Önce item tipini seçin.',
+            message: t('items.create.validation.item_type_first') || 'Önce öğe tipini seçin.',
           });
           return false;
         }
@@ -638,15 +804,6 @@ export const ItemsCreate: React.FC = () => {
           showToast({
             type: 'error',
             message: t('items.create.validation.category_required') || 'Kategori seçimi zorunludur.',
-          });
-          return false;
-        }
-        return true;
-      case 'family':
-        if (!form.categoryId) {
-          showToast({
-            type: 'error',
-            message: t('items.create.validation.category_first') || 'Önce kategori seçin.',
           });
           return false;
         }
@@ -691,25 +848,18 @@ export const ItemsCreate: React.FC = () => {
             type: 'error',
             message:
               t('items.create.validation.association_incomplete') ||
-              'Association için hem association type hem de hedef item seçilmelidir.',
+              'Association için hem association type hem de hedef öğe seçilmelidir.',
           });
           return false;
         }
         return true;
       case 'attributes':
-        if (!form.code.trim()) {
-          showToast({
-            type: 'error',
-            message: t('items.create.validation.code_required') || 'Kod alanı zorunludur.',
-          });
-          return false;
-        }
         return true;
       case 'review':
       default:
         return true;
     }
-  }, [currentStep, form.categoryId, form.code, form.familyId, form.itemTypeId, hasAssociationGap, loadingLookup, showToast, steps, t]);
+  }, [currentStep, form.categoryId, form.familyId, form.itemTypeId, hasAssociationGap, loadingLookup, showToast, steps, t]);
 
   const handleNext = useCallback(() => {
     if (!validateCurrentStep()) {
@@ -738,10 +888,6 @@ export const ItemsCreate: React.FC = () => {
         itemTypeId: form.itemTypeId,
         categoryId: form.categoryId ? form.categoryId : null,
         familyId: form.familyId ? form.familyId : null,
-        code: form.code.trim(),
-        externalCode: form.externalCode.trim() || null,
-        sku: form.sku.trim() || null,
-        status: form.status,
       };
 
       if (Object.keys(form.attributeValues).length > 0) {
@@ -793,7 +939,7 @@ export const ItemsCreate: React.FC = () => {
 
       showToast({
         type: 'success',
-        message: t('items.create.success') || 'Item başarıyla oluşturuldu.',
+        message: t('items.create.success') || 'Öğe başarıyla oluşturuldu.',
       });
 
       navigate(`/items/${created.id}`);
@@ -804,7 +950,7 @@ export const ItemsCreate: React.FC = () => {
         message:
           error?.response?.data?.error?.message ??
           t('items.create.failed') ??
-          'Item oluşturulamadı. Lütfen tekrar deneyin.',
+          'Öğe oluşturulamadı. Lütfen tekrar deneyin.',
       });
     } finally {
       setSubmitting(false);
@@ -819,7 +965,7 @@ export const ItemsCreate: React.FC = () => {
     if (itemTypes.length === 0) {
       return (
         <div className="rounded-md border border-dashed border-border p-6 text-sm text-muted-foreground">
-          {t('items.create.no_item_types') || 'Henüz item type oluşturulmamış.'}
+          {t('items.create.no_item_types') || 'Henüz öğe tipi oluşturulmamış.'}
         </div>
       );
     }
@@ -869,120 +1015,86 @@ export const ItemsCreate: React.FC = () => {
     if (!form.itemTypeId) {
       return (
         <div className="rounded-md border border-dashed border-border p-6 text-sm text-muted-foreground">
-          {t('items.create.select_item_type_first') || 'Önce item tipini seçmelisiniz.'}
+          {t('items.create.select_item_type_first') || 'Önce öğe tipini seçmelisiniz.'}
         </div>
       );
     }
 
-    if (availableCategories.length === 0) {
+    if (categoryTreeNodes.length === 0) {
       return (
         <div className="rounded-md border border-dashed border-border p-6 text-sm text-muted-foreground">
           {t('items.create.no_categories_for_type') ||
-            'Bu item tipi için ilişkilendirilmiş kategori bulunamadı.'}
+            'Bu öğe tipi için ilişkilendirilmiş kategori bulunamadı.'}
         </div>
       );
     }
 
-    return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {availableCategories.map((category) => {
-            const isSelected = form.categoryId === category.id;
-            return (
-              <button
-                type="button"
-                key={category.id}
-                onClick={() => handleSelectCategory(category.id)}
-                className={`relative text-left border-2 rounded-xl p-4 transition-all duration-200 ${
-                  isSelected
-                    ? 'border-primary bg-primary/10 shadow-sm'
-                    : 'border-border hover:border-primary/60 hover:bg-muted/60'
-                }`}
-              >
-                {isSelected ? (
-                  <div className="absolute top-3 right-3">
-                    <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow">
-                      <Check className="h-3 w-3" />
-                    </div>
-                  </div>
-                ) : null}
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="text-sm font-semibold text-foreground">{category.name}</h3>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {category.description || t('items.create.no_description') || '—'}
-                    </p>
-                  </div>
-                  <Badge variant="secondary" size="sm">
-                    {category.attributeGroupCount ?? category.attributeGroupIds?.length ?? 0}{' '}
-                    {t('items.create.attribute_group_short') || 'groups'}
-                  </Badge>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+    const categoryEmptyState = (
+      <span className="text-xs text-muted-foreground">
+        {t('items.create.no_categories_for_type') ||
+          'Bu öğe tipi için ilişkilendirilmiş kategori bulunamadı.'}
+      </span>
     );
-  };
 
-  const renderFamilyBody = () => {
-    if (!form.itemTypeId) {
-      return (
-        <div className="rounded-md border border-dashed border-border p-6 text-sm text-muted-foreground">
-          {t('items.create.select_item_type_first') || 'Önce item tipini seçmelisiniz.'}
-        </div>
-      );
-    }
-
-    if (!form.categoryId) {
-      return (
-        <div className="rounded-md border border-dashed border-border p-6 text-sm text-muted-foreground">
-          {t('items.create.select_category_first') || 'Önce kategori seçmelisiniz.'}
-        </div>
-      );
-    }
-
-    if (availableFamilies.length === 0) {
-      return (
-        <div className="rounded-md border border-dashed border-border p-6 text-sm text-muted-foreground">
-          {t('items.create.no_families_for_category') || 'Seçilen kategori için aile bulunamadı.'}
-        </div>
-      );
-    }
+    const familyEmptyState = (
+      <span className="text-xs text-muted-foreground">
+        {t('items.create.no_families_for_category') || 'Seçilen kategori için aile bulunamadı.'}
+      </span>
+    );
 
     return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {availableFamilies.map((family) => {
-            const isSelected = form.familyId === family.id;
-            return (
-              <button
-                type="button"
-                key={family.id}
-                onClick={() => handleSelectFamily(family.id)}
-                className={`relative text-left border-2 rounded-xl p-4 transition-all duration-200 ${
-                  isSelected
-                    ? 'border-primary bg-primary/10 shadow-sm'
-                    : 'border-border hover:border-primary/60 hover:bg-muted/60'
-                }`}
-              >
-                {isSelected ? (
-                  <div className="absolute top-3 right-3">
-                    <div className="w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow">
-                      <Check className="h-3 w-3" />
-                    </div>
-                  </div>
-                ) : null}
-                <div>
-                  <h3 className="text-sm font-semibold text-foreground">{family.name}</h3>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {family.description || t('items.create.no_description') || '—'}
-                  </p>
+      <div className="space-y-6">
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div>
+            <p className="text-xs font-medium text-foreground mb-2">
+              {t('items.create.category_tree_title') || 'Kategori Ağacı'}
+            </p>
+            <TreeView
+              nodes={categoryTreeNodes}
+              mode="edit"
+              selectionMode="single"
+              selectedIds={form.categoryId ? [form.categoryId] : []}
+              onSelectionChange={handleCategoryTreeSelection}
+              className="border border-border rounded-xl p-2 max-h-80 overflow-y-auto"
+              emptyState={categoryEmptyState}
+              defaultExpandAll
+            />
+            <p className="text-xs text-muted-foreground mt-2">
+              {t('items.create.category_tree_hint') ||
+                'Seçilen kategoriler hangi ailelerin listeleneceğini belirler.'}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-xs font-medium text-foreground mb-2">
+              {t('items.create.family_tree_title') || 'Aile Ağacı'}
+            </p>
+            {form.categoryId ? (
+              familyTreeNodes.length > 0 ? (
+                <TreeView
+                  nodes={familyTreeNodes}
+                  mode="edit"
+                  selectionMode="single"
+                  selectedIds={form.familyId ? [form.familyId] : []}
+                  onSelectionChange={handleFamilyTreeSelection}
+                  className="border border-border rounded-xl p-2 max-h-80 overflow-y-auto"
+                  emptyState={familyEmptyState}
+                  defaultExpandAll
+                />
+              ) : (
+                <div className="rounded-md border border-dashed border-border p-4 text-xs text-muted-foreground">
+                  {t('items.create.no_families_for_category') || 'Seçilen kategori için aile bulunamadı.'}
                 </div>
-              </button>
-            );
-          })}
+              )
+            ) : (
+              <div className="rounded-md border border-dashed border-border p-4 text-xs text-muted-foreground">
+                {t('items.create.select_category_first') || 'Önce kategori seçmelisiniz.'}
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground mt-2">
+              {t('items.create.family_tree_hint') || 'Kategori tercihinden sonra bağlı aileleri ağaçtan seçin.'}
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -990,57 +1102,14 @@ export const ItemsCreate: React.FC = () => {
 
   const renderAttributesBody = () => (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Input
-          label={t('items.fields.code') || 'Kod'}
-          value={form.code}
-          onChange={(event) => updateForm({ code: event.target.value })}
-          placeholder="ITEM-001"
-          required
-        />
-
-        <Input
-          label={t('items.fields.external_code') || 'Harici Kod'}
-          value={form.externalCode}
-          onChange={(event) => updateForm({ externalCode: event.target.value })}
-          placeholder="ERP-12345"
-        />
-
-        <Input
-          label={t('items.fields.sku') || 'SKU'}
-          value={form.sku}
-          onChange={(event) => updateForm({ sku: event.target.value })}
-          placeholder="SKU-001"
-        />
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
-          <label className="block text-xs font-medium text-foreground mb-1">
-            {t('items.fields.status') || 'Durum'}
-          </label>
-          <select
-            value={form.status}
-            onChange={(event) => updateForm({ status: event.target.value as FormState['status'] })}
-            className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            {statusOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {t(`items.status_${option.value}`) || option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
       <div className="space-y-4">
         <div>
           <h4 className="text-sm font-semibold text-foreground">
             {t('items.create.attribute_section_title') || 'Öznitelik Değerleri'}
           </h4>
           <p className="text-xs text-muted-foreground">
-            {t('items.create.attribute_section_subtitle') ||
-              'Seçilen item tipi, kategori ve aileye bağlı attribute değerlerini girin.'}
+              {t('items.create.attribute_section_subtitle') ||
+                'Seçilen öğe tipi, kategori ve aileye bağlı öznitelik değerlerini girin.'}
           </p>
         </div>
 
@@ -1054,11 +1123,17 @@ export const ItemsCreate: React.FC = () => {
               <div key={attribute.id} className="space-y-2">
                 <label className="block text-xs font-medium text-foreground">
                   {attribute.name}
+                  {attribute.required ? (
+                    <span className="ml-1 text-[10px] font-semibold text-destructive" aria-label={t('common.required') || 'Required'}>
+                      *
+                    </span>
+                  ) : null}
                 </label>
                 <Input
                   value={form.attributeValues[attribute.id] ?? ''}
                   onChange={(event) => handleAttributeValueChange(attribute.id, event.target.value)}
                   placeholder={attribute.description || attribute.key || attribute.id}
+                  required={attribute.required}
                 />
               </div>
             ))}
@@ -1076,7 +1151,7 @@ export const ItemsCreate: React.FC = () => {
     <div className="space-y-6">
       <p className="text-sm text-muted-foreground">
         {t('items.create.associations_hint') ||
-          'Association kuralları doğrultusunda hedef item seçimlerini tamamlayın. Kurallar yoksa manuel satırlar ekleyebilirsiniz.'}
+          'Association kuralları doğrultusunda hedef öğe seçimlerini tamamlayın. Kurallar yoksa manuel satırlar ekleyebilirsiniz.'}
       </p>
 
       {form.itemTypeId ? (
@@ -1148,7 +1223,7 @@ export const ItemsCreate: React.FC = () => {
 
                     <div>
                       <label className="block text-xs font-medium text-foreground mb-1">
-                        {t('items.create.select_rule_targets') || 'Hedef itemları seçin'}
+                        {t('items.create.select_rule_targets') || 'Hedef öğeleri seçin'}
                       </label>
                       <select
                         multiple
@@ -1187,7 +1262,7 @@ export const ItemsCreate: React.FC = () => {
                         {loading ? <Badge variant="outline">{t('common.loading') || 'Yükleniyor...'}</Badge> : null}
                         {!loading && targetItems.length === 0 ? (
                           <Badge variant="destructive">
-                            {t('items.create.no_target_items') || 'Uygun hedef item bulunamadı'}
+                            {t('items.create.no_target_items') || 'Uygun hedef öğe bulunamadı'}
                           </Badge>
                         ) : null}
                       </div>
@@ -1205,7 +1280,7 @@ export const ItemsCreate: React.FC = () => {
         </div>
       ) : (
         <div className="rounded-md border border-dashed border-border p-4 text-xs text-muted-foreground">
-          {t('items.create.select_item_type_first') || 'Önce item tipini seçmelisiniz.'}
+          {t('items.create.select_item_type_first') || 'Önce öğe tipini seçmelisiniz.'}
         </div>
       )}
 
@@ -1261,7 +1336,7 @@ export const ItemsCreate: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-foreground mb-1">
-                      {t('items.fields.target_item') || 'Hedef Item'}
+                      {t('items.fields.target_item') || 'Hedef Öğe'}
                     </label>
                     <select
                       value={assoc.targetItemId}
@@ -1270,7 +1345,7 @@ export const ItemsCreate: React.FC = () => {
                       }
                       className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                     >
-                      <option value="">{t('items.create.select_target_item') || 'Hedef item seçin'}</option>
+                      <option value="">{t('items.create.select_target_item') || 'Hedef öğe seçin'}</option>
                       {manualTargets.map((item) => (
                         <option key={item.id} value={item.id}>
                           {item.code} {item.name ? `- ${item.name}` : ''}
@@ -1336,40 +1411,22 @@ export const ItemsCreate: React.FC = () => {
               {t('items.review.summary') || 'Özet'}
             </h4>
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">{t('items.fields.item_type') || 'Item Type'}</span>
+              <span className="text-muted-foreground">{t('items.fields.item_type') || 'Öğe Tipi'}</span>
               <span className="font-medium text-foreground">
                 {selectedItemType?.name || t('items.review.not_selected') || 'Seçilmedi'}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">{t('items.fields.category') || 'Category'}</span>
+              <span className="text-muted-foreground">{t('items.fields.category') || 'Kategori'}</span>
               <span className="font-medium text-foreground">
                 {selectedCategory?.name || t('items.review.not_selected') || 'Seçilmedi'}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">{t('items.fields.family') || 'Family'}</span>
+              <span className="text-muted-foreground">{t('items.fields.family') || 'Aile'}</span>
               <span className="font-medium text-foreground">
                 {selectedFamily?.name || t('items.review.not_selected') || 'Seçilmedi'}
               </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">{t('items.fields.code') || 'Code'}</span>
-              <span className="font-medium text-foreground">{form.code.trim() || '—'}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">{t('items.fields.external_code') || 'External Code'}</span>
-              <span className="font-medium text-foreground">{form.externalCode.trim() || '—'}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">{t('items.fields.sku') || 'SKU'}</span>
-              <span className="font-medium text-foreground">{form.sku.trim() || '—'}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">{t('items.fields.status') || 'Status'}</span>
-              <Badge variant="secondary" size="sm">
-                {t(`items.status_${form.status}`) || form.status}
-              </Badge>
             </div>
           </div>
 
@@ -1379,7 +1436,7 @@ export const ItemsCreate: React.FC = () => {
             </h4>
             {attributeDefinitions.length === 0 ? (
               <div className="text-muted-foreground">
-                {t('items.review.no_attributes') || 'Bu seçim için attribute bulunmuyor.'}
+                {t('items.review.no_attributes') || 'Bu seçim için öznitelik bulunmuyor.'}
               </div>
             ) : (
               attributeDefinitions.map((attribute) => (
@@ -1420,7 +1477,7 @@ export const ItemsCreate: React.FC = () => {
                               ? `${item.code}${item.name ? ` - ${item.name}` : ''}`
                               : targetId}
                           </span>
-                          <span className="text-muted-foreground">{t('items.fields.order_index') || 'Order'}: {targetIndex + 1}</span>
+                          <span className="text-muted-foreground">{t('items.fields.order_index') || 'Sıra'}: {targetIndex + 1}</span>
                         </div>
                       );
                     })}
@@ -1459,7 +1516,7 @@ export const ItemsCreate: React.FC = () => {
                       <span className="text-xs text-muted-foreground">#{index + 1}</span>
                     </div>
                     <div className="mt-1 text-xs text-muted-foreground">
-                      <span>{t('items.fields.target_item') || 'Target'}:</span>{' '}
+                      <span>{t('items.fields.target_item') || 'Hedef Öğe'}:</span>{' '}
                       <span className="text-foreground">
                         {targetItem
                           ? `${targetItem.code}${targetItem.name ? ` - ${targetItem.name}` : ''}`
@@ -1468,7 +1525,7 @@ export const ItemsCreate: React.FC = () => {
                     </div>
                     {assoc.orderIndex && (
                       <div className="text-xs text-muted-foreground">
-                        {t('items.fields.order_index') || 'Order'}: {assoc.orderIndex}
+                        {t('items.fields.order_index') || 'Sıra'}: {assoc.orderIndex}
                       </div>
                     )}
                     {assoc.metadata && (
@@ -1497,8 +1554,8 @@ export const ItemsCreate: React.FC = () => {
         return (
           <Card>
             <CardHeader
-              title={t('items.create.item_type_title') || 'Item Type Seçimi'}
-              subtitle={t('items.create.item_type_subtitle') || 'Item tipini seçerek başlayın.'}
+              title={t('items.create.item_type_title') || 'Öğe Tipi Seçimi'}
+              subtitle={t('items.create.item_type_subtitle') || 'Öğe tipini seçerek başlayın.'}
             />
             <div className="px-6 pb-6 space-y-6">{renderItemTypeBody()}</div>
           </Card>
@@ -1508,19 +1565,9 @@ export const ItemsCreate: React.FC = () => {
           <Card>
             <CardHeader
               title={t('items.create.category_title') || 'Kategori Seçimi'}
-              subtitle={t('items.create.category_subtitle') || 'Item için kullanılacak kategoriyi seçin.'}
+              subtitle={t('items.create.category_subtitle') || 'Öğe için kullanılacak kategoriyi seçin.'}
             />
             <div className="px-6 pb-6 space-y-6">{renderCategoryBody()}</div>
-          </Card>
-        );
-      case 'family':
-        return (
-          <Card>
-            <CardHeader
-              title={t('items.create.family_title') || 'Aile Seçimi'}
-              subtitle={t('items.create.family_subtitle') || 'Seçilen kategoriye bağlı ailelerden birini seçin.'}
-            />
-            <div className="px-6 pb-6 space-y-6">{renderFamilyBody()}</div>
           </Card>
         );
       case 'associations':
@@ -1528,7 +1575,7 @@ export const ItemsCreate: React.FC = () => {
           <Card>
             <CardHeader
               title={t('items.create.associations_title') || 'Associations'}
-              subtitle={t('items.create.associations_subtitle') || 'Mevcut itemlarla bağlantılar oluşturun.'}
+              subtitle={t('items.create.associations_subtitle') || 'Mevcut öğelerle bağlantılar oluşturun.'}
             />
             <div className="px-6 pb-6 space-y-6">{renderAssociationsBody()}</div>
           </Card>
@@ -1538,7 +1585,7 @@ export const ItemsCreate: React.FC = () => {
           <Card>
             <CardHeader
               title={t('items.create.attributes_title') || 'Öznitelik Değerleri'}
-              subtitle={t('items.create.attributes_subtitle') || 'Kod ve attribute alanlarını doldurun.'}
+              subtitle={t('items.create.attributes_subtitle') || 'Kod ve öznitelik alanlarını doldurun.'}
             />
             <div className="px-6 pb-6 space-y-6">{renderAttributesBody()}</div>
           </Card>
@@ -1571,8 +1618,6 @@ export const ItemsCreate: React.FC = () => {
         return isItemTypeStepValid;
       case 'category':
         return isCategoryStepValid;
-      case 'family':
-        return isFamilyStepValid;
       case 'associations':
         return isAssociationsStepValid;
       case 'attributes':
@@ -1587,7 +1632,6 @@ export const ItemsCreate: React.FC = () => {
     currentStepId,
     isItemTypeStepValid,
     isCategoryStepValid,
-    isFamilyStepValid,
     isAssociationsStepValid,
     isAttributesStepValid,
   ]);

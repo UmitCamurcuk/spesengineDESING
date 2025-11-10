@@ -38,7 +38,7 @@ export const Stepper: React.FC<StepperProps> = ({
 
           return (
             <React.Fragment key={step.id}>
-              <div className="flex flex-1 flex-col items-center text-center px-3">
+              <div className="flex flex-1 flex-col items-start text-left px-3 min-w-[180px]">
                 <button
                   type="button"
                   onClick={() => handleStepClick(index)}
@@ -63,14 +63,14 @@ export const Stepper: React.FC<StepperProps> = ({
                 </button>
                 <p
                   className={cn(
-                    'mt-3 text-sm font-semibold leading-snug',
+                    'mt-3 text-sm font-semibold leading-snug max-w-[18rem] break-words',
                     isActive || isCompleted ? 'text-foreground' : 'text-muted-foreground',
                   )}
                 >
                   {step.name}
                 </p>
                 {step.description ? (
-                  <p className="text-[11px] text-muted-foreground mt-1 leading-snug max-w-[12rem]">
+                  <p className="text-[11px] text-muted-foreground mt-1 leading-snug max-w-[18rem]">
                     {step.description}
                   </p>
                 ) : null}

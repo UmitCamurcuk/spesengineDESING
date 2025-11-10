@@ -19,17 +19,18 @@ import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Checkbox } from '../../components/ui/Checkbox';
 import { Select } from '../../components/ui/Select';
+import { Textarea } from '../../components/ui/Textarea';
 import { Documentation } from '../../components/common/Documentation';
 import { Statistics } from '../../components/common/Statistics';
 import { APITester } from '../../components/common/APITester';
 import { HistoryTable } from '../../components/common/HistoryTable';
+import { ChangeConfirmDialog } from '../../components/ui/ChangeConfirmDialog';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { associationTypesService } from '../../api/services/association-types.service';
 import { associationRulesService } from '../../api/services/association-rules.service';
 import { associationColumnConfigService } from '../../api/services/association-column-config.service';
-import { itemTypesService } from '../../api/services/item-types.service';
 import { categoriesService } from '../../api/services/categories.service';
 import { familiesService } from '../../api/services/families.service';
 import { historyService } from '../../api/services/history.service';
@@ -48,8 +49,8 @@ import type {
   AssociationType,
   Category,
   Family,
-  ItemType,
   AttributeGroup,
+  CategoryFamilySummary,
 } from '../../types';
 import { useDateFormatter } from '../../hooks/useDateFormatter';
 import { UserInfoWithRole } from '../../components/common/UserInfoWithRole';
@@ -59,16 +60,18 @@ import { cn } from '../../utils/cn';
 interface OverviewTabProps {
   associationType: AssociationType;
   rules: AssociationRule[];
-  itemTypeLookup: Map<string, ItemType>;
-  categoryLookup: Map<string, string>;
-  familyLookup: Map<string, string>;
+  editMode: boolean;
+  formState: AssociationTypeEditFormState | null;
+  onFormChange: <K extends keyof AssociationTypeEditFormState>(
+    field: K,
+    value: AssociationTypeEditFormState[K],
+  ) => void;
 }
 
 interface ColumnSettingsTabProps {
   associationTypeId: string;
   associationType: AssociationType;
   rules: AssociationRule[];
-  itemTypeLookup: Map<string, ItemType>;
   categoryMap: Map<string, Category>;
   familyMap: Map<string, Family>;
   attributeGroups: Map<string, AttributeGroup>;
@@ -83,11 +86,55 @@ type AvailableColumn = {
   options?: Record<string, unknown>;
 };
 
-const formatList = (ids: string[], lookup: Map<string, string>, fallback: string) => {
-  if (!ids.length) {
-    return fallback;
+interface AssociationTypeEditFormState {
+  cardinality: AssociationType['cardinality'];
+  direction: AssociationType['direction'];
+  isRequired: boolean;
+  metadataSchema: string;
+}
+
+interface ChangeSummary {
+  field: string;
+  oldValue: string | number | boolean | null;
+  newValue: string | number | boolean | null;
+}
+
+const formatSummaryList = (
+  summaries: CategoryFamilySummary[] | undefined,
+  fallbackIds: string[],
+  fallback: string,
+) => {
+  if (summaries && summaries.length > 0) {
+    return summaries
+      .map((summary) => summary.fullPath || summary.name || summary.id)
+      .join(', ');
   }
-  return ids.map((id) => lookup.get(id) ?? id).join(', ');
+  if (fallbackIds.length > 0) {
+    return fallbackIds.join(', ');
+  }
+  return fallback;
+};
+
+const serializeMetadataSchema = (
+  schema?: Record<string, unknown> | null,
+): string => (schema ? JSON.stringify(schema, null, 2) : '');
+
+const parseMetadataSchema = (
+  value: string,
+): { data: Record<string, unknown> | null } | { error: string } => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return { data: null };
+  }
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return { data: parsed as Record<string, unknown> };
+    }
+    return { error: 'Metadata must be a JSON object' };
+  } catch {
+    return { error: 'Metadata must be valid JSON' };
+  }
 };
 
 const buildStatisticsData = (
@@ -189,17 +236,10 @@ const buildStatisticsData = (
 const buildDocumentationSections = (
   associationType: AssociationType,
   rules: AssociationRule[],
-  categoryLookup: Map<string, string>,
-  familyLookup: Map<string, string>,
-  itemTypeLookup: Map<string, ItemType>,
 ): DocumentationSection[] => {
   const now = new Date().toISOString();
-  const sourceType = associationType.sourceItemTypeId
-    ? itemTypeLookup.get(associationType.sourceItemTypeId)
-    : null;
-  const targetType = associationType.targetItemTypeId
-    ? itemTypeLookup.get(associationType.targetItemTypeId)
-    : null;
+  const sourceType = associationType.sourceItemType;
+  const targetType = associationType.targetItemType;
 
   const overviewContent = [
     `**${associationType.name ?? associationType.key}**`,
@@ -208,34 +248,18 @@ const buildDocumentationSections = (
     `- Kardinalite: \`${associationType.cardinality}\``,
     `- Yön: \`${associationType.direction}\``,
     `- Zorunlu: ${associationType.isRequired ? 'Evet' : 'Hayır'}`,
-    `- Kaynak Tipi: ${sourceType?.name ?? associationType.sourceItemTypeId ?? '—'}`,
-    `- Hedef Tipi: ${targetType?.name ?? associationType.targetItemTypeId ?? '—'}`,
+    `- Kaynak Tipi: ${sourceType?.name ?? sourceType?.key ?? associationType.sourceItemTypeId ?? '—'}`,
+    `- Hedef Tipi: ${targetType?.name ?? targetType?.key ?? associationType.targetItemTypeId ?? '—'}`,
   ]
     .filter(Boolean)
     .join('\n');
 
   const ruleContent = rules
     .map((rule, index) => {
-      const scopeSourceCategories = formatList(
-        rule.sourceCategoryIds,
-        categoryLookup,
-        'Tümü',
-      );
-      const scopeTargetCategories = formatList(
-        rule.targetCategoryIds,
-        categoryLookup,
-        'Tümü',
-      );
-      const scopeSourceFamilies = formatList(
-        rule.sourceFamilyIds,
-        familyLookup,
-        'Tümü',
-      );
-      const scopeTargetFamilies = formatList(
-        rule.targetFamilyIds,
-        familyLookup,
-        'Tümü',
-      );
+      const scopeSourceCategories = formatSummaryList(rule.sourceCategories, rule.sourceCategoryIds, 'Tümü');
+      const scopeTargetCategories = formatSummaryList(rule.targetCategories, rule.targetCategoryIds, 'Tümü');
+      const scopeSourceFamilies = formatSummaryList(rule.sourceFamilies, rule.sourceFamilyIds, 'Tümü');
+      const scopeTargetFamilies = formatSummaryList(rule.targetFamilies, rule.targetFamilyIds, 'Tümü');
 
       return [
         `### ${index + 1}. ${rule.name ?? `Rule ${index + 1}`}`,
@@ -362,18 +386,34 @@ const buildApiEndpoints = (associationType: AssociationType): APIEndpoint[] => [
 const AssociationTypeOverviewTab: React.FC<OverviewTabProps> = ({
   associationType,
   rules,
-  itemTypeLookup,
-  categoryLookup,
-  familyLookup,
+  editMode,
+  formState,
+  onFormChange,
 }) => {
   const { t } = useLanguage();
   const { formatDateTime } = useDateFormatter();
-  const sourceType = associationType.sourceItemTypeId
-    ? itemTypeLookup.get(associationType.sourceItemTypeId)
-    : null;
-  const targetType = associationType.targetItemTypeId
-    ? itemTypeLookup.get(associationType.targetItemTypeId)
-    : null;
+  const sourceType = associationType.sourceItemType;
+  const targetType = associationType.targetItemType;
+  const cardinalityOptions = useMemo(
+    () => [
+      { value: 'one-to-one', label: t('association_types.cardinality.one_to_one') || 'One-to-One' },
+      { value: 'one-to-many', label: t('association_types.cardinality.one_to_many') || 'One-to-Many' },
+      { value: 'many-to-one', label: t('association_types.cardinality.many_to_one') || 'Many-to-One' },
+      { value: 'many-to-many', label: t('association_types.cardinality.many_to_many') || 'Many-to-Many' },
+    ],
+    [t],
+  );
+  const directionOptions = useMemo(
+    () => [
+      { value: 'directed', label: t('association_types.direction.directed') || 'Directed' },
+      { value: 'undirected', label: t('association_types.direction.undirected') || 'Undirected' },
+    ],
+    [t],
+  );
+  const currentCardinality = formState?.cardinality ?? associationType.cardinality;
+  const currentDirection = formState?.direction ?? associationType.direction;
+  const currentIsRequired = formState?.isRequired ?? associationType.isRequired;
+  const metadataValue = formState?.metadataSchema ?? serializeMetadataSchema(associationType.metadataSchema);
 
   return (
     <div className="space-y-6">
@@ -384,7 +424,7 @@ const AssociationTypeOverviewTab: React.FC<OverviewTabProps> = ({
               {t('association_types.fields.source_item_type') || 'Source Item Type'}
             </span>
             <p className="mt-1 text-sm text-foreground">
-              {sourceType?.name ?? associationType.sourceItemTypeId ?? '—'}
+              {sourceType?.name ?? sourceType?.key ?? associationType.sourceItemTypeId ?? '—'}
             </p>
           </div>
           <div>
@@ -392,34 +432,68 @@ const AssociationTypeOverviewTab: React.FC<OverviewTabProps> = ({
               {t('association_types.fields.target_item_type') || 'Target Item Type'}
             </span>
             <p className="mt-1 text-sm text-foreground">
-              {targetType?.name ?? associationType.targetItemTypeId ?? '—'}
+              {targetType?.name ?? targetType?.key ?? associationType.targetItemTypeId ?? '—'}
             </p>
           </div>
           <div>
             <span className="text-xs font-medium text-muted-foreground">
               {t('association_types.fields.cardinality') || 'Cardinality'}
             </span>
-            <Badge variant="outline" className="mt-1">
-              {associationType.cardinality}
-            </Badge>
+            <div className="mt-1">
+              {editMode ? (
+                <Select
+                  value={currentCardinality}
+                  onChange={(event) =>
+                    onFormChange('cardinality', event.target.value as AssociationType['cardinality'])
+                  }
+                  options={cardinalityOptions}
+                  className="text-sm"
+                />
+              ) : (
+                <Badge variant="outline">{associationType.cardinality}</Badge>
+              )}
+            </div>
           </div>
           <div>
             <span className="text-xs font-medium text-muted-foreground">
               {t('association_types.fields.direction') || 'Direction'}
             </span>
-            <Badge variant="outline" className="mt-1">
-              {associationType.direction === 'directed'
-                ? t('association_types.direction.directed') || 'Directed'
-                : t('association_types.direction.undirected') || 'Undirected'}
-            </Badge>
+            <div className="mt-1">
+              {editMode ? (
+                <Select
+                  value={currentDirection}
+                  onChange={(event) =>
+                    onFormChange('direction', event.target.value as AssociationType['direction'])
+                  }
+                  options={directionOptions}
+                  className="text-sm"
+                />
+              ) : (
+                <Badge variant="outline">
+                  {associationType.direction === 'directed'
+                    ? t('association_types.direction.directed') || 'Directed'
+                    : t('association_types.direction.undirected') || 'Undirected'}
+                </Badge>
+              )}
+            </div>
           </div>
           <div>
             <span className="text-xs font-medium text-muted-foreground">
               {t('association_types.fields.required') || 'Required'}
             </span>
-            <Badge variant={associationType.isRequired ? 'destructive' : 'secondary'} className="mt-1">
-              {associationType.isRequired ? t('common.yes') || 'Yes' : t('common.no') || 'No'}
-            </Badge>
+            <div className="mt-1">
+              {editMode ? (
+                <Checkbox
+                  checked={currentIsRequired}
+                  onChange={(event) => onFormChange('isRequired', event.target.checked)}
+                  label={currentIsRequired ? t('common.yes') || 'Yes' : t('common.no') || 'No'}
+                />
+              ) : (
+                <Badge variant={associationType.isRequired ? 'destructive' : 'secondary'}>
+                  {associationType.isRequired ? t('common.yes') || 'Yes' : t('common.no') || 'No'}
+                </Badge>
+              )}
+            </div>
           </div>
           <div className="space-y-1">
             <span className="text-xs font-medium text-muted-foreground">
@@ -433,15 +507,74 @@ const AssociationTypeOverviewTab: React.FC<OverviewTabProps> = ({
             </span>
             <UserInfoWithRole user={associationType.updatedBy} date={associationType.updatedAt} />
           </div>
+        </div>
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
           <div>
             <span className="text-xs font-medium text-muted-foreground">
-              {t('association_types.metadata_title') || 'Metadata Schema'}
+              {t('association_types.rules.source_categories') || 'Source Categories'}
             </span>
-            <p className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap rounded-md border border-border bg-muted px-3 py-2">
-              {associationType.metadataSchema
-                ? JSON.stringify(associationType.metadataSchema, null, 2)
-                : t('common.none') || 'None'}
+            <p className="mt-1 text-sm text-muted-foreground">
+              {formatSummaryList(
+                associationType.sourceCategories,
+                sourceType?.categoryIds ?? [],
+                t('common.all') || 'All',
+              )}
             </p>
+          </div>
+          <div>
+            <span className="text-xs font-medium text-muted-foreground">
+              {t('association_types.rules.target_categories') || 'Target Categories'}
+            </span>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {formatSummaryList(
+                associationType.targetCategories,
+                targetType?.categoryIds ?? [],
+                t('common.all') || 'All',
+              )}
+            </p>
+          </div>
+          <div>
+            <span className="text-xs font-medium text-muted-foreground">
+              {t('association_types.rules.source_families') || 'Source Families'}
+            </span>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {formatSummaryList(
+                associationType.sourceFamilies,
+                sourceType?.linkedFamilyIds ?? [],
+                t('common.all') || 'All',
+              )}
+            </p>
+          </div>
+          <div>
+            <span className="text-xs font-medium text-muted-foreground">
+              {t('association_types.rules.target_families') || 'Target Families'}
+            </span>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {formatSummaryList(
+                associationType.targetFamilies,
+                targetType?.linkedFamilyIds ?? [],
+                t('common.all') || 'All',
+              )}
+            </p>
+          </div>
+        </div>
+        <div className="mt-6">
+          <span className="text-xs font-medium text-muted-foreground">
+            {t('association_types.metadata_title') || 'Metadata Schema'}
+          </span>
+          <div className="mt-1">
+            {editMode ? (
+              <Textarea
+                rows={6}
+                value={metadataValue}
+                onChange={(event) => onFormChange('metadataSchema', event.target.value)}
+                placeholder={t('association_types.metadata_placeholder') || 'Enter JSON metadata'}
+              />
+            ) : (
+              <p className="text-xs text-muted-foreground whitespace-pre-wrap rounded-md border border-border bg-muted px-3 py-2">
+                {metadataValue.trim() ? metadataValue : t('common.none') || 'None'}
+              </p>
+            )}
           </div>
         </div>
         <div className="mt-6 space-y-2">
@@ -509,25 +642,25 @@ const AssociationTypeOverviewTab: React.FC<OverviewTabProps> = ({
                     <span className="font-medium text-foreground">
                       {t('association_types.rules.source_categories') || 'Source Categories'}:
                     </span>{' '}
-                    {formatList(rule.sourceCategoryIds, categoryLookup, t('common.all') || 'All')}
+                    {formatSummaryList(rule.sourceCategories, rule.sourceCategoryIds, t('common.all') || 'All')}
                   </div>
                   <div>
                     <span className="font-medium text-foreground">
                       {t('association_types.rules.source_families') || 'Source Families'}:
                     </span>{' '}
-                    {formatList(rule.sourceFamilyIds, familyLookup, t('common.all') || 'All')}
+                    {formatSummaryList(rule.sourceFamilies, rule.sourceFamilyIds, t('common.all') || 'All')}
                   </div>
                   <div>
                     <span className="font-medium text-foreground">
                       {t('association_types.rules.target_categories') || 'Target Categories'}:
                     </span>{' '}
-                    {formatList(rule.targetCategoryIds, categoryLookup, t('common.all') || 'All')}
+                    {formatSummaryList(rule.targetCategories, rule.targetCategoryIds, t('common.all') || 'All')}
                   </div>
                   <div>
                     <span className="font-medium text-foreground">
                       {t('association_types.rules.target_families') || 'Target Families'}:
                     </span>{' '}
-                    {formatList(rule.targetFamilyIds, familyLookup, t('common.all') || 'All')}
+                    {formatSummaryList(rule.targetFamilies, rule.targetFamilyIds, t('common.all') || 'All')}
                   </div>
                 </div>
               </div>
@@ -543,7 +676,6 @@ const AssociationTypeColumnSettingsTab: React.FC<ColumnSettingsTabProps> = ({
   associationTypeId,
   associationType,
   rules,
-  itemTypeLookup,
   categoryMap,
   familyMap,
   attributeGroups,
@@ -637,14 +769,13 @@ const AssociationTypeColumnSettingsTab: React.FC<ColumnSettingsTabProps> = ({
 
   const collectAttributeColumns = useCallback(
     (role: 'source' | 'target'): AvailableColumn[] => {
-      const itemTypeId =
-        role === 'source' ? associationType.sourceItemTypeId : associationType.targetItemTypeId;
       const groupIds = new Set<string>();
+      const roleItemType =
+        role === 'source' ? associationType.sourceItemType : associationType.targetItemType;
 
-      if (itemTypeId) {
-        const itemType = itemTypeLookup.get(itemTypeId);
-        itemType?.attributeGroupIds?.forEach((groupId) => groupIds.add(groupId));
-        itemType?.attributeGroupBindings?.forEach((binding) =>
+      if (roleItemType) {
+        roleItemType.attributeGroupIds?.forEach((groupId) => groupIds.add(groupId));
+        roleItemType.attributeGroupBindings?.forEach((binding) =>
           groupIds.add(binding.attributeGroupId),
         );
       }
@@ -668,6 +799,13 @@ const AssociationTypeColumnSettingsTab: React.FC<ColumnSettingsTabProps> = ({
           );
         });
       };
+
+      if (roleItemType?.categoryIds?.length) {
+        appendFromCategories(roleItemType.categoryIds);
+      }
+      if (roleItemType?.linkedFamilyIds?.length) {
+        appendFromFamilies(roleItemType.linkedFamilyIds);
+      }
 
       rules.forEach((rule) => {
         appendFromCategories(role === 'source' ? rule.sourceCategoryIds : rule.targetCategoryIds);
@@ -696,12 +834,11 @@ const AssociationTypeColumnSettingsTab: React.FC<ColumnSettingsTabProps> = ({
       );
     },
     [
-      associationType.sourceItemTypeId,
-      associationType.targetItemTypeId,
+      associationType.sourceItemType,
+      associationType.targetItemType,
       attributeGroups,
       categoryMap,
       familyMap,
-      itemTypeLookup,
       rules,
     ],
   );
@@ -1045,11 +1182,9 @@ export const AssociationTypeDetails: React.FC = () => {
   const navigate = useNavigate();
   const { t, language } = useLanguage();
   const { hasPermission } = useAuth();
+  const { showToast } = useToast();
   const [associationType, setAssociationType] = useState<AssociationType | null>(null);
   const [rules, setRules] = useState<AssociationRule[]>([]);
-  const [itemTypeLookup, setItemTypeLookup] = useState<Map<string, ItemType>>(new Map());
-  const [categoryLookup, setCategoryLookup] = useState<Map<string, string>>(new Map());
-  const [familyLookup, setFamilyLookup] = useState<Map<string, string>>(new Map());
   const [categoryMap, setCategoryMap] = useState<Map<string, Category>>(new Map());
   const [familyMap, setFamilyMap] = useState<Map<string, Family>>(new Map());
   const [attributeGroupMap, setAttributeGroupMap] = useState<Map<string, AttributeGroup>>(new Map());
@@ -1058,9 +1193,16 @@ export const AssociationTypeDetails: React.FC = () => {
   const [apiEndpoints, setApiEndpoints] = useState<APIEndpoint[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState<boolean>(false);
+  const [editForm, setEditForm] = useState<AssociationTypeEditFormState | null>(null);
+  const [commentDialogOpen, setCommentDialogOpen] = useState<boolean>(false);
+  const [pendingChanges, setPendingChanges] = useState<ChangeSummary[]>([]);
+  const [savingChanges, setSavingChanges] = useState<boolean>(false);
+  const [deleting, setDeleting] = useState<boolean>(false);
 
   const canUpdate = hasPermission(PERMISSIONS.SYSTEM.ASSOCIATIONS.UPDATE);
   const canViewHistory = hasPermission(PERMISSIONS.SYSTEM.ASSOCIATIONS.HISTORY);
+  const canDelete = hasPermission(PERMISSIONS.SYSTEM.ASSOCIATIONS.DELETE);
 
   const fetchDetails = useCallback(async () => {
     if (!id) {
@@ -1072,34 +1214,16 @@ export const AssociationTypeDetails: React.FC = () => {
       const [
         associationTypeResponse,
         rulesResponse,
-        itemTypesResponse,
         categoriesResponse,
         familiesResponse,
         attributeGroupsResponse,
       ] = await Promise.all([
         associationTypesService.getById(id),
         associationRulesService.list({ associationTypeId: id }),
-        itemTypesService.list({ limit: 200 }),
         categoriesService.list({ limit: 200 }),
         familiesService.list({ limit: 200 }),
         attributeGroupsService.list(),
       ]);
-
-      const itemTypeMap = new Map(
-        (itemTypesResponse.items ?? []).map((type) => [type.id, type]),
-      );
-      const categoryNameMap = new Map(
-        (categoriesResponse.items ?? []).map((category) => [
-          category.id,
-          category.name?.trim() || category.key || category.id,
-        ]),
-      );
-      const familyNameMap = new Map(
-        (familiesResponse.items ?? []).map((family) => [
-          family.id,
-          family.name?.trim() || family.key || family.id,
-        ]),
-      );
       const categoryEntityMap = new Map(
         (categoriesResponse.items ?? []).map((category) => [category.id, category]),
       );
@@ -1112,9 +1236,6 @@ export const AssociationTypeDetails: React.FC = () => {
 
       setAssociationType(associationTypeResponse);
       setRules(rulesResponse.items ?? []);
-      setItemTypeLookup(itemTypeMap);
-      setCategoryLookup(categoryNameMap);
-      setFamilyLookup(familyNameMap);
       setCategoryMap(categoryEntityMap);
       setFamilyMap(familyEntityMap);
       setAttributeGroupMap(attributeGroupEntityMap);
@@ -1131,13 +1252,7 @@ export const AssociationTypeDetails: React.FC = () => {
         buildStatisticsData(associationTypeResponse, rulesResponse.items ?? [], historyItems, language),
       );
       setDocumentationSections(
-        buildDocumentationSections(
-          associationTypeResponse,
-          rulesResponse.items ?? [],
-          categoryNameMap,
-          familyNameMap,
-          itemTypeMap,
-        ),
+        buildDocumentationSections(associationTypeResponse, rulesResponse.items ?? []),
       );
       setApiEndpoints(buildApiEndpoints(associationTypeResponse));
     } catch (err: any) {
@@ -1155,6 +1270,169 @@ export const AssociationTypeDetails: React.FC = () => {
   useEffect(() => {
     void fetchDetails();
   }, [fetchDetails]);
+
+  const getPendingChanges = useCallback(
+    (form: AssociationTypeEditFormState | null): ChangeSummary[] => {
+      if (!associationType || !form) {
+        return [];
+      }
+      const changes: ChangeSummary[] = [];
+      if (associationType.cardinality !== form.cardinality) {
+        changes.push({
+          field: t('association_types.fields.cardinality') || 'Cardinality',
+          oldValue: associationType.cardinality,
+          newValue: form.cardinality,
+        });
+      }
+      if (associationType.direction !== form.direction) {
+        changes.push({
+          field: t('association_types.fields.direction') || 'Direction',
+          oldValue: associationType.direction,
+          newValue: form.direction,
+        });
+      }
+      if (associationType.isRequired !== form.isRequired) {
+        changes.push({
+          field: t('association_types.fields.required') || 'Required',
+          oldValue: associationType.isRequired,
+          newValue: form.isRequired,
+        });
+      }
+      const currentMetadata = serializeMetadataSchema(associationType.metadataSchema).trim();
+      if (currentMetadata !== form.metadataSchema.trim()) {
+        changes.push({
+          field: t('association_types.metadata_title') || 'Metadata Schema',
+          oldValue: currentMetadata || '—',
+          newValue: form.metadataSchema.trim() || '—',
+        });
+      }
+      return changes;
+    },
+    [associationType, t],
+  );
+
+  const pendingFormChanges = useMemo(
+    () => getPendingChanges(editForm),
+    [editForm, getPendingChanges],
+  );
+
+  const handleEnterEdit = useCallback(() => {
+    if (!associationType) {
+      return;
+    }
+    setEditForm({
+      cardinality: associationType.cardinality,
+      direction: associationType.direction,
+      isRequired: associationType.isRequired,
+      metadataSchema: serializeMetadataSchema(associationType.metadataSchema),
+    });
+    setIsEditing(true);
+    setPendingChanges([]);
+  }, [associationType]);
+
+  const handleCancelEdit = useCallback(() => {
+    setIsEditing(false);
+    setEditForm(null);
+    setPendingChanges([]);
+    setCommentDialogOpen(false);
+  }, []);
+
+  const handleFormFieldChange = useCallback(
+    <K extends keyof AssociationTypeEditFormState>(
+      field: K,
+      value: AssociationTypeEditFormState[K],
+    ) => {
+      setEditForm((prev) => (prev ? { ...prev, [field]: value } : prev));
+    },
+    [],
+  );
+
+  const handleSaveRequest = useCallback(() => {
+    if (!associationType || !editForm) {
+      return;
+    }
+    const changes = getPendingChanges(editForm);
+    if (changes.length === 0) {
+      showToast(t('association_types.details.no_changes') || 'No changes to save.', 'info');
+      setIsEditing(false);
+      setEditForm(null);
+      return;
+    }
+    setPendingChanges(changes);
+    setCommentDialogOpen(true);
+  }, [associationType, editForm, getPendingChanges, showToast, t]);
+
+  const handleCommentDialogClose = useCallback(() => {
+    setCommentDialogOpen(false);
+  }, []);
+
+  const handleConfirmSave = useCallback(
+    async (comment: string) => {
+      if (!associationType || !editForm) {
+        return;
+      }
+      const parsed = parseMetadataSchema(editForm.metadataSchema);
+      if ('error' in parsed) {
+        showToast(parsed.error, 'error');
+        return;
+      }
+      setSavingChanges(true);
+      try {
+        await associationTypesService.update(associationType.id, {
+          cardinality: editForm.cardinality,
+          direction: editForm.direction,
+          isRequired: editForm.isRequired,
+          metadataSchema: parsed.data,
+          comment,
+        });
+        showToast(
+          t('association_types.details.update_success') || 'Association type updated successfully.',
+          'success',
+        );
+        setCommentDialogOpen(false);
+        setPendingChanges([]);
+        setIsEditing(false);
+        setEditForm(null);
+        await fetchDetails();
+      } catch (err: any) {
+        console.error('Failed to update association type', err);
+        showToast(
+          err?.response?.data?.error?.message ||
+            t('association_types.details.update_failed') ||
+            'Failed to update association type.',
+          'error',
+        );
+      } finally {
+        setSavingChanges(false);
+      }
+    },
+    [associationType, editForm, fetchDetails, showToast, t],
+  );
+
+  const handleDelete = useCallback(async () => {
+    if (!associationType) {
+      return;
+    }
+    setDeleting(true);
+    try {
+      await associationTypesService.delete(associationType.id);
+      showToast(
+        t('association_types.details.delete_success') || 'Association type deleted.',
+        'success',
+      );
+      navigate('/association-types');
+    } catch (err: any) {
+      console.error('Failed to delete association type', err);
+      showToast(
+        err?.response?.data?.error?.message ||
+          t('association_types.details.delete_failed') ||
+          'Failed to delete association type.',
+        'error',
+      );
+    } finally {
+      setDeleting(false);
+    }
+  }, [associationType, navigate, showToast, t]);
 
   if (!id) {
     return (
@@ -1195,6 +1473,8 @@ export const AssociationTypeDetails: React.FC = () => {
     );
   }
 
+  const hasFormChanges = isEditing && pendingFormChanges.length > 0;
+
   const tabs: TabConfig[] = [
     {
       id: 'details',
@@ -1204,9 +1484,9 @@ export const AssociationTypeDetails: React.FC = () => {
       props: {
         associationType,
         rules,
-        itemTypeLookup,
-        categoryLookup,
-        familyLookup,
+        editMode: isEditing,
+        formState: editForm,
+        onFormChange: handleFormFieldChange,
       },
     },
     {
@@ -1218,12 +1498,12 @@ export const AssociationTypeDetails: React.FC = () => {
         associationTypeId: associationType.id,
         associationType,
         rules,
-        itemTypeLookup,
         categoryMap,
         familyMap,
         attributeGroups: attributeGroupMap,
         canEdit: canUpdate,
       },
+      hidden: !canUpdate,
     },
     {
       id: 'statistics',
@@ -1271,7 +1551,8 @@ export const AssociationTypeDetails: React.FC = () => {
   ];
 
   return (
-    <DetailsLayout
+    <>
+      <DetailsLayout
       title={
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2 flex-wrap">
@@ -1291,7 +1572,35 @@ export const AssociationTypeDetails: React.FC = () => {
       icon={<Zap className="h-6 w-6 text-white" />}
       tabs={tabs}
       backUrl="/association-types"
+      editMode={isEditing}
+      hasChanges={hasFormChanges}
+      onEdit={canUpdate ? handleEnterEdit : undefined}
+      onSave={canUpdate ? handleSaveRequest : undefined}
+      onCancel={isEditing ? handleCancelEdit : undefined}
+      inlineActions={false}
+      onDelete={canDelete ? handleDelete : undefined}
+      deleteButtonLabel={t('common.delete') || 'Delete'}
+      deleteDialogTitle={t('association_types.details.delete_title') || 'Delete association type?'}
+      deleteDialogDescription={
+        t('association_types.details.delete_description') ||
+        'This action cannot be undone. The association type will be permanently removed.'
+      }
+      deleteConfirmLabel={t('common.delete') || 'Delete'}
+      deleteCancelLabel={t('common.cancel') || 'Cancel'}
+      deleteLoading={deleting}
+      canDelete={canDelete}
     />
+
+      <ChangeConfirmDialog
+        open={commentDialogOpen}
+        onClose={handleCommentDialogClose}
+        onConfirm={handleConfirmSave}
+        changes={pendingChanges}
+        loading={savingChanges}
+        entityName={associationType.name ?? associationType.key}
+        title={t('association_types.details.review_changes') || 'Review Changes'}
+      />
+    </>
   );
 };
 

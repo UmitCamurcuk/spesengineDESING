@@ -82,19 +82,6 @@ export const ItemsList: React.FC = () => {
     [navigate],
   );
 
-  const statusVariant = useCallback((status: Item['status']) => {
-    switch (status) {
-      case 'active':
-        return 'success';
-      case 'draft':
-        return 'warning';
-      case 'inactive':
-      case 'archived':
-      default:
-        return 'default';
-    }
-  }, []);
-
   const columns = useMemo(
     () => [
       {
@@ -114,13 +101,6 @@ export const ItemsList: React.FC = () => {
         ),
       },
       {
-        key: 'code',
-        title: t('items.code') || 'Code',
-        render: (_: string, item: Item) => (
-          <code className="text-xs bg-muted px-2 py-1 rounded">{item.code}</code>
-        ),
-      },
-      {
         key: 'itemTypeId',
         title: t('items.type'),
         render: (_: string | null, item: Item) =>
@@ -133,14 +113,16 @@ export const ItemsList: React.FC = () => {
           ),
       },
       {
-        key: 'status',
-        title: t('items.status'),
-        sortable: true,
-        render: (_: string, item: Item) => (
-          <Badge variant={statusVariant(item.status)} size="sm">
-            {t(`items.status_${item.status}`) || item.status}
-          </Badge>
-        ),
+        key: 'categoryId',
+        title: t('items.category') || 'Category',
+        render: (_: string | null, item: Item) =>
+          item.categoryId ? (
+            <Badge variant="outline" size="sm">
+              {item.categoryId}
+            </Badge>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          ),
       },
       {
         key: 'updatedAt',
@@ -151,7 +133,7 @@ export const ItemsList: React.FC = () => {
         ),
       },
     ],
-    [statusVariant, t, toUserInfo],
+    [t, toUserInfo],
   );
 
   return (

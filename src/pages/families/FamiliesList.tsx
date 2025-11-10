@@ -176,7 +176,7 @@ export const FamiliesList: React.FC = () => {
             title: t('families.empty_state') || 'Henüz family oluşturulmadı.',
             description:
               t('families.create_new') ||
-              'İlk family kaydınızı oluşturarak ürün hiyerarşinizi başlatın.',
+              'İlk family kaydınızı oluşturarak öğe hiyerarşinizi başlatın.',
             action: canCreateFamily ? (
               <Button onClick={() => navigate('/families/create')}>
                 <Plus className="h-4 w-4 mr-2" />

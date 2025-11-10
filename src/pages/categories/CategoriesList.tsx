@@ -190,7 +190,7 @@ export const CategoriesList: React.FC = () => {
             title: t('categories.empty_state') || 'Henüz kategori oluşturulmadı.',
             description:
               t('categories.create_new') ||
-              'İlk kategori kaydınızı oluşturarak ürün sınıflandırmanızı başlatın.',
+              'İlk kategori kaydınızı oluşturarak öğe sınıflandırmanızı başlatın.',
             action: canCreateCategory ? (
               <Button onClick={() => navigate('/categories/create')}>
                 <Plus className="h-4 w-4 mr-2" />

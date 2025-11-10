@@ -26,6 +26,7 @@ import { Textarea } from '../../components/ui/Textarea';
 import { Button } from '../../components/ui/Button';
 import { AttributeGroupSelector } from '../../components/ui/AttributeGroupSelector';
 import { Modal } from '../../components/ui/Modal';
+import { ChangeConfirmDialog } from '../../components/ui/ChangeConfirmDialog';
 import { ATTRIBUTE_TYPE_META } from '../../components/ui/AttributeTypeCard';
 import { TreeSelect } from '../../components/ui/TreeSelect';
 import { HierarchyTreeView } from '../../components/ui/HierarchyTreeView';
@@ -85,6 +86,12 @@ interface FamilyAttributeGroupsTabProps {
   loading: boolean;
   error: string | null;
 }
+
+type ChangeSummary = {
+  field: string;
+  oldValue: string | number | boolean | null;
+  newValue: string | number | boolean | null;
+};
 
 const resolveNameLabel = (
   code: string,
@@ -886,6 +893,8 @@ export const FamiliesDetails: React.FC = () => {
   const canViewNotifications = hasPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.VIEW);
 
   const [deleting, setDeleting] = useState(false);
+  const [commentDialogOpen, setCommentDialogOpen] = useState(false);
+  const [pendingChanges, setPendingChanges] = useState<ChangeSummary[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1141,6 +1150,41 @@ export const FamiliesDetails: React.FC = () => {
     return exists ? familyOptions : [...familyOptions, familyDraft];
   }, [familyDraft, familyOptions]);
 
+  const resolveFamilyDisplay = useCallback(
+    (familyId: string | null | undefined) => {
+      if (!familyId) {
+        return t('families.root_label') || 'Root';
+      }
+      const record = extendedFamilyOptions.find((item) => item.id === familyId);
+      return record?.name ?? familyId;
+    },
+    [extendedFamilyOptions, t],
+  );
+
+  const resolveCategoryDisplay = useCallback(
+    (categoryId: string | null | undefined) => {
+      if (!categoryId) {
+        return t('families.category_none') || '—';
+      }
+      return categoryOptions.find((item) => item.id === categoryId)?.name ?? categoryId;
+    },
+    [categoryOptions, t],
+  );
+
+  const resolveAttributeGroupDisplay = useCallback(
+    (ids: string[]) => {
+      if (!ids.length) {
+        return t('families.attribute_groups.empty_short') || '—';
+      }
+      return ids
+        .map(
+          (id) => attributeGroups.find((group) => group.id === id)?.name || id,
+        )
+        .join(', ');
+    },
+    [attributeGroups, t],
+  );
+
   const categoryMap = useMemo(() => {
     const map = new Map<string, Category>();
     categoryOptions.forEach((category) => map.set(category.id, category));
@@ -1385,6 +1429,75 @@ export const FamiliesDetails: React.FC = () => {
       hasCategoryChanges) &&
     !saving;
 
+  const buildChangeSummary = useCallback((): ChangeSummary[] => {
+    const summary: ChangeSummary[] = [];
+    requiredLanguages.forEach(({ code, label }) => {
+      const previous = (initialNameState[code] ?? '').trim();
+      const current = (nameDraft[code] ?? '').trim();
+      if (previous !== current) {
+        summary.push({
+          field: `${t('families.fields.name') || 'Name'} (${label})`,
+          oldValue: previous || '—',
+          newValue: current || '—',
+        });
+      }
+    });
+    requiredLanguages.forEach(({ code, label }) => {
+      const previous = (initialDescriptionState[code] ?? '').trim();
+      const current = (descriptionDraft[code] ?? '').trim();
+      if (previous !== current) {
+        summary.push({
+          field: `${t('families.fields.description') || 'Description'} (${label})`,
+          oldValue: previous || '—',
+          newValue: current || '—',
+        });
+      }
+    });
+    if (hasAttributeGroupChanges) {
+      summary.push({
+        field: t('families.attribute_groups.title') || 'Attribute Groups',
+        oldValue: resolveAttributeGroupDisplay(initialAttributeGroupIds),
+        newValue: resolveAttributeGroupDisplay(selectedAttributeGroupIds),
+      });
+    }
+    if (hasParentChanges) {
+      summary.push({
+        field: t('families.fields.parent') || 'Parent Family',
+        oldValue: resolveFamilyDisplay(initialParentFamilyId),
+        newValue: resolveFamilyDisplay(parentFamilyId),
+      });
+    }
+    if (hasCategoryChanges) {
+      summary.push({
+        field: t('families.fields.category') || 'Category',
+        oldValue: resolveCategoryDisplay(initialCategorySelectionId),
+        newValue: resolveCategoryDisplay(categorySelectionId),
+      });
+    }
+    return summary;
+  }, [
+    descriptionDraft,
+    hasAttributeGroupChanges,
+    hasCategoryChanges,
+    hasDescriptionChanges,
+    hasNameChanges,
+    hasParentChanges,
+    initialAttributeGroupIds,
+    initialDescriptionState,
+    initialNameState,
+    initialParentFamilyId,
+    initialCategorySelectionId,
+    nameDraft,
+    parentFamilyId,
+    categorySelectionId,
+    requiredLanguages,
+    resolveAttributeGroupDisplay,
+    resolveCategoryDisplay,
+    resolveFamilyDisplay,
+    selectedAttributeGroupIds,
+    t,
+  ]);
+
   const handleEnterEdit = useCallback(() => {
     if (!family) {
       return;
@@ -1436,143 +1549,183 @@ export const FamiliesDetails: React.FC = () => {
     [],
   );
 
-  const handleSave = useCallback(async () => {
-    if (!family || saving) {
-      return;
-    }
-
-    try {
-      setSaving(true);
-      const namespace = 'families';
-      const normalizedKey = family.key.toLowerCase();
-
-      let nameLocalizationId = family.nameLocalizationId;
-      let descriptionLocalizationId = family.descriptionLocalizationId ?? null;
-
-      if (hasNameChanges) {
-        const translations = buildTranslationPayload(nameDraft);
-        if (!nameLocalizationId) {
-          const created = await localizationsService.create({
-            namespace,
-            key: `${normalizedKey}.name`,
-            description: null,
-            translations,
-          });
-          nameLocalizationId = created.id;
-        } else {
-          await localizationsService.update(nameLocalizationId, {
-            translations,
-            comment: t('families.localization_update_comment') || 'Family çevirisi güncellendi.',
-          });
-        }
+  const performSave = useCallback(
+    async (comment: string) => {
+      if (!family || saving) {
+        return;
       }
 
-      if (hasDescriptionChanges) {
-        const translations = buildTranslationPayload(descriptionDraft);
-        if (Object.keys(translations).length === 0) {
-          if (descriptionLocalizationId) {
-            await localizationsService.update(descriptionLocalizationId, {
-              translations: {},
-              comment: t('families.localization_update_comment') || 'Family çevirisi güncellendi.',
+      try {
+        setSaving(true);
+        const namespace = 'families';
+        const normalizedKey = family.key.toLowerCase();
+
+        let nameLocalizationId = family.nameLocalizationId;
+        let descriptionLocalizationId = family.descriptionLocalizationId ?? null;
+
+        if (hasNameChanges) {
+          const translations = buildTranslationPayload(nameDraft);
+          if (!nameLocalizationId) {
+            const created = await localizationsService.create({
+              namespace,
+              key: `${normalizedKey}.name`,
+              description: null,
+              translations,
+            });
+            nameLocalizationId = created.id;
+          } else {
+            await localizationsService.update(nameLocalizationId, {
+              translations,
+              comment:
+                t('families.localization_update_comment') || 'Family çevirisi güncellendi.',
             });
           }
-        } else if (!descriptionLocalizationId) {
-          const created = await localizationsService.create({
-            namespace,
-            key: `${normalizedKey}.description`,
-            description: null,
-            translations,
-          });
-          descriptionLocalizationId = created.id;
+        }
+
+        if (hasDescriptionChanges) {
+          const translations = buildTranslationPayload(descriptionDraft);
+          if (Object.keys(translations).length === 0) {
+            if (descriptionLocalizationId) {
+              await localizationsService.update(descriptionLocalizationId, {
+                translations: {},
+                comment:
+                  t('families.localization_update_comment') || 'Family çevirisi güncellendi.',
+              });
+            }
+          } else if (!descriptionLocalizationId) {
+            const created = await localizationsService.create({
+              namespace,
+              key: `${normalizedKey}.description`,
+              description: null,
+              translations,
+            });
+            descriptionLocalizationId = created.id;
+          } else {
+            await localizationsService.update(descriptionLocalizationId, {
+              translations,
+              comment:
+                t('families.localization_update_comment') || 'Family çevirisi güncellendi.',
+            });
+          }
+        }
+
+        const payload: Record<string, unknown> = {
+          comment,
+        };
+
+        if (nameLocalizationId && nameLocalizationId !== family.nameLocalizationId) {
+          payload.nameLocalizationId = nameLocalizationId;
+        }
+
+        if (
+          (descriptionLocalizationId ?? null) !== (family.descriptionLocalizationId ?? null)
+        ) {
+          payload.descriptionLocalizationId = descriptionLocalizationId;
+        }
+
+        if (hasAttributeGroupChanges) {
+          payload.attributeGroupIds = selectedAttributeGroupIds;
+        }
+
+        if (hasParentChanges) {
+          payload.parentFamilyId = parentFamilyId ?? null;
+        }
+
+        if (hasCategoryChanges) {
+          payload.categoryId = categorySelectionId ?? null;
+        }
+
+        let updatedFamily: Family | null = null;
+
+        if (Object.keys(payload).length > 0) {
+          updatedFamily = await familiesService.update(family.id, payload);
+        } else if (hasNameChanges || hasDescriptionChanges) {
+          updatedFamily = await familiesService.getById(family.id);
         } else {
-          await localizationsService.update(descriptionLocalizationId, {
-            translations,
-            comment: t('families.localization_update_comment') || 'Family çevirisi güncellendi.',
+          updatedFamily = family;
+        }
+
+        if (updatedFamily) {
+          setFamily(updatedFamily);
+          setFamilyDraft(updatedFamily);
+          setSelectedAttributeGroupIds(updatedFamily.attributeGroupIds ?? []);
+          setInitialAttributeGroupIds(updatedFamily.attributeGroupIds ?? []);
+          setParentFamilyId(updatedFamily.parentFamilyId ?? null);
+          setInitialParentFamilyId(updatedFamily.parentFamilyId ?? null);
+          setCategorySelectionId(updatedFamily.categoryId ?? null);
+          setInitialCategorySelectionId(updatedFamily.categoryId ?? null);
+          await loadLocalizationDetails(updatedFamily, true);
+          setEditMode(false);
+          showToast({
+            type: 'success',
+            message: t('families.update_success') || 'Family başarıyla güncellendi.',
           });
         }
+      } catch (err: any) {
+        console.error('Failed to update family', err);
+        const message =
+          err?.response?.data?.error?.message ??
+          err?.message ??
+          t('families.update_failed') ??
+          'Family güncellenemedi.';
+        showToast({ type: 'error', message });
+      } finally {
+        setSaving(false);
       }
+    },
+    [
+      family,
+      saving,
+      hasNameChanges,
+      hasDescriptionChanges,
+      hasAttributeGroupChanges,
+      buildTranslationPayload,
+      nameDraft,
+      descriptionDraft,
+      selectedAttributeGroupIds,
+      parentFamilyId,
+      categorySelectionId,
+      loadLocalizationDetails,
+      showToast,
+      t,
+      initialParentFamilyId,
+      initialCategorySelectionId,
+      hasParentChanges,
+      hasCategoryChanges,
+    ],
+  );
 
-      const payload: Record<string, unknown> = {};
-
-      if (nameLocalizationId && nameLocalizationId !== family.nameLocalizationId) {
-        payload.nameLocalizationId = nameLocalizationId;
-      }
-
-      if (
-        (descriptionLocalizationId ?? null) !== (family.descriptionLocalizationId ?? null)
-      ) {
-        payload.descriptionLocalizationId = descriptionLocalizationId;
-      }
-
-      if (hasAttributeGroupChanges) {
-        payload.attributeGroupIds = selectedAttributeGroupIds;
-      }
-
-      if (hasParentChanges) {
-        payload.parentFamilyId = parentFamilyId ?? null;
-      }
-
-      if (hasCategoryChanges) {
-        payload.categoryId = categorySelectionId ?? null;
-      }
-
-      let updatedFamily: Family | null = null;
-
-      if (Object.keys(payload).length > 0) {
-        updatedFamily = await familiesService.update(family.id, payload);
-      } else if (hasNameChanges || hasDescriptionChanges) {
-        updatedFamily = await familiesService.getById(family.id);
-      } else {
-        updatedFamily = family;
-      }
-
-      if (updatedFamily) {
-        setFamily(updatedFamily);
-        setFamilyDraft(updatedFamily);
-        setSelectedAttributeGroupIds(updatedFamily.attributeGroupIds ?? []);
-        setInitialAttributeGroupIds(updatedFamily.attributeGroupIds ?? []);
-        setParentFamilyId(updatedFamily.parentFamilyId ?? null);
-        setInitialParentFamilyId(updatedFamily.parentFamilyId ?? null);
-        setCategorySelectionId(updatedFamily.categoryId ?? null);
-        setInitialCategorySelectionId(updatedFamily.categoryId ?? null);
-        await loadLocalizationDetails(updatedFamily, true);
-        setEditMode(false);
-        showToast({
-          type: 'success',
-          message: t('families.update_success') || 'Family başarıyla güncellendi.',
-        });
-      }
-    } catch (err: any) {
-      console.error('Failed to update family', err);
-      const message =
-        err?.response?.data?.error?.message ??
-        err?.message ??
-        t('families.update_failed') ??
-        'Family güncellenemedi.';
-      showToast({ type: 'error', message });
-    } finally {
-      setSaving(false);
+  const handleSaveRequest = useCallback(() => {
+    if (!hasChanges) {
+      showToast({
+        type: 'info',
+        message: t('families.no_changes') || 'Kaydedilecek değişiklik yok.',
+      });
+      return;
     }
-  }, [
-    family,
-    saving,
-    hasNameChanges,
-    hasDescriptionChanges,
-    hasAttributeGroupChanges,
-    buildTranslationPayload,
-    nameDraft,
-    descriptionDraft,
-    selectedAttributeGroupIds,
-    parentFamilyId,
-    categorySelectionId,
-    loadLocalizationDetails,
-    showToast,
-    t,
-    initialParentFamilyId,
-    initialCategorySelectionId,
-    hasParentChanges,
-    hasCategoryChanges,
-  ]);
+    const summary = buildChangeSummary();
+    if (summary.length === 0) {
+      showToast({
+        type: 'info',
+        message: t('families.no_changes') || 'Kaydedilecek değişiklik yok.',
+      });
+      return;
+    }
+    setPendingChanges(summary);
+    setCommentDialogOpen(true);
+  }, [buildChangeSummary, hasChanges, showToast, t]);
+
+  const handleCommentDialogClose = useCallback(() => {
+    setCommentDialogOpen(false);
+  }, []);
+
+  const handleConfirmSave = useCallback(
+    async (comment: string) => {
+      setCommentDialogOpen(false);
+      await performSave(comment);
+    },
+    [performSave],
+  );
 
   const handleDelete = useCallback(async () => {
     if (!family || deleting) {
@@ -1611,7 +1764,7 @@ export const FamiliesDetails: React.FC = () => {
       canSave: editMode && hasChanges,
       onEdit: handleEnterEdit,
       onCancel: handleCancelEdit,
-      onSave: handleSave,
+      onSave: handleSaveRequest,
     });
 
     return () => {
@@ -1626,7 +1779,7 @@ export const FamiliesDetails: React.FC = () => {
     hasChanges,
     handleEnterEdit,
     handleCancelEdit,
-    handleSave,
+    handleSaveRequest,
   ]);
 
   const tabs = useMemo<TabConfig[]>(() => {
@@ -1826,31 +1979,43 @@ export const FamiliesDetails: React.FC = () => {
   }
 
   return (
-    <DetailsLayout
-      title={headerTitle}
-      subtitle={displayDescription || undefined}
-      icon={<Layers className="h-6 w-6 text-white" />}
-      tabs={tabs}
-      defaultTab="details"
-      backUrl="/families"
-      editMode={editMode}
-      hasChanges={hasChanges}
-      onEdit={canUpdateFamily ? handleEnterEdit : undefined}
-      onSave={canUpdateFamily ? handleSave : undefined}
-      onCancel={canUpdateFamily ? handleCancelEdit : undefined}
-      inlineActions={false}
-      onDelete={canDeleteFamily ? handleDelete : undefined}
-      deleteLoading={deleting}
-      deleteButtonLabel={t('families.delete_action') || 'Family Sil'}
-      deleteDialogTitle={
-        t('families.delete_title', { name: displayName || familyDraft.key }) ||
-        'Family Silinsin mi?'
-      }
-      deleteDialogDescription={
-        t('families.delete_description', { name: displayName || familyDraft.key }) ||
-        'Bu family kaydı silinecek. Bu işlem geri alınamaz.'
-      }
-    />
+    <>
+      <DetailsLayout
+        title={headerTitle}
+        subtitle={displayDescription || undefined}
+        icon={<Layers className="h-6 w-6 text-white" />}
+        tabs={tabs}
+        defaultTab="details"
+        backUrl="/families"
+        editMode={editMode}
+        hasChanges={hasChanges}
+        onEdit={canUpdateFamily ? handleEnterEdit : undefined}
+        onSave={canUpdateFamily ? handleSaveRequest : undefined}
+        onCancel={canUpdateFamily ? handleCancelEdit : undefined}
+        inlineActions={false}
+        onDelete={canDeleteFamily ? handleDelete : undefined}
+        deleteLoading={deleting}
+        deleteButtonLabel={t('families.delete_action') || 'Family Sil'}
+        deleteDialogTitle={
+          t('families.delete_title', { name: displayName || familyDraft.key }) ||
+          'Family Silinsin mi?'
+        }
+        deleteDialogDescription={
+          t('families.delete_description', { name: displayName || familyDraft.key }) ||
+          'Bu family kaydı silinecek. Bu işlem geri alınamaz.'
+        }
+      />
+
+      <ChangeConfirmDialog
+        open={commentDialogOpen}
+        onClose={handleCommentDialogClose}
+        onConfirm={handleConfirmSave}
+        changes={pendingChanges}
+        loading={saving}
+        entityName={displayName || familyDraft.key}
+        title={t('families.review_changes_title') || 'Değişiklikleri Onayla'}
+      />
+    </>
   );
 };
 

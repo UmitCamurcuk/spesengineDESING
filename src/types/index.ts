@@ -231,6 +231,32 @@ export interface AssociationTypeItemRef {
   nameLocalizationId?: string | null;
   name?: string | null;
   nameLanguage?: string | null;
+  descriptionLocalizationId?: string | null;
+  description?: string | null;
+  descriptionLanguage?: string | null;
+  categoryIds?: string[];
+  linkedFamilyIds?: string[];
+  attributeGroupIds?: string[];
+  attributeGroupBindings?: AttributeGroupBinding[];
+  attributeGroupCount?: number;
+}
+
+export interface HierarchyNode {
+  id: string;
+  key: string;
+  nameLocalizationId?: string | null;
+  name: string;
+  descriptionLocalizationId?: string | null;
+  description?: string | null;
+  descriptionLanguage?: string | null;
+}
+
+export interface CategoryFamilySummary extends HierarchyNode {
+  hierarchy: HierarchyNode[];
+  fullPath: string;
+  descriptionLocalizationId?: string | null;
+  description?: string | null;
+  descriptionLanguage?: string | null;
 }
 
 export interface Item {
@@ -238,14 +264,10 @@ export interface Item {
   itemTypeId: string | null;
   categoryId?: string | null;
   familyId?: string | null;
-  code: string;
-  externalCode?: string | null;
-  sku?: string | null;
   name: string;
   nameLocalizationId?: string | null;
   descriptionLocalizationId?: string | null;
   description?: string | null;
-  status: 'draft' | 'active' | 'inactive' | 'archived';
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -284,6 +306,10 @@ export interface AssociationType {
   isRequired: boolean;
   direction: 'directed' | 'undirected';
   metadataSchema?: Record<string, unknown> | null;
+  sourceCategories?: CategoryFamilySummary[];
+  targetCategories?: CategoryFamilySummary[];
+  sourceFamilies?: CategoryFamilySummary[];
+  targetFamilies?: CategoryFamilySummary[];
   createdAt: string;
   updatedAt: string;
   createdBy?: UserReference | string | null;
@@ -308,6 +334,10 @@ export interface AssociationRule {
   minTargets: number;
   maxTargets?: number | null;
   metadataSchema?: Record<string, unknown> | null;
+  sourceCategories?: CategoryFamilySummary[];
+  targetCategories?: CategoryFamilySummary[];
+  sourceFamilies?: CategoryFamilySummary[];
+  targetFamilies?: CategoryFamilySummary[];
   createdAt: string;
   updatedAt: string;
   createdBy?: UserReference | string | null;
