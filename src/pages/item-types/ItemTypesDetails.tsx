@@ -30,6 +30,7 @@ import { APITester } from '../../components/common/APITester';
 import { NotificationSettings } from '../../components/common/NotificationSettings';
 import { HistoryTable } from '../../components/common/HistoryTable';
 import { ChangeConfirmDialog } from '../../components/ui/ChangeConfirmDialog';
+import { AttributeGroupSelector } from '../../components/ui/AttributeGroupSelector';
 import { categoriesService } from '../../api/services/categories.service';
 import { familiesService } from '../../api/services/families.service';
 import { itemTypesService } from '../../api/services/item-types.service';
@@ -83,6 +84,10 @@ interface ItemTypeDetailsTabProps {
 interface ItemTypeAttributeGroupsTabProps {
   bindings: AttributeGroupBinding[];
   attributeGroups: AttributeGroupMap;
+  availableGroups: AttributeGroup[];
+  selectedIds?: string[];
+  onSelectionChange?: (ids: string[]) => void;
+  editMode?: boolean;
 }
 
 interface ItemTypeColumnConfigTabProps {
@@ -290,9 +295,118 @@ const ItemTypeDetailsTab: React.FC<ItemTypeDetailsTabProps> = ({
 const ItemTypeAttributeGroupsTab: React.FC<ItemTypeAttributeGroupsTabProps> = ({
   bindings,
   attributeGroups,
+  availableGroups,
+  selectedIds = [],
+  onSelectionChange,
+  editMode = false,
 }) => {
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const bindingMap = useMemo(
+    () => new Map(bindings.map((binding) => [binding.attributeGroupId, binding])),
+    [bindings],
+  );
+
+  if (editMode) {
+    if (!availableGroups || availableGroups.length === 0) {
+      return (
+        <Card padding="lg">
+          <div className="text-sm text-muted-foreground">
+            {t('item_types.attribute_groups.empty') || 'No attribute groups linked.'}
+          </div>
+        </Card>
+      );
+    }
+
+    const resolvedSelection = selectedIds.length
+      ? selectedIds.map((groupId) => ({
+          groupId,
+          group: attributeGroups.get(groupId),
+          binding: bindingMap.get(groupId) ?? null,
+        }))
+      : [];
+
+    return (
+      <div className="space-y-6">
+        <Card padding="lg" className="space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">
+              {t('item_types.attribute_groups.title') || 'Attribute Groups'}
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              {t('item_types.attribute_groups.helper') ||
+                'Select attribute groups that belong to this item type.'}
+            </p>
+          </div>
+          <AttributeGroupSelector
+            groups={availableGroups.map((group) => ({
+              id: group.id,
+              name: group.name,
+              description: group.description,
+              attributeCount:
+                group.attributeCount ??
+                group.attributeIds?.length ??
+                group.attributes?.length ??
+                0,
+            }))}
+            selectedGroups={selectedIds}
+            onSelectionChange={onSelectionChange}
+          />
+        </Card>
+
+        <Card padding="lg">
+          {resolvedSelection.length === 0 ? (
+            <div className="text-sm text-muted-foreground">
+              {t('item_types.attribute_groups.empty_selection') ||
+                'No attribute groups selected yet.'}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {resolvedSelection.map(({ groupId, group, binding }) => (
+                <Card
+                  key={groupId}
+                  padding="md"
+                  className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
+                >
+                  <div>
+                    <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                      <Tags className="h-4 w-4 text-primary" />
+                      {group?.name ?? groupId}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
+                      <code>{groupId}</code>
+                    </div>
+                    {group?.description ? (
+                      <p className="text-xs text-muted-foreground mt-2">{group.description}</p>
+                    ) : null}
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {binding?.required ? (
+                      <Badge variant="outline" size="sm">
+                        {t('item_types.attribute_groups.required') || 'Required'}
+                      </Badge>
+                    ) : null}
+                    {binding?.inherited ? (
+                      <Badge variant="secondary" size="sm">
+                        {t('item_types.attribute_groups.inherited') || 'Inherited'}
+                      </Badge>
+                    ) : null}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate(`/attribute-groups/${groupId}`)}
+                    >
+                      {t('common.view') || 'View'}
+                    </Button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+    );
+  }
 
   if (!bindings || bindings.length === 0) {
     return (
@@ -859,6 +973,8 @@ const ItemTypesDetails: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [families, setFamilies] = useState<Family[]>([]);
   const [attributeGroups, setAttributeGroups] = useState<AttributeGroup[]>([]);
+  const [selectedAttributeGroupIds, setSelectedAttributeGroupIds] = useState<string[]>([]);
+  const [initialAttributeGroupIds, setInitialAttributeGroupIds] = useState<string[]>([]);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -932,6 +1048,8 @@ const ItemTypesDetails: React.FC = () => {
         lifecycleStatus: itemType.lifecycleStatus,
         showInNavbar: Boolean(itemType.showInNavbar),
       });
+      setSelectedAttributeGroupIds(itemType.attributeGroupIds ?? []);
+      setInitialAttributeGroupIds(itemType.attributeGroupIds ?? []);
     }
   }, [itemType]);
 
@@ -956,6 +1074,15 @@ const ItemTypesDetails: React.FC = () => {
     attributeGroups.forEach((group) => next.set(group.id, group));
     return next;
   }, [attributeGroups]);
+
+  const hasAttributeGroupChanges = useMemo(() => {
+    const current = [...selectedAttributeGroupIds].sort();
+    const initial = [...initialAttributeGroupIds].sort();
+    if (current.length !== initial.length) {
+      return true;
+    }
+    return current.some((value, index) => value !== initial[index]);
+  }, [initialAttributeGroupIds, selectedAttributeGroupIds]);
 
   const statisticsData = useMemo<StatisticsType | undefined>(() => {
     if (!itemType) {
@@ -1051,8 +1178,11 @@ const ItemTypesDetails: React.FC = () => {
     if (editForm.showInNavbar !== Boolean(itemType.showInNavbar)) {
       return true;
     }
+    if (hasAttributeGroupChanges) {
+      return true;
+    }
     return false;
-  }, [editForm, itemType]);
+  }, [editForm, hasAttributeGroupChanges, itemType]);
 
   const buildChangeSummary = useCallback((): ChangeSummary[] => {
     if (!itemType || !editForm) {
@@ -1081,8 +1211,31 @@ const ItemTypesDetails: React.FC = () => {
           : t('common.no') || 'No',
       });
     }
+    if (hasAttributeGroupChanges) {
+      summary.push({
+        field: t('item_types.attribute_groups_tab') || 'Attribute Groups',
+        oldValue: attributeGroupMap
+          ? initialAttributeGroupIds
+              .map((id) => attributeGroupMap.get(id)?.name ?? id)
+              .join(', ') || '—'
+          : initialAttributeGroupIds.length,
+        newValue: attributeGroupMap
+          ? selectedAttributeGroupIds
+              .map((id) => attributeGroupMap.get(id)?.name ?? id)
+              .join(', ') || '—'
+          : selectedAttributeGroupIds.length,
+      });
+    }
     return summary;
-  }, [editForm, itemType, t]);
+  }, [
+    attributeGroupMap,
+    editForm,
+    hasAttributeGroupChanges,
+    initialAttributeGroupIds,
+    itemType,
+    selectedAttributeGroupIds,
+    t,
+  ]);
 
   const handleEnterEdit = useCallback(() => {
     if (!itemType) {
@@ -1099,8 +1252,9 @@ const ItemTypesDetails: React.FC = () => {
       lifecycleStatus: itemType.lifecycleStatus,
       showInNavbar: Boolean(itemType.showInNavbar),
     });
+    setSelectedAttributeGroupIds(initialAttributeGroupIds);
     setEditMode(false);
-  }, [itemType]);
+  }, [initialAttributeGroupIds, itemType]);
 
   const performSave = useCallback(
     async (comment: string) => {
@@ -1115,6 +1269,9 @@ const ItemTypesDetails: React.FC = () => {
         }
         if (editForm.showInNavbar !== Boolean(itemType.showInNavbar)) {
           payload.showInNavbar = editForm.showInNavbar;
+        }
+        if (hasAttributeGroupChanges) {
+          payload.attributeGroupIds = selectedAttributeGroupIds;
         }
         if (Object.keys(payload).length === 1) {
           // only comment, no actual change
@@ -1131,6 +1288,8 @@ const ItemTypesDetails: React.FC = () => {
           lifecycleStatus: updated.lifecycleStatus,
           showInNavbar: Boolean(updated.showInNavbar),
         });
+        setSelectedAttributeGroupIds(updated.attributeGroupIds ?? []);
+        setInitialAttributeGroupIds(updated.attributeGroupIds ?? []);
         setEditMode(false);
         showToast({
           type: 'success',
@@ -1147,7 +1306,7 @@ const ItemTypesDetails: React.FC = () => {
         setSaving(false);
       }
     },
-    [editForm, itemType, showToast, t],
+    [editForm, hasAttributeGroupChanges, itemType, selectedAttributeGroupIds, showToast, t],
   );
 
   const handleSaveRequest = useCallback(() => {
@@ -1262,6 +1421,10 @@ const ItemTypesDetails: React.FC = () => {
       props: {
         bindings,
         attributeGroups: attributeGroupMap,
+        availableGroups: attributeGroups,
+        selectedIds: selectedAttributeGroupIds,
+        onSelectionChange: setSelectedAttributeGroupIds,
+        editMode,
       },
     },
     {

@@ -46,7 +46,7 @@ interface FormState {
   categoryId: string;
   familyId: string;
   associations: AssociationDraft[];
-  attributeValues: Record<string, string>;
+  attributeValues: Record<string, unknown>;
 }
 
 const defaultAssociationRow: AssociationDraft = {
@@ -54,6 +54,36 @@ const defaultAssociationRow: AssociationDraft = {
   targetItemId: '',
   orderIndex: '',
   metadata: '',
+};
+
+const formatAttributeValueForDisplay = (value: unknown): string => {
+  if (value === undefined || value === null) {
+    return '—';
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length ? trimmed : '—';
+  }
+  if (typeof value === 'number') {
+    return Number.isNaN(value) ? '—' : value.toString();
+  }
+  if (typeof value === 'boolean') {
+    return value ? 'true' : 'false';
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return '—';
+    }
+    const formatted = value
+      .map((entry) => formatAttributeValueForDisplay(entry))
+      .filter((entry) => entry !== '—');
+    return formatted.length ? formatted.join(', ') : '—';
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
 };
 
 const cloneTreeNodes = (
@@ -887,7 +917,7 @@ const familiesByCategory = useMemo(() => {
   useEffect(() => {
     setForm((prev) => {
       const validAttributeIds = new Set(attributeDefinitions.map((attribute) => attribute.id));
-      const nextValues: Record<string, string> = {};
+      const nextValues: Record<string, unknown> = {};
       let changed = false;
       Object.entries(prev.attributeValues).forEach(([key, value]) => {
         if (validAttributeIds.has(key)) {
@@ -906,11 +936,23 @@ const familiesByCategory = useMemo(() => {
     });
   }, [attributeDefinitions]);
 
-  const handleAttributeValueChange = useCallback((attributeId: string, value: string) => {
-    setForm((prev) => ({
-      ...prev,
-      attributeValues: { ...prev.attributeValues, [attributeId]: value },
-    }));
+  const handleAttributeValueChange = useCallback((attributeId: string, value: unknown) => {
+    setForm((prev) => {
+      const nextValues = { ...prev.attributeValues };
+      if (
+        value === undefined ||
+        value === null ||
+        (typeof value === 'string' && value.trim().length === 0)
+      ) {
+        delete nextValues[attributeId];
+      } else {
+        nextValues[attributeId] = value;
+      }
+      return {
+        ...prev,
+        attributeValues: nextValues,
+      };
+    });
   }, []);
 
   const isItemTypeStepValid = useMemo(
@@ -1680,7 +1722,7 @@ const familiesByCategory = useMemo(() => {
                 <div key={`review-attr-${attribute.id}`} className="flex items-center justify-between">
                   <span className="text-muted-foreground">{attribute.name}</span>
                   <span className="font-medium text-foreground">
-                    {form.attributeValues[attribute.id]?.trim() || '—'}
+                    {formatAttributeValueForDisplay(form.attributeValues[attribute.id])}
                   </span>
                 </div>
               ))

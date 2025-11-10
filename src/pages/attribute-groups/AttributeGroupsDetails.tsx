@@ -532,7 +532,7 @@ export const AttributeGroupsDetails: React.FC = () => {
   const [tagsDraft, setTagsDraft] = useState<string[]>([]);
   const [initialTags, setInitialTags] = useState<string[]>([]);
   const [detailsErrors, setDetailsErrors] = useState<FormErrors>({});
-  const [localizationCache, setLocalizationCache] = useState<Record<string, LocalizationRecord>>({});
+  const localizationCacheRef = useRef<Record<string, LocalizationRecord>>({});
   const [localizationsLoading, setLocalizationsLoading] = useState(false);
   const [localizationsError, setLocalizationsError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -621,8 +621,9 @@ export const AttributeGroupsDetails: React.FC = () => {
       await Promise.all(
         ids.map(async (localizationId) => {
           try {
-            if (localizationCache[localizationId]) {
-              fetched[localizationId] = localizationCache[localizationId];
+            const cache = localizationCacheRef.current;
+            if (cache[localizationId]) {
+              fetched[localizationId] = cache[localizationId];
               return;
             }
             const record = await localizationsService.getById(localizationId);
@@ -639,8 +640,8 @@ export const AttributeGroupsDetails: React.FC = () => {
 
       setLocalizationsLoading(false);
 
-      const nextCache = { ...localizationCache, ...fetched };
-      setLocalizationCache(nextCache);
+      const nextCache = { ...localizationCacheRef.current, ...fetched };
+      localizationCacheRef.current = nextCache;
 
       const nameTranslations = nameId ? nextCache[nameId]?.translations ?? null : null;
       const descriptionTranslations = descriptionId
@@ -665,11 +666,7 @@ export const AttributeGroupsDetails: React.FC = () => {
         setInitialNoteState(nextNoteState);
       }
     },
-    [
-      buildLocalizationState,
-      localizationCache,
-      t,
-    ],
+    [buildLocalizationState, t],
   );
 
   const canUpdateGroup = hasPermission(PERMISSIONS.CATALOG.ATTRIBUTE_GROUPS.UPDATE);

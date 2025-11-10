@@ -1,3 +1,5 @@
+import type { DocumentationSection, APIEndpoint, Statistics } from './common';
+
 export enum AttributeType {
   // Basic (Temel) Types
   TEXT = 'text',
@@ -273,6 +275,77 @@ export interface Item {
   updatedAt: string;
   createdBy?: UserReference | string | null;
   updatedBy?: UserReference | string | null;
+}
+
+export interface LocalizedAttributeValue {
+  language: string;
+  value: unknown;
+}
+
+export interface ItemAttributeValue {
+  id: string;
+  attributeId: string;
+  value: unknown;
+  localizedValues?: LocalizedAttributeValue[];
+  effectiveFrom?: string | null;
+  effectiveTo?: string | null;
+  lastCalculatedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ItemAttributeGroupSummary {
+  id: string;
+  key?: string;
+  name: string;
+  description?: string | null;
+  note?: string | null;
+  required: boolean;
+  inherited: boolean;
+  attributeCount: number;
+  displayOrder?: number;
+  tags?: string[];
+  attributes: Attribute[];
+}
+
+export interface ItemHierarchyNode {
+  id: string;
+  key?: string | null;
+  name: string | null;
+}
+
+export interface ItemAssociationSummary {
+  id: string;
+  associationTypeId: string | null;
+  associationTypeName: string | null;
+  associationTypeKey: string | null;
+  direction: 'source' | 'target';
+  counterpartItemId: string | null;
+  counterpartItemName: string | null;
+  metadata?: Record<string, unknown> | null;
+  orderIndex?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ItemDetails {
+  item: Item;
+  itemType?: ItemType | null;
+  category?: Category | null;
+  family?: Family | null;
+  hierarchy: {
+    categoryPath: ItemHierarchyNode[];
+    familyPath: ItemHierarchyNode[];
+  };
+  attributeGroups: ItemAttributeGroupSummary[];
+  attributeValues: Record<string, ItemAttributeValue>;
+  associations: {
+    source: ItemAssociationSummary[];
+    target: ItemAssociationSummary[];
+  };
+  statistics: Statistics;
+  documentationSections: DocumentationSection[];
+  apiEndpoints: APIEndpoint[];
 }
 
 export interface Association {

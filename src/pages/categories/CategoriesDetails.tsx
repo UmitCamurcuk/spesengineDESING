@@ -31,6 +31,7 @@ import { NotificationSettings } from '../../components/common/NotificationSettin
 import { Documentation } from '../../components/common/Documentation';
 import { Statistics } from '../../components/common/Statistics';
 import { APITester } from '../../components/common/APITester';
+import { ChangeConfirmDialog } from '../../components/ui/ChangeConfirmDialog';
 import { categoriesService } from '../../api/services/categories.service';
 import { familiesService } from '../../api/services/families.service';
 import { itemTypesService } from '../../api/services/item-types.service';
@@ -78,6 +79,12 @@ interface CategoryDetailsTabProps {
   localizationsLoading?: boolean;
   localizationsError?: string | null;
 }
+
+type ChangeSummary = {
+  field: string;
+  oldValue: React.ReactNode;
+  newValue: React.ReactNode;
+};
 
 interface CategoryAttributeGroupsTabProps {
   category: Category;
@@ -721,6 +728,8 @@ const CategoriesDetails: React.FC = () => {
   const localizationCacheRef = useRef<Record<string, LocalizationRecord>>({});
   const [localizationsLoading, setLocalizationsLoading] = useState(false);
   const [localizationsError, setLocalizationsError] = useState<string | null>(null);
+  const [commentDialogOpen, setCommentDialogOpen] = useState(false);
+  const [pendingChanges, setPendingChanges] = useState<ChangeSummary[]>([]);
 
   const canUpdateCategory = hasPermission(PERMISSIONS.CATALOG.CATEGORIES.UPDATE);
   const canDeleteCategory = hasPermission(PERMISSIONS.CATALOG.CATEGORIES.DELETE);
@@ -1001,6 +1010,59 @@ const CategoriesDetails: React.FC = () => {
     return map;
   }, [itemTypeOptions]);
 
+  const resolveAttributeGroupDisplay = useCallback(
+    (ids: string[]) => {
+      if (!ids.length) {
+        return t('categories.attribute_groups.empty_short') || '—';
+      }
+      return ids
+        .map((id) => attributeGroups.find((group) => group.id === id)?.name || id)
+        .join(', ');
+    },
+    [attributeGroups, t],
+  );
+
+  const resolveItemTypeDisplay = useCallback(
+    (itemTypeId: string | null | undefined) => {
+      if (!itemTypeId) {
+        return t('categories.item_type_none') || '—';
+      }
+      return itemTypeDisplayMap.get(itemTypeId) ?? itemTypeId;
+    },
+    [itemTypeDisplayMap, t],
+  );
+
+  const resolveItemTypeListDisplay = useCallback(
+    (ids: string[]) => {
+      if (!ids.length) {
+        return t('categories.linked_item_types_empty') || '—';
+      }
+      return ids.map((id) => itemTypeDisplayMap.get(id) ?? id).join(', ');
+    },
+    [itemTypeDisplayMap, t],
+  );
+
+  const resolveFamilyListDisplay = useCallback(
+    (ids: string[]) => {
+      if (!ids.length) {
+        return t('categories.linked_families_empty') || '—';
+      }
+      return ids.map((id) => familyOptions.find((family) => family.id === id)?.name ?? id).join(', ');
+    },
+    [familyOptions, t],
+  );
+
+  const resolveParentDisplay = useCallback(
+    (categoryId: string | null | undefined) => {
+      if (!categoryId) {
+        return t('categories.parent_none') || '—';
+      }
+      const record = categoryLookup.get(categoryId);
+      return record?.name?.trim() || record?.key || categoryId;
+    },
+    [categoryLookup, t],
+  );
+
   const invalidParentIds = useMemo(() => {
     if (!categoryDraft) {
       return new Set<string>();
@@ -1221,28 +1283,76 @@ const CategoriesDetails: React.FC = () => {
       hasLinkedItemTypeChanges) &&
     !saving;
 
-  const handleEnterEdit = useCallback(() => {
-    if (!category) {
-      return;
+  const buildChangeSummary = useCallback((): ChangeSummary[] => {
+    const summary: ChangeSummary[] = [];
+    requiredLanguages.forEach(({ code, label }) => {
+      const previous = (initialNameState[code] ?? '').trim();
+      const current = (nameDraft[code] ?? '').trim();
+      if (previous !== current) {
+        summary.push({
+          field: `${t('categories.fields.name') || 'Name'} (${label})`,
+          oldValue: previous || '—',
+          newValue: current || '—',
+        });
+      }
+    });
+    requiredLanguages.forEach(({ code, label }) => {
+      const previous = (initialDescriptionState[code] ?? '').trim();
+      const current = (descriptionDraft[code] ?? '').trim();
+      if (previous !== current) {
+        summary.push({
+          field: `${t('categories.fields.description') || 'Description'} (${label})`,
+          oldValue: previous || '—',
+          newValue: current || '—',
+        });
+      }
+    });
+    if (hasAttributeGroupChanges) {
+      summary.push({
+        field: t('categories.attribute_groups_tab') || 'Attribute Groups',
+        oldValue: resolveAttributeGroupDisplay(initialAttributeGroupIds),
+        newValue: resolveAttributeGroupDisplay(selectedAttributeGroupIds),
+      });
     }
-    setEditMode(true);
-  }, [category]);
-
-  const handleCancelEdit = useCallback(() => {
-    setEditMode(false);
-    setNameDraft(initialNameState);
-    setDescriptionDraft(initialDescriptionState);
-    setSelectedAttributeGroupIds(initialAttributeGroupIds);
-    setParentCategoryId(initialParentCategoryId);
-    setDefaultItemTypeId(initialDefaultItemTypeId);
-    setLinkedFamilyIds(initialLinkedFamilyIds);
-    setLinkedItemTypeIds(initialLinkedItemTypeIds);
-    setLocalizationsError(null);
-    if (category) {
-      setCategoryDraft(category);
+    if (hasParentChanges) {
+      summary.push({
+        field: t('categories.fields.parent') || 'Parent Category',
+        oldValue: resolveParentDisplay(initialParentCategoryId),
+        newValue: resolveParentDisplay(parentCategoryId),
+      });
     }
+    if (hasDefaultItemTypeChange) {
+      summary.push({
+        field: t('categories.fields.default_item_type') || 'Default Item Type',
+        oldValue: resolveItemTypeDisplay(initialDefaultItemTypeId),
+        newValue: resolveItemTypeDisplay(defaultItemTypeId),
+      });
+    }
+    if (hasLinkedFamilyChanges) {
+      summary.push({
+        field: t('categories.fields.linked_families') || 'Linked Families',
+        oldValue: resolveFamilyListDisplay(initialLinkedFamilyIds),
+        newValue: resolveFamilyListDisplay(linkedFamilyIds),
+      });
+    }
+    if (hasLinkedItemTypeChanges) {
+      summary.push({
+        field: t('categories.fields.linked_item_types') || 'Linked Item Types',
+        oldValue: resolveItemTypeListDisplay(initialLinkedItemTypeIds),
+        newValue: resolveItemTypeListDisplay(linkedItemTypeIds),
+      });
+    }
+    return summary;
   }, [
-    category,
+    defaultItemTypeId,
+    descriptionDraft,
+    hasAttributeGroupChanges,
+    hasDefaultItemTypeChange,
+    hasDescriptionChanges,
+    hasLinkedFamilyChanges,
+    hasLinkedItemTypeChanges,
+    hasNameChanges,
+    hasParentChanges,
     initialAttributeGroupIds,
     initialDefaultItemTypeId,
     initialDescriptionState,
@@ -1250,25 +1360,45 @@ const CategoriesDetails: React.FC = () => {
     initialLinkedItemTypeIds,
     initialNameState,
     initialParentCategoryId,
+    linkedFamilyIds,
+    linkedItemTypeIds,
+    nameDraft,
+    parentCategoryId,
+    requiredLanguages,
+    resolveAttributeGroupDisplay,
+    resolveFamilyListDisplay,
+    resolveItemTypeDisplay,
+    resolveItemTypeListDisplay,
+    resolveParentDisplay,
+    selectedAttributeGroupIds,
+    t,
   ]);
 
-  const handleNameDraftChange = useCallback((code: string, value: string) => {
-    setNameDraft((prev) => ({ ...prev, [code]: value }));
+  const handleSaveRequest = useCallback(() => {
+    if (!hasChanges) {
+      showToast({
+        type: 'info',
+        message: t('categories.no_changes') || 'Kaydedilecek değişiklik yok.',
+      });
+      return;
+    }
+    const summary = buildChangeSummary();
+    if (summary.length === 0) {
+      showToast({
+        type: 'info',
+        message: t('categories.no_changes') || 'Kaydedilecek değişiklik yok.',
+      });
+      return;
+    }
+    setPendingChanges(summary);
+    setCommentDialogOpen(true);
+  }, [buildChangeSummary, hasChanges, showToast, t]);
+
+  const handleCommentDialogClose = useCallback(() => {
+    setCommentDialogOpen(false);
   }, []);
 
-  const handleDescriptionDraftChange = useCallback((code: string, value: string) => {
-    setDescriptionDraft((prev) => ({ ...prev, [code]: value }));
-  }, []);
-
-  const handleLinkedFamiliesChange = useCallback((ids: string[]) => {
-    setLinkedFamilyIds(ids);
-  }, []);
-
-  const handleLinkedItemTypesChange = useCallback((ids: string[]) => {
-    setLinkedItemTypeIds(ids);
-  }, []);
-
-  const handleSave = useCallback(async () => {
+  const performSave = useCallback(async (comment: string) => {
     if (!category || saving) {
       return;
     }
@@ -1325,7 +1455,7 @@ const CategoriesDetails: React.FC = () => {
         }
       }
 
-      const payload: Record<string, unknown> = {};
+      const payload: Record<string, unknown> = { comment };
 
       if (nameLocalizationId && nameLocalizationId !== category.nameLocalizationId) {
         payload.nameLocalizationId = nameLocalizationId;
@@ -1423,6 +1553,61 @@ const CategoriesDetails: React.FC = () => {
     t,
   ]);
 
+  const handleConfirmSave = useCallback(
+    async (comment: string) => {
+      setCommentDialogOpen(false);
+      await performSave(comment);
+    },
+    [performSave],
+  );
+
+  const handleEnterEdit = useCallback(() => {
+    if (!category) {
+      return;
+    }
+    setEditMode(true);
+  }, [category]);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditMode(false);
+    setNameDraft(initialNameState);
+    setDescriptionDraft(initialDescriptionState);
+    setSelectedAttributeGroupIds(initialAttributeGroupIds);
+    setParentCategoryId(initialParentCategoryId);
+    setDefaultItemTypeId(initialDefaultItemTypeId);
+    setLinkedFamilyIds(initialLinkedFamilyIds);
+    setLinkedItemTypeIds(initialLinkedItemTypeIds);
+    setLocalizationsError(null);
+    if (category) {
+      setCategoryDraft(category);
+    }
+  }, [
+    category,
+    initialAttributeGroupIds,
+    initialDefaultItemTypeId,
+    initialDescriptionState,
+    initialLinkedFamilyIds,
+    initialLinkedItemTypeIds,
+    initialNameState,
+    initialParentCategoryId,
+  ]);
+
+  const handleNameDraftChange = useCallback((code: string, value: string) => {
+    setNameDraft((prev) => ({ ...prev, [code]: value }));
+  }, []);
+
+  const handleDescriptionDraftChange = useCallback((code: string, value: string) => {
+    setDescriptionDraft((prev) => ({ ...prev, [code]: value }));
+  }, []);
+
+  const handleLinkedFamiliesChange = useCallback((ids: string[]) => {
+    setLinkedFamilyIds(ids);
+  }, []);
+
+  const handleLinkedItemTypesChange = useCallback((ids: string[]) => {
+    setLinkedItemTypeIds(ids);
+  }, []);
+
   useEffect(() => {
     if (!canUpdateCategory) {
       registerEditActions(null);
@@ -1435,7 +1620,7 @@ const CategoriesDetails: React.FC = () => {
       canSave: editMode && hasChanges,
       onEdit: handleEnterEdit,
       onCancel: handleCancelEdit,
-      onSave: handleSave,
+      onSave: handleSaveRequest,
     });
 
     return () => {
@@ -1450,7 +1635,7 @@ const CategoriesDetails: React.FC = () => {
     hasChanges,
     handleEnterEdit,
     handleCancelEdit,
-    handleSave,
+    handleSaveRequest,
   ]);
 
   const handleDelete = useCallback(async () => {
@@ -1638,31 +1823,43 @@ const CategoriesDetails: React.FC = () => {
   );
 
   return (
-    <DetailsLayout
-      title={headerTitle}
-      subtitle={categoryDescription || undefined}
-      icon={<FolderTree className="h-6 w-6 text-white" />}
-      tabs={tabs}
-      defaultTab="details"
-      backUrl="/categories"
-      editMode={editMode}
-      hasChanges={hasChanges}
-      onEdit={canUpdateCategory ? handleEnterEdit : undefined}
-      onSave={canUpdateCategory ? handleSave : undefined}
-      onCancel={canUpdateCategory ? handleCancelEdit : undefined}
-      inlineActions={false}
-      onDelete={canDeleteCategory ? handleDelete : undefined}
-      deleteLoading={deleting}
-      deleteButtonLabel={t('categories.delete_action') || 'Kategori Sil'}
-      deleteDialogTitle={
-        t('categories.delete_title', { name: displayName || categoryDraft.key }) ||
-        'Kategori silinsin mi?'
-      }
-      deleteDialogDescription={
-        t('categories.delete_description', { name: displayName || categoryDraft.key }) ||
-        'Bu kategori kaydı kalıcı olarak silinecek. Bu işlem geri alınamaz.'
-      }
-    />
+    <>
+      <DetailsLayout
+        title={headerTitle}
+        subtitle={categoryDescription || undefined}
+        icon={<FolderTree className="h-6 w-6 text-white" />}
+        tabs={tabs}
+        defaultTab="details"
+        backUrl="/categories"
+        editMode={editMode}
+        hasChanges={hasChanges}
+        onEdit={canUpdateCategory ? handleEnterEdit : undefined}
+        onSave={canUpdateCategory ? handleSaveRequest : undefined}
+        onCancel={canUpdateCategory ? handleCancelEdit : undefined}
+        inlineActions={false}
+        onDelete={canDeleteCategory ? handleDelete : undefined}
+        deleteLoading={deleting}
+        deleteButtonLabel={t('categories.delete_action') || 'Kategori Sil'}
+        deleteDialogTitle={
+          t('categories.delete_title', { name: displayName || categoryDraft.key }) ||
+          'Kategori silinsin mi?'
+        }
+        deleteDialogDescription={
+          t('categories.delete_description', { name: displayName || categoryDraft.key }) ||
+          'Bu kategori kaydı kalıcı olarak silinecek. Bu işlem geri alınamaz.'
+        }
+      />
+
+      <ChangeConfirmDialog
+        open={commentDialogOpen}
+        onClose={handleCommentDialogClose}
+        onConfirm={handleConfirmSave}
+        changes={pendingChanges}
+        loading={saving}
+        entityName={displayName || categoryDraft.key}
+        title={t('categories.review_changes_title') || 'Değişiklikleri Onayla'}
+      />
+    </>
   );
 };
 

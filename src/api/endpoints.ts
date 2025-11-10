@@ -48,6 +48,7 @@ export const API_ENDPOINTS = {
   ITEMS: {
     BASE: '/items',
     BY_ID: (id: string) => `/items/${id}`,
+    DETAILS: (id: string) => `/items/${id}/details`,
     ATTRIBUTES: (id: string) => `/items/${id}/attributes`,
     ASSOCIATIONS: (id: string) => `/items/${id}/associations`,
     HISTORY: (id: string) => `/items/${id}/history`,
