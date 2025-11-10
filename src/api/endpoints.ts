@@ -95,6 +95,7 @@ export const API_ENDPOINTS = {
   // Attribute groups management
   ATTRIBUTE_GROUPS: {
     BASE: '/attribute-groups',
+    RESOLVE: '/attribute-groups/resolve',
     BY_ID: (id: string) => `/attribute-groups/${id}`,
     ATTRIBUTES: (id: string) => `/attribute-groups/${id}/attributes`,
   },

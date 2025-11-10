@@ -153,6 +153,28 @@ export const attributeGroupsService = {
   async delete(id: string): Promise<void> {
     await apiClient.delete(API_ENDPOINTS.ATTRIBUTE_GROUPS.BY_ID(id));
   },
+
+  async resolve(params: {
+    itemTypeId?: string;
+    categoryId?: string;
+    familyId?: string;
+  }): Promise<{ attributeGroups: AttributeGroup[]; requiredAttributeGroupIds: string[] }> {
+    const response = await apiClient.get<
+      ApiSuccessResponse<{
+        attributeGroups?: BackendAttributeGroup[];
+        requiredAttributeGroupIds?: string[];
+      }>
+    >(API_ENDPOINTS.ATTRIBUTE_GROUPS.RESOLVE, {
+      params,
+    });
+
+    const payload = response.data.data ?? {};
+    const groups = Array.isArray(payload.attributeGroups) ? payload.attributeGroups : [];
+    return {
+      attributeGroups: groups.map(mapAttributeGroup),
+      requiredAttributeGroupIds: payload.requiredAttributeGroupIds ?? [],
+    };
+  },
 };
 
 export type { BackendAttributeGroup };

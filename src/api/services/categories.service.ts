@@ -80,6 +80,7 @@ const mapCategory = (category: BackendCategory): Category => ({
 export interface CategoryListParams {
   search?: string;
   parentCategoryId?: string;
+  itemTypeId?: string;
   limit?: number;
   skip?: number;
 }

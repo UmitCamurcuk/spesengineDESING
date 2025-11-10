@@ -76,6 +76,7 @@ const mapFamily = (family: BackendFamily): Family => ({
 export interface FamilyListParams {
   search?: string;
   parentFamilyId?: string;
+  categoryId?: string;
   limit?: number;
   skip?: number;
 }

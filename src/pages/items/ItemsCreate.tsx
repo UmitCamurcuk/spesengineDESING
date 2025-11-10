@@ -120,10 +120,22 @@ export const ItemsCreate: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [itemTypes, setItemTypes] = useState<ItemType[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [categoryLoading, setCategoryLoading] = useState(false);
+  const [categoryError, setCategoryError] = useState<string | null>(null);
   const [families, setFamilies] = useState<Family[]>([]);
+  const [familyLoading, setFamilyLoading] = useState(false);
+  const [familyError, setFamilyError] = useState<string | null>(null);
   const [attributeGroups, setAttributeGroups] = useState<AttributeGroup[]>([]);
+  const [requiredAttributeGroupIds, setRequiredAttributeGroupIds] = useState<Set<string>>(new Set());
+  const [attributeGroupsLoading, setAttributeGroupsLoading] = useState(false);
+  const [attributeGroupsError, setAttributeGroupsError] = useState<string | null>(null);
   const [availableItems, setAvailableItems] = useState<Item[]>([]);
+  const [availableItemsLoading, setAvailableItemsLoading] = useState(false);
+  const [availableItemsLoaded, setAvailableItemsLoaded] = useState(false);
+  const [availableItemsError, setAvailableItemsError] = useState<string | null>(null);
   const [associationTypes, setAssociationTypes] = useState<AssociationType[]>([]);
+  const [associationTypesLoading, setAssociationTypesLoading] = useState(false);
+  const [associationTypesError, setAssociationTypesError] = useState<string | null>(null);
   const [associationRulesByType, setAssociationRulesByType] = useState<Record<string, AssociationRule[]>>({});
   const [ruleSelections, setRuleSelections] = useState<Record<string, string[]>>({});
   const [ruleTargetItems, setRuleTargetItems] = useState<Record<string, Item[]>>({});
@@ -136,39 +148,17 @@ export const ItemsCreate: React.FC = () => {
   useEffect(() => {
     let cancelled = false;
 
-    const fetchLookups = async () => {
+    const loadItemTypes = async () => {
       try {
         setLoadingLookup(true);
         setLookupError(null);
-        const [
-          itemTypeResult,
-          categoryResult,
-          familyResult,
-          attributeGroupResult,
-          itemsResult,
-          associationTypeResult,
-        ] = await Promise.all([
-          itemTypesService.list({ limit: 200 }),
-          categoriesService.list({ limit: 200 }),
-          familiesService.list({ limit: 200 }),
-          attributeGroupsService.list(),
-          itemsService.list({ limit: 200 }),
-          associationTypesService.list(),
-        ]);
-
-        if (cancelled) {
-          return;
+        const response = await itemTypesService.list({ limit: 200 });
+        if (!cancelled) {
+          setItemTypes(response.items ?? []);
         }
-
-        setItemTypes(itemTypeResult.items ?? []);
-        setCategories(categoryResult.items ?? []);
-        setFamilies(familyResult.items ?? []);
-        setAvailableItems(itemsResult.items ?? []);
-        setAttributeGroups(attributeGroupResult ?? []);
-        setAssociationTypes(associationTypeResult.items ?? []);
       } catch (error: any) {
         if (!cancelled) {
-          console.error('Failed to load item create lookups', error);
+          console.error('Failed to load item types', error);
           setLookupError(
             error?.response?.data?.error?.message ??
               t('items.create.failed_to_load_dependencies') ??
@@ -182,12 +172,205 @@ export const ItemsCreate: React.FC = () => {
       }
     };
 
-    void fetchLookups();
+    void loadItemTypes();
 
     return () => {
       cancelled = true;
     };
   }, [t]);
+
+  useEffect(() => {
+    if (!form.itemTypeId) {
+      setCategories([]);
+      setCategoryError(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadCategoriesForItemType = async () => {
+      try {
+        setCategoryLoading(true);
+        setCategoryError(null);
+        const response = await categoriesService.list({ itemTypeId: form.itemTypeId, limit: 200 });
+        if (!cancelled) {
+          setCategories(response.items ?? []);
+        }
+      } catch (error: any) {
+        if (!cancelled) {
+          console.error('Failed to load categories', error);
+          setCategories([]);
+          setCategoryError(
+            error?.response?.data?.error?.message ??
+              t('items.create.failed_to_load_categories') ??
+              'Kategoriler yüklenemedi.',
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setCategoryLoading(false);
+        }
+      }
+    };
+
+    void loadCategoriesForItemType();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [form.itemTypeId, t]);
+
+  useEffect(() => {
+    if (!form.categoryId) {
+      setFamilies([]);
+      setFamilyError(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadFamiliesForCategory = async () => {
+      try {
+        setFamilyLoading(true);
+        setFamilyError(null);
+        const response = await familiesService.list({ categoryId: form.categoryId, limit: 200 });
+        if (!cancelled) {
+          setFamilies(response.items ?? []);
+        }
+      } catch (error: any) {
+        if (!cancelled) {
+          console.error('Failed to load families', error);
+          setFamilies([]);
+          setFamilyError(
+            error?.response?.data?.error?.message ??
+              t('items.create.failed_to_load_families') ??
+              'Aileler yüklenemedi.',
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setFamilyLoading(false);
+        }
+      }
+    };
+
+    void loadFamiliesForCategory();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [form.categoryId, t]);
+
+  useEffect(() => {
+    if (!form.itemTypeId) {
+      setAssociationTypes([]);
+      setAssociationTypesError(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadAssociationTypes = async () => {
+      try {
+        setAssociationTypesLoading(true);
+        setAssociationTypesError(null);
+        const response = await associationTypesService.list({ sourceItemTypeId: form.itemTypeId });
+        if (!cancelled) {
+          setAssociationTypes(response.items ?? []);
+        }
+      } catch (error: any) {
+        if (!cancelled) {
+          console.error('Failed to load association types', error);
+          setAssociationTypes([]);
+          setAssociationTypesError(
+            error?.response?.data?.error?.message ??
+              t('items.create.failed_to_load_association_types') ??
+              'Association tipleri yüklenemedi.',
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setAssociationTypesLoading(false);
+        }
+      }
+    };
+
+    void loadAssociationTypes();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [form.itemTypeId, t]);
+
+  useEffect(() => {
+    if (!form.itemTypeId || !form.categoryId) {
+      setAttributeGroups([]);
+      setRequiredAttributeGroupIds(new Set());
+      setAttributeGroupsError(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadAttributeGroups = async () => {
+      try {
+        setAttributeGroupsLoading(true);
+        setAttributeGroupsError(null);
+        const response = await attributeGroupsService.resolve({
+          itemTypeId: form.itemTypeId,
+          categoryId: form.categoryId,
+          familyId: form.familyId || undefined,
+        });
+        if (!cancelled) {
+          setAttributeGroups(response.attributeGroups ?? []);
+          setRequiredAttributeGroupIds(new Set(response.requiredAttributeGroupIds ?? []));
+        }
+      } catch (error: any) {
+        if (!cancelled) {
+          console.error('Failed to load attribute groups', error);
+          setAttributeGroups([]);
+          setRequiredAttributeGroupIds(new Set());
+          setAttributeGroupsError(
+            error?.response?.data?.error?.message ??
+              t('items.create.failed_to_load_attribute_groups') ??
+              'Öznitelik grupları yüklenemedi.',
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setAttributeGroupsLoading(false);
+        }
+      }
+    };
+
+    void loadAttributeGroups();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [form.itemTypeId, form.categoryId, form.familyId, t]);
+
+  const ensureAvailableItems = useCallback(async () => {
+    if (availableItemsLoaded || availableItemsLoading) {
+      return;
+    }
+    setAvailableItemsLoading(true);
+    setAvailableItemsError(null);
+    try {
+      const response = await itemsService.list({ limit: 500 });
+      setAvailableItems(response.items ?? []);
+      setAvailableItemsLoaded(true);
+    } catch (error: any) {
+      console.error('Failed to load available items', error);
+      setAvailableItemsError(
+        error?.response?.data?.error?.message ??
+          t('items.create.failed_to_load_items') ??
+          'Öğe listesi yüklenemedi.',
+      );
+    } finally {
+      setAvailableItemsLoading(false);
+    }
+  }, [availableItemsLoaded, availableItemsLoading, t]);
 
   const selectedItemType = useMemo(
     () => itemTypes.find((type) => type.id === form.itemTypeId) ?? null,
@@ -479,8 +662,9 @@ const familiesByCategory = useMemo(() => {
   }, []);
 
   const addAssociationRow = useCallback(() => {
+    void ensureAvailableItems();
     setForm((prev) => ({ ...prev, associations: [...prev.associations, { ...defaultAssociationRow }] }));
-  }, []);
+  }, [ensureAvailableItems]);
 
   const removeAssociationRow = useCallback((index: number) => {
     setForm((prev) => {
@@ -681,36 +865,7 @@ const familiesByCategory = useMemo(() => {
     };
   }, [applicableRules, ruleTargetItems, t]);
 
-  const { allowedAttributeGroupIds, requiredAttributeGroupIds } = useMemo(() => {
-    const allowed = new Set<string>();
-    const required = new Set<string>();
-    const collect = (entity?: { attributeGroupIds?: string[]; attributeGroupBindings?: AttributeGroupBinding[] }) => {
-      if (!entity) return;
-      (entity.attributeGroupIds ?? []).forEach((id) => {
-        if (id) allowed.add(id);
-      });
-      (entity.attributeGroupBindings ?? []).forEach((binding) => {
-        if (binding.attributeGroupId) {
-          allowed.add(binding.attributeGroupId);
-          if (binding.required) {
-            required.add(binding.attributeGroupId);
-          }
-        }
-      });
-    };
-    collect(selectedItemType ?? undefined);
-    categoryLineage.forEach((category) => collect(category));
-    familyLineage.forEach((family) => collect(family));
-    return {
-      allowedAttributeGroupIds: allowed,
-      requiredAttributeGroupIds: required,
-    };
-  }, [selectedItemType, categoryLineage, familyLineage]);
-
-  const relevantAttributeGroups = useMemo(
-    () => attributeGroups.filter((group) => allowedAttributeGroupIds.has(group.id)),
-    [attributeGroups, allowedAttributeGroupIds],
-  );
+  const relevantAttributeGroups = attributeGroups;
 
   const attributeDefinitions = useMemo(() => {
     const map = new Map<string, Attribute>();
@@ -1020,6 +1175,22 @@ const familiesByCategory = useMemo(() => {
       );
     }
 
+    if (categoryLoading) {
+      return (
+        <div className="rounded-md border border-dashed border-border p-6 text-sm text-muted-foreground">
+          {t('common.loading') || 'Yükleniyor...'}
+        </div>
+      );
+    }
+
+    if (categoryError) {
+      return (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-xs text-destructive">
+          {categoryError}
+        </div>
+      );
+    }
+
     if (categoryTreeNodes.length === 0) {
       return (
         <div className="rounded-md border border-dashed border-border p-6 text-sm text-muted-foreground">
@@ -1070,7 +1241,15 @@ const familiesByCategory = useMemo(() => {
               {t('items.create.family_tree_title') || 'Aile Ağacı'}
             </p>
             {form.categoryId ? (
-              familyTreeNodes.length > 0 ? (
+              familyLoading ? (
+                <div className="rounded-md border border-dashed border-border p-4 text-xs text-muted-foreground">
+                  {t('common.loading') || 'Yükleniyor...'}
+                </div>
+              ) : familyError ? (
+                <div className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-xs text-destructive">
+                  {familyError}
+                </div>
+              ) : familyTreeNodes.length > 0 ? (
                 <TreeView
                   nodes={familyTreeNodes}
                   mode="edit"
@@ -1100,291 +1279,349 @@ const familiesByCategory = useMemo(() => {
     );
   };
 
-  const renderAttributesBody = () => (
-    <div className="space-y-6">
-      <div className="space-y-4">
-        <div>
-          <h4 className="text-sm font-semibold text-foreground">
-            {t('items.create.attribute_section_title') || 'Öznitelik Değerleri'}
-          </h4>
-          <p className="text-xs text-muted-foreground">
+  const renderAttributesBody = () => {
+    if (!form.itemTypeId || !form.categoryId) {
+      return (
+        <div className="rounded-md border border-dashed border-border p-6 text-sm text-muted-foreground">
+          {t('items.create.select_category_first') || 'Önce kategori seçmelisiniz.'}
+        </div>
+      );
+    }
+
+    if (attributeGroupsLoading) {
+      return (
+        <div className="rounded-md border border-dashed border-border p-6 text-sm text-muted-foreground">
+          {t('common.loading') || 'Yükleniyor...'}
+        </div>
+      );
+    }
+
+    if (attributeGroupsError) {
+      return (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-xs text-destructive">
+          {attributeGroupsError}
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        <div className="space-y-4">
+          <div>
+            <h4 className="text-sm font-semibold text-foreground">
+              {t('items.create.attribute_section_title') || 'Öznitelik Değerleri'}
+            </h4>
+            <p className="text-xs text-muted-foreground">
               {t('items.create.attribute_section_subtitle') ||
                 'Seçilen öğe tipi, kategori ve aileye bağlı öznitelik değerlerini girin.'}
-          </p>
-        </div>
+            </p>
+          </div>
 
-        {attributeDefinitions.length === 0 ? (
-          <div className="rounded-md border border-dashed border-border p-4 text-xs text-muted-foreground">
-            {t('items.create.no_attributes_available') || 'Bu seçim için öznitelik bulunmuyor.'}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {attributeDefinitions.map((attribute) => (
-              <div key={attribute.id} className="space-y-2">
-                <label className="block text-xs font-medium text-foreground">
-                  {attribute.name}
-                  {attribute.required ? (
-                    <span className="ml-1 text-[10px] font-semibold text-destructive" aria-label={t('common.required') || 'Required'}>
-                      *
-                    </span>
-                  ) : null}
-                </label>
-                <Input
-                  value={form.attributeValues[attribute.id] ?? ''}
-                  onChange={(event) => handleAttributeValueChange(attribute.id, event.target.value)}
-                  placeholder={attribute.description || attribute.key || attribute.id}
-                  required={attribute.required}
-                />
-              </div>
-            ))}
-          </div>
-        )}
+          {attributeDefinitions.length === 0 ? (
+            <div className="rounded-md border border-dashed border-border p-4 text-xs text-muted-foreground">
+              {t('items.create.no_attributes_available') || 'Bu seçim için öznitelik bulunmuyor.'}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {attributeDefinitions.map((attribute) => (
+                <div key={attribute.id} className="space-y-2">
+                  <label className="block text-xs font-medium text-foreground">
+                    {attribute.name}
+                    {attribute.required ? (
+                      <span className="ml-1 text-[10px] font-semibold text-destructive" aria-label={t('common.required') || 'Required'}>
+                        *
+                      </span>
+                    ) : null}
+                  </label>
+                  <Input
+                    value={form.attributeValues[attribute.id] ?? ''}
+                    onChange={(event) => handleAttributeValueChange(attribute.id, event.target.value)}
+                    placeholder={attribute.description || attribute.key || attribute.id}
+                    required={attribute.required}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const handleRuleSelectionChange = useCallback((ruleId: string, values: string[]) => {
     setRuleSelections((prev) => ({ ...prev, [ruleId]: values }));
   }, []);
 
-  const renderAssociationsBody = () => (
-    <div className="space-y-6">
-      <p className="text-sm text-muted-foreground">
-        {t('items.create.associations_hint') ||
-          'Association kuralları doğrultusunda hedef öğe seçimlerini tamamlayın. Kurallar yoksa manuel satırlar ekleyebilirsiniz.'}
-      </p>
+  const renderAssociationsBody = () => {
+    const renderRuleCards = () => {
+      if (!form.itemTypeId) {
+        return (
+          <div className="rounded-md border border-dashed border-border p-4 text-xs text-muted-foreground">
+            {t('items.create.select_item_type_first') || 'Önce öğe tipini seçmelisiniz.'}
+          </div>
+        );
+      }
 
-      {form.itemTypeId ? (
+      if (associationTypesLoading) {
+        return (
+          <div className="rounded-md border border-dashed border-border p-4 text-xs text-muted-foreground">
+            {t('common.loading') || 'Yükleniyor...'}
+          </div>
+        );
+      }
+
+      if (associationTypesError) {
+        return (
+          <div className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-xs text-destructive">
+            {associationTypesError}
+          </div>
+        );
+      }
+
+      if (applicableRules.length === 0) {
+        return (
+          <div className="rounded-md border border-dashed border-border p-4 text-xs text-muted-foreground">
+            {t('items.create.no_association_rules') ||
+              'Seçili kategori ve aile için tanımlı association kuralı bulunamadı. Gerekiyorsa manuel satırlar ekleyin.'}
+          </div>
+        );
+      }
+
+      return (
         <div className="space-y-4">
-          {applicableRules.length === 0 ? (
-            <div className="rounded-md border border-dashed border-border p-4 text-xs text-muted-foreground">
-              {t('items.create.no_association_rules') ||
-                'Seçili kategori ve aile için tanımlı association kuralı bulunamadı. Gerekiyorsa manuel satırlar ekleyin.'}
-            </div>
-          ) : (
-            applicableRules.map(({ type, rule }, index) => {
-              const selections = ruleSelections[rule.id] ?? [];
-              const targetItems = ruleTargetItems[rule.id] ?? [];
-              const loading = ruleLoadingState[rule.id];
-              const error = ruleErrors[rule.id];
-              const ruleLabel = rule.name || type.name || type.key;
-              const maxTargets = rule.maxTargets && rule.maxTargets > 0 ? rule.maxTargets : null;
-
-              return (
-                <Card key={rule.id}>
-                  <CardHeader
-                    title={`${type.name || type.key} — ${ruleLabel}`}
-                    subtitle={
-                      t('items.create.rule_card_summary', {
-                        min: String(rule.minTargets),
-                        max: maxTargets ? String(maxTargets) : t('items.create.rule_unlimited') || 'Sınırsız',
-                      }) || `Min ${rule.minTargets} / Max ${maxTargets ?? '∞'}`
-                    }
-                  />
-                  <div className="px-6 pb-6 space-y-3 text-xs">
-                    <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
-                      <Badge variant="secondary">#{index + 1}</Badge>
-                      <span>{t('items.create.rule_applies_to') || 'Yön'}: </span>
-                      <span className="text-foreground">
-                        {rule.appliesTo === 'source'
-                          ? t('associations.fields.applies_to_source') || 'Kaynak Bazlı'
-                          : t('associations.fields.applies_to_target') || 'Hedef Bazlı'}
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-muted-foreground">
-                      <div>
-                        {t('items.create.rule_source_scope') || 'Kaynak kapsamı'}:{' '}
-                        {(rule.sourceCategoryIds ?? []).length === 0 && (rule.sourceFamilyIds ?? []).length === 0
-                          ? t('common.all') || 'Tümü'
-                          : [
-                              ...(rule.sourceCategoryIds ?? []).map(
-                                (id) => categories.find((category) => category.id === id)?.name ?? id,
-                              ),
-                              ...(rule.sourceFamilyIds ?? []).map(
-                                (id) => families.find((family) => family.id === id)?.name ?? id,
-                              ),
-                            ].join(', ')}
-                      </div>
-                      <div>
-                        {t('items.create.rule_target_scope') || 'Hedef kapsamı'}:{' '}
-                        {(rule.targetCategoryIds ?? []).length === 0 && (rule.targetFamilyIds ?? []).length === 0
-                          ? t('common.all') || 'Tümü'
-                          : [
-                              ...(rule.targetCategoryIds ?? []).map(
-                                (id) => categories.find((category) => category.id === id)?.name ?? id,
-                              ),
-                              ...(rule.targetFamilyIds ?? []).map(
-                                (id) => families.find((family) => family.id === id)?.name ?? id,
-                              ),
-                            ].join(', ')}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-foreground mb-1">
-                        {t('items.create.select_rule_targets') || 'Hedef öğeleri seçin'}
-                      </label>
-                      <select
-                        multiple
-                        value={selections}
-                        onChange={(event) => {
-                          let values = Array.from(event.target.selectedOptions, (option) => option.value);
-                          if (maxTargets && values.length > maxTargets) {
-                            values = values.slice(0, maxTargets);
-                            showToast({
-                              type: 'warning',
-                              message:
-                                t('items.create.validation.rule_max_targets', {
-                                  rule: ruleLabel,
-                                  max: String(maxTargets),
-                                }) || `En fazla ${maxTargets} hedef seçebilirsiniz.`,
-                            });
-                          }
-                          handleRuleSelectionChange(rule.id, values);
-                        }}
-                        className="w-full px-3 py-2 h-40 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                      >
-                        {targetItems.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.code} {item.name ? `- ${item.name}` : ''}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-3">
-                        <span>
-                          {t('items.create.rule_selection_summary', {
-                            selected: String(selections.length),
-                            min: String(rule.minTargets),
-                            max: maxTargets ? String(maxTargets) : '∞',
-                          }) || `Seçilen: ${selections.length} / Min: ${rule.minTargets} / Max: ${maxTargets ?? '∞'}`}
-                        </span>
-                        {loading ? <Badge variant="outline">{t('common.loading') || 'Yükleniyor...'}</Badge> : null}
-                        {!loading && targetItems.length === 0 ? (
-                          <Badge variant="destructive">
-                            {t('items.create.no_target_items') || 'Uygun hedef öğe bulunamadı'}
-                          </Badge>
-                        ) : null}
-                      </div>
-                      {error ? (
-                        <div className="mt-2 rounded border border-destructive bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                          {error}
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                </Card>
-              );
-            })
-          )}
-        </div>
-      ) : (
-        <div className="rounded-md border border-dashed border-border p-4 text-xs text-muted-foreground">
-          {t('items.create.select_item_type_first') || 'Önce öğe tipini seçmelisiniz.'}
-        </div>
-      )}
-
-      <Card>
-        <CardHeader
-          title={t('items.create.manual_associations_title') || 'Manuel Association Satırları'}
-          subtitle={
-            t('items.create.manual_associations_subtitle') ||
-            'Kurallar dışında association eklemek isterseniz bu alanı kullanabilirsiniz.'
-          }
-          action={
-            <Button variant="outline" size="sm" onClick={addAssociationRow}>
-              <Plus className="h-4 w-4 mr-2" />
-              {t('items.create.add_association') || 'Association Satırı Ekle'}
-            </Button>
-          }
-        />
-        <div className="px-6 pb-6 space-y-4">
-          {form.associations.length === 0 ? (
-            <div className="rounded-md border border-dashed border-border p-4 text-xs text-muted-foreground">
-              {t('items.create.no_manual_associations') ||
-                'Manuel association satırı eklemek için yukarıdaki butonu kullanın.'}
-            </div>
-          ) : null}
-
-          {form.associations.map((assoc, index) => {
-            const associationType = associationTypes.find((type) => type.id === assoc.associationTypeId);
-            const manualTargets = associationType?.targetItemTypeId
-              ? availableItems.filter((item) => item.itemTypeId === associationType.targetItemTypeId)
-              : availableItems;
+          {applicableRules.map(({ type, rule }, index) => {
+            const selections = ruleSelections[rule.id] ?? [];
+            const targetItems = ruleTargetItems[rule.id] ?? [];
+            const loading = ruleLoadingState[rule.id];
+            const error = ruleErrors[rule.id];
+            const ruleLabel = rule.name || type.name || type.key;
+            const maxTargets = rule.maxTargets && rule.maxTargets > 0 ? rule.maxTargets : null;
 
             return (
-              <div key={`manual-association-${index}`} className="rounded-lg border border-border p-4 space-y-3">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-foreground mb-1">
-                      {t('items.fields.association_type_id') || 'Association Tipi'}
-                    </label>
-                    <select
-                      value={assoc.associationTypeId}
-                      onChange={(event) =>
-                        handleAssociationChange(index, { associationTypeId: event.target.value })
-                      }
-                      className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                    >
-                      <option value="">{t('items.create.select_association_type') || 'Association tipi seçin'}</option>
-                      {associationTypes.map((type) => (
-                        <option key={type.id} value={type.id}>
-                          {type.name || type.key}
-                        </option>
-                      ))}
-                    </select>
+              <Card key={rule.id}>
+                <CardHeader
+                  title={`${type.name || type.key} — ${ruleLabel}`}
+                  subtitle={
+                    t('items.create.rule_card_summary', {
+                      min: String(rule.minTargets),
+                      max: maxTargets ? String(maxTargets) : t('items.create.rule_unlimited') || 'Sınırsız',
+                    }) || `Min ${rule.minTargets} / Max ${maxTargets ?? '∞'}`
+                  }
+                />
+                <div className="px-6 pb-6 space-y-3 text-xs">
+                  <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
+                    <Badge variant="secondary">#{index + 1}</Badge>
+                    <span>{t('items.create.rule_applies_to') || 'Yön'}: </span>
+                    <span className="text-foreground">
+                      {rule.appliesTo === 'source'
+                        ? t('associations.fields.applies_to_source') || 'Kaynak Bazlı'
+                        : t('associations.fields.applies_to_target') || 'Hedef Bazlı'}
+                    </span>
                   </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-muted-foreground">
+                    <div>
+                      {t('items.create.rule_source_scope') || 'Kaynak kapsamı'}:{' '}
+                      {(rule.sourceCategoryIds ?? []).length === 0 && (rule.sourceFamilyIds ?? []).length === 0
+                        ? t('common.all') || 'Tümü'
+                        : [
+                            ...(rule.sourceCategoryIds ?? []).map(
+                              (id) => categories.find((category) => category.id === id)?.name ?? id,
+                            ),
+                            ...(rule.sourceFamilyIds ?? []).map(
+                              (id) => families.find((family) => family.id === id)?.name ?? id,
+                            ),
+                          ].join(', ')}
+                    </div>
+                    <div>
+                      {t('items.create.rule_target_scope') || 'Hedef kapsamı'}:{' '}
+                      {(rule.targetCategoryIds ?? []).length === 0 && (rule.targetFamilyIds ?? []).length === 0
+                        ? t('common.all') || 'Tümü'
+                        : [
+                            ...(rule.targetCategoryIds ?? []).map(
+                              (id) => categories.find((category) => category.id === id)?.name ?? id,
+                            ),
+                            ...(rule.targetFamilyIds ?? []).map(
+                              (id) => families.find((family) => family.id === id)?.name ?? id,
+                            ),
+                          ].join(', ')}
+                    </div>
+                  </div>
+
                   <div>
                     <label className="block text-xs font-medium text-foreground mb-1">
-                      {t('items.fields.target_item') || 'Hedef Öğe'}
+                      {t('items.create.select_rule_targets') || 'Hedef öğeleri seçin'}
                     </label>
                     <select
-                      value={assoc.targetItemId}
-                      onChange={(event) =>
-                        handleAssociationChange(index, { targetItemId: event.target.value })
-                      }
-                      className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                      multiple
+                      value={selections}
+                      onChange={(event) => {
+                        let values = Array.from(event.target.selectedOptions, (option) => option.value);
+                        if (maxTargets && values.length > maxTargets) {
+                          values = values.slice(0, maxTargets);
+                          showToast({
+                            type: 'warning',
+                            message:
+                              t('items.create.validation.rule_max_targets', {
+                                rule: ruleLabel,
+                                max: String(maxTargets),
+                              }) || `En fazla ${maxTargets} hedef seçebilirsiniz.`,
+                          });
+                        }
+                        handleRuleSelectionChange(rule.id, values);
+                      }}
+                      className="w-full px-3 py-2 h-40 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                     >
-                      <option value="">{t('items.create.select_target_item') || 'Hedef öğe seçin'}</option>
-                      {manualTargets.map((item) => (
+                      {targetItems.map((item) => (
                         <option key={item.id} value={item.id}>
                           {item.code} {item.name ? `- ${item.name}` : ''}
                         </option>
                       ))}
                     </select>
+                    <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-3">
+                      <span>
+                        {t('items.create.rule_selection_summary', {
+                          selected: String(selections.length),
+                          min: String(rule.minTargets),
+                          max: maxTargets ? String(maxTargets) : '∞',
+                        }) || `Seçilen: ${selections.length} / Min: ${rule.minTargets} / Max: ${maxTargets ?? '∞'}`}
+                      </span>
+                      {loading ? <Badge variant="outline">{t('common.loading') || 'Yükleniyor...'}</Badge> : null}
+                      {!loading && targetItems.length === 0 ? (
+                        <Badge variant="destructive">
+                          {t('items.create.no_target_items') || 'Uygun hedef öğe bulunamadı'}
+                        </Badge>
+                      ) : null}
+                    </div>
+                    {error ? (
+                      <div className="mt-2 rounded border border-destructive bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                        {error}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <Input
-                    label={t('items.fields.order_index') || 'Order Index'}
-                    type="number"
-                    value={assoc.orderIndex ?? ''}
-                    onChange={(event) => handleAssociationChange(index, { orderIndex: event.target.value })}
-                    placeholder="0"
-                  />
-                  <Textarea
-                    label={t('items.fields.metadata') || 'Metadata (JSON veya metin)'}
-                    value={assoc.metadata ?? ''}
-                    onChange={(event) => handleAssociationChange(index, { metadata: event.target.value })}
-                    placeholder='{"quantity": 1}'
-                    rows={3}
-                  />
-                </div>
-
-                <div className="flex justify-end">
-                  <Button variant="ghost" size="sm" onClick={() => removeAssociationRow(index)}>
-                    {t('common.remove') || 'Kaldır'}
-                  </Button>
-                </div>
-              </div>
+              </Card>
             );
           })}
         </div>
-      </Card>
-    </div>
-  );
+      );
+    };
 
+    return (
+      <div className="space-y-6">
+        <p className="text-sm text-muted-foreground">
+          {t('items.create.associations_hint') ||
+            'Association kuralları doğrultusunda hedef öğe seçimlerini tamamlayın. Kurallar yoksa manuel satırlar ekleyebilirsiniz.'}
+        </p>
+
+        {renderRuleCards()}
+
+        <Card>
+          <CardHeader
+            title={t('items.create.manual_associations_title') || 'Manuel Association Satırları'}
+            subtitle={
+              t('items.create.manual_associations_subtitle') ||
+              'Kurallar dışında association eklemek isterseniz bu alanı kullanabilirsiniz.'
+            }
+            action={
+              <Button variant="outline" size="sm" onClick={addAssociationRow}>
+                <Plus className="h-4 w-4 mr-2" />
+                {t('items.create.add_association') || 'Association Satırı Ekle'}
+              </Button>
+            }
+          />
+          <div className="px-6 pb-6 space-y-4">
+            {availableItemsError ? (
+              <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
+                {availableItemsError}
+              </div>
+            ) : null}
+            {form.associations.length === 0 ? (
+              <div className="rounded-md border border-dashed border-border p-4 text-xs text-muted-foreground">
+                {t('items.create.no_manual_associations') ||
+                  'Manuel association satırı eklemek için yukarıdaki butonu kullanın.'}
+              </div>
+            ) : null}
+
+            {form.associations.map((assoc, index) => {
+              const associationType = associationTypes.find((type) => type.id === assoc.associationTypeId);
+              const manualTargets = associationType?.targetItemTypeId
+                ? availableItems.filter((item) => item.itemTypeId === associationType.targetItemTypeId)
+                : availableItems;
+
+              return (
+                <div key={`manual-association-${index}`} className="rounded-lg border border-border p-4 space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-foreground mb-1">
+                        {t('items.fields.association_type_id') || 'Association Tipi'}
+                      </label>
+                      <select
+                        value={assoc.associationTypeId}
+                        onChange={(event) =>
+                          handleAssociationChange(index, { associationTypeId: event.target.value })
+                        }
+                        className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                      >
+                        <option value="">{t('items.create.select_association_type') || 'Association tipi seçin'}</option>
+                        {associationTypes.map((type) => (
+                          <option key={type.id} value={type.id}>
+                            {type.name || type.key}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-foreground mb-1">
+                        {t('items.fields.target_item') || 'Hedef Öğe'}
+                      </label>
+                      <select
+                        value={assoc.targetItemId}
+                        onChange={(event) =>
+                          handleAssociationChange(index, { targetItemId: event.target.value })
+                        }
+                        className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                      >
+                        <option value="">{t('items.create.select_target_item') || 'Hedef öğe seçin'}</option>
+                        {manualTargets.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.code} {item.name ? `- ${item.name}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <Input
+                      label={t('items.fields.order_index') || 'Order Index'}
+                      type="number"
+                      value={assoc.orderIndex ?? ''}
+                      onChange={(event) => handleAssociationChange(index, { orderIndex: event.target.value })}
+                      placeholder="0"
+                    />
+                    <Textarea
+                      label={t('items.fields.metadata') || 'Metadata (JSON veya metin)'}
+                      value={assoc.metadata ?? ''}
+                      onChange={(event) => handleAssociationChange(index, { metadata: event.target.value })}
+                      placeholder='{"quantity": 1}'
+                      rows={3}
+                    />
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button variant="ghost" size="sm" onClick={() => removeAssociationRow(index)}>
+                      {t('common.remove') || 'Kaldır'}
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      </div>
+    );
+  };
   const renderReviewBody = () => {
     const ruleReviewData = applicableRules.map(({ type, rule }) => {
       const selections = ruleSelections[rule.id] ?? [];
