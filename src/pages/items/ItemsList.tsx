@@ -10,21 +10,17 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { PERMISSIONS } from '../../config/permissions';
 import { itemsService } from '../../api/services/items.service';
-import { itemTypesService } from '../../api/services/item-types.service';
-import { categoriesService } from '../../api/services/categories.service';
 import { UserInfoWithRole } from '../../components/common/UserInfoWithRole';
 
 export const ItemsList: React.FC = () => {
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { t, resolveLocalization } = useLanguage();
   const { hasPermission } = useAuth();
   const canCreateItem = hasPermission(PERMISSIONS.CATALOG.ITEMS.CREATE);
 
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [itemTypeNames, setItemTypeNames] = useState<Map<string, string>>(new Map());
-  const [categoryNames, setCategoryNames] = useState<Map<string, string>>(new Map());
 
   const toUserInfo = useCallback((user: Item['updatedBy'] | Item['createdBy']) => {
     if (!user) {
@@ -46,17 +42,6 @@ export const ItemsList: React.FC = () => {
     };
   }, []);
 
-  const buildNameMap = useCallback(
-    (records: Array<{ id: string; name?: string | null; key?: string }>) => {
-      const map = new Map<string, string>();
-      records.forEach((record) => {
-        const label = (record.name && record.name.trim()) || record.key || record.id;
-        map.set(record.id, label);
-      });
-      return map;
-    },
-    [],
-  );
 
   useEffect(() => {
     let cancelled = false;
@@ -65,17 +50,11 @@ export const ItemsList: React.FC = () => {
       try {
         setLoading(true);
         setError(null);
-        const [itemsResponse, itemTypesResponse, categoriesResponse] = await Promise.all([
-          itemsService.list({ limit: 200 }),
-          itemTypesService.list({ limit: 200 }),
-          categoriesService.list({ limit: 200 }),
-        ]);
+        const itemsResponse = await itemsService.list({ limit: 200 });
         if (cancelled) {
           return;
         }
         setItems(itemsResponse.items ?? []);
-        setItemTypeNames(buildNameMap(itemTypesResponse.items ?? []));
-        setCategoryNames(buildNameMap(categoriesResponse.items ?? []));
       } catch (err) {
         console.error('Failed to load items', err);
         if (!cancelled) {
@@ -96,7 +75,7 @@ export const ItemsList: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [buildNameMap, t]);
+  }, [t]);
 
   const handleRowClick = useCallback(
     (item: Item) => {
@@ -111,37 +90,33 @@ export const ItemsList: React.FC = () => {
         key: 'name',
         title: t('items.name'),
         sortable: true,
-        render: (_: string, item: Item) => (
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-sm">
-              <Package className="h-5 w-5 text-white" />
+        render: (_: string, item: Item) => {
+          const localizedName =
+            (item.nameLocalizationId ? resolveLocalization(item.nameLocalizationId) : null) ||
+            (typeof item.name === 'string' && item.name.trim().length > 0 ? item.name.trim() : item.id);
+          return (
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-sm">
+                <Package className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-foreground">{localizedName}</div>
+                <div className="text-xs text-muted-foreground">ID: {item.id}</div>
+              </div>
             </div>
-            <div>
-              <div className="text-sm font-semibold text-foreground">{item.name}</div>
-              <div className="text-xs text-muted-foreground">ID: {item.id}</div>
-            </div>
-          </div>
-        ),
-      },
-      {
-        key: 'description',
-        title: t('items.description') || 'Description',
-        render: (_: string | null, item: Item) => (
-          <div className="text-sm text-muted-foreground max-w-xs truncate">
-            {item.description?.trim() && item.description.trim().length > 0
-              ? item.description.trim()
-              : t('common.not_available') || '—'}
-          </div>
-        ),
+          );
+        },
       },
       {
         key: 'itemTypeId',
         title: t('items.type'),
         render: (_: string | null, item: Item) => {
-          if (!item.itemTypeId) {
-            return <span className="text-xs text-muted-foreground">—</span>;
-          }
-          const label = itemTypeNames.get(item.itemTypeId) ?? item.itemTypeId;
+          const label =
+            item.itemTypeSummary?.name ??
+            item.itemTypeSummary?.key ??
+            item.itemTypeId ??
+            t('common.not_available') ??
+            '—';
           return (
             <Badge variant="primary" size="sm">
               {label}
@@ -153,10 +128,37 @@ export const ItemsList: React.FC = () => {
         key: 'categoryId',
         title: t('items.category') || 'Category',
         render: (_: string | null, item: Item) => {
-          if (!item.categoryId) {
-            return <span className="text-xs text-muted-foreground">—</span>;
-          }
-          const label = categoryNames.get(item.categoryId) ?? item.categoryId;
+          const label =
+            (item.categorySummary?.nameLocalizationId
+              ? resolveLocalization(item.categorySummary.nameLocalizationId)
+              : null) ??
+            item.categorySummary?.fullPath ??
+            item.categorySummary?.name ??
+            item.categorySummary?.key ??
+            item.categoryId ??
+            t('common.not_available') ??
+            '—';
+          return (
+            <Badge variant="outline" size="sm">
+              {label}
+            </Badge>
+          );
+        },
+      },
+      {
+        key: 'familyId',
+        title: t('items.family') || 'Family',
+        render: (_: string | null, item: Item) => {
+          const label =
+            (item.familySummary?.nameLocalizationId
+              ? resolveLocalization(item.familySummary.nameLocalizationId)
+              : null) ??
+            item.familySummary?.fullPath ??
+            item.familySummary?.name ??
+            item.familySummary?.key ??
+            item.familyId ??
+            t('common.not_available') ??
+            '—';
           return (
             <Badge variant="outline" size="sm">
               {label}
@@ -173,7 +175,7 @@ export const ItemsList: React.FC = () => {
         ),
       },
     ],
-    [categoryNames, itemTypeNames, t, toUserInfo],
+    [resolveLocalization, t, toUserInfo],
   );
 
   return (

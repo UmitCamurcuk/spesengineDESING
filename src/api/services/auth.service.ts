@@ -23,12 +23,22 @@ export const authService = {
   },
 
   // Logout user
-  logout: async (): Promise<void> => {
-    await apiClient.post(API_ENDPOINTS.AUTH.LOGOUT);
-    
+  logout: async (options?: { refreshToken?: string | null; allSessions?: boolean }): Promise<void> => {
+    const refreshTokenStorageKey = import.meta.env.VITE_AUTH_REFRESH_TOKEN_KEY || 'spes_refresh_token';
+    const storedRefreshToken =
+      options?.refreshToken ??
+      (typeof window !== 'undefined' ? localStorage.getItem(refreshTokenStorageKey) : null);
+
+    const payload =
+      storedRefreshToken && storedRefreshToken.length > 0
+        ? { refreshToken: storedRefreshToken }
+        : { allSessions: options?.allSessions ?? true };
+
+    await apiClient.post(API_ENDPOINTS.AUTH.LOGOUT, payload);
+
     // Clear tokens from localStorage
     localStorage.removeItem(import.meta.env.VITE_AUTH_TOKEN_KEY || 'spes_auth_token');
-    localStorage.removeItem(import.meta.env.VITE_AUTH_REFRESH_TOKEN_KEY || 'spes_refresh_token');
+    localStorage.removeItem(refreshTokenStorageKey);
     localStorage.removeItem(import.meta.env.VITE_AUTH_PROFILE_KEY || 'spes_auth_profile');
   },
 

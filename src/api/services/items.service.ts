@@ -5,7 +5,9 @@ import type {
   Attribute,
   AttributeGroupBinding,
   Category,
+  CategoryFamilySummary,
   Family,
+  HierarchyNode,
   Item,
   ItemAttributeGroupSummary,
   ItemAssociationSummary,
@@ -13,6 +15,7 @@ import type {
   ItemDetails,
   ItemHierarchyNode,
   ItemType,
+  ItemTypeSummaryRef,
   UserReference,
 } from '../../types';
 import { AttributeType } from '../../types';
@@ -42,6 +45,11 @@ type BackendItem = {
   updatedAt: string;
   createdBy?: BackendUserSummary;
   updatedBy?: BackendUserSummary;
+  itemTypeSummary?: BackendItemTypeSummary | null;
+  categorySummary?: BackendCategoryFamilySummaryPayload | null;
+  familySummary?: BackendCategoryFamilySummaryPayload | null;
+  attributeValues?: BackendItemAttributeValue[];
+  attributeValueMap?: Record<string, unknown>;
 };
 
 type BackendItemTypeSummary = {
@@ -106,6 +114,21 @@ type BackendFamilySummary = {
   updatedAt?: string;
   createdBy?: BackendUserSummary;
   updatedBy?: BackendUserSummary;
+};
+
+type BackendHierarchyNodeSummary = {
+  id: string;
+  key: string;
+  name?: string | null;
+  nameLocalizationId?: string | null;
+  descriptionLocalizationId?: string | null;
+  description?: string | null;
+  descriptionLanguage?: string | null;
+};
+
+type BackendCategoryFamilySummaryPayload = BackendHierarchyNodeSummary & {
+  hierarchy: BackendHierarchyNodeSummary[];
+  fullPath: string;
 };
 
 type BackendAttributeSummary = {
@@ -324,6 +347,73 @@ const mapFamilySummary = (summary?: BackendFamilySummary | null): Family | null 
   };
 };
 
+const mapHierarchyNodeSummary = (
+  node?: BackendHierarchyNodeSummary | null,
+): HierarchyNode | null => {
+  if (!node) {
+    return null;
+  }
+  return {
+    id: node.id,
+    key: node.key,
+    nameLocalizationId: node.nameLocalizationId ?? null,
+    name: node.name ?? node.key ?? node.id,
+    descriptionLocalizationId: node.descriptionLocalizationId ?? null,
+    description: node.description ?? null,
+    descriptionLanguage: node.descriptionLanguage ?? null,
+  };
+};
+
+const mapCategoryFamilySummaryPayload = (
+  summary?: BackendCategoryFamilySummaryPayload | null,
+): CategoryFamilySummary | null => {
+  if (!summary) {
+    return null;
+  }
+
+  const hierarchy = Array.isArray(summary.hierarchy)
+    ? summary.hierarchy
+        .map((entry) => mapHierarchyNodeSummary(entry))
+        .filter((entry): entry is HierarchyNode => Boolean(entry))
+    : [];
+
+  const fallbackName = summary.name ?? summary.key ?? summary.id;
+
+  return {
+    id: summary.id,
+    key: summary.key,
+    nameLocalizationId: summary.nameLocalizationId ?? null,
+    name: fallbackName,
+    descriptionLocalizationId: summary.descriptionLocalizationId ?? null,
+    description: summary.description ?? null,
+    descriptionLanguage: summary.descriptionLanguage ?? null,
+    hierarchy,
+    fullPath:
+      summary.fullPath && summary.fullPath.length > 0
+        ? summary.fullPath
+        : [...hierarchy.map((node) => node.name), fallbackName].filter(Boolean).join(' / '),
+  };
+};
+
+const mapItemTypeReference = (
+  summary?: BackendItemTypeSummary | null,
+): ItemTypeSummaryRef | null => {
+  if (!summary) {
+    return null;
+  }
+
+  return {
+    id: summary.id,
+    key: summary.key,
+    nameLocalizationId: summary.nameLocalizationId ?? null,
+    name: summary.name ?? summary.key ?? summary.id,
+    nameLanguage: summary.nameLanguage ?? null,
+    descriptionLocalizationId: summary.descriptionLocalizationId ?? null,
+    description: summary.description ?? null,
+    descriptionLanguage: summary.descriptionLanguage ?? null,
+  };
+};
+
 const mapItem = (item: BackendItem): Item => ({
   id: item.id,
   itemTypeId: item.itemTypeId,
@@ -338,6 +428,13 @@ const mapItem = (item: BackendItem): Item => ({
   updatedAt: item.updatedAt,
   createdBy: mapUser(item.createdBy),
   updatedBy: mapUser(item.updatedBy),
+  itemTypeSummary: mapItemTypeReference(item.itemTypeSummary),
+  categorySummary: mapCategoryFamilySummaryPayload(item.categorySummary),
+  familySummary: mapCategoryFamilySummaryPayload(item.familySummary),
+  attributeValues: Array.isArray(item.attributeValues)
+    ? item.attributeValues.map(mapAttributeValue)
+    : [],
+  attributeValueMap: item.attributeValueMap ?? {},
 });
 
 const mapAttributeSummary = (attribute: BackendAttributeSummary): Attribute => ({
@@ -428,6 +525,8 @@ export interface ItemListParams {
   skip?: number;
   categoryIds?: string[];
   familyIds?: string[];
+  attributeIds?: string[];
+  includeAttributes?: boolean;
 }
 
 const ITEM_LIST_MAX_LIMIT = 200;
@@ -436,18 +535,37 @@ const sanitizeItemListParams = (params?: ItemListParams): ItemListParams | undef
   if (!params) {
     return undefined;
   }
-  if (params.limit === undefined) {
-    return params;
-  }
 
   const next: ItemListParams = { ...params };
-  const numericLimit = Number(params.limit);
-  if (!Number.isFinite(numericLimit) || numericLimit <= 0) {
-    delete next.limit;
-    return next;
+
+  if (next.limit !== undefined) {
+    const numericLimit = Number(next.limit);
+    if (!Number.isFinite(numericLimit) || numericLimit <= 0) {
+      delete next.limit;
+    } else {
+      next.limit = Math.min(Math.floor(numericLimit), ITEM_LIST_MAX_LIMIT);
+    }
   }
 
-  next.limit = Math.min(Math.floor(numericLimit), ITEM_LIST_MAX_LIMIT);
+  if (next.attributeIds) {
+    const normalizedAttributeIds = Array.from(
+      new Set(
+        next.attributeIds
+          .map((id) => (typeof id === 'string' ? id.trim() : ''))
+          .filter((id): id is string => Boolean(id)),
+      ),
+    );
+    if (normalizedAttributeIds.length > 0) {
+      next.attributeIds = normalizedAttributeIds;
+    } else {
+      delete next.attributeIds;
+    }
+  }
+
+  if (next.includeAttributes !== undefined) {
+    next.includeAttributes = Boolean(next.includeAttributes);
+  }
+
   return next;
 };
 

@@ -8,19 +8,21 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { DataTable } from '../../components/ui/DataTable';
-import type { Family } from '../../types';
+import type { Category, Family } from '../../types';
 import { familiesService } from '../../api/services/families.service';
+import { categoriesService } from '../../api/services/categories.service';
 import { UserInfoWithRole } from '../../components/common/UserInfoWithRole';
 
 export const FamiliesList: React.FC = () => {
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { t, resolveLocalization } = useLanguage();
   const { hasPermission } = useAuth();
   const canCreateFamily = hasPermission(PERMISSIONS.CATALOG.FAMILIES.CREATE);
 
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [families, setFamilies] = useState<Family[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
 
   const toUserInfo = useCallback((user: Family['updatedBy'] | Family['createdBy']) => {
     if (!user) {
@@ -69,7 +71,19 @@ export const FamiliesList: React.FC = () => {
       }
     };
 
+    const fetchCategories = async () => {
+      try {
+        const { items } = await categoriesService.list({ limit: 200 });
+        if (!cancelled) {
+          setCategories(items);
+        }
+      } catch (err) {
+        console.error('Failed to load categories for families list', err);
+      }
+    };
+
     fetchFamilies();
+    fetchCategories();
 
     return () => {
       cancelled = true;
@@ -83,23 +97,43 @@ export const FamiliesList: React.FC = () => {
     [navigate],
   );
 
+  const categoryNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    categories.forEach((category) => {
+      const label =
+        (category.nameLocalizationId ? resolveLocalization(category.nameLocalizationId) : null) ||
+        category.name ||
+        category.key ||
+        category.id;
+      map.set(category.id, label);
+    });
+    return map;
+  }, [categories, resolveLocalization]);
+
   const columns = useMemo(
     () => [
       {
         key: 'name',
         title: t('families.columns.name') || 'Name',
         sortable: true,
-        render: (_: string, family: Family) => (
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-sm">
-              <Layers className="h-5 w-5 text-white" />
+        render: (_: string, family: Family) => {
+          const label =
+            (family.nameLocalizationId ? resolveLocalization(family.nameLocalizationId) : null) ||
+            family.name ||
+            family.key ||
+            family.id;
+          return (
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-sm">
+                <Layers className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-foreground">{label}</div>
+                <div className="text-xs text-muted-foreground">ID: {family.id}</div>
+              </div>
             </div>
-            <div>
-              <div className="text-sm font-semibold text-foreground">{family.name}</div>
-              <div className="text-xs text-muted-foreground">ID: {family.id}</div>
-            </div>
-          </div>
-        ),
+          );
+        },
       },
       {
         key: 'key',
@@ -111,16 +145,21 @@ export const FamiliesList: React.FC = () => {
       {
         key: 'categoryId',
         title: t('families.columns.category') || 'Category',
-        render: (_: string | null | undefined, family: Family) =>
-          family.categoryId ? (
+        render: (_: string | null | undefined, family: Family) => {
+          if (!family.categoryId) {
+            return (
+              <span className="text-xs text-muted-foreground">
+                {t('families.root_label') || 'Root'}
+              </span>
+            );
+          }
+          const categoryLabel = categoryNameMap.get(family.categoryId) ?? family.categoryId;
+          return (
             <Badge variant="secondary" size="sm">
-              {family.categoryId}
+              {categoryLabel}
             </Badge>
-          ) : (
-            <span className="text-xs text-muted-foreground">
-              {t('families.root_label') || 'Root'}
-            </span>
-          ),
+          );
+        },
       },
       {
         key: 'attributeGroupCount',
@@ -140,7 +179,7 @@ export const FamiliesList: React.FC = () => {
         ),
       },
     ],
-    [t, toUserInfo],
+    [categoryNameMap, resolveLocalization, t, toUserInfo],
   );
 
   return (

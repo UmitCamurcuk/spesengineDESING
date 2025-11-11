@@ -14,7 +14,7 @@ import { UserInfoWithRole } from '../../components/common/UserInfoWithRole';
 
 export const CategoriesList: React.FC = () => {
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { t, resolveLocalization } = useLanguage();
   const { hasPermission } = useAuth();
   const canCreateCategory = hasPermission(PERMISSIONS.CATALOG.CATEGORIES.CREATE);
 
@@ -83,23 +83,43 @@ export const CategoriesList: React.FC = () => {
     [navigate],
   );
 
+  const nameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    categories.forEach((category) => {
+      const label =
+        (category.nameLocalizationId ? resolveLocalization(category.nameLocalizationId) : null) ||
+        category.name ||
+        category.key ||
+        category.id;
+      map.set(category.id, label);
+    });
+    return map;
+  }, [categories, resolveLocalization]);
+
   const columns = useMemo(
     () => [
       {
         key: 'name',
         title: t('categories.columns.name') || 'Name',
         sortable: true,
-        render: (_: string, category: Category) => (
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-amber-600 rounded-xl flex items-center justify-center shadow-sm">
-              <FolderTree className="h-5 w-5 text-white" />
+        render: (_: string, category: Category) => {
+          const label =
+            (category.nameLocalizationId ? resolveLocalization(category.nameLocalizationId) : null) ||
+            category.name ||
+            category.key ||
+            category.id;
+          return (
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-amber-600 rounded-xl flex items-center justify-center shadow-sm">
+                <FolderTree className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-foreground">{label}</div>
+                <div className="text-xs text-muted-foreground">ID: {category.id}</div>
+              </div>
             </div>
-            <div>
-              <div className="text-sm font-semibold text-foreground">{category.name}</div>
-              <div className="text-xs text-muted-foreground">ID: {category.id}</div>
-            </div>
-          </div>
-        ),
+          );
+        },
       },
       {
         key: 'key',
@@ -111,16 +131,21 @@ export const CategoriesList: React.FC = () => {
       {
         key: 'parentCategoryId',
         title: t('categories.columns.parent') || 'Parent',
-        render: (_: string | null | undefined, category: Category) =>
-          category.parentCategoryId ? (
+        render: (_: string | null | undefined, category: Category) => {
+          if (!category.parentCategoryId) {
+            return (
+              <span className="text-xs text-muted-foreground">
+                {t('categories.root_label') || 'Root Category'}
+              </span>
+            );
+          }
+          const parentLabel = nameMap.get(category.parentCategoryId) ?? category.parentCategoryId;
+          return (
             <Badge variant="outline" size="sm">
-              {category.parentCategoryId}
+              {parentLabel}
             </Badge>
-          ) : (
-            <span className="text-xs text-muted-foreground">
-              {t('categories.root_label') || 'Root Category'}
-            </span>
-          ),
+          );
+        },
       },
       {
         key: 'defaultItemTypeId',
@@ -152,7 +177,7 @@ export const CategoriesList: React.FC = () => {
         ),
       },
     ],
-    [t, toUserInfo],
+    [nameMap, resolveLocalization, t, toUserInfo],
   );
 
   return (

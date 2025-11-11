@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, Shield, Mail, Calendar } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -9,16 +9,6 @@ import { RelativeTime } from '../../components/common/RelativeTime';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { usersService } from '../../api/services/users.service';
 import type { UserSummary, UserListResponse } from '../../api/types/api.types';
-
-const deriveStatus = (user: UserSummary): { label: string; variant: 'success' | 'warning' | 'default' } => {
-  if (user.notificationsEnabled && user.emailNotificationsEnabled) {
-    return { label: 'active', variant: 'success' };
-  }
-  if (!user.notificationsEnabled && !user.emailNotificationsEnabled) {
-    return { label: 'inactive', variant: 'default' };
-  }
-  return { label: 'partial', variant: 'warning' };
-};
 
 const formatFullName = (user: UserSummary): string => {
   return [user.firstName, user.lastName].filter(Boolean).join(' ').trim() || user.email;
@@ -48,6 +38,22 @@ export const UsersList: React.FC = () => {
     hasNext: false,
     hasPrev: false,
   });
+
+  const deriveStatus = useCallback(
+    (user: UserSummary): { label: string; variant: 'success' | 'warning' | 'default' } => {
+      if (user.isOnline) {
+        return { label: t('common.online') || 'Online', variant: 'success' };
+      }
+      if (user.notificationsEnabled && user.emailNotificationsEnabled) {
+        return { label: t('users.status.active') || 'active', variant: 'success' };
+      }
+      if (!user.notificationsEnabled && !user.emailNotificationsEnabled) {
+        return { label: t('users.status.inactive') || 'inactive', variant: 'default' };
+      }
+      return { label: t('users.status.partial') || 'partial', variant: 'warning' };
+    },
+    [t],
+  );
 
   const loadUsers = async (page = pagination.page, pageSize = pagination.pageSize) => {
     try {
@@ -151,7 +157,14 @@ export const UsersList: React.FC = () => {
               <div>
                 <div className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Last Login</div>
                 <div className="text-sm text-gray-600">
-                  <RelativeTime date={user.lastLoginAt} includeTime={true} />
+                  {user.isOnline ? (
+                    <span className="inline-flex items-center">
+                      <span className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse" />
+                      {t('common.online') || 'Online'}
+                    </span>
+                  ) : (
+                    <RelativeTime date={user.lastLoginAt} includeTime={true} />
+                  )}
                 </div>
               </div>
             </div>
@@ -187,12 +200,19 @@ export const UsersList: React.FC = () => {
       key: 'lastLoginAt',
       title: 'Last Login',
       sortable: true,
-      render: (value: string | null | undefined) => (
-        <div className="flex items-center text-sm text-gray-600">
-          <Calendar className="h-4 w-4 mr-2 text-gray-400" />
-          <RelativeTime date={value} includeTime={true} />
-        </div>
-      ),
+        render: (_value: string | null | undefined, user: UserSummary) => (
+          <div className="flex items-center text-sm text-gray-600">
+            <Calendar className="h-4 w-4 mr-2 text-gray-400" />
+            {user.isOnline ? (
+              <span className="inline-flex items-center">
+                <span className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse" />
+                {t('common.online') || 'Online'}
+              </span>
+            ) : (
+              <RelativeTime date={user.lastLoginAt} includeTime={true} />
+            )}
+          </div>
+        ),
     },
     {
       key: 'updatedAt',

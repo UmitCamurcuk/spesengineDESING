@@ -621,6 +621,7 @@ export interface UserSummary {
   profilePhotoUrl: string;
   twoFactorEnabled: boolean;
   authzVersion: number;
+  isOnline?: boolean;
   lastLoginAt: string | null;
   createdAt: string | null;
   updatedAt: string | null;

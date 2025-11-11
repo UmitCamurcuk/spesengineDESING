@@ -243,6 +243,17 @@ export interface AssociationTypeItemRef {
   attributeGroupCount?: number;
 }
 
+export interface ItemTypeSummaryRef {
+  id: string;
+  key: string;
+  nameLocalizationId?: string | null;
+  name?: string | null;
+  nameLanguage?: string | null;
+  descriptionLocalizationId?: string | null;
+  description?: string | null;
+  descriptionLanguage?: string | null;
+}
+
 export interface HierarchyNode {
   id: string;
   key: string;
@@ -275,6 +286,11 @@ export interface Item {
   updatedAt: string;
   createdBy?: UserReference | string | null;
   updatedBy?: UserReference | string | null;
+  itemTypeSummary?: ItemTypeSummaryRef | null;
+  categorySummary?: CategoryFamilySummary | null;
+  familySummary?: CategoryFamilySummary | null;
+  attributeValues?: ItemAttributeValue[];
+  attributeValueMap?: Record<string, unknown>;
 }
 
 export interface LocalizedAttributeValue {

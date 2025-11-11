@@ -19,6 +19,7 @@ import { familiesService } from '../../api/services/families.service';
 import { associationsService } from '../../api/services/associations.service';
 import { associationTypesService } from '../../api/services/association-types.service';
 import { associationRulesService } from '../../api/services/association-rules.service';
+import { associationColumnConfigService } from '../../api/services/association-column-config.service';
 import { attributeGroupsService } from '../../api/services/attribute-groups.service';
 import type {
   ItemType,
@@ -30,6 +31,7 @@ import type {
   AssociationType,
   AssociationRule,
   CategoryFamilySummary,
+  AssociationColumnDefinition,
 } from '../../types';
 import type { Attribute } from '../../types';
 import { AttributeRenderer } from '../../components/attributes/AttributeRenderer';
@@ -59,6 +61,34 @@ const defaultAssociationRow: AssociationDraft = {
   orderIndex: '',
   metadata: '',
 };
+
+const DEFAULT_ASSOCIATION_COLUMNS: AssociationColumnDefinition[] = [
+  { key: 'meta.name', source: 'meta', visible: true, order: 0 },
+  { key: 'meta.category', source: 'meta', visible: true, order: 1 },
+  { key: 'meta.family', source: 'meta', visible: true, order: 2 },
+];
+
+const normalizeAssociationColumns = (
+  columns?: AssociationColumnDefinition[],
+): AssociationColumnDefinition[] =>
+  (columns ?? [])
+    .filter((column) => column.visible !== false)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .map((column, index) => ({ ...column, order: index }));
+
+const withDefaultColumns = (columns?: AssociationColumnDefinition[]): AssociationColumnDefinition[] => {
+  const normalized = normalizeAssociationColumns(columns);
+  if (normalized.length === 0) {
+    return normalizeAssociationColumns(DEFAULT_ASSOCIATION_COLUMNS);
+  }
+  return normalized;
+};
+
+const extractAttributeIdsFromColumns = (columns: AssociationColumnDefinition[]): string[] =>
+  columns
+    .filter((column) => column.source === 'attribute' && column.options?.attributeId)
+    .map((column) => String(column.options?.attributeId))
+    .filter((id) => id.length > 0);
 
 const formatAttributeValueForDisplay = (value: unknown): string => {
   if (value === undefined || value === null) {
@@ -175,6 +205,9 @@ export const ItemsCreate: React.FC = () => {
   const [ruleTargetItems, setRuleTargetItems] = useState<Record<string, Item[]>>({});
   const [ruleLoadingState, setRuleLoadingState] = useState<Record<string, boolean>>({});
   const [ruleErrors, setRuleErrors] = useState<Record<string, string | null>>({});
+  const [columnConfigs, setColumnConfigs] = useState<Record<string, AssociationColumnDefinition[]>>({});
+  const [columnConfigLoading, setColumnConfigLoading] = useState<Record<string, boolean>>({});
+  const [columnConfigErrors, setColumnConfigErrors] = useState<Record<string, string | null>>({});
   const [loadingLookup, setLoadingLookup] = useState(true);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -676,6 +709,63 @@ const familiesByCategory = useMemo(() => {
     return map;
   }, [applicableRules]);
 
+  useEffect(() => {
+    const pendingTypes = relevantAssociationTypes.filter(
+      (type) => type.targetItemTypeId && !columnConfigs[type.id],
+    );
+    if (pendingTypes.length === 0) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadColumnConfigs = async () => {
+      for (const type of pendingTypes) {
+        if (cancelled) {
+          break;
+        }
+
+        setColumnConfigLoading((prev) => ({ ...prev, [type.id]: true }));
+        setColumnConfigErrors((prev) => ({ ...prev, [type.id]: null }));
+
+        try {
+          const response = await associationColumnConfigService.getConfig(type.id, 'target');
+          if (cancelled) {
+            return;
+          }
+          const normalized = withDefaultColumns(response.columns);
+          setColumnConfigs((prev) => ({ ...prev, [type.id]: normalized }));
+        } catch (error: any) {
+          if (cancelled) {
+            return;
+          }
+          console.error('Failed to load association column config', error);
+          setColumnConfigs((prev) => ({
+            ...prev,
+            [type.id]: withDefaultColumns(DEFAULT_ASSOCIATION_COLUMNS),
+          }));
+          setColumnConfigErrors((prev) => ({
+            ...prev,
+            [type.id]:
+              error?.response?.data?.error?.message ??
+              t('association_types.column_settings.load_failed') ??
+              'Sütun ayarları yüklenemedi.',
+          }));
+        } finally {
+          if (!cancelled) {
+            setColumnConfigLoading((prev) => ({ ...prev, [type.id]: false }));
+          }
+        }
+      }
+    };
+
+    void loadColumnConfigs();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [columnConfigs, relevantAssociationTypes, t]);
+
   const updateForm = useCallback((patch: Partial<FormState>) => {
     setForm((prev) => ({ ...prev, ...patch }));
   }, []);
@@ -752,7 +842,9 @@ const familiesByCategory = useMemo(() => {
       if (cached) {
         return cached;
       }
-      const response = await associationRulesService.list({ associationTypeId });
+      const response = await associationRulesService.list({
+        associationTypeId,
+      });
       const rules = response.items ?? [];
       setAssociationRulesByType((prev) => ({ ...prev, [associationTypeId]: rules }));
       return rules;
@@ -768,6 +860,19 @@ const familiesByCategory = useMemo(() => {
       ),
     [form.associations],
   );
+
+  const manualAssociationCountByType = useMemo(() => {
+    const map = new Map<string, number>();
+    form.associations.forEach((assoc) => {
+      const typeId = assoc.associationTypeId?.trim();
+      const targetId = assoc.targetItemId?.trim();
+      if (!typeId || !targetId) {
+        return;
+      }
+      map.set(typeId, (map.get(typeId) ?? 0) + 1);
+    });
+    return map;
+  }, [form.associations]);
 
   useEffect(() => {
     let cancelled = false;
@@ -889,6 +994,11 @@ const familiesByCategory = useMemo(() => {
           continue;
         }
 
+        const columnsForType = columnConfigs[type.id];
+        if (!columnsForType || columnConfigLoading[type.id]) {
+          continue;
+        }
+
         setRuleLoadingState((prev) => ({ ...prev, [rule.id]: true }));
         setRuleErrors((prev) => ({ ...prev, [rule.id]: null }));
 
@@ -901,6 +1011,8 @@ const familiesByCategory = useMemo(() => {
 
         const categoryFilter = validTargetCategoryIds.length > 0 ? validTargetCategoryIds : undefined;
         const familyFilter = validTargetFamilyIds.length > 0 ? validTargetFamilyIds : undefined;
+        const attributeIds = extractAttributeIdsFromColumns(columnsForType);
+        const includeAttributes = attributeIds.length > 0;
 
         try {
           const response = await itemsService.list({
@@ -908,6 +1020,8 @@ const familiesByCategory = useMemo(() => {
             limit: MAX_ITEM_FETCH_LIMIT,
             categoryIds: categoryFilter,
             familyIds: familyFilter,
+            includeAttributes,
+            attributeIds: includeAttributes ? attributeIds : undefined,
           });
 
           if (!cancelled) {
@@ -951,7 +1065,7 @@ const familiesByCategory = useMemo(() => {
     return () => {
       cancelled = true;
     };
-  }, [applicableRules, categories, families, ruleTargetItems, t]);
+  }, [applicableRules, categories, columnConfigLoading, columnConfigs, families, ruleTargetItems, t]);
 
   const relevantAttributeGroups = attributeGroups;
 
@@ -1073,7 +1187,9 @@ const familiesByCategory = useMemo(() => {
       case 'associations':
         for (const { type, rule } of applicableRules) {
           const selections = ruleSelections[rule.id] ?? [];
-          if (rule.minTargets > 0 && selections.length < rule.minTargets) {
+          const manualCount = manualAssociationCountByType.get(type.id) ?? 0;
+          const totalSelections = selections.length + manualCount;
+          if (rule.minTargets > 0 && totalSelections < rule.minTargets) {
             const label = rule.name || type.name || type.key;
             showToast({
               type: 'error',
@@ -1083,7 +1199,7 @@ const familiesByCategory = useMemo(() => {
             });
             return false;
           }
-          if (rule.maxTargets && rule.maxTargets > 0 && selections.length > rule.maxTargets) {
+          if (rule.maxTargets && rule.maxTargets > 0 && totalSelections > rule.maxTargets) {
             const label = rule.name || type.name || type.key;
             showToast({
               type: 'error',
@@ -1114,7 +1230,18 @@ const familiesByCategory = useMemo(() => {
       default:
         return true;
     }
-  }, [currentStep, form.categoryId, form.familyId, form.itemTypeId, hasAssociationGap, loadingLookup, showToast, steps, t]);
+  }, [
+    currentStep,
+    form.categoryId,
+    form.familyId,
+    form.itemTypeId,
+    hasAssociationGap,
+    loadingLookup,
+    manualAssociationCountByType,
+    showToast,
+    steps,
+    t,
+  ]);
 
   const handleNext = useCallback(() => {
     if (!validateCurrentStep()) {
@@ -1479,15 +1606,117 @@ const familiesByCategory = useMemo(() => {
         );
       }
 
+      const metaColumnLabels: Record<string, string> = {
+        'meta.itemType': t('association_types.column_labels.item_type') || 'Öğe Tipi',
+        'meta.name': t('association_types.column_labels.name') || 'Öğe Adı',
+        'meta.category': t('association_types.column_labels.category') || 'Kategori',
+        'meta.family': t('association_types.column_labels.family') || 'Aile',
+        'meta.createdBy': t('association_types.column_labels.created_by') || 'Oluşturan',
+        'meta.updatedBy': t('association_types.column_labels.updated_by') || 'Güncelleyen',
+        'meta.createdAt': t('association_types.column_labels.created_at') || 'Oluşturulma',
+        'meta.updatedAt': t('association_types.column_labels.updated_at') || 'Güncellenme',
+        'relationship.orderIndex': t('association_types.column_labels.order') || 'Sıra',
+        'meta.code': t('association_types.column_labels.code') || 'Kod',
+      };
+
+      const resolveColumnLabel = (column: AssociationColumnDefinition) => {
+        if (column.source === 'attribute') {
+          return column.options?.attributeKey ?? column.key;
+        }
+        if (column.source === 'relationship') {
+          return metaColumnLabels[column.key] ?? column.key;
+        }
+        return metaColumnLabels[column.key] ?? column.key;
+      };
+
+      const formatUserSummary = (user: Item['createdBy']) => {
+        if (!user) {
+          return '—';
+        }
+        if (typeof user === 'string') {
+          return user;
+        }
+        return user.name || user.email || user.id || '—';
+      };
+
+      const formatDateValue = (value?: string) => {
+        if (!value) {
+          return '—';
+        }
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) {
+          return value;
+        }
+        return parsed.toLocaleString();
+      };
+
+      const renderMetaColumnValue = (key: string, item: Item) => {
+        switch (key) {
+          case 'meta.itemType':
+            return item.itemTypeSummary?.name ?? item.itemTypeSummary?.key ?? item.itemTypeId ?? '—';
+          case 'meta.name':
+            return item.name ?? item.id;
+          case 'meta.category':
+            return (
+              item.categorySummary?.fullPath ??
+              item.categorySummary?.name ??
+              item.categorySummary?.key ??
+              item.categoryId ??
+              '—'
+            );
+          case 'meta.family':
+            return (
+              item.familySummary?.fullPath ??
+              item.familySummary?.name ??
+              item.familySummary?.key ??
+              item.familyId ??
+              '—'
+            );
+          case 'meta.description':
+            return item.description?.trim() || '—';
+          case 'meta.createdBy':
+            return formatUserSummary(item.createdBy);
+          case 'meta.updatedBy':
+            return formatUserSummary(item.updatedBy);
+          case 'meta.createdAt':
+            return formatDateValue(item.createdAt);
+          case 'meta.updatedAt':
+            return formatDateValue(item.updatedAt);
+          default:
+            return '—';
+        }
+      };
+
+      const renderColumnValue = (column: AssociationColumnDefinition, item: Item) => {
+        if (column.source === 'attribute') {
+          const attributeId = column.options?.attributeId;
+          if (!attributeId) {
+            return '—';
+          }
+          const value = item.attributeValueMap?.[attributeId];
+          return formatAttributeValueForDisplay(value);
+        }
+        if (column.source === 'relationship') {
+          return '—';
+        }
+        return renderMetaColumnValue(column.key, item);
+      };
+
       return (
         <div className="space-y-4">
           {applicableRules.map(({ type, rule }, index) => {
             const selections = ruleSelections[rule.id] ?? [];
+            const manualCount = manualAssociationCountByType.get(type.id) ?? 0;
+            const totalSelections = selections.length + manualCount;
             const targetItems = ruleTargetItems[rule.id] ?? [];
             const loading = ruleLoadingState[rule.id];
             const error = ruleErrors[rule.id];
             const ruleLabel = rule.name || type.name || type.key;
             const maxTargets = rule.maxTargets && rule.maxTargets > 0 ? rule.maxTargets : null;
+            const columnsForRule =
+              columnConfigs[type.id] && columnConfigs[type.id]!.length > 0
+                ? columnConfigs[type.id]!
+                : withDefaultColumns(DEFAULT_ASSOCIATION_COLUMNS);
             const sourceScopeLabel = formatScopeList(
               rule.sourceCategories,
               rule.sourceFamilies,
@@ -1534,49 +1763,118 @@ const familiesByCategory = useMemo(() => {
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-medium text-foreground mb-1">
-                      {t('items.create.select_rule_targets') || 'Hedef öğeleri seçin'}
-                    </label>
-                    <select
-                      multiple
-                      value={selections}
-                      onChange={(event) => {
-                        let values = Array.from(event.target.selectedOptions, (option) => option.value);
-                        if (maxTargets && values.length > maxTargets) {
-                          values = values.slice(0, maxTargets);
-                          showToast({
-                            type: 'warning',
-                            message:
-                              t('items.create.validation.rule_max_targets', {
-                                rule: ruleLabel,
-                                max: String(maxTargets),
-                              }) || `En fazla ${maxTargets} hedef seçebilirsiniz.`,
-                          });
-                        }
-                        handleRuleSelectionChange(rule.id, values);
-                      }}
-                      className="w-full px-3 py-2 h-40 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                    >
-                      {targetItems.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.code} {item.name ? `- ${item.name}` : ''}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-3">
-                      <span>
-                        {t('items.create.rule_selection_summary', {
-                          selected: String(selections.length),
-                          min: String(rule.minTargets),
-                          max: maxTargets ? String(maxTargets) : '∞',
-                        }) || `Seçilen: ${selections.length} / Min: ${rule.minTargets} / Max: ${maxTargets ?? '∞'}`}
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                      <span className="font-medium text-foreground">
+                        {t('items.create.select_rule_targets') || 'Hedef öğeleri seçin'}
                       </span>
                       {loading ? <Badge variant="outline">{t('common.loading') || 'Yükleniyor...'}</Badge> : null}
+                      {columnConfigLoading[type.id] ? (
+                        <Badge variant="secondary">{t('items.create.loading_columns') || 'Sütunlar yükleniyor'}</Badge>
+                      ) : null}
                       {!loading && targetItems.length === 0 ? (
                         <Badge variant="destructive">
                           {t('items.create.no_target_items') || 'Uygun hedef öğe bulunamadı'}
                         </Badge>
+                      ) : null}
+                    </div>
+                    {columnConfigErrors[type.id] ? (
+                      <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+                        {columnConfigErrors[type.id]}
+                      </div>
+                    ) : null}
+                    <div className="rounded-lg border border-border overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-border text-xs">
+                          <thead className="bg-muted/50">
+                            <tr>
+                              <th className="w-12 px-3 py-2 text-left">
+                                <span className="sr-only">{t('common.select') || 'Seç'}</span>
+                              </th>
+                              {columnsForRule.map((column) => (
+                                <th
+                                  key={`${rule.id}-${column.key}`}
+                                  className="px-3 py-2 text-left font-semibold text-muted-foreground"
+                                >
+                                  {resolveColumnLabel(column)}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border bg-background">
+                            {targetItems.map((item) => (
+                              <tr key={item.id} className="hover:bg-muted/30">
+                                <td className="px-3 py-2 align-top">
+                                  <input
+                                    type="checkbox"
+                                    className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                                    checked={selections.includes(item.id)}
+                                    onChange={(event) => {
+                                      if (event.target.checked) {
+                                        if (selections.includes(item.id)) {
+                                          return;
+                                        }
+                                        if (maxTargets && totalSelections >= maxTargets) {
+                                          showToast({
+                                            type: 'warning',
+                                            message:
+                                              t('items.create.validation.rule_max_targets', {
+                                                rule: ruleLabel,
+                                                max: String(maxTargets),
+                                              }) || `En fazla ${maxTargets} hedef seçebilirsiniz.`,
+                                          });
+                                          return;
+                                        }
+                                        handleRuleSelectionChange(rule.id, [...selections, item.id]);
+                                      } else {
+                                        handleRuleSelectionChange(
+                                          rule.id,
+                                          selections.filter((value) => value !== item.id),
+                                        );
+                                      }
+                                    }}
+                                  />
+                                </td>
+                                {columnsForRule.map((column) => (
+                                  <td
+                                    key={`${item.id}-${column.key}`}
+                                    className="px-3 py-2 text-[11px] text-foreground/90 align-top"
+                                  >
+                                    {renderColumnValue(column, item)}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {!loading && targetItems.length === 0 ? (
+                        <div className="px-4 py-3 text-xs text-muted-foreground">
+                          {t('items.create.no_target_items') || 'Uygun hedef öğe bulunamadı'}
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-3 text-[11px]">
+                      <span>
+                        {t('items.create.rule_selection_summary', {
+                          selected: String(totalSelections),
+                          min: String(rule.minTargets),
+                          max: maxTargets ? String(maxTargets) : '∞',
+                        }) || `Seçilen: ${totalSelections} / Min: ${rule.minTargets} / Max: ${maxTargets ?? '∞'}`}
+                      </span>
+                      {manualCount > 0 ? (
+                        <span>
+                          {t('items.create.rule_manual_selection_hint', { count: String(manualCount) }) ||
+                            `Manuel satırlardan gelen: ${manualCount}`}
+                        </span>
+                      ) : null}
+                      {maxTargets && totalSelections >= maxTargets ? (
+                        <span className="text-amber-600">
+                          {t('items.create.validation.rule_max_targets', {
+                            rule: ruleLabel,
+                            max: String(maxTargets),
+                          }) || `En fazla ${maxTargets} hedef seçebilirsiniz.`}
+                        </span>
                       ) : null}
                     </div>
                     {error ? (
