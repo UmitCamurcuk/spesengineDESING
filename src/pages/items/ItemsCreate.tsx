@@ -681,13 +681,26 @@ const familiesByCategory = useMemo(() => {
       return results;
     }
 
+    const matchesConstraint = (allowed: Array<string | null | undefined> | undefined, value?: string) => {
+      const list = (allowed ?? []).map((entry) => entry?.trim()).filter(Boolean) as string[];
+      if (list.length === 0) {
+        return true;
+      }
+      if (!value) {
+        return false;
+      }
+      return list.includes(value);
+    };
+
     const matchesRule = (rule: AssociationRule) => {
-      const categoryMatch =
-        (rule.sourceCategoryIds ?? []).length === 0 ||
-        (form.categoryId ? (rule.sourceCategoryIds ?? []).includes(form.categoryId) : false);
-      const familyMatch =
-        (rule.sourceFamilyIds ?? []).length === 0 ||
-        (form.familyId ? (rule.sourceFamilyIds ?? []).includes(form.familyId) : false);
+      const direction = rule.appliesTo ?? 'source';
+      const sourceCategoryConstraints =
+        direction === 'target' ? rule.targetCategoryIds ?? [] : rule.sourceCategoryIds ?? [];
+      const sourceFamilyConstraints =
+        direction === 'target' ? rule.targetFamilyIds ?? [] : rule.sourceFamilyIds ?? [];
+
+      const categoryMatch = matchesConstraint(sourceCategoryConstraints, form.categoryId);
+      const familyMatch = matchesConstraint(sourceFamilyConstraints, form.familyId);
       return categoryMatch && familyMatch;
     };
 
@@ -1002,11 +1015,17 @@ const familiesByCategory = useMemo(() => {
         setRuleLoadingState((prev) => ({ ...prev, [rule.id]: true }));
         setRuleErrors((prev) => ({ ...prev, [rule.id]: null }));
 
-        const validTargetCategoryIds = (rule.targetCategoryIds ?? []).filter((id) =>
-          categoryIdSet.has(id),
+        const direction = rule.appliesTo ?? 'source';
+        const targetCategoryConstraints =
+          direction === 'target' ? rule.sourceCategoryIds ?? [] : rule.targetCategoryIds ?? [];
+        const targetFamilyConstraints =
+          direction === 'target' ? rule.sourceFamilyIds ?? [] : rule.targetFamilyIds ?? [];
+
+        const validTargetCategoryIds = targetCategoryConstraints.filter((id) =>
+          id ? categoryIdSet.has(id) : false,
         );
-        const validTargetFamilyIds = (rule.targetFamilyIds ?? []).filter((id) =>
-          familyIdSet.has(id),
+        const validTargetFamilyIds = targetFamilyConstraints.filter((id) =>
+          id ? familyIdSet.has(id) : false,
         );
 
         const categoryFilter = validTargetCategoryIds.length > 0 ? validTargetCategoryIds : undefined;
@@ -1189,6 +1208,22 @@ const familiesByCategory = useMemo(() => {
           const selections = ruleSelections[rule.id] ?? [];
           const manualCount = manualAssociationCountByType.get(type.id) ?? 0;
           const totalSelections = selections.length + manualCount;
+          if (import.meta.env.DEV) {
+            console.debug('Association rule validation', {
+              ruleId: rule.id,
+              ruleLabel: rule.name || type.name || type.key,
+              direction: rule.appliesTo ?? 'source',
+              minTargets: rule.minTargets,
+              maxTargets: rule.maxTargets ?? null,
+              selectedByRule: selections.length,
+              manualCount,
+              totalSelections,
+              requiredFamilyIds: rule.sourceFamilyIds,
+              requiredCategoryIds: rule.sourceCategoryIds,
+              currentCategoryId: form.categoryId,
+              currentFamilyId: form.familyId,
+            });
+          }
           if (rule.minTargets > 0 && totalSelections < rule.minTargets) {
             const label = rule.name || type.name || type.key;
             showToast({
@@ -1238,6 +1273,7 @@ const familiesByCategory = useMemo(() => {
     hasAssociationGap,
     loadingLookup,
     manualAssociationCountByType,
+    ruleSelections,
     showToast,
     steps,
     t,
@@ -1568,6 +1604,9 @@ const familiesByCategory = useMemo(() => {
   };
 
   const handleRuleSelectionChange = useCallback((ruleId: string, values: string[]) => {
+    if (import.meta.env.DEV) {
+      console.debug('handleRuleSelectionChange', { ruleId, nextValues: values });
+    }
     setRuleSelections((prev) => ({ ...prev, [ruleId]: values }));
   }, []);
 
