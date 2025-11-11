@@ -55,6 +55,7 @@ type BackendAttributeSummary = {
   defaultValue?: unknown;
   validationRules?: Record<string, unknown> | null;
   uiSettings?: Record<string, unknown> | null;
+  options?: string[] | null;
   tags?: string[];
   createdAt: string;
   updatedAt: string;
@@ -87,6 +88,9 @@ const mapAttributeSummary = (attribute: BackendAttributeSummary): Attribute => (
   validation: attribute.validationRules ?? null,
   description: attribute.description ?? undefined,
   helpText: attribute.helpText ?? null,
+  options: Array.isArray((attribute as any).options)
+    ? ((attribute as any).options as string[])
+    : undefined,
   tags: attribute.tags ?? [],
   createdAt: attribute.createdAt,
   updatedAt: attribute.updatedAt,

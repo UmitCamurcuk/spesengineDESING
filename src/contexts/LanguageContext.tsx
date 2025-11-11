@@ -16,10 +16,15 @@ import type { CachedLocalizationBundle } from '../redux/slices/translationsSlice
 
 export type Language = string;
 
+export interface TranslationParams {
+  defaultValue?: string | number | boolean | null;
+  [key: string]: string | number | boolean | null | undefined;
+}
+
 interface LanguageContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
-  t: (key: string) => string;
+  t: (key: string, params?: TranslationParams) => string;
   translationsReady: boolean;
   ensureTranslationsReady: () => Promise<void>;
   getLocalization: (id: string) => LocalizationRecord | undefined;
@@ -128,6 +133,32 @@ const createEmptyBundle = (): LocalizationExportBundle => ({
   translations: {},
   localizations: {},
 });
+
+const PLACEHOLDER_REGEX = /\{\{\s*([\w.-]+)\s*\}\}/g;
+
+const interpolateTranslation = (template: string, params?: TranslationParams): string => {
+  if (!params || template.indexOf('{{') === -1) {
+    return template;
+  }
+  return template.replace(PLACEHOLDER_REGEX, (_, token: string) => {
+    if (!(token in params)) {
+      return '';
+    }
+    const value = params[token];
+    if (value === undefined || value === null) {
+      return '';
+    }
+    return String(value);
+  });
+};
+
+const resolveDefaultValue = (params?: TranslationParams, fallback?: string): string => {
+  const provided = params?.defaultValue;
+  if (provided === null || provided === undefined) {
+    return fallback ?? '';
+  }
+  return String(provided);
+};
 
 export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) => {
   const dispatch = useAppDispatch();
@@ -240,7 +271,7 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
   }, []);
 
   const t = useCallback(
-    (key: string): string => {
+    (key: string, params?: TranslationParams): string => {
       const keys = key.split('.');
       let current: unknown = bundle.translations;
 
@@ -248,11 +279,20 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
         if (current && typeof current === 'object' && piece in (current as Record<string, unknown>)) {
           current = (current as Record<string, unknown>)[piece];
         } else {
-          return key;
+          return resolveDefaultValue(params, key);
         }
       }
 
-      return typeof current === 'string' ? current : key;
+      if (typeof current !== 'string') {
+        return resolveDefaultValue(params, key);
+      }
+
+      const interpolated = interpolateTranslation(current, params);
+      if (interpolated && interpolated.trim().length > 0) {
+        return interpolated;
+      }
+
+      return resolveDefaultValue(params, key);
     },
     [bundle.translations],
   );

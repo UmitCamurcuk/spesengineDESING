@@ -31,6 +31,7 @@ import type {
   AssociationRule,
 } from '../../types';
 import type { Attribute } from '../../types';
+import { AttributeRenderer } from '../../components/attributes/AttributeRenderer';
 
 type StepId = 'itemType' | 'category' | 'associations' | 'attributes' | 'review';
 
@@ -48,6 +49,8 @@ interface FormState {
   associations: AssociationDraft[];
   attributeValues: Record<string, unknown>;
 }
+
+const MAX_ITEM_FETCH_LIMIT = 200;
 
 const defaultAssociationRow: AssociationDraft = {
   associationTypeId: '',
@@ -387,7 +390,7 @@ export const ItemsCreate: React.FC = () => {
     setAvailableItemsLoading(true);
     setAvailableItemsError(null);
     try {
-      const response = await itemsService.list({ limit: 500 });
+      const response = await itemsService.list({ limit: MAX_ITEM_FETCH_LIMIT });
       setAvailableItems(response.items ?? []);
       setAvailableItemsLoaded(true);
     } catch (error: any) {
@@ -849,7 +852,7 @@ const familiesByCategory = useMemo(() => {
         try {
           const response = await itemsService.list({
             itemTypeId: type.targetItemTypeId,
-            limit: 500,
+            limit: MAX_ITEM_FETCH_LIMIT,
             categoryIds: (rule.targetCategoryIds ?? []).length > 0 ? rule.targetCategoryIds : undefined,
             familyIds: (rule.targetFamilyIds ?? []).length > 0 ? rule.targetFamilyIds : undefined,
           });
@@ -1366,22 +1369,14 @@ const familiesByCategory = useMemo(() => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {attributeDefinitions.map((attribute) => (
-                <div key={attribute.id} className="space-y-2">
-                  <label className="block text-xs font-medium text-foreground">
-                    {attribute.name}
-                    {attribute.required ? (
-                      <span className="ml-1 text-[10px] font-semibold text-destructive" aria-label={t('common.required') || 'Required'}>
-                        *
-                      </span>
-                    ) : null}
-                  </label>
-                  <Input
-                    value={form.attributeValues[attribute.id] ?? ''}
-                    onChange={(event) => handleAttributeValueChange(attribute.id, event.target.value)}
-                    placeholder={attribute.description || attribute.key || attribute.id}
-                    required={attribute.required}
+                <Card key={attribute.id} padding="md" className="space-y-2">
+                  <AttributeRenderer
+                    attribute={attribute}
+                    value={form.attributeValues[attribute.id]}
+                    onChange={(nextValue) => handleAttributeValueChange(attribute.id, nextValue)}
+                    mode="edit"
                   />
-                </div>
+                </Card>
               ))}
             </div>
           )}

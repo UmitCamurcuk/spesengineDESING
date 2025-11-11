@@ -430,12 +430,33 @@ export interface ItemListParams {
   familyIds?: string[];
 }
 
+const ITEM_LIST_MAX_LIMIT = 200;
+
+const sanitizeItemListParams = (params?: ItemListParams): ItemListParams | undefined => {
+  if (!params) {
+    return undefined;
+  }
+  if (params.limit === undefined) {
+    return params;
+  }
+
+  const next: ItemListParams = { ...params };
+  const numericLimit = Number(params.limit);
+  if (!Number.isFinite(numericLimit) || numericLimit <= 0) {
+    delete next.limit;
+    return next;
+  }
+
+  next.limit = Math.min(Math.floor(numericLimit), ITEM_LIST_MAX_LIMIT);
+  return next;
+};
+
 export const itemsService = {
   async list(params?: ItemListParams): Promise<{ items: Item[]; total: number }> {
     const response = await apiClient.get<
       ApiSuccessResponse<{ items: BackendItem[]; total: number }>
     >(API_ENDPOINTS.ITEMS.BASE, {
-      params,
+      params: sanitizeItemListParams(params),
     });
 
     const payload = response.data.data;

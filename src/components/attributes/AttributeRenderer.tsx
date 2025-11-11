@@ -5,16 +5,19 @@ import { Select } from '../ui/Select';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
-import { 
-  Calendar, 
-  Clock, 
-  Image, 
-  File, 
-  Palette, 
-  Star, 
-  QrCode, 
+import {
+  Activity,
   BarChart3,
-  Eye
+  Calendar,
+  Clock,
+  Eye,
+  File,
+  Image,
+  Palette,
+  Plus,
+  QrCode,
+  Star,
+  Trash2,
 } from 'lucide-react';
 
 interface AttributeRendererProps {
@@ -25,6 +28,17 @@ interface AttributeRendererProps {
   mode?: 'edit' | 'view';
 }
 
+const getOptionList = (attribute: Attribute): string[] => {
+  if (Array.isArray(attribute.options) && attribute.options.length > 0) {
+    return attribute.options;
+  }
+  const uiSettings = attribute.uiSettings as Record<string, unknown> | undefined | null;
+  if (uiSettings && Array.isArray(uiSettings.options)) {
+    return uiSettings.options as string[];
+  }
+  return [];
+};
+
 export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
   attribute,
   value,
@@ -34,14 +48,176 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
 }) => {
   const isViewMode = mode === 'view' || readonly || attribute.type === AttributeType.READONLY;
 
+  const stringValue =
+    typeof value === 'string'
+      ? value
+      : value === undefined || value === null
+        ? ''
+        : String(value);
+
+  const numberValue =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && value.trim().length > 0
+        ? Number(value)
+        : '';
+
+  const selectOptions = getOptionList(attribute);
+
+  const renderJsonEditor = (rawValue: unknown, rows = 6) => (
+    <textarea
+      className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-mono outline-none focus:border-primary focus:ring-1 focus:ring-primary/40"
+      rows={rows}
+      value={
+        typeof rawValue === 'string'
+          ? rawValue
+          : rawValue === undefined || rawValue === null
+            ? ''
+            : JSON.stringify(rawValue, null, 2)
+      }
+      onChange={(e) => {
+        const next = e.target.value;
+        try {
+          const parsed = next.trim() ? JSON.parse(next) : null;
+          onChange?.(parsed);
+        } catch {
+          onChange?.(next);
+        }
+      }}
+      placeholder="JSON değerini girin"
+    />
+  );
+
+  const renderTableInput = () => {
+    const rawRows =
+      Array.isArray(value) && value.every((row) => Array.isArray(row))
+        ? (value as unknown as string[][])
+        : [['']];
+    const maxColumns = Math.max(1, ...rawRows.map((row) => row.length));
+    const normalizedRows = rawRows.map((row) => {
+      const next = [...row];
+      while (next.length < maxColumns) {
+        next.push('');
+      }
+      return next;
+    });
+
+    const applyChange = (nextRows: string[][]) => {
+      onChange?.(nextRows.map((row) => row.map((cell) => cell ?? '')));
+    };
+
+    const handleCellChange = (rowIndex: number, colIndex: number, cellValue: string) => {
+      const copy = normalizedRows.map((row, rIdx) =>
+        rIdx === rowIndex ? row.map((cell, cIdx) => (cIdx === colIndex ? cellValue : cell)) : row,
+      );
+      applyChange(copy);
+    };
+
+    const handleAddRow = () => {
+      applyChange([...normalizedRows, Array.from({ length: maxColumns }, () => '')]);
+    };
+
+    const handleAddColumn = () => {
+      applyChange(normalizedRows.map((row) => [...row, '']));
+    };
+
+    const handleRemoveRow = (index: number) => {
+      if (normalizedRows.length === 1) return;
+      applyChange(normalizedRows.filter((_, idx) => idx !== index));
+    };
+
+    const handleRemoveColumn = (index: number) => {
+      if (maxColumns === 1) return;
+      applyChange(normalizedRows.map((row) => row.filter((_, idx) => idx !== index)));
+    };
+
+    if (isViewMode) {
+      return (
+        <div className="overflow-auto rounded-lg border border-border">
+          <table className="min-w-full text-sm">
+            <tbody>
+              {normalizedRows.map((row, rowIdx) => (
+                <tr key={`view-row-${rowIdx}`} className="border-b border-border/60 last:border-b-0">
+                  {row.map((cell, colIdx) => (
+                    <td key={`view-cell-${rowIdx}-${colIdx}`} className="px-3 py-2 text-foreground">
+                      {cell || '—'}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-3">
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={handleAddRow}>
+            <Plus className="h-4 w-4 mr-1" />
+            Satır
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={handleAddColumn}>
+            <Plus className="h-4 w-4 mr-1" />
+            Sütun
+          </Button>
+        </div>
+        <div className="overflow-auto rounded-lg border border-border">
+          <table className="min-w-full text-sm">
+            <tbody>
+              {normalizedRows.map((row, rowIdx) => (
+                <tr key={`edit-row-${rowIdx}`} className="border-b border-border/60 last:border-b-0">
+                  {row.map((cell, colIdx) => (
+                    <td key={`edit-cell-${rowIdx}-${colIdx}`} className="px-2 py-2">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={cell}
+                          onChange={(e) => handleCellChange(rowIdx, colIdx, e.target.value)}
+                          placeholder={`R${rowIdx + 1}C${colIdx + 1}`}
+                        />
+                        {row.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemoveColumn(colIdx)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  ))}
+                  <td className="px-2 py-2">
+                    {normalizedRows.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoveRow(rowIdx)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
   const renderInput = () => {
     switch (attribute.type) {
       case AttributeType.TEXT:
         return isViewMode ? (
-          <div className="text-sm text-foreground">{value || '—'}</div>
+          <div className="text-sm text-foreground">{stringValue || '—'}</div>
         ) : (
           <Input
-            value={value || ''}
+            value={stringValue}
             onChange={(e) => onChange?.(e.target.value)}
             placeholder={`Enter ${attribute.name.toLowerCase()}`}
           />
@@ -49,12 +225,14 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
 
       case AttributeType.NUMBER:
         return isViewMode ? (
-          <div className="text-sm text-foreground">{value || '—'}</div>
+          <div className="text-sm text-foreground">
+            {numberValue === '' || Number.isNaN(Number(numberValue)) ? '—' : numberValue}
+          </div>
         ) : (
           <Input
             type="number"
-            value={value || ''}
-            onChange={(e) => onChange?.(e.target.value)}
+            value={numberValue}
+            onChange={(e) => onChange?.(e.target.value === '' ? '' : Number(e.target.value))}
             placeholder={`Enter ${attribute.name.toLowerCase()}`}
           />
         );
@@ -62,11 +240,11 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
       case AttributeType.BOOLEAN:
         return isViewMode ? (
           <Badge variant={value ? 'success' : 'default'} size="sm">
-            {value ? 'Yes' : 'No'}
+            {value ? 'Evet' : 'Hayır'}
           </Badge>
         ) : (
           <div className="flex items-center space-x-4">
-            <label className="flex items-center">
+            <label className="flex items-center text-sm text-foreground">
               <input
                 type="radio"
                 name={attribute.id}
@@ -74,9 +252,9 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
                 onChange={() => onChange?.(true)}
                 className="text-primary focus:ring-primary"
               />
-              <span className="ml-2 text-sm text-foreground">Yes</span>
+              <span className="ml-2">Evet</span>
             </label>
-            <label className="flex items-center">
+            <label className="flex items-center text-sm text-foreground">
               <input
                 type="radio"
                 name={attribute.id}
@@ -84,7 +262,7 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
                 onChange={() => onChange?.(false)}
                 className="text-primary focus:ring-primary"
               />
-              <span className="ml-2 text-sm text-foreground">No</span>
+              <span className="ml-2">Hayır</span>
             </label>
           </div>
         );
@@ -137,13 +315,13 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
       case AttributeType.SELECT:
         return isViewMode ? (
           <Badge variant="primary" size="sm">
-            {value || '—'}
+            {stringValue || '—'}
           </Badge>
         ) : (
           <Select
-            value={value || ''}
+            value={stringValue}
             onChange={(e) => onChange?.(e.target.value)}
-            options={attribute.options?.map(opt => ({ value: opt, label: opt })) || []}
+            options={selectOptions.map((opt) => ({ value: opt, label: opt }))}
             placeholder={`Select ${attribute.name.toLowerCase()}`}
           />
         );
@@ -152,30 +330,32 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
         const selectedValues = Array.isArray(value) ? value : [];
         return isViewMode ? (
           <div className="flex flex-wrap gap-1">
-            {selectedValues.length > 0 ? selectedValues.map((val, index) => (
-              <Badge key={index} variant="primary" size="sm">
-                {val}
-              </Badge>
-            )) : (
+            {selectedValues.length > 0 ? (
+              selectedValues.map((val, index) => (
+                <Badge key={index} variant="primary" size="sm">
+                  {val}
+                </Badge>
+              ))
+            ) : (
               <span className="text-sm text-muted-foreground">—</span>
             )}
           </div>
         ) : (
           <div className="space-y-2">
-            {attribute.options?.map((option) => (
-              <label key={option} className="flex items-center">
+            {selectOptions.map((option) => (
+              <label key={option} className="flex items-center text-sm text-foreground">
                 <input
                   type="checkbox"
                   checked={selectedValues.includes(option)}
                   onChange={(e) => {
-                    const newValues = e.target.checked
+                    const next = e.target.checked
                       ? [...selectedValues, option]
-                      : selectedValues.filter(v => v !== option);
-                    onChange?.(newValues);
+                      : selectedValues.filter((val) => val !== option);
+                    onChange?.(next);
                   }}
                   className="text-primary focus:ring-primary rounded"
                 />
-                <span className="ml-2 text-sm text-foreground">{option}</span>
+                <span className="ml-2">{option}</span>
               </label>
             ))}
           </div>
@@ -185,21 +365,21 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
         return isViewMode ? (
           <div className="flex items-center space-x-2">
             <div
-              className="w-6 h-6 rounded-full border border-border"
-              style={{ backgroundColor: value || '#ffffff' }}
+              className="h-6 w-6 rounded-full border border-border"
+              style={{ backgroundColor: stringValue || '#ffffff' }}
             />
-            <span className="text-sm text-foreground">{value || '—'}</span>
+            <span className="text-sm text-foreground">{stringValue || '—'}</span>
           </div>
         ) : (
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-2">
             <input
               type="color"
-              value={value || '#ffffff'}
+              value={stringValue || '#ffffff'}
               onChange={(e) => onChange?.(e.target.value)}
-              className="h-10 w-16 border border-border rounded cursor-pointer"
+              className="h-10 w-16 cursor-pointer rounded border border-border bg-transparent"
             />
             <Input
-              value={value || ''}
+              value={stringValue}
               onChange={(e) => onChange?.(e.target.value)}
               placeholder="#ffffff"
               leftIcon={<Palette className="h-4 w-4" />}
@@ -208,38 +388,20 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
         );
 
       case AttributeType.RATING:
-        const rating = value || 0;
+        const ratingValue = Number(stringValue) || 0;
         return isViewMode ? (
-          <div className="flex items-center space-x-1">
-            {Array.from({ length: 5 }).map((_, index) => (
-              <Star
-                key={index}
-                className={`h-4 w-4 ${
-                  index < rating ? 'text-yellow-400 fill-current' : 'text-gray-300'
-                }`}
-              />
-            ))}
-            <span className="text-sm text-muted-foreground ml-2">{rating}/5</span>
+          <div className="flex items-center gap-1 text-warning">
+            <Star className="h-4 w-4" />
+            <span>{ratingValue || '—'}</span>
           </div>
         ) : (
-          <div className="flex items-center space-x-1">
-            {Array.from({ length: 5 }).map((_, index) => (
-              <button
-                key={index}
-                type="button"
-                onClick={() => onChange?.(index + 1)}
-                className="focus:outline-none"
-              >
-                <Star
-                  className={`h-5 w-5 transition-colors ${
-                    index < rating
-                      ? 'text-yellow-400 fill-current hover:text-yellow-500'
-                      : 'text-gray-300 hover:text-yellow-300'
-                  }`}
-                />
-              </button>
-            ))}
-          </div>
+          <Input
+            type="number"
+            min={0}
+            max={attribute.validation?.max ?? 5}
+            value={ratingValue}
+            onChange={(e) => onChange?.(e.target.value === '' ? '' : Number(e.target.value))}
+          />
         );
 
       case AttributeType.IMAGE:
@@ -247,19 +409,22 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
           value ? (
             <div className="flex items-center space-x-2">
               <Image className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-foreground">Image attached</span>
+              <span className="text-sm text-foreground">
+                {typeof value === 'string'
+                  ? value
+                  : value && typeof value === 'object' && 'name' in value
+                    ? (value as File).name
+                    : 'Image'}
+              </span>
             </div>
           ) : (
             <span className="text-sm text-muted-foreground">—</span>
           )
         ) : (
-          <Input
+          <input
             type="file"
             accept="image/*"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) onChange?.(file);
-            }}
+            onChange={(e) => onChange?.(e.target.files?.[0] ?? null)}
           />
         );
 
@@ -269,75 +434,58 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
           value ? (
             <div className="flex items-center space-x-2">
               <File className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-foreground">File attached</span>
+              <span className="text-sm text-foreground">
+                {typeof value === 'string'
+                  ? value
+                  : value && typeof value === 'object' && 'name' in value
+                    ? (value as File).name
+                    : 'Dosya'}
+              </span>
             </div>
           ) : (
             <span className="text-sm text-muted-foreground">—</span>
           )
         ) : (
-          <Input
-            type="file"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) onChange?.(file);
-            }}
-          />
+          <input type="file" onChange={(e) => onChange?.(e.target.files?.[0] ?? null)} />
         );
 
       case AttributeType.RICH_TEXT:
         return isViewMode ? (
-          <div className="text-sm text-foreground prose max-w-none">
-            {value ? (
-              <div dangerouslySetInnerHTML={{ __html: value }} />
-            ) : (
-              '—'
-            )}
-          </div>
+          <div
+            className="prose prose-sm text-foreground"
+            dangerouslySetInnerHTML={{ __html: stringValue || '' }}
+          />
         ) : (
           <textarea
-            value={value || ''}
-            onChange={(e) => onChange?.(e.target.value)}
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/40"
             rows={4}
-            className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-            placeholder={`Enter ${attribute.name.toLowerCase()}`}
+            value={stringValue}
+            onChange={(e) => onChange?.(e.target.value)}
           />
         );
 
       case AttributeType.JSON:
         return isViewMode ? (
           <Card padding="sm" variant="outlined" className="bg-muted">
-            <pre className="text-xs text-foreground overflow-x-auto">
+            <pre className="max-h-60 overflow-auto text-xs text-foreground">
               {value ? JSON.stringify(value, null, 2) : '{}'}
             </pre>
           </Card>
         ) : (
-          <textarea
-            value={value ? JSON.stringify(value, null, 2) : ''}
-            onChange={(e) => {
-              try {
-                const parsed = JSON.parse(e.target.value);
-                onChange?.(parsed);
-              } catch (error) {
-                // Handle invalid JSON
-              }
-            }}
-            rows={6}
-            className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary font-mono text-sm"
-            placeholder="Enter valid JSON"
-          />
+          renderJsonEditor(value)
         );
 
       case AttributeType.BARCODE:
         return isViewMode ? (
           <div className="flex items-center space-x-2">
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm text-foreground font-mono">{value || '—'}</span>
+            <span className="font-mono text-sm text-foreground">{stringValue || '—'}</span>
           </div>
         ) : (
           <Input
-            value={value || ''}
+            value={stringValue}
             onChange={(e) => onChange?.(e.target.value)}
-            placeholder="Enter barcode"
+            placeholder="Barkod değerini girin"
             leftIcon={<BarChart3 className="h-4 w-4" />}
           />
         );
@@ -346,29 +494,39 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
         return isViewMode ? (
           <div className="flex items-center space-x-2">
             <QrCode className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm text-foreground">{value || '—'}</span>
+            <span className="text-sm text-foreground">{stringValue || '—'}</span>
           </div>
         ) : (
           <Input
-            value={value || ''}
+            value={stringValue}
             onChange={(e) => onChange?.(e.target.value)}
-            placeholder="Enter QR code data"
+            placeholder="QR kod bilgisini girin"
             leftIcon={<QrCode className="h-4 w-4" />}
           />
         );
+
+      case AttributeType.TABLE:
+        return renderTableInput();
+
+      case AttributeType.OBJECT:
+      case AttributeType.ARRAY:
+      case AttributeType.FORMULA:
+      case AttributeType.EXPRESSION:
+        return renderJsonEditor(value, 4);
 
       case AttributeType.READONLY:
         return (
           <div className="flex items-center space-x-2 text-sm text-muted-foreground">
             <Eye className="h-4 w-4" />
-            <span>{value || '—'}</span>
+            <span>{stringValue || '—'}</span>
           </div>
         );
 
       default:
         return (
-          <div className="text-sm text-muted-foreground italic">
-            Unsupported attribute type: {attribute.type}
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Activity className="h-4 w-4" />
+            <span>Bu attribute tipi için özel bir bileşen tanımlı değil.</span>
           </div>
         );
     }
@@ -376,13 +534,16 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-1">
         <label className="text-sm font-medium text-foreground">
           {attribute.name}
-          {attribute.required && <span className="text-red-500 ml-1">*</span>}
+          {attribute.required && <span className="ml-1 text-red-500">*</span>}
         </label>
         {attribute.description && (
           <span className="text-xs text-muted-foreground">{attribute.description}</span>
+        )}
+        {attribute.helpText && (
+          <span className="text-xs text-muted-foreground italic">{attribute.helpText}</span>
         )}
       </div>
       {renderInput()}
