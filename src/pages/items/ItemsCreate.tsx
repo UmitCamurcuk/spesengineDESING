@@ -29,6 +29,7 @@ import type {
   AttributeGroupBinding,
   AssociationType,
   AssociationRule,
+  CategoryFamilySummary,
 } from '../../types';
 import type { Attribute } from '../../types';
 import { AttributeRenderer } from '../../components/attributes/AttributeRenderer';
@@ -452,6 +453,45 @@ export const ItemsCreate: React.FC = () => {
     [families],
   );
 
+  const formatScopeList = useCallback(
+    (
+      categorySummaries?: CategoryFamilySummary[],
+      familySummaries?: CategoryFamilySummary[],
+      categoryIds?: string[],
+      familyIds?: string[],
+    ) => {
+      const labels: string[] = [];
+      if (Array.isArray(categorySummaries) && categorySummaries.length > 0) {
+        categorySummaries.forEach((summary) => {
+          labels.push(summary.fullPath || summary.name || summary.key || summary.id);
+        });
+      } else if (categoryIds?.length) {
+        categoryIds.forEach((id) => {
+          const label = categoriesById.get(id)?.name ?? id;
+          labels.push(label);
+        });
+      }
+
+      if (Array.isArray(familySummaries) && familySummaries.length > 0) {
+        familySummaries.forEach((summary) => {
+          labels.push(summary.fullPath || summary.name || summary.key || summary.id);
+        });
+      } else if (familyIds?.length) {
+        familyIds.forEach((id) => {
+          const label = familiesById.get(id)?.name ?? id;
+          labels.push(label);
+        });
+      }
+
+      if (labels.length === 0) {
+        return t('common.all') || 'Tümü';
+      }
+
+      return labels.join(', ');
+    },
+    [categoriesById, familiesById, t],
+  );
+
   const categoryLineage = useMemo(() => {
   if (!selectedCategory) {
     return [] as Category[];
@@ -840,6 +880,9 @@ const familiesByCategory = useMemo(() => {
     let cancelled = false;
 
     const fetchTargetItems = async () => {
+      const categoryIdSet = new Set(categories.map((category) => category.id));
+      const familyIdSet = new Set(families.map((family) => family.id));
+
       for (const { type, rule } of applicableRules) {
         if (cancelled) break;
         if (!type.targetItemTypeId || ruleTargetItems[rule.id]) {
@@ -849,22 +892,34 @@ const familiesByCategory = useMemo(() => {
         setRuleLoadingState((prev) => ({ ...prev, [rule.id]: true }));
         setRuleErrors((prev) => ({ ...prev, [rule.id]: null }));
 
+        const validTargetCategoryIds = (rule.targetCategoryIds ?? []).filter((id) =>
+          categoryIdSet.has(id),
+        );
+        const validTargetFamilyIds = (rule.targetFamilyIds ?? []).filter((id) =>
+          familyIdSet.has(id),
+        );
+
+        const categoryFilter = validTargetCategoryIds.length > 0 ? validTargetCategoryIds : undefined;
+        const familyFilter = validTargetFamilyIds.length > 0 ? validTargetFamilyIds : undefined;
+
         try {
           const response = await itemsService.list({
             itemTypeId: type.targetItemTypeId,
             limit: MAX_ITEM_FETCH_LIMIT,
-            categoryIds: (rule.targetCategoryIds ?? []).length > 0 ? rule.targetCategoryIds : undefined,
-            familyIds: (rule.targetFamilyIds ?? []).length > 0 ? rule.targetFamilyIds : undefined,
+            categoryIds: categoryFilter,
+            familyIds: familyFilter,
           });
 
           if (!cancelled) {
             const items = (response.items ?? []).filter((item) => {
               const categoryMatch =
-                (rule.targetCategoryIds ?? []).length === 0 ||
-                (item.categoryId ? (rule.targetCategoryIds ?? []).includes(item.categoryId) : false);
+                !categoryFilter ||
+                categoryFilter.length === 0 ||
+                (item.categoryId ? categoryFilter.includes(item.categoryId) : false);
               const familyMatch =
-                (rule.targetFamilyIds ?? []).length === 0 ||
-                (item.familyId ? (rule.targetFamilyIds ?? []).includes(item.familyId) : false);
+                !familyFilter ||
+                familyFilter.length === 0 ||
+                (item.familyId ? familyFilter.includes(item.familyId) : false);
               return categoryMatch && familyMatch;
             });
             setRuleTargetItems((prev) => ({ ...prev, [rule.id]: items }));
@@ -896,7 +951,7 @@ const familiesByCategory = useMemo(() => {
     return () => {
       cancelled = true;
     };
-  }, [applicableRules, ruleTargetItems, t]);
+  }, [applicableRules, categories, families, ruleTargetItems, t]);
 
   const relevantAttributeGroups = attributeGroups;
 
@@ -1433,6 +1488,18 @@ const familiesByCategory = useMemo(() => {
             const error = ruleErrors[rule.id];
             const ruleLabel = rule.name || type.name || type.key;
             const maxTargets = rule.maxTargets && rule.maxTargets > 0 ? rule.maxTargets : null;
+            const sourceScopeLabel = formatScopeList(
+              rule.sourceCategories,
+              rule.sourceFamilies,
+              rule.sourceCategoryIds,
+              rule.sourceFamilyIds,
+            );
+            const targetScopeLabel = formatScopeList(
+              rule.targetCategories,
+              rule.targetFamilies,
+              rule.targetCategoryIds,
+              rule.targetFamilyIds,
+            );
 
             return (
               <Card key={rule.id}>
@@ -1459,29 +1526,11 @@ const familiesByCategory = useMemo(() => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-muted-foreground">
                     <div>
                       {t('items.create.rule_source_scope') || 'Kaynak kapsamı'}:{' '}
-                      {(rule.sourceCategoryIds ?? []).length === 0 && (rule.sourceFamilyIds ?? []).length === 0
-                        ? t('common.all') || 'Tümü'
-                        : [
-                            ...(rule.sourceCategoryIds ?? []).map(
-                              (id) => categories.find((category) => category.id === id)?.name ?? id,
-                            ),
-                            ...(rule.sourceFamilyIds ?? []).map(
-                              (id) => families.find((family) => family.id === id)?.name ?? id,
-                            ),
-                          ].join(', ')}
+                      {sourceScopeLabel}
                     </div>
                     <div>
                       {t('items.create.rule_target_scope') || 'Hedef kapsamı'}:{' '}
-                      {(rule.targetCategoryIds ?? []).length === 0 && (rule.targetFamilyIds ?? []).length === 0
-                        ? t('common.all') || 'Tümü'
-                        : [
-                            ...(rule.targetCategoryIds ?? []).map(
-                              (id) => categories.find((category) => category.id === id)?.name ?? id,
-                            ),
-                            ...(rule.targetFamilyIds ?? []).map(
-                              (id) => families.find((family) => family.id === id)?.name ?? id,
-                            ),
-                          ].join(', ')}
+                      {targetScopeLabel}
                     </div>
                   </div>
 

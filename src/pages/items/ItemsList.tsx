@@ -5,11 +5,13 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable } from '../../components/ui/DataTable';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
-import type { Item } from '../../types';
+import type { Category, Item, ItemType } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { PERMISSIONS } from '../../config/permissions';
 import { itemsService } from '../../api/services/items.service';
+import { itemTypesService } from '../../api/services/item-types.service';
+import { categoriesService } from '../../api/services/categories.service';
 import { UserInfoWithRole } from '../../components/common/UserInfoWithRole';
 
 export const ItemsList: React.FC = () => {
@@ -21,6 +23,8 @@ export const ItemsList: React.FC = () => {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [itemTypeNames, setItemTypeNames] = useState<Map<string, string>>(new Map());
+  const [categoryNames, setCategoryNames] = useState<Map<string, string>>(new Map());
 
   const toUserInfo = useCallback((user: Item['updatedBy'] | Item['createdBy']) => {
     if (!user) {
@@ -42,6 +46,18 @@ export const ItemsList: React.FC = () => {
     };
   }, []);
 
+  const buildNameMap = useCallback(
+    (records: Array<{ id: string; name?: string | null; key?: string }>) => {
+      const map = new Map<string, string>();
+      records.forEach((record) => {
+        const label = (record.name && record.name.trim()) || record.key || record.id;
+        map.set(record.id, label);
+      });
+      return map;
+    },
+    [],
+  );
+
   useEffect(() => {
     let cancelled = false;
 
@@ -49,10 +65,17 @@ export const ItemsList: React.FC = () => {
       try {
         setLoading(true);
         setError(null);
-        const { items: fetched } = await itemsService.list({ limit: 200 });
-        if (!cancelled) {
-          setItems(fetched);
+        const [itemsResponse, itemTypesResponse, categoriesResponse] = await Promise.all([
+          itemsService.list({ limit: 200 }),
+          itemTypesService.list({ limit: 200 }),
+          categoriesService.list({ limit: 200 }),
+        ]);
+        if (cancelled) {
+          return;
         }
+        setItems(itemsResponse.items ?? []);
+        setItemTypeNames(buildNameMap(itemTypesResponse.items ?? []));
+        setCategoryNames(buildNameMap(categoriesResponse.items ?? []));
       } catch (err) {
         console.error('Failed to load items', err);
         if (!cancelled) {
@@ -73,7 +96,7 @@ export const ItemsList: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [t]);
+  }, [buildNameMap, t]);
 
   const handleRowClick = useCallback(
     (item: Item) => {
@@ -101,28 +124,45 @@ export const ItemsList: React.FC = () => {
         ),
       },
       {
+        key: 'description',
+        title: t('items.description') || 'Description',
+        render: (_: string | null, item: Item) => (
+          <div className="text-sm text-muted-foreground max-w-xs truncate">
+            {item.description?.trim() && item.description.trim().length > 0
+              ? item.description.trim()
+              : t('common.not_available') || '—'}
+          </div>
+        ),
+      },
+      {
         key: 'itemTypeId',
         title: t('items.type'),
-        render: (_: string | null, item: Item) =>
-          item.itemTypeId ? (
+        render: (_: string | null, item: Item) => {
+          if (!item.itemTypeId) {
+            return <span className="text-xs text-muted-foreground">—</span>;
+          }
+          const label = itemTypeNames.get(item.itemTypeId) ?? item.itemTypeId;
+          return (
             <Badge variant="primary" size="sm">
-              {item.itemTypeId}
+              {label}
             </Badge>
-          ) : (
-            <span className="text-xs text-muted-foreground">—</span>
-          ),
+          );
+        },
       },
       {
         key: 'categoryId',
         title: t('items.category') || 'Category',
-        render: (_: string | null, item: Item) =>
-          item.categoryId ? (
+        render: (_: string | null, item: Item) => {
+          if (!item.categoryId) {
+            return <span className="text-xs text-muted-foreground">—</span>;
+          }
+          const label = categoryNames.get(item.categoryId) ?? item.categoryId;
+          return (
             <Badge variant="outline" size="sm">
-              {item.categoryId}
+              {label}
             </Badge>
-          ) : (
-            <span className="text-xs text-muted-foreground">—</span>
-          ),
+          );
+        },
       },
       {
         key: 'updatedAt',
@@ -133,7 +173,7 @@ export const ItemsList: React.FC = () => {
         ),
       },
     ],
-    [t, toUserInfo],
+    [categoryNames, itemTypeNames, t, toUserInfo],
   );
 
   return (
