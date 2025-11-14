@@ -21,6 +21,8 @@ export interface NotificationChannelTargetPayload {
 export interface NotificationRulePayload {
   name: string;
   description?: string;
+  nameLocalizationId: string;
+  descriptionLocalizationId?: string;
   eventKey: string;
   isActive?: boolean;
   filters?: Record<string, unknown>;
@@ -39,6 +41,8 @@ export interface NotificationRule extends NotificationRulePayload {
   createdAt: string;
   updatedAt: string;
   updatedBy?: AuditUserSummary;
+  nameLanguage: string | null;
+  descriptionLanguage: string | null;
 }
 
 export interface NotificationChannelPayload {

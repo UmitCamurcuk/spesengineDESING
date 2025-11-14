@@ -9,6 +9,8 @@ import { Stepper } from '../../components/ui/Stepper';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useToast } from '../../contexts/ToastContext';
 import { notificationsService, type NotificationRulePayload } from '../../api/services/notifications.service';
+import { localizationsService } from '../../api/services/localizations.service';
+import { useRequiredLanguages } from '../../hooks/useRequiredLanguages';
 
 const steps = [
   { id: 'basic', name: 'Basic Info', description: 'Name and event' },
@@ -20,6 +22,7 @@ export const NotificationRulesCreate: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useLanguage();
   const { showToast } = useToast();
+  const requiredLanguages = useRequiredLanguages();
 
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -56,11 +59,52 @@ export const NotificationRulesCreate: React.FC = () => {
   const handleSubmit = async () => {
     try {
       setLoading(true);
+      const trimmedName = formData.name.trim();
+      const trimmedEventKey = formData.eventKey.trim();
+      if (!trimmedName || !trimmedEventKey) {
+        showToast({
+          type: 'error',
+          message: t('notifications.rules.errors.required_fields') ?? 'Name and event key are required.',
+        });
+        setCurrentStep(0);
+        setLoading(false);
+        return;
+      }
+
+      const buildTranslations = (value: string): Record<string, string> => {
+        const normalized = value.trim();
+        return requiredLanguages.reduce<Record<string, string>>((acc, { code }) => {
+          acc[code] = normalized;
+          return acc;
+        }, {});
+      };
+
+      const namespace = 'notification_rules';
+      const slugSource = trimmedEventKey.toLowerCase() || trimmedName.toLowerCase() || 'notification_rule';
+      const slug = slugSource.replace(/[^a-z0-9_.-]/gi, '-').replace(/-+/g, '-');
+      const localizationKey = `${slug}-${Date.now().toString(36)}`;
+
+      const nameLocalization = await localizationsService.create({
+        namespace,
+        key: `${localizationKey}.name`,
+        description: null,
+        translations: buildTranslations(trimmedName),
+      });
+
+      const descriptionValue = formData.description.trim() || trimmedName;
+      const descriptionLocalization = await localizationsService.create({
+        namespace,
+        key: `${localizationKey}.description`,
+        description: null,
+        translations: buildTranslations(descriptionValue),
+      });
 
       const payload: NotificationRulePayload = {
-        name: formData.name.trim(),
+        name: trimmedName,
         description: formData.description.trim() || undefined,
-        eventKey: formData.eventKey.trim(),
+        nameLocalizationId: nameLocalization.id,
+        descriptionLocalizationId: descriptionLocalization.id,
+        eventKey: trimmedEventKey,
         isActive: formData.isActive,
         filters: parseJson(formData.filtersJson, {}),
         recipients: parseJson(formData.recipientsJson, []),
@@ -281,6 +325,4 @@ export const NotificationRulesCreate: React.FC = () => {
     </div>
   );
 };
-
-
 

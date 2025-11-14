@@ -348,17 +348,16 @@ export const FamiliesCreate: React.FC = () => {
         translations: nameTranslations,
       });
 
-      let descriptionLocalizationId: string | undefined;
       const descriptionTranslations = buildTranslations(form.descriptions, form.names);
-      if (Object.keys(descriptionTranslations).length > 0) {
-        const descriptionLocalization = await localizationsService.create({
-          namespace,
-          key: `${normalizedKey}.description`,
-          description: null,
-          translations: descriptionTranslations,
-        });
-        descriptionLocalizationId = descriptionLocalization.id;
-      }
+      const effectiveDescriptionTranslations =
+        Object.keys(descriptionTranslations).length > 0 ? descriptionTranslations : nameTranslations;
+      const descriptionLocalization = await localizationsService.create({
+        namespace,
+        key: `${normalizedKey}.description`,
+        description: null,
+        translations: effectiveDescriptionTranslations,
+      });
+      const descriptionLocalizationId = descriptionLocalization.id;
 
       const payload = {
         key: normalizedKey,

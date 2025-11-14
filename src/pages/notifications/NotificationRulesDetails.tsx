@@ -6,6 +6,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { notificationsService, type NotificationRule } from '../../api/services/notifications.service';
+import { localizationsService } from '../../api/services/localizations.service';
 import type { TabConfig, APIEndpoint, DocumentationSection } from '../../types/common';
 import { Card, CardHeader } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
@@ -16,6 +17,7 @@ import { Documentation } from '../../components/common/Documentation';
 import { HistoryTable } from '../../components/common/HistoryTable';
 import { ChangeConfirmDialog } from '../../components/ui/ChangeConfirmDialog';
 import { PERMISSIONS } from '../../config/permissions';
+import { useRequiredLanguages } from '../../hooks/useRequiredLanguages';
 
 type GeneralForm = {
   name: string;
@@ -195,6 +197,7 @@ export function NotificationRulesDetails() {
   const { t } = useLanguage();
   const { showToast } = useToast();
   const { hasPermission } = useAuth();
+  const requiredLanguages = useRequiredLanguages();
 
   const canRead = hasPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.VIEW);
   const canUpdate = hasPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.UPDATE);
@@ -216,6 +219,17 @@ export function NotificationRulesDetails() {
   const [pendingChanges, setPendingChanges] = useState<ChangeItem[]>([]);
   const [commentDialogOpen, setCommentDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const buildTranslations = useCallback(
+    (value: string): Record<string, string> => {
+      const normalized = value.trim();
+      return requiredLanguages.reduce<Record<string, string>>((acc, { code }) => {
+        acc[code] = normalized;
+        return acc;
+      }, {});
+    },
+    [requiredLanguages],
+  );
   const [apiReference, setApiReference] = useState<APIEndpoint[]>([]);
   const [documentationSections, setDocumentationSections] = useState<DocumentationSection[]>([]);
 
@@ -419,12 +433,60 @@ export function NotificationRulesDetails() {
     if (!id || !generalForm) {
       return;
     }
+    if (!rule) {
+      showToast({
+        type: 'error',
+        message: t('notifications.rules.not_found') ?? 'Notification rule not found.',
+      });
+      return;
+    }
 
     try {
       setSaving(true);
+      const trimmedName = generalForm.name.trim();
+      const trimmedDescription = generalForm.description.trim();
+      const descriptionValue = trimmedDescription || trimmedName;
+      const namespace = 'notification_rules';
+      let nameLocalizationId = rule?.nameLocalizationId ?? null;
+      let descriptionLocalizationId = rule?.descriptionLocalizationId ?? null;
+
+      if (nameLocalizationId) {
+        await localizationsService.update(nameLocalizationId, {
+          translations: buildTranslations(trimmedName),
+        });
+      } else {
+        const created = await localizationsService.create({
+          namespace,
+          key: `rule-${id}-name-${Date.now().toString(36)}`,
+          description: null,
+          translations: buildTranslations(trimmedName),
+        });
+        nameLocalizationId = created.id;
+      }
+
+      if (descriptionLocalizationId) {
+        await localizationsService.update(descriptionLocalizationId, {
+          translations: buildTranslations(descriptionValue),
+        });
+      } else {
+        const created = await localizationsService.create({
+          namespace,
+          key: `rule-${id}-description-${Date.now().toString(36)}`,
+          description: null,
+          translations: buildTranslations(descriptionValue),
+        });
+        descriptionLocalizationId = created.id;
+      }
+
+      if (!nameLocalizationId) {
+        throw new Error('Name localization kaydedilemedi.');
+      }
+
       const payload = {
-        name: generalForm.name.trim(),
-        description: generalForm.description.trim() || undefined,
+        name: trimmedName,
+        description: trimmedDescription || undefined,
+        nameLocalizationId,
+        descriptionLocalizationId,
         eventKey: generalForm.eventKey.trim(),
         isActive: generalForm.isActive,
         filters: parseJson(generalForm.filtersJson, {}),
@@ -579,6 +641,3 @@ export function NotificationRulesDetails() {
     </>
   );
 }
-
-
-
