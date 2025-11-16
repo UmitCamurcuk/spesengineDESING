@@ -8,6 +8,8 @@ export enum AttributeType {
   DATE = 'date',
   DATETIME = 'datetime',
   TIME = 'time',
+  EMAIL = 'email',
+  PHONE = 'phone',
 
   // Enum / Seçilebilir Değerler
   SELECT = 'select',

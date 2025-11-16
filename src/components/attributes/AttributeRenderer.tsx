@@ -10,15 +10,18 @@ import {
   BarChart3,
   Calendar,
   Clock,
+  Mail,
   Eye,
   File,
   Image,
   Palette,
+  Phone,
   Plus,
   QrCode,
   Star,
   Trash2,
 } from 'lucide-react';
+import { PHONE_COUNTRY_CODES, DEFAULT_PHONE_COUNTRY_CODE } from '../../constants/phoneCodes';
 
 interface AttributeRendererProps {
   attribute: Attribute;
@@ -38,6 +41,73 @@ const getOptionList = (attribute: Attribute): string[] => {
   }
   return [];
 };
+
+type PhoneValue = {
+  countryCode: string;
+  number: string;
+};
+
+const PHONE_SELECT_OPTIONS = PHONE_COUNTRY_CODES.map(({ value, label }) => ({
+  value,
+  label,
+}));
+
+const createDefaultPhoneValue = (): PhoneValue => ({
+  countryCode: DEFAULT_PHONE_COUNTRY_CODE,
+  number: '',
+});
+
+const ensurePhoneOptions = (code: string): { value: string; label: string }[] => {
+  if (!code || PHONE_SELECT_OPTIONS.some((option) => option.value === code)) {
+    return PHONE_SELECT_OPTIONS;
+  }
+  return [...PHONE_SELECT_OPTIONS, { value: code, label: code }];
+};
+
+const parsePhoneValue = (raw: unknown): PhoneValue => {
+  const normalize = (input: Record<string, unknown>): PhoneValue => ({
+    countryCode:
+      typeof input.countryCode === 'string' && input.countryCode.trim().length > 0
+        ? input.countryCode.trim()
+        : DEFAULT_PHONE_COUNTRY_CODE,
+    number: typeof input.number === 'string' ? input.number.trim() : '',
+  });
+
+  if (raw === undefined || raw === null || raw === '') {
+    return createDefaultPhoneValue();
+  }
+
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      return createDefaultPhoneValue();
+    }
+    if (trimmed.includes('|')) {
+      const [code, num] = trimmed.split('|');
+      return normalize({ countryCode: code?.trim(), number: num?.trim() });
+    }
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (parsed && typeof parsed === 'object') {
+        return normalize(parsed as Record<string, unknown>);
+      }
+    } catch {
+      // ignore JSON parse errors for phone defaults
+    }
+    return normalize({ number: trimmed });
+  }
+
+  if (typeof raw === 'object') {
+    return normalize(raw as Record<string, unknown>);
+  }
+
+  return normalize({ number: String(raw) });
+};
+
+const isPhoneValueEmpty = (phone: PhoneValue): boolean => phone.number.trim().length === 0;
+
+const formatPhoneValue = (phone: PhoneValue): string =>
+  phone.number ? `${phone.countryCode} ${phone.number}`.trim() : '';
 
 export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
   attribute,
@@ -223,6 +293,22 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
           />
         );
 
+      case AttributeType.EMAIL:
+        return isViewMode ? (
+          <div className="flex items-center text-sm text-foreground">
+            <Mail className="h-4 w-4 mr-2 text-muted-foreground" />
+            {stringValue || '—'}
+          </div>
+        ) : (
+          <Input
+            type="email"
+            value={stringValue}
+            onChange={(e) => onChange?.(e.target.value)}
+            placeholder="name@example.com"
+            leftIcon={<Mail className="h-4 w-4" />}
+          />
+        );
+
       case AttributeType.NUMBER:
         return isViewMode ? (
           <div className="text-sm text-foreground">
@@ -360,6 +446,43 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
             ))}
           </div>
         );
+
+      case AttributeType.PHONE: {
+        const phoneValue = parsePhoneValue(value);
+        if (isViewMode) {
+          return (
+            <div className="flex items-center text-sm text-foreground">
+              <Phone className="h-4 w-4 mr-2 text-muted-foreground" />
+              {isPhoneValueEmpty(phoneValue) ? '—' : formatPhoneValue(phoneValue)}
+            </div>
+          );
+        }
+
+        const options = ensurePhoneOptions(phoneValue.countryCode);
+        const handlePhoneChange = (next: Partial<PhoneValue>) => {
+          onChange?.({ ...phoneValue, ...next });
+        };
+
+        return (
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">{attribute.name}</label>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[140px,1fr]">
+              <Select
+                value={phoneValue.countryCode}
+                onChange={(e) => handlePhoneChange({ countryCode: e.target.value })}
+                options={options}
+                placeholder="+90"
+              />
+              <Input
+                type="tel"
+                value={phoneValue.number}
+                onChange={(e) => handlePhoneChange({ number: e.target.value })}
+                placeholder="5XX XXX XX XX"
+              />
+            </div>
+          </div>
+        );
+      }
 
       case AttributeType.COLOR:
         return isViewMode ? (

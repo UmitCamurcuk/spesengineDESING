@@ -1,10 +1,10 @@
 import React from 'react';
-import { 
-  Type, 
-  Hash, 
-  ToggleLeft, 
-  Calendar, 
-  Clock, 
+import {
+  Type,
+  Hash,
+  ToggleLeft,
+  Calendar,
+  Clock,
   ChevronDown,
   List,
   File,
@@ -21,7 +21,9 @@ import {
   Star,
   Scan,
   QrCode,
-  Eye
+  Eye,
+  Mail,
+  Phone,
 } from 'lucide-react';
 import { AttributeType } from '../../types';
 import { cn } from '../../utils/cn';
@@ -48,6 +50,8 @@ export const ATTRIBUTE_TYPE_META: Record<AttributeType, AttributeTypeMeta> = {
   [AttributeType.TIME]: { icon: Clock, color: 'from-cyan-500 to-cyan-600', translation: 'time' },
   [AttributeType.SELECT]: { icon: ChevronDown, color: 'from-indigo-500 to-indigo-600', translation: 'select' },
   [AttributeType.MULTISELECT]: { icon: List, color: 'from-indigo-500 to-purple-500', translation: 'multiselect' },
+  [AttributeType.EMAIL]: { icon: Mail, color: 'from-sky-500 to-sky-600', translation: 'email' },
+  [AttributeType.PHONE]: { icon: Phone, color: 'from-lime-500 to-emerald-500', translation: 'phone' },
   [AttributeType.FILE]: { icon: File, color: 'from-gray-500 to-gray-600', translation: 'file' },
   [AttributeType.IMAGE]: { icon: Image, color: 'from-pink-500 to-pink-600', translation: 'image' },
   [AttributeType.ATTACHMENT]: { icon: Paperclip, color: 'from-gray-500 to-slate-600', translation: 'attachment' },

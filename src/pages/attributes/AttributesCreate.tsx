@@ -1,13 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, FileText, ArrowRight, Check, Filter, Search, Hash, Tags } from 'lucide-react';
+import { ArrowLeft, FileText, ArrowRight, Check } from 'lucide-react';
 import { Card, CardHeader } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { Select } from '../../components/ui/Select';
 import { Stepper } from '../../components/ui/Stepper';
 import { Badge } from '../../components/ui/Badge';
 import { AttributeTypeCard } from '../../components/ui/AttributeTypeCard';
 import { AttributeGroupSelector } from '../../components/ui/AttributeGroupSelector';
+import { Switch } from '../../components/ui/Switch';
 import { AttributeRenderer } from '../../components/attributes/AttributeRenderer';
 import { AttributeType, AttributeGroup } from '../../types';
 import { useRequiredLanguages } from '../../hooks/useRequiredLanguages';
@@ -16,6 +18,8 @@ import { useToast } from '../../contexts/ToastContext';
 import { attributesService } from '../../api/services/attributes.service';
 import { attributeGroupsService } from '../../api/services/attribute-groups.service';
 import { localizationsService } from '../../api/services/localizations.service';
+import { DEFAULT_PHONE_COUNTRY_CODE, PHONE_COUNTRY_CODES } from '../../constants/phoneCodes';
+import type { CreateLocalizationRequest } from '../../api/types/api.types';
 
 type ValidationField =
   | { key: string; label: string; type: 'number' | 'text'; placeholder?: string }
@@ -30,6 +34,9 @@ const OPTION_BASED_TYPES = new Set<AttributeType>([
 ]);
 
 type LocalizationState = Record<string, string>;
+const PHONE_DEFAULT_INVALID_ERROR = 'PHONE_DEFAULT_INVALID';
+const PHONE_DEFAULT_ERROR_FALLBACK =
+  'Default phone value must include both a country code and number.';
 
 const getValidationFields = (type: AttributeType): ValidationField[] => {
   switch (type) {
@@ -128,6 +135,36 @@ const parseTags = (value: string): string[] =>
     .map((tag) => tag.trim())
     .filter(Boolean);
 
+type PhoneDefaultValue = {
+  countryCode: string;
+  number: string;
+};
+
+const createPhoneDefaultValue = (): PhoneDefaultValue => ({
+  countryCode: DEFAULT_PHONE_COUNTRY_CODE,
+  number: '',
+});
+
+const serializePhoneDefaultValue = (value: PhoneDefaultValue): string => JSON.stringify(value);
+
+const parsePhoneDefaultValue = (raw: string): PhoneDefaultValue => {
+  if (!raw) {
+    return createPhoneDefaultValue();
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    return {
+      countryCode:
+        typeof parsed.countryCode === 'string' && parsed.countryCode.trim().length > 0
+          ? parsed.countryCode.trim()
+          : DEFAULT_PHONE_COUNTRY_CODE,
+      number: typeof parsed.number === 'string' ? parsed.number.trim() : '',
+    };
+  } catch {
+    return createPhoneDefaultValue();
+  }
+};
+
 const normalizeDefaultValue = (
   value: string,
   type: AttributeType,
@@ -170,6 +207,41 @@ const normalizeDefaultValue = (
         throw new Error('All default selections must match the defined options.');
       }
       return selections;
+    }
+    case AttributeType.EMAIL: {
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailPattern.test(trimmed.toLowerCase())) {
+        throw new Error('Default value must be a valid email address.');
+      }
+      return trimmed.toLowerCase();
+    }
+    case AttributeType.PHONE: {
+      try {
+        const parsed = JSON.parse(value);
+        const countryCode =
+          typeof parsed.countryCode === 'string' && parsed.countryCode.trim().length > 0
+            ? parsed.countryCode.trim()
+            : '';
+        const number =
+          typeof parsed.number === 'string' && parsed.number.trim().length > 0
+            ? parsed.number.trim()
+            : '';
+
+        if (!countryCode && !number) {
+          return undefined;
+        }
+
+        if (!countryCode) {
+          throw new Error(PHONE_DEFAULT_INVALID_ERROR);
+        }
+
+        return { countryCode, number };
+      } catch (error) {
+        if (error instanceof Error && error.message === PHONE_DEFAULT_INVALID_ERROR) {
+          throw error;
+        }
+        throw new Error(PHONE_DEFAULT_INVALID_ERROR);
+      }
     }
     case AttributeType.JSON:
     case AttributeType.OBJECT:
@@ -323,6 +395,36 @@ export const AttributesCreate: React.FC = () => {
       return translated === key ? fallback : translated;
     },
     [t],
+  );
+
+  const ensureLocalizationRecord = useCallback(
+    async (payload: CreateLocalizationRequest) => {
+      try {
+        return await localizationsService.create(payload);
+      } catch (error: any) {
+        if (error?.response?.status === 409) {
+          try {
+            const existing = await localizationsService.list({
+              namespace: payload.namespace,
+              search: payload.key,
+              page: 1,
+              pageSize: 25,
+            });
+            const match = existing.items.find((item) => item.key === payload.key);
+            if (match) {
+              return await localizationsService.update(match.id, {
+                description: payload.description ?? null,
+                translations: payload.translations,
+              });
+            }
+          } catch (lookupError) {
+            throw lookupError;
+          }
+        }
+        throw error;
+      }
+    },
+    [],
   );
 
   const clearError = useCallback((field: string) => {
@@ -522,19 +624,26 @@ export const AttributesCreate: React.FC = () => {
           return errors;
         }
 
-        if (formData.defaultValue.trim().length === 0) {
-          return errors;
-        }
+      if (formData.defaultValue.trim().length === 0) {
+        return errors;
+      }
 
         try {
           normalizeDefaultValue(formData.defaultValue, formData.type, formData.options);
         } catch (error) {
-          const message =
-            error instanceof Error ? error.message : 'Default value is not valid.';
-          errors.defaultValue = translateError(
-            'attributes.create.errors.default_value_invalid',
-            message,
-          );
+          if (error instanceof Error && error.message === PHONE_DEFAULT_INVALID_ERROR) {
+            errors.defaultValue = translateError(
+              'attributes.create.errors.phone_default_invalid',
+              PHONE_DEFAULT_ERROR_FALLBACK,
+            );
+          } else {
+            const message =
+              error instanceof Error ? error.message : 'Default value is not valid.';
+            errors.defaultValue = translateError(
+              'attributes.create.errors.default_value_invalid',
+              message,
+            );
+          }
         }
       }
 
@@ -553,6 +662,10 @@ export const AttributesCreate: React.FC = () => {
     const stepErrors = getStepErrors(step);
     const combinedErrors = recomputeErrors();
     setFormErrors(combinedErrors);
+    if (step === 1) {
+      const { options, ...blockingErrors } = stepErrors;
+      return Object.keys(blockingErrors).length === 0;
+    }
     return Object.keys(stepErrors).length === 0;
   };
 
@@ -567,7 +680,8 @@ export const AttributesCreate: React.FC = () => {
       ...prev,
       type,
       options: OPTION_BASED_TYPES.has(type) ? prev.options : [],
-      defaultValue: '',
+      defaultValue:
+        type === AttributeType.PHONE ? serializePhoneDefaultValue(createPhoneDefaultValue()) : '',
     }));
     if (!OPTION_BASED_TYPES.has(type)) {
       setOptionsInput('');
@@ -605,6 +719,10 @@ export const AttributesCreate: React.FC = () => {
       return true;
     }
     const stepErrors = getStepErrors(currentStep);
+    if (currentStep === 1) {
+      const { options, ...blockingErrors } = stepErrors;
+      return Object.keys(blockingErrors).length === 0;
+    }
     return Object.keys(stepErrors).length === 0;
   };
 
@@ -699,6 +817,66 @@ export const AttributesCreate: React.FC = () => {
             error={formErrors.defaultValue}
           />
         );
+      case AttributeType.EMAIL:
+        return (
+          <Input
+            label={t('attributes.create.default_value')}
+            type="email"
+            value={defaultValue}
+            onChange={(e) => {
+              clearError('defaultValue');
+              setFormData((prev) => ({ ...prev, defaultValue: e.target.value }));
+            }}
+            placeholder="name@example.com"
+            error={formErrors.defaultValue}
+          />
+        );
+      case AttributeType.PHONE: {
+        const phoneDefault = parsePhoneDefaultValue(formData.defaultValue);
+        const phoneOptions = PHONE_COUNTRY_CODES.map((option) => ({
+          value: option.value,
+          label: option.label,
+        }));
+        return (
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">
+              {t('attributes.create.default_value')}
+            </label>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[150px,1fr]">
+              <Select
+                value={phoneDefault.countryCode}
+                onChange={(e) => {
+                  const next = { ...phoneDefault, countryCode: e.target.value };
+                  clearError('defaultValue');
+                  setFormData((prev) => ({
+                    ...prev,
+                    defaultValue: serializePhoneDefaultValue(next),
+                  }));
+                }}
+                options={phoneOptions}
+                placeholder="+90"
+              />
+              <Input
+                type="tel"
+                value={phoneDefault.number}
+                onChange={(e) => {
+                  const next = { ...phoneDefault, number: e.target.value };
+                  clearError('defaultValue');
+                  setFormData((prev) => ({
+                    ...prev,
+                    defaultValue: serializePhoneDefaultValue(next),
+                  }));
+                }}
+                placeholder="5XX XXX XX XX"
+                error={formErrors.defaultValue}
+              />
+            </div>
+            {formErrors.defaultValue && (
+              <p className="text-xs text-error">{formErrors.defaultValue}</p>
+            )}
+          </div>
+        );
+      }
       case AttributeType.SELECT:
         return (
           <div>
@@ -850,12 +1028,9 @@ export const AttributesCreate: React.FC = () => {
               title={t('attributes.create.basic_information')}
               subtitle={t('attributes.create.basic_information_subtitle')}
             />
-            <div className="space-y-6">
-              <div className="flex items-start space-x-4">
-                <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <FileText className="h-8 w-8 text-white" />
-                </div>
-                <div className="flex-1 space-y-4">
+            <div className="space-y-8">
+              <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+                <div className="space-y-4">
                   <Input
                     label={t('attributes.create.attribute_key')}
                     value={formData.key}
@@ -872,76 +1047,6 @@ export const AttributesCreate: React.FC = () => {
                     helperText={t('attributes.create.attribute_key_help')}
                   />
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {requiredLanguages.map(({ code, label }) => (
-                      <Input
-                        key={`attribute-name-${code}`}
-                        label={resolveNameLabel(code, label)}
-                        value={formData.names[code] ?? ''}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          clearError(`name.${code}`);
-                          setFormData((prev) => ({
-                            ...prev,
-                            names: { ...prev.names, [code]: value },
-                          }));
-                        }}
-                        placeholder={t('attributes.create.attribute_name_placeholder')}
-                        required
-                        error={formErrors[`name.${code}`]}
-                      />
-                    ))}
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {requiredLanguages.map(({ code, label }) => (
-                      <div key={`attribute-description-${code}`}>
-                        <label className="block text-xs font-medium text-foreground mb-1">
-                          {resolveDescriptionLabel(code, label)}
-                        </label>
-                        <textarea
-                          value={formData.descriptions[code] ?? ''}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            setFormData((prev) => ({
-                              ...prev,
-                              descriptions: { ...prev.descriptions, [code]: value },
-                            }));
-                          }}
-                          placeholder={t('attributes.create.description_placeholder')}
-                          rows={3}
-                          className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-                        />
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <label className="inline-flex items-center space-x-2 text-sm text-foreground">
-                      <input
-                        type="checkbox"
-                        checked={formData.required}
-                        onChange={(e) =>
-                          setFormData((prev) => ({ ...prev, required: e.target.checked }))
-                        }
-                        className="rounded border-border text-primary focus:ring-primary"
-                      />
-                      <span>{t('attributes.create.this_attribute_is_required')}</span>
-                    </label>
-
-                    <label className="inline-flex items-center space-x-2 text-sm text-foreground">
-                      <input
-                        type="checkbox"
-                        checked={formData.unique}
-                        onChange={(e) =>
-                          setFormData((prev) => ({ ...prev, unique: e.target.checked }))
-                        }
-                        className="rounded border-border text-primary focus:ring-primary"
-                      />
-                      <span>{t('attributes.create.this_attribute_is_unique')}</span>
-                    </label>
-                  </div>
-
                   <Input
                     label={t('attributes.create.tags')}
                     value={tagsInput}
@@ -951,16 +1056,107 @@ export const AttributesCreate: React.FC = () => {
                     placeholder={t('attributes.create.tags_placeholder')}
                     helperText={t('attributes.create.tags_help')}
                   />
+
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      {t('attributes.create.names_summary')}
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {requiredLanguages.map(({ code, label }) => (
+                        <Input
+                          key={`attribute-name-${code}`}
+                          label={resolveNameLabel(code, label)}
+                          value={formData.names[code] ?? ''}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            clearError(`name.${code}`);
+                            setFormData((prev) => ({
+                              ...prev,
+                              names: { ...prev.names, [code]: value },
+                            }));
+                          }}
+                          placeholder={t('attributes.create.attribute_name_placeholder')}
+                          required
+                          error={formErrors[`name.${code}`]}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      {t('attributes.create.descriptions_summary')}
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {requiredLanguages.map(({ code, label }) => (
+                        <div key={`attribute-description-${code}`}>
+                          <label className="block text-xs font-medium text-foreground mb-1">
+                            {resolveDescriptionLabel(code, label)}
+                          </label>
+                          <textarea
+                            value={formData.descriptions[code] ?? ''}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setFormData((prev) => ({
+                                ...prev,
+                                descriptions: { ...prev.descriptions, [code]: value },
+                              }));
+                            }}
+                            placeholder={t('attributes.create.description_placeholder')}
+                            rows={3}
+                            className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <Switch
+                    checked={formData.required}
+                    onCheckedChange={(checked) => {
+                      setFormData((prev) => ({ ...prev, required: checked }));
+                    }}
+                    label={t('attributes.create.this_attribute_is_required')}
+                    description={
+                      t('attributes.create.required_toggle_description') ||
+                      'Kayıt oluşturulurken bu değer zorunludur.'
+                    }
+                  />
+                  <Switch
+                    checked={formData.unique}
+                    onCheckedChange={(checked) => {
+                      setFormData((prev) => ({ ...prev, unique: checked }));
+                    }}
+                    label={t('attributes.create.this_attribute_is_unique')}
+                    description={
+                      t('attributes.create.unique_toggle_description') ||
+                      'Her öğe için bu değer yalnızca bir kez kullanılabilir.'
+                    }
+                  />
+                  <div className="rounded-xl border border-dashed border-border px-4 py-3 text-xs text-muted-foreground">
+                    {t('attributes.create.attribute_groups_subtitle')}
+                  </div>
                 </div>
               </div>
 
-              <div className="mt-2">
-                <h3 className="text-lg font-semibold text-foreground mb-4">
-                  {t('attributes.create.attribute_groups')}
-                </h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  {t('attributes.create.attribute_groups_subtitle')}
-                </p>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-foreground">
+                      {t('attributes.create.attribute_groups')}
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      {t('attributes.create.attribute_groups_subtitle')}
+                    </p>
+                  </div>
+                  <Badge variant="outline">
+                    {t('attributes.create.attribute_groups_selection_count', {
+                      count: formData.attributeGroups.length,
+                    }) ?? `${formData.attributeGroups.length} selected`}
+                  </Badge>
+                </div>
                 {attributeGroupsLoading ? (
                   <div className="text-sm text-muted-foreground">
                     {t('attributes.create.loading_attribute_groups') || 'Attribute grupları yükleniyor...'}
@@ -985,7 +1181,7 @@ export const AttributesCreate: React.FC = () => {
                   />
                 )}
                 {formErrors.attributeGroups && (
-                  <p className="text-xs text-error mt-2">{formErrors.attributeGroups}</p>
+                  <p className="text-xs text-error mt-1">{formErrors.attributeGroups}</p>
                 )}
               </div>
             </div>
@@ -1156,6 +1352,12 @@ export const AttributesCreate: React.FC = () => {
       case 4: {
         const previewName = getPrimaryTranslation(formData.names);
         const previewDescription = getPrimaryTranslation(formData.descriptions);
+        const previewValue =
+          formData.type === AttributeType.PHONE
+            ? parsePhoneDefaultValue(formData.defaultValue)
+            : formData.defaultValue;
+        const previewAttributeDefault =
+          formData.type === AttributeType.PHONE ? previewValue : formData.defaultValue || undefined;
         return (
           <Card>
             <CardHeader
@@ -1301,12 +1503,12 @@ export const AttributesCreate: React.FC = () => {
                       required: formData.required,
                       description: previewDescription || undefined,
                       options: formData.options.length > 0 ? formData.options : undefined,
-                      defaultValue: formData.defaultValue || undefined,
+                      defaultValue: previewAttributeDefault,
                       validation: formData.validation,
                       createdAt: new Date().toISOString(),
                       updatedAt: new Date().toISOString(),
                     }}
-                    value={formData.defaultValue}
+                    value={previewValue}
                     mode="edit"
                     onChange={() => {}}
                   />
@@ -1357,7 +1559,7 @@ export const AttributesCreate: React.FC = () => {
       }
 
       const namespace = 'attributes';
-      const nameLocalization = await localizationsService.create({
+      const nameLocalization = await ensureLocalizationRecord({
         namespace,
         key: `${trimmedKey}.name`,
         description: null,
@@ -1366,7 +1568,7 @@ export const AttributesCreate: React.FC = () => {
 
       let descriptionLocalizationId: string | undefined;
       if (Object.keys(descriptionTranslations).length > 0) {
-        const descriptionLocalization = await localizationsService.create({
+        const descriptionLocalization = await ensureLocalizationRecord({
           namespace,
           key: `${trimmedKey}.description`,
           description: null,
@@ -1386,9 +1588,14 @@ export const AttributesCreate: React.FC = () => {
         setFormErrors((prev) => ({
           ...prev,
           defaultValue:
-            error instanceof Error
-              ? error.message
-              : 'Default value is not valid for selected type.',
+            error instanceof Error && error.message === PHONE_DEFAULT_INVALID_ERROR
+              ? translateError(
+                  'attributes.create.errors.phone_default_invalid',
+                  PHONE_DEFAULT_ERROR_FALLBACK,
+                )
+              : error instanceof Error
+                ? error.message
+                : 'Default value is not valid for selected type.',
         }));
         setCurrentStep(3);
         return;

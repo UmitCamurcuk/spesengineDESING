@@ -11,12 +11,15 @@ import {
   History as HistoryIcon,
   Shield,
   Tags as TagsIcon,
+  Trash2,
+  Edit,
 } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { DetailsLayout } from '../../components/common/DetailsLayout';
 import { Card, CardHeader } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
 import { Badge } from '../../components/ui/Badge';
@@ -27,6 +30,7 @@ import { APITester } from '../../components/common/APITester';
 import { Documentation } from '../../components/common/Documentation';
 import { Statistics } from '../../components/common/Statistics';
 import { ChangeConfirmDialog } from '../../components/ui/ChangeConfirmDialog';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { attributesService } from '../../api/services/attributes.service';
 import { localizationsService } from '../../api/services/localizations.service';
 import { useRequiredLanguages } from '../../hooks/useRequiredLanguages';
@@ -777,6 +781,7 @@ export const AttributesDetails: React.FC = () => {
   const [draftAttribute, setDraftAttribute] = useState<Attribute | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [changeDialogOpen, setChangeDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [defaultValueInput, setDefaultValueInput] = useState<string>('');
   const [defaultValueError, setDefaultValueError] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState<LocalizationState>({});
@@ -1390,6 +1395,7 @@ export const AttributesDetails: React.FC = () => {
         type: 'success',
         message: t('attributes.delete_success') || 'Attribute başarıyla silindi.',
       });
+      setDeleteDialogOpen(false);
       navigate('/attributes');
     } catch (err: any) {
       console.error('Failed to delete attribute', err);
@@ -1595,6 +1601,39 @@ export const AttributesDetails: React.FC = () => {
   ];
 
   const attributeName = attribute?.name?.trim() || attribute?.key || attribute?.id || '';
+  const headerActions = useMemo(() => {
+    if (!attribute) {
+      return null;
+    }
+
+    return (
+      <div className="flex flex-wrap gap-2">
+        {canUpdateAttribute && !editMode && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setEditMode(true)}
+            className="flex items-center gap-2"
+          >
+            <Edit className="h-4 w-4" />
+            {t('common.edit')}
+          </Button>
+        )}
+        {canDeleteAttribute && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-error text-error hover:bg-error/5 flex items-center gap-2"
+            onClick={() => setDeleteDialogOpen(true)}
+            disabled={deleting}
+          >
+            <Trash2 className="h-4 w-4" />
+            {t('common.delete') ?? 'Sil'}
+          </Button>
+        )}
+      </div>
+    );
+  }, [attribute, canUpdateAttribute, canDeleteAttribute, deleting, editMode, t]);
 
   return (
     <>
@@ -1602,14 +1641,15 @@ export const AttributesDetails: React.FC = () => {
         title={headerTitle}
         subtitle={headerSubtitle}
         icon={<FileText className="h-6 w-6 text-white" />}
-        tabs={tabs}
-        defaultTab="details"
-        backUrl="/attributes"
-        editMode={editMode}
-        hasChanges={hasChanges}
-        onEdit={canUpdateAttribute ? () => setEditMode(true) : undefined}
-        onSave={canUpdateAttribute ? handleSaveRequest : undefined}
-        onCancel={() => {
+      tabs={tabs}
+      defaultTab="details"
+      backUrl="/attributes"
+      headerActions={headerActions}
+      editMode={editMode}
+      hasChanges={hasChanges}
+      onEdit={canUpdateAttribute ? () => setEditMode(true) : undefined}
+      onSave={canUpdateAttribute ? handleSaveRequest : undefined}
+      onCancel={() => {
           setEditMode(false);
           setDefaultValueInput(baseDefaultValue);
           setDefaultValueError(null);
@@ -1617,16 +1657,6 @@ export const AttributesDetails: React.FC = () => {
           setAttributeGroupsError(null);
         }}
         inlineActions={false}
-        onDelete={canDeleteAttribute ? handleDelete : undefined}
-        deleteLoading={deleting}
-        deleteButtonLabel={t('attributes.delete_action') || 'Attribute Sil'}
-        deleteDialogTitle={
-          t('attributes.delete_title', { name: attributeName }) || 'Attribute silinsin mi?'
-        }
-        deleteDialogDescription={
-          t('attributes.delete_description', { name: attributeName }) ||
-          'Bu attribute kaydı kalıcı olarak silinecek. Bu işlem geri alınamaz.'
-        }
       />
 
       <ChangeConfirmDialog
@@ -1636,6 +1666,20 @@ export const AttributesDetails: React.FC = () => {
         title={t('attributes.save_changes')}
         changes={getChanges()}
         entityName={t('attributes.attribute')}
+      />
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        onConfirm={handleDelete}
+        loading={deleting}
+        type="danger"
+        title={t('attributes.delete_title', { name: attributeName }) || 'Attribute silinsin mi?'}
+        description={
+          t('attributes.delete_description', { name: attributeName }) ||
+          'Bu attribute kaydı kalıcı olarak silinecek. Bu işlem geri alınamaz.'
+        }
+        confirmText={t('attributes.delete_action') || 'Attribute Sil'}
+        cancelText={t('common.cancel') || 'İptal'}
       />
     </>
   );

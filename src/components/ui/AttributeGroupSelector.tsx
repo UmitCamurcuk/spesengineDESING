@@ -1,6 +1,9 @@
-import React from 'react';
-import { Tags, Check } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Tags, Check, Search } from 'lucide-react';
 import { cn } from '../../utils/cn';
+import { Input } from './Input';
+import { Badge } from './Badge';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface AttributeGroup {
   id: string;
@@ -22,12 +25,22 @@ export const AttributeGroupSelector: React.FC<AttributeGroupSelectorProps> = ({
   selectedGroups,
   onSelectionChange,
   multiple = true,
-  className
+  className,
 }) => {
+  const { t } = useLanguage();
+  const [query, setQuery] = useState('');
+
+  const searchPlaceholder =
+    t('attributeGroups.selector.search_placeholder') ?? 'Search attribute groups';
+  const emptyStateLabel =
+    t('attributeGroups.selector.empty_state') ?? 'No attribute groups match your search.';
+  const selectionEmpty =
+    t('attributeGroups.selector.selection_empty') ?? 'No groups selected';
+
   const handleGroupToggle = (groupId: string) => {
     if (multiple) {
       const newSelection = selectedGroups.includes(groupId)
-        ? selectedGroups.filter(id => id !== groupId)
+        ? selectedGroups.filter((id) => id !== groupId)
         : [...selectedGroups, groupId];
       onSelectionChange(newSelection);
     } else {
@@ -35,83 +48,115 @@ export const AttributeGroupSelector: React.FC<AttributeGroupSelectorProps> = ({
     }
   };
 
+  const filteredGroups = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    if (!term) {
+      return groups;
+    }
+    return groups.filter((group) => {
+      const haystack = [group.name, group.description, group.attributeCount?.toString()]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(term);
+    });
+  }, [groups, query]);
+
+  const selectionSummary =
+    selectedGroups.length === 0
+      ? selectionEmpty
+      : t('attributeGroups.selector.selection_count', { count: selectedGroups.length }) ??
+        `${selectedGroups.length} selected`;
+
   return (
     <div className={cn('space-y-4', className)}>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {groups.map(group => {
-          const isSelected = selectedGroups.includes(group.id);
-          
-          return (
-            <button
-              key={group.id}
-              onClick={() => handleGroupToggle(group.id)}
-              className={cn(
-                'p-4 border-2 rounded-xl transition-all duration-200 text-left relative',
-                isSelected
-                  ? 'border-primary bg-primary/10 shadow-sm'
-                  : 'border-border hover:border-border hover:bg-muted'
-              )}
-            >
-              <div className="flex items-start space-x-3">
-                <div className={cn(
-                  'p-2 rounded-lg transition-colors',
-                  isSelected ? 'bg-primary/20' : 'bg-muted'
-                )}>
-                  <Tags className={cn(
-                    'h-4 w-4',
-                    isSelected ? 'text-primary' : 'text-muted-foreground'
-                  )} />
-                </div>
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={searchPlaceholder}
+          leftIcon={<Search className="h-4 w-4 text-muted-foreground" />}
+        />
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          {selectionSummary}
+        </p>
+      </div>
+
+      <div className="max-h-72 overflow-y-auto rounded-2xl border border-border divide-y divide-border/70">
+        {filteredGroups.length === 0 ? (
+          <div className="px-4 py-6 text-sm text-muted-foreground">{emptyStateLabel}</div>
+        ) : (
+          filteredGroups.map((group) => {
+            const isSelected = selectedGroups.includes(group.id);
+            return (
+              <button
+                type="button"
+                key={group.id}
+                onClick={() => handleGroupToggle(group.id)}
+                className={cn(
+                  'flex w-full items-center gap-4 px-4 py-3 text-left transition-colors',
+                  isSelected ? 'bg-primary/5' : 'bg-background hover:bg-muted/40',
+                )}
+                aria-pressed={isSelected}
+              >
+                <span
+                  className={cn(
+                    'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-muted',
+                    isSelected && 'bg-primary/10 text-primary',
+                  )}
+                >
+                  <Tags className="h-4 w-4" />
+                </span>
                 <div className="flex-1 min-w-0">
-                  <h4 className="text-sm font-medium text-foreground truncate">
-                    {group.name}
-                  </h4>
-                  {group.description && (
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                      {group.description}
-                    </p>
-                  )}
-                  {group.attributeCount !== undefined && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {group.attributeCount} attributes
-                    </p>
-                  )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-semibold text-foreground truncate">{group.name}</p>
+                    {group.attributeCount !== undefined && (
+                      <Badge variant="outline" size="sm">
+                        {group.attributeCount} fields
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                    {group.description || 'No description provided.'}
+                  </p>
                 </div>
                 {isSelected && (
-                  <div className="absolute top-2 right-2">
-                    <div className="w-5 h-5 bg-primary rounded-full flex items-center justify-center">
-                      <Check className="h-3 w-3 text-white" />
-                    </div>
-                  </div>
+                  <span className="rounded-full bg-primary text-white p-1">
+                    <Check className="h-3 w-3" />
+                  </span>
                 )}
-              </div>
-            </button>
-          );
-        })}
+              </button>
+            );
+          })
+        )}
       </div>
 
       {selectedGroups.length > 0 && (
-        <div className="border-t border-border pt-4">
-          <h4 className="text-sm font-medium text-foreground mb-2">
-            Selected Groups ({selectedGroups.length})
-          </h4>
+        <div className="rounded-xl border border-dashed border-border px-4 py-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+            {t('attributeGroups.selector.selected_label') ?? 'Selected'}
+          </p>
           <div className="flex flex-wrap gap-2">
-            {selectedGroups.map(groupId => {
-              const group = groups.find(g => g.id === groupId);
-              return group ? (
-                <div
-                  key={groupId}
-                  className="inline-flex items-center space-x-1 bg-primary/20 text-primary px-2 py-1 rounded-full text-xs"
+            {selectedGroups.map((groupId) => {
+              const group = groups.find((g) => g.id === groupId);
+              if (!group) {
+                return null;
+              }
+              return (
+                <span
+                  key={group.id}
+                  className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary"
                 >
-                  <span>{group.name}</span>
+                  {group.name}
                   <button
-                    onClick={() => handleGroupToggle(groupId)}
-                    className="hover:bg-primary/30 rounded-full p-0.5"
+                    type="button"
+                    className="rounded-full bg-primary/20 p-0.5 text-primary hover:bg-primary/30"
+                    onClick={() => handleGroupToggle(group.id)}
                   >
                     <Check className="h-3 w-3 rotate-45" />
                   </button>
-                </div>
-              ) : null;
+                </span>
+              );
             })}
           </div>
         </div>

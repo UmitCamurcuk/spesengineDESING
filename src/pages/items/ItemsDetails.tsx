@@ -6,12 +6,14 @@ import {
   Bell,
   BookOpen,
   Database,
+  Edit,
   FolderTree,
   Globe,
   History as HistoryIcon,
   Layers,
   Loader2,
   Package,
+  Trash2,
   Zap,
 } from 'lucide-react';
 import { DetailsLayout } from '../../components/common/DetailsLayout';
@@ -24,6 +26,7 @@ import { APITester } from '../../components/common/APITester';
 import { Documentation } from '../../components/common/Documentation';
 import { Statistics } from '../../components/common/Statistics';
 import { HistoryTable } from '../../components/common/HistoryTable';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { itemsService } from '../../api/services/items.service';
 import type {
   Item,
@@ -32,11 +35,14 @@ import type {
   ItemDetails,
   ItemHierarchyNode,
   ItemType,
+  ItemTypeSummaryRef,
 } from '../../types';
 import type { TabConfig } from '../../types/common';
 import { useToast } from '../../contexts/ToastContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useDateFormatter } from '../../hooks/useDateFormatter';
+import { useAuth } from '../../contexts/AuthContext';
+import { PERMISSIONS } from '../../config/permissions';
 
 const getPathLabel = (path: ItemHierarchyNode[]): string =>
   path.length ? path.map((node) => node.name ?? node.key ?? node.id).join(' / ') : '—';
@@ -45,6 +51,18 @@ const getLeafName = (path: ItemHierarchyNode[], fallback?: string | null): strin
   path.length
     ? path[path.length - 1].name ?? path[path.length - 1].key ?? path[path.length - 1].id
     : fallback ?? '—';
+
+const resolveItemTypeName = (
+  itemType?: ItemType | null,
+  summary?: ItemTypeSummaryRef | null,
+  fallbackId?: string | null,
+): string =>
+  itemType?.name ??
+  summary?.name ??
+  itemType?.key ??
+  summary?.key ??
+  fallbackId ??
+  '—';
 
 interface ItemDetailsTabProps {
   details: ItemDetails;
@@ -67,6 +85,11 @@ const ItemDetailsTab: React.FC<ItemDetailsTabProps> = ({ details }) => {
     [details.hierarchy.familyPath, details.family?.name, details.item.familyId],
   );
   const attributeValues = details.attributeValues ?? {};
+  const itemTypeName = useMemo(
+    () =>
+      resolveItemTypeName(details.itemType, details.item.itemTypeSummary, details.item.itemTypeId),
+    [details.item.itemTypeSummary, details.item.itemTypeId, details.itemType],
+  );
 
   const metadataRows = [
     { label: 'Item ID', value: details.item.id },
@@ -84,7 +107,7 @@ const ItemDetailsTab: React.FC<ItemDetailsTabProps> = ({ details }) => {
             <div>
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Item Type</p>
               <Badge variant="primary" className="mt-2">
-                {details.itemType?.name ?? details.itemType?.key ?? details.item.itemTypeId ?? '—'}
+                {itemTypeName}
               </Badge>
             </div>
             <div>
@@ -285,11 +308,15 @@ const HierarchyTab: React.FC<HierarchyTabProps> = ({ item, itemType, hierarchy }
   const navigate = useNavigate();
   const categoryPathLabel = getPathLabel(hierarchy.categoryPath);
   const familyPathLabel = getPathLabel(hierarchy.familyPath);
+  const itemTypeName = useMemo(
+    () => resolveItemTypeName(itemType, item.itemTypeSummary, item.itemTypeId),
+    [item.itemTypeId, item.itemTypeSummary, itemType],
+  );
 
   const nodes = [
     {
       label: 'Item Type',
-      value: itemType?.name ?? itemType?.key ?? item.itemTypeId ?? '—',
+      value: itemTypeName,
       icon: Database,
       href: item.itemTypeId ? `/item-types/${item.itemTypeId}` : null,
     },
@@ -357,9 +384,14 @@ export const ItemsDetails: React.FC = () => {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const { t } = useLanguage();
+  const { hasPermission } = useAuth();
   const [details, setDetails] = useState<ItemDetails | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const canEdit = hasPermission(PERMISSIONS.CATALOG.ITEMS.UPDATE);
+  const canDelete = hasPermission(PERMISSIONS.CATALOG.ITEMS.DELETE);
 
   const fetchDetails = useCallback(async () => {
     if (!id) {
@@ -465,9 +497,85 @@ export const ItemsDetails: React.FC = () => {
     ];
   }, [associationCount, details]);
 
-  const subtitle = details
-    ? `${details.item.id} • ${details.itemType?.key ?? details.item.itemTypeId ?? 'Unknown type'}`
-    : '';
+  const itemTypeDisplayName = details
+    ? resolveItemTypeName(details.itemType, details.item.itemTypeSummary, details.item.itemTypeId)
+    : null;
+
+  const subtitle = details ? `${details.item.id} • ${itemTypeDisplayName ?? 'Unknown type'}` : '';
+  const deleteTitle =
+    t('items.details.delete_title', { name: details?.item.name ?? '' }) ??
+    (details ? `Delete ${details.item.name}?` : 'Delete Item?');
+  const deleteDescription =
+    t('items.details.delete_description') ??
+    'This will permanently remove the item and its attribute values.';
+  const deleteConfirm = t('items.details.delete_confirm') ?? 'Delete';
+
+
+  const handleEdit = useCallback(() => {
+    if (!details) {
+      return;
+    }
+    navigate('/items/create', { state: { sourceItemId: details.item.id } });
+  }, [details, navigate]);
+
+  const handleDelete = useCallback(async () => {
+    if (!details) {
+      return;
+    }
+    setDeleteLoading(true);
+    try {
+      await itemsService.delete(details.item.id);
+      showToast({
+        type: 'success',
+        message: t('items.details.delete_success') ?? 'Item deleted successfully.',
+      });
+      setDeleteDialogOpen(false);
+      navigate('/items');
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.error?.message ??
+        t('items.details.delete_failed') ??
+        'Item could not be deleted.';
+      showToast({ type: 'error', message });
+      throw error;
+    } finally {
+      setDeleteLoading(false);
+    }
+  }, [details, navigate, showToast, t]);
+
+  const headerActions = useMemo(() => {
+    if (!details) {
+      return null;
+    }
+
+    return (
+      <div className="flex flex-wrap gap-2">
+        {canEdit && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="flex items-center gap-2"
+            onClick={handleEdit}
+          >
+            <Edit className="h-4 w-4" />
+            {t('common.edit')}
+          </Button>
+        )}
+        {canDelete && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-error text-error hover:bg-error/5 flex items-center gap-2"
+            onClick={() => setDeleteDialogOpen(true)}
+            disabled={deleteLoading}
+          >
+            <Trash2 className="h-4 w-4" />
+            {t('common.delete')}
+          </Button>
+        )}
+      </div>
+    );
+  }, [canDelete, canEdit, deleteLoading, details, handleEdit, t]);
 
   if (!details) {
     return (
@@ -496,13 +604,28 @@ export const ItemsDetails: React.FC = () => {
   }
 
   return (
-    <DetailsLayout
-      title={details.item.name}
-      subtitle={subtitle}
-      icon={<Package className="h-6 w-6 text-white" />}
-      tabs={tabs}
-      defaultTab="details"
-      backUrl="/items"
-    />
+    <>
+      <DetailsLayout
+        title={details.item.name}
+        subtitle={subtitle}
+        icon={<Package className="h-6 w-6 text-white" />}
+        tabs={tabs}
+        defaultTab="details"
+        backUrl="/items"
+        headerActions={headerActions}
+        inlineActions={false}
+      />
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        onConfirm={handleDelete}
+        loading={deleteLoading}
+        type="danger"
+        title={deleteTitle}
+        description={deleteDescription}
+        confirmText={deleteConfirm}
+        cancelText={t('common.cancel') || 'Cancel'}
+      />
+    </>
   );
 };

@@ -7,6 +7,7 @@ export { Textarea } from './Textarea';
 export { Select } from './Select';
 export { Checkbox } from './Checkbox';
 export { Radio } from './Radio';
+export { Switch } from './Switch';
 export { FileInput } from './FileInput';
 export { DatePicker } from './DatePicker';
 
