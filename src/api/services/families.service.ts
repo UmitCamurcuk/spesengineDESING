@@ -26,6 +26,8 @@ type BackendFamily = {
   hierarchyPath: string[];
   categoryId?: string | null;
   isSystemFamily: boolean;
+  isAbstract: boolean;
+  allowItemCreation: boolean;
   attributeGroupIds: string[];
   attributeGroupBindings: BackendAttributeGroupBinding[];
   attributeGroupCount: number;
@@ -62,6 +64,8 @@ const mapFamily = (family: BackendFamily): Family => ({
   hierarchyPath: family.hierarchyPath ?? [],
   categoryId: family.categoryId ?? null,
   isSystemFamily: Boolean(family.isSystemFamily),
+  isAbstract: Boolean(family.isAbstract),
+  allowItemCreation: Boolean(family.allowItemCreation),
   attributeGroupIds: family.attributeGroupIds ?? [],
   attributeGroupBindings: family.attributeGroupBindings ?? [],
   attributeGroupCount:

@@ -28,6 +28,7 @@ type BackendCategory = {
   linkedItemTypeIds: string[];
   linkedFamilyIds: string[];
   isSystemCategory: boolean;
+  allowItemCreation: boolean;
   attributeGroupIds: string[];
   attributeGroupBindings: BackendAttributeGroupBinding[];
   attributeGroupCount: number;
@@ -66,6 +67,7 @@ const mapCategory = (category: BackendCategory): Category => ({
   linkedItemTypeIds: category.linkedItemTypeIds ?? [],
   linkedFamilyIds: category.linkedFamilyIds ?? [],
   isSystemCategory: Boolean(category.isSystemCategory),
+  allowItemCreation: Boolean(category.allowItemCreation),
   attributeGroupIds: category.attributeGroupIds ?? [],
   attributeGroupBindings: category.attributeGroupBindings ?? [],
   attributeGroupCount:

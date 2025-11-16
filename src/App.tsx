@@ -340,17 +340,39 @@ const AppContentInner: React.FC = () => {
         );
       }
 
-      return (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handlers.onEdit}
-          disabled={!handlers.canEdit}
-        >
-          <Edit className="h-4 w-4 mr-2" />
-          <span className="hidden sm:inline">{t('common.edit')}</span>
-        </Button>
-      );
+      const buttons: React.ReactNode[] = [];
+      if (handlers.onEdit) {
+        buttons.push(
+          <Button
+            key="edit"
+            variant="outline"
+            size="sm"
+            onClick={handlers.onEdit}
+            disabled={!handlers.canEdit}
+          >
+            <Edit className="h-4 w-4 mr-2" />
+            <span className="hidden sm:inline">{t('common.edit')}</span>
+          </Button>,
+        );
+      }
+      if (handlers.onDeleteRequest && handlers.canDelete !== false) {
+        buttons.push(
+          <Button
+            key="delete"
+            variant="outline"
+            size="sm"
+            className="border-error text-error hover:bg-error/5"
+            onClick={handlers.onDeleteRequest}
+            disabled={handlers.deleteLoading}
+          >
+            {t('header.delete_action')}
+          </Button>,
+        );
+      }
+
+      if (buttons.length > 0) {
+        return <div className="flex items-center gap-2">{buttons}</div>;
+      }
     }
 
     return null;

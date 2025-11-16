@@ -131,6 +131,8 @@ export interface Family {
   hierarchyPath: string[];
   categoryId?: string | null;
   isSystemFamily: boolean;
+  isAbstract: boolean;
+  allowItemCreation: boolean;
   attributeGroupIds: string[];
   attributeGroupBindings: AttributeGroupBinding[];
   attributeGroupCount?: number;
@@ -153,6 +155,7 @@ export interface Category {
   linkedItemTypeIds: string[];
   linkedFamilyIds: string[];
   isSystemCategory: boolean;
+  allowItemCreation: boolean;
   attributeGroupIds: string[];
   attributeGroupBindings: AttributeGroupBinding[];
   attributeGroupCount?: number;

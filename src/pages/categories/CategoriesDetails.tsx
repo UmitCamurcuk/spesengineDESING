@@ -15,7 +15,6 @@ import {
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
-import { useEditActionContext } from '../../contexts/EditActionContext';
 import { DetailsLayout } from '../../components/common/DetailsLayout';
 import { Card, CardHeader } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
@@ -78,6 +77,8 @@ interface CategoryDetailsTabProps {
   categoryLookup: Map<string, Category>;
   localizationsLoading?: boolean;
   localizationsError?: string | null;
+  allowItemCreation: boolean;
+  onAllowItemCreationChange: (value: boolean) => void;
 }
 
 type ChangeSummary = {
@@ -161,6 +162,8 @@ const CategoryDetailsTab: React.FC<CategoryDetailsTabProps> = ({
   categoryLookup,
   localizationsLoading,
   localizationsError,
+  allowItemCreation,
+  onAllowItemCreationChange,
 }) => {
   const { t } = useLanguage();
 
@@ -265,6 +268,35 @@ const CategoryDetailsTab: React.FC<CategoryDetailsTabProps> = ({
               )}
             </div>
           ))}
+        </div>
+      </Card>
+
+      <Card padding="lg">
+        <CardHeader
+          title={t('categories.fields.allow_item_creation') || 'Öğe Oluşturmaya İzin Ver'}
+          subtitle="Bu kategoride item oluşturulmasına izin verilip verilmeyeceğini belirler."
+        />
+        <div className="px-6 pb-6">
+          {editMode ? (
+            <label className="flex items-center gap-3 text-sm text-foreground">
+              <input
+                type="checkbox"
+                checked={allowItemCreation}
+                onChange={(event) => onAllowItemCreationChange(event.target.checked)}
+                className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+              />
+              <span>
+                {allowItemCreation ? t('common.yes') || 'Evet' : t('common.no') || 'Hayır'}
+              </span>
+            </label>
+          ) : (
+            <p className="text-sm text-foreground">
+              {allowItemCreation ? t('common.yes') || 'Evet' : t('common.no') || 'Hayır'}
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground mt-2">
+            İzin verilmediğinde bu kategoriye bağlı öğeler oluşturulamaz.
+          </p>
         </div>
       </Card>
 
@@ -690,7 +722,6 @@ const CategoriesDetails: React.FC = () => {
   const { showToast } = useToast();
   const navigate = useNavigate();
   const requiredLanguages = useRequiredLanguages();
-  const { register: registerEditActions } = useEditActionContext();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -724,6 +755,8 @@ const CategoriesDetails: React.FC = () => {
   const [initialLinkedFamilyIds, setInitialLinkedFamilyIds] = useState<string[]>([]);
   const [linkedItemTypeIds, setLinkedItemTypeIds] = useState<string[]>([]);
   const [initialLinkedItemTypeIds, setInitialLinkedItemTypeIds] = useState<string[]>([]);
+  const [allowItemCreation, setAllowItemCreation] = useState<boolean>(true);
+  const [initialAllowItemCreation, setInitialAllowItemCreation] = useState<boolean>(true);
 
   const localizationCacheRef = useRef<Record<string, LocalizationRecord>>({});
   const [localizationsLoading, setLocalizationsLoading] = useState(false);
@@ -954,6 +987,10 @@ const CategoriesDetails: React.FC = () => {
           : [];
         setLinkedItemTypeIds(linkedItemTypes);
         setInitialLinkedItemTypeIds(linkedItemTypes);
+
+        const allowItems = Boolean(categoryResponse.allowItemCreation);
+        setAllowItemCreation(allowItems);
+        setInitialAllowItemCreation(allowItems);
 
         await loadLocalizationDetails(categoryResponse, true);
       } catch (err: any) {
@@ -1273,6 +1310,11 @@ const CategoriesDetails: React.FC = () => {
     return current.some((value, index) => value !== initial[index]);
   }, [linkedItemTypeIds, initialLinkedItemTypeIds]);
 
+  const hasAllowItemCreationChange = useMemo(
+    () => allowItemCreation !== initialAllowItemCreation,
+    [allowItemCreation, initialAllowItemCreation],
+  );
+
   const hasChanges =
     (hasNameChanges ||
       hasDescriptionChanges ||
@@ -1280,7 +1322,8 @@ const CategoriesDetails: React.FC = () => {
       hasParentChanges ||
       hasDefaultItemTypeChange ||
       hasLinkedFamilyChanges ||
-      hasLinkedItemTypeChanges) &&
+      hasLinkedItemTypeChanges ||
+      hasAllowItemCreationChange) &&
     !saving;
 
   const buildChangeSummary = useCallback((): ChangeSummary[] => {
@@ -1342,6 +1385,15 @@ const CategoriesDetails: React.FC = () => {
         newValue: resolveItemTypeListDisplay(linkedItemTypeIds),
       });
     }
+    if (hasAllowItemCreationChange) {
+      const yesLabel = t('common.yes') || 'Evet';
+      const noLabel = t('common.no') || 'Hayır';
+      summary.push({
+        field: t('categories.fields.allow_item_creation') || 'Allow Item Creation',
+        oldValue: initialAllowItemCreation ? yesLabel : noLabel,
+        newValue: allowItemCreation ? yesLabel : noLabel,
+      });
+    }
     return summary;
   }, [
     defaultItemTypeId,
@@ -1351,6 +1403,7 @@ const CategoriesDetails: React.FC = () => {
     hasDescriptionChanges,
     hasLinkedFamilyChanges,
     hasLinkedItemTypeChanges,
+    hasAllowItemCreationChange,
     hasNameChanges,
     hasParentChanges,
     initialAttributeGroupIds,
@@ -1485,6 +1538,10 @@ const CategoriesDetails: React.FC = () => {
         payload.linkedItemTypeIds = linkedItemTypeIds;
       }
 
+      if (hasAllowItemCreationChange) {
+        payload.allowItemCreation = allowItemCreation;
+      }
+
       let updatedCategory: Category | null = null;
 
       if (Object.keys(payload).length > 0) {
@@ -1512,6 +1569,9 @@ const CategoriesDetails: React.FC = () => {
         const nextItemTypes = updatedCategory.linkedItemTypeIds ?? [];
         setLinkedItemTypeIds(nextItemTypes);
         setInitialLinkedItemTypeIds(nextItemTypes);
+        const allowItems = Boolean(updatedCategory.allowItemCreation);
+        setAllowItemCreation(allowItems);
+        setInitialAllowItemCreation(allowItems);
         await loadLocalizationDetails(updatedCategory, true);
         setEditMode(false);
         showToast({
@@ -1540,6 +1600,7 @@ const CategoriesDetails: React.FC = () => {
     hasDefaultItemTypeChange,
     hasLinkedFamilyChanges,
     hasLinkedItemTypeChanges,
+    hasAllowItemCreationChange,
     buildTranslationPayload,
     nameDraft,
     descriptionDraft,
@@ -1548,6 +1609,7 @@ const CategoriesDetails: React.FC = () => {
     defaultItemTypeId,
     linkedFamilyIds,
     linkedItemTypeIds,
+    allowItemCreation,
     loadLocalizationDetails,
     showToast,
     t,
@@ -1577,6 +1639,7 @@ const CategoriesDetails: React.FC = () => {
     setDefaultItemTypeId(initialDefaultItemTypeId);
     setLinkedFamilyIds(initialLinkedFamilyIds);
     setLinkedItemTypeIds(initialLinkedItemTypeIds);
+    setAllowItemCreation(initialAllowItemCreation);
     setLocalizationsError(null);
     if (category) {
       setCategoryDraft(category);
@@ -1588,6 +1651,7 @@ const CategoriesDetails: React.FC = () => {
     initialDescriptionState,
     initialLinkedFamilyIds,
     initialLinkedItemTypeIds,
+    initialAllowItemCreation,
     initialNameState,
     initialParentCategoryId,
   ]);
@@ -1608,35 +1672,6 @@ const CategoriesDetails: React.FC = () => {
     setLinkedItemTypeIds(ids);
   }, []);
 
-  useEffect(() => {
-    if (!canUpdateCategory) {
-      registerEditActions(null);
-      return;
-    }
-
-    registerEditActions({
-      isEditing: editMode,
-      canEdit: !editMode && !loading && !error,
-      canSave: editMode && hasChanges,
-      onEdit: handleEnterEdit,
-      onCancel: handleCancelEdit,
-      onSave: handleSaveRequest,
-    });
-
-    return () => {
-      registerEditActions(null);
-    };
-  }, [
-    registerEditActions,
-    canUpdateCategory,
-    editMode,
-    loading,
-    error,
-    hasChanges,
-    handleEnterEdit,
-    handleCancelEdit,
-    handleSaveRequest,
-  ]);
 
   const handleDelete = useCallback(async () => {
     if (!category || deleting) {
@@ -1727,6 +1762,8 @@ const CategoriesDetails: React.FC = () => {
         categoryLookup,
         localizationsLoading,
         localizationsError,
+        allowItemCreation,
+        onAllowItemCreationChange: setAllowItemCreation,
       },
     },
     {

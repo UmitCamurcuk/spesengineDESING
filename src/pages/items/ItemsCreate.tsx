@@ -444,15 +444,18 @@ export const ItemsCreate: React.FC = () => {
     [itemTypes, form.itemTypeId],
   );
   const availableCategories = useMemo(() => {
-    if (!form.itemTypeId) {
-      return categories;
-    }
-    return categories.filter((category) => {
+    const matchesItemType = (category: Category) => {
+      if (!form.itemTypeId) {
+        return true;
+      }
       if (Array.isArray(category.linkedItemTypeIds) && category.linkedItemTypeIds.length > 0) {
         return category.linkedItemTypeIds.includes(form.itemTypeId);
       }
       return !category.defaultItemTypeId || category.defaultItemTypeId === form.itemTypeId;
-    });
+    };
+    return categories.filter(
+      (category) => matchesItemType(category) && category.allowItemCreation !== false,
+    );
   }, [categories, form.itemTypeId]);
 
   const selectedCategory = useMemo(() => {
@@ -466,7 +469,9 @@ export const ItemsCreate: React.FC = () => {
     if (!form.categoryId) {
       return [] as Family[];
     }
-    return families.filter((family) => (family.categoryId ?? null) === form.categoryId);
+    return families.filter(
+      (family) => (family.categoryId ?? null) === form.categoryId && !family.isAbstract,
+    );
   }, [families, form.categoryId]);
 
   const selectedFamily = useMemo(() => {
@@ -659,9 +664,11 @@ const familiesByCategory = useMemo(() => {
       getId: (family) => family.id,
       getParentId: (family) => family.parentFamilyId ?? null,
       getLabel: (family) => family.name || family.key || family.id,
+      getDisabled: (family) => Boolean(family.isAbstract),
     });
-    return cloneTreeNodes(tree, () => ({
-      selectable: true,
+    return cloneTreeNodes(tree, (node) => ({
+      selectable: !node.disabled,
+      tone: node.disabled ? 'muted' : undefined,
       icon: <Layers className="h-3.5 w-3.5 text-muted-foreground" />,
     }));
   }, [familiesByCategory, form.categoryId]);

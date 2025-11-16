@@ -4,9 +4,13 @@ export interface EditActionHandlers {
   isEditing: boolean;
   canEdit: boolean;
   canSave: boolean;
-  onEdit: () => void;
+  onEdit?: () => void;
   onCancel?: () => void;
   onSave?: () => void;
+  onDeleteRequest?: () => void;
+  canDelete?: boolean;
+  deleteLabel?: string;
+  deleteLoading?: boolean;
 }
 
 interface EditActionContextValue {
@@ -32,7 +36,11 @@ export const EditActionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           previous.canSave === next.canSave &&
           previous.onEdit === next.onEdit &&
           previous.onCancel === next.onCancel &&
-          previous.onSave === next.onSave;
+          previous.onSave === next.onSave &&
+          previous.onDeleteRequest === next.onDeleteRequest &&
+          previous.canDelete === next.canDelete &&
+          previous.deleteLabel === next.deleteLabel &&
+          previous.deleteLoading === next.deleteLoading;
 
         if (same) {
           return previous;

@@ -16,7 +16,6 @@ import {
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { useEditActionContext } from '../../contexts/EditActionContext';
 import { DetailsLayout } from '../../components/common/DetailsLayout';
 import { Card, CardHeader } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
@@ -505,7 +504,6 @@ export const AttributeGroupsDetails: React.FC = () => {
   const { showToast } = useToast();
   const { hasPermission } = useAuth();
   const requiredLanguages = useRequiredLanguages();
-  const { register: registerEditActions } = useEditActionContext();
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState<boolean>(true);
@@ -1137,35 +1135,6 @@ export const AttributeGroupsDetails: React.FC = () => {
     buildTranslationPayload,
   ]);
 
-  useEffect(() => {
-    if (!canUpdateGroup) {
-      registerEditActions(null);
-      return;
-    }
-
-    registerEditActions({
-      isEditing: editMode,
-      canEdit: !editMode && !loading,
-      canSave: editMode && hasChanges && !saving,
-      onEdit: handleEnterEdit,
-      onCancel: handleCancelEdit,
-      onSave: handleSave,
-    });
-
-    return () => {
-      registerEditActions(null);
-    };
-  }, [
-    registerEditActions,
-    canUpdateGroup,
-    editMode,
-    loading,
-    saving,
-    hasChanges,
-    handleEnterEdit,
-    handleCancelEdit,
-    handleSave,
-  ]);
 
   const handleDelete = useCallback(async () => {
     if (!group || deleting) {
@@ -1331,6 +1300,8 @@ ${attributesList}
     ];
   }, [group]);
 
+  const groupName = group?.name?.trim() || group?.key || group?.id || '';
+
   if (!id) {
     return null;
   }
@@ -1456,8 +1427,6 @@ ${attributesList}
       hidden: !canViewNotifications,
     },
   ];
-
-  const groupName = group?.name?.trim() || group?.key || group?.id || '';
 
   return (
     <DetailsLayout

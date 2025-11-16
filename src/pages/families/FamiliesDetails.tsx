@@ -17,7 +17,6 @@ import {
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
-import { useEditActionContext } from '../../contexts/EditActionContext';
 import { DetailsLayout } from '../../components/common/DetailsLayout';
 import { Card, CardHeader } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
@@ -75,6 +74,8 @@ interface FamilyDetailsTabProps {
   onCategoryChange: (id: string | null) => void;
   localizationsLoading?: boolean;
   localizationsError?: string | null;
+  isAbstract: boolean;
+  onIsAbstractChange: (value: boolean) => void;
 }
 
 interface FamilyAttributeGroupsTabProps {
@@ -141,6 +142,8 @@ const FamilyDetailsTab: React.FC<FamilyDetailsTabProps> = ({
   onCategoryChange,
   localizationsLoading,
   localizationsError,
+  isAbstract,
+  onIsAbstractChange,
 }) => {
   const { t } = useLanguage();
 
@@ -218,6 +221,33 @@ const FamilyDetailsTab: React.FC<FamilyDetailsTabProps> = ({
               </div>
             ))}
           </div>
+        </div>
+      </Card>
+
+      <Card padding="lg">
+        <CardHeader
+          title={t('families.fields.is_abstract') || 'Soyut Aile'}
+          subtitle="Bu aileden item oluşturulup oluşturulamayacağını belirler."
+        />
+        <div className="px-6 pb-6">
+          {editMode ? (
+            <label className="flex items-center gap-3 text-sm text-foreground">
+              <input
+                type="checkbox"
+                checked={isAbstract}
+                onChange={(event) => onIsAbstractChange(event.target.checked)}
+                className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+              />
+              <span>{isAbstract ? t('common.yes') || 'Evet' : t('common.no') || 'Hayır'}</span>
+            </label>
+          ) : (
+            <p className="text-sm text-foreground">
+              {isAbstract ? t('common.yes') || 'Evet' : t('common.no') || 'Hayır'}
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground mt-2">
+            Soyut aileler sadece hiyerarşi için kullanılır, item oluşturulamaz.
+          </p>
         </div>
       </Card>
 
@@ -849,7 +879,6 @@ export const FamiliesDetails: React.FC = () => {
   const { showToast } = useToast();
   const navigate = useNavigate();
   const requiredLanguages = useRequiredLanguages();
-  const { register: registerEditActions } = useEditActionContext();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -878,6 +907,8 @@ export const FamiliesDetails: React.FC = () => {
   const [initialParentFamilyId, setInitialParentFamilyId] = useState<string | null>(null);
   const [categorySelectionId, setCategorySelectionId] = useState<string | null>(null);
   const [initialCategorySelectionId, setInitialCategorySelectionId] = useState<string | null>(null);
+  const [isAbstract, setIsAbstract] = useState<boolean>(false);
+  const [initialIsAbstract, setInitialIsAbstract] = useState<boolean>(false);
 
   const localizationCacheRef = useRef<Record<string, LocalizationRecord>>({});
   const [localizationsLoading, setLocalizationsLoading] = useState(false);
@@ -1098,6 +1129,9 @@ export const FamiliesDetails: React.FC = () => {
         setInitialAttributeGroupIds(attributeIds);
         setFamilyOptions(familyListResponse?.items ?? []);
         setCategoryOptions(categoryListResponse?.items ?? []);
+        const abstractFlag = Boolean(familyResponse.isAbstract);
+        setIsAbstract(abstractFlag);
+        setInitialIsAbstract(abstractFlag);
 
         await loadLocalizationDetails(familyResponse, true);
       } catch (err: any) {
@@ -1421,12 +1455,18 @@ export const FamiliesDetails: React.FC = () => {
     [categorySelectionId, initialCategorySelectionId],
   );
 
+  const hasIsAbstractChange = useMemo(
+    () => isAbstract !== initialIsAbstract,
+    [isAbstract, initialIsAbstract],
+  );
+
   const hasChanges =
     (hasNameChanges ||
       hasDescriptionChanges ||
       hasAttributeGroupChanges ||
       hasParentChanges ||
-      hasCategoryChanges) &&
+      hasCategoryChanges ||
+      hasIsAbstractChange) &&
     !saving;
 
   const buildChangeSummary = useCallback((): ChangeSummary[] => {
@@ -1474,12 +1514,22 @@ export const FamiliesDetails: React.FC = () => {
         newValue: resolveCategoryDisplay(categorySelectionId),
       });
     }
+    if (hasIsAbstractChange) {
+      const yesLabel = t('common.yes') || 'Evet';
+      const noLabel = t('common.no') || 'Hayır';
+      summary.push({
+        field: t('families.fields.is_abstract') || 'Abstract Family',
+        oldValue: initialIsAbstract ? yesLabel : noLabel,
+        newValue: isAbstract ? yesLabel : noLabel,
+      });
+    }
     return summary;
   }, [
     descriptionDraft,
     hasAttributeGroupChanges,
     hasCategoryChanges,
     hasDescriptionChanges,
+    hasIsAbstractChange,
     hasNameChanges,
     hasParentChanges,
     initialAttributeGroupIds,
@@ -1487,9 +1537,11 @@ export const FamiliesDetails: React.FC = () => {
     initialNameState,
     initialParentFamilyId,
     initialCategorySelectionId,
+    initialIsAbstract,
     nameDraft,
     parentFamilyId,
     categorySelectionId,
+    isAbstract,
     requiredLanguages,
     resolveAttributeGroupDisplay,
     resolveCategoryDisplay,
@@ -1512,6 +1564,7 @@ export const FamiliesDetails: React.FC = () => {
     setSelectedAttributeGroupIds(initialAttributeGroupIds);
     setParentFamilyId(initialParentFamilyId);
     setCategorySelectionId(initialCategorySelectionId);
+    setIsAbstract(initialIsAbstract);
     if (family) {
       setFamilyDraft(family);
     }
@@ -1523,6 +1576,7 @@ export const FamiliesDetails: React.FC = () => {
     initialDescriptionState,
     initialNameState,
     initialParentFamilyId,
+    initialIsAbstract,
   ]);
 
   const handleNameDraftChange = useCallback((code: string, value: string) => {
@@ -1635,6 +1689,10 @@ export const FamiliesDetails: React.FC = () => {
           payload.categoryId = categorySelectionId ?? null;
         }
 
+        if (hasIsAbstractChange) {
+          payload.isAbstract = isAbstract;
+        }
+
         let updatedFamily: Family | null = null;
 
         if (Object.keys(payload).length > 0) {
@@ -1654,6 +1712,9 @@ export const FamiliesDetails: React.FC = () => {
           setInitialParentFamilyId(updatedFamily.parentFamilyId ?? null);
           setCategorySelectionId(updatedFamily.categoryId ?? null);
           setInitialCategorySelectionId(updatedFamily.categoryId ?? null);
+          const nextAbstract = Boolean(updatedFamily.isAbstract);
+          setIsAbstract(nextAbstract);
+          setInitialIsAbstract(nextAbstract);
           await loadLocalizationDetails(updatedFamily, true);
           setEditMode(false);
           showToast({
@@ -1679,12 +1740,14 @@ export const FamiliesDetails: React.FC = () => {
       hasNameChanges,
       hasDescriptionChanges,
       hasAttributeGroupChanges,
+      hasIsAbstractChange,
       buildTranslationPayload,
       nameDraft,
       descriptionDraft,
       selectedAttributeGroupIds,
       parentFamilyId,
       categorySelectionId,
+      isAbstract,
       loadLocalizationDetails,
       showToast,
       t,
@@ -1692,6 +1755,7 @@ export const FamiliesDetails: React.FC = () => {
       initialCategorySelectionId,
       hasParentChanges,
       hasCategoryChanges,
+      initialIsAbstract,
     ],
   );
 
@@ -1752,35 +1816,6 @@ export const FamiliesDetails: React.FC = () => {
     }
   }, [deleting, family, navigate, showToast, t]);
 
-  useEffect(() => {
-    if (!canUpdateFamily) {
-      registerEditActions(null);
-      return;
-    }
-
-    registerEditActions({
-      isEditing: editMode,
-      canEdit: !editMode && !loading && !error,
-      canSave: editMode && hasChanges,
-      onEdit: handleEnterEdit,
-      onCancel: handleCancelEdit,
-      onSave: handleSaveRequest,
-    });
-
-    return () => {
-      registerEditActions(null);
-    };
-  }, [
-    registerEditActions,
-    canUpdateFamily,
-    editMode,
-    loading,
-    error,
-    hasChanges,
-    handleEnterEdit,
-    handleCancelEdit,
-    handleSaveRequest,
-  ]);
 
   const tabs = useMemo<TabConfig[]>(() => {
     if (!familyDraft) {
@@ -1811,6 +1846,8 @@ export const FamiliesDetails: React.FC = () => {
           categoryTree,
           categoryId: categorySelectionId,
           onCategoryChange: handleCategoryChange,
+          isAbstract,
+          onIsAbstractChange: setIsAbstract,
           localizationsLoading,
           localizationsError,
         },
@@ -1906,6 +1943,7 @@ export const FamiliesDetails: React.FC = () => {
     categoryTree,
     categorySelectionId,
     handleCategoryChange,
+    isAbstract,
     localizationsLoading,
     localizationsError,
     selectedAttributeGroupIds,

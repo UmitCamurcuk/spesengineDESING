@@ -26,6 +26,7 @@ interface FormState {
   parentFamilyId: string;
   categoryId: string;
   isSystemFamily: boolean;
+  isAbstract: boolean;
   attributeGroupIds: string[];
 }
 
@@ -44,6 +45,7 @@ export const FamiliesCreate: React.FC = () => {
     parentFamilyId: '',
     categoryId: '',
     isSystemFamily: false,
+    isAbstract: false,
     attributeGroupIds: [],
   });
 
@@ -366,6 +368,7 @@ export const FamiliesCreate: React.FC = () => {
         parentFamilyId: form.parentFamilyId ? form.parentFamilyId : null,
         categoryId: form.categoryId ? form.categoryId : null,
         isSystemFamily: form.isSystemFamily,
+        isAbstract: form.isAbstract,
         attributeGroupIds: form.attributeGroupIds,
       };
 
@@ -393,6 +396,7 @@ export const FamiliesCreate: React.FC = () => {
     form.attributeGroupIds,
     form.categoryId,
     form.descriptions,
+    form.isAbstract,
     form.isSystemFamily,
     form.key,
     form.names,
@@ -478,6 +482,18 @@ export const FamiliesCreate: React.FC = () => {
                     />
                     <label htmlFor="isSystemFamily">
                       {t('families.fields.is_system') || 'Sistem Family'}
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2 text-sm text-foreground">
+                    <input
+                      id="isAbstractFamily"
+                      type="checkbox"
+                      checked={form.isAbstract}
+                      onChange={(event) => updateForm({ isAbstract: event.target.checked })}
+                      className="rounded border-border text-primary focus:ring-primary"
+                    />
+                    <label htmlFor="isAbstractFamily">
+                      {t('families.fields.is_abstract') || 'Soyut Aile'}
                     </label>
                   </div>
                 </div>
@@ -679,6 +695,14 @@ export const FamiliesCreate: React.FC = () => {
                         {form.isSystemFamily
                           ? t('common.yes') || 'Evet'
                           : t('common.no') || 'Hayır'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">
+                        {t('families.fields.is_abstract') || 'Soyut Aile'}
+                      </span>
+                      <span className="font-medium">
+                        {form.isAbstract ? t('common.yes') || 'Evet' : t('common.no') || 'Hayır'}
                       </span>
                     </div>
                   </div>

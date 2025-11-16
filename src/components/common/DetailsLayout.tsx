@@ -138,34 +138,128 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
     }
   }, [onDelete]);
 
+  const openDeleteDialog = useCallback(() => {
+    setDeleteDialogOpen(true);
+  }, []);
+
   useEffect(() => {
-    if (inlineActions || !onEdit) {
+    const shouldRegister = !inlineActions && (onEdit || (onDelete && canDelete));
+    if (!shouldRegister) {
       register(null);
       return;
     }
 
     register({
       isEditing: editMode,
-      canEdit: !editMode,
+      canEdit: Boolean(onEdit) && !editMode,
       canSave: Boolean(onSave) && hasChanges,
-      onEdit: triggerEdit,
+      onEdit: onEdit ? triggerEdit : undefined,
       onCancel: onCancel ? triggerCancel : undefined,
       onSave: onSave ? triggerSave : undefined,
+      onDeleteRequest: onDelete ? openDeleteDialog : undefined,
+      canDelete,
+      deleteLabel: deleteButtonLabel,
+      deleteLoading,
     });
   }, [
+    canDelete,
+    deleteButtonLabel,
+    deleteLoading,
     editMode,
     hasChanges,
     inlineActions,
     onEdit,
+    onDelete,
     onSave,
     onCancel,
     register,
     triggerCancel,
     triggerEdit,
     triggerSave,
+    openDeleteDialog,
   ]);
 
   useEffect(() => () => register(null), [register]);
+
+  const defaultHeaderActions = useMemo(() => {
+    if (!inlineActions) {
+      return null;
+    }
+    const actions: React.ReactNode[] = [];
+
+    if (!editMode && onEdit) {
+      actions.push(
+        <Button key="edit" size="sm" variant="outline" onClick={onEdit} className="flex items-center gap-2">
+          <Edit className="h-4 w-4" />
+          {t('common.edit')}
+        </Button>,
+      );
+    }
+
+    if (!editMode && onDelete && canDelete) {
+      actions.push(
+        <Button
+          key="delete"
+          size="sm"
+          variant="outline"
+          className="border-error text-error hover:bg-error/5 flex items-center gap-2"
+          onClick={() => setDeleteDialogOpen(true)}
+          disabled={deleteLoading}
+        >
+          <Trash2 className="h-4 w-4" />
+          {deleteButtonLabel ?? t('common.delete', { defaultValue: 'Delete' })}
+        </Button>,
+      );
+    }
+
+    if (editMode && inlineActions) {
+      const editButtons: React.ReactNode[] = [];
+      if (onSave) {
+        editButtons.push(
+          <Button key="save" size="sm" onClick={onSave} disabled={!hasChanges} className="flex items-center gap-2">
+            <Save className="h-4 w-4" />
+            {t('common.save')}
+          </Button>,
+        );
+      }
+      if (onCancel) {
+        editButtons.push(
+          <Button key="cancel" size="sm" variant="outline" onClick={onCancel} className="flex items-center gap-2">
+            <X className="h-4 w-4" />
+            {t('common.cancel')}
+          </Button>,
+        );
+      }
+      if (editButtons.length > 0) {
+        actions.push(
+          <div key="edit-actions" className="flex flex-wrap gap-2">
+            {editButtons}
+          </div>,
+        );
+      }
+    }
+
+    if (actions.length === 0) {
+      return null;
+    }
+
+    return <div className="flex flex-wrap gap-2">{actions}</div>;
+  }, [
+    inlineActions,
+    editMode,
+    onEdit,
+    onDelete,
+    canDelete,
+    deleteLoading,
+    deleteButtonLabel,
+    inlineActions,
+    onSave,
+    hasChanges,
+    onCancel,
+    t,
+  ]);
+
+  const resolvedHeaderActions = headerActions ?? defaultHeaderActions;
 
   return (
     <div className="space-y-6">
@@ -203,51 +297,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
         </div>
         </div>
 
-        <div className="flex items-center space-x-3">
-          {headerActions}
-          {onDelete && canDelete ? (
-            <Button
-              onClick={() => setDeleteDialogOpen(true)}
-              size="sm"
-              variant="danger"
-              className="p-2 h-9 w-9"
-              aria-label={deleteButtonLabel ?? t('common.delete', { defaultValue: 'Delete' })}
-              disabled={deleteLoading}
-            >
-              <Trash2 className="h-4 w-4" />
-              <span className="sr-only">
-                {deleteButtonLabel ?? t('common.delete', { defaultValue: 'Delete' })}
-              </span>
-            </Button>
-          ) : null}
-          {inlineActions && onEdit ? (
-            !editMode ? (
-              <Button
-                onClick={onEdit}
-                size="sm"
-                variant="outline"
-                className="p-2 h-9 w-9"
-                aria-label={t('common.edit')}
-              >
-                <Edit className="h-4 w-4" />
-                <span className="sr-only">{t('common.edit')}</span>
-              </Button>
-            ) : (
-              <div className="flex items-center space-x-2">
-                {onSave ? (
-                  <Button onClick={onSave} size="sm" disabled={!hasChanges}>
-                    <Save className="h-4 w-4 mr-2" />
-                    {t('common.save')}
-                  </Button>
-                ) : null}
-                <Button variant="outline" onClick={onCancel} size="sm">
-                  <X className="h-4 w-4 mr-2" />
-                  {t('common.cancel')}
-                </Button>
-              </div>
-            )
-          ) : null}
-        </div>
+        <div className="flex items-center space-x-3">{resolvedHeaderActions}</div>
       </div>
 
       {tabsWithBadges.length > 0 ? (

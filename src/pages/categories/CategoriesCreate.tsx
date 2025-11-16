@@ -29,6 +29,7 @@ interface FormState {
   linkedItemTypeIds: string[];
   linkedFamilyIds: string[];
   isSystemCategory: boolean;
+  allowItemCreation: boolean;
   attributeGroupIds: string[];
 }
 
@@ -49,6 +50,7 @@ export const CategoriesCreate: React.FC = () => {
     linkedItemTypeIds: [],
     linkedFamilyIds: [],
     isSystemCategory: false,
+    allowItemCreation: true,
     attributeGroupIds: [],
   });
 
@@ -426,6 +428,7 @@ export const CategoriesCreate: React.FC = () => {
         linkedItemTypeIds: form.linkedItemTypeIds,
         linkedFamilyIds: form.linkedFamilyIds,
         isSystemCategory: form.isSystemCategory,
+        allowItemCreation: form.allowItemCreation,
         attributeGroupIds: form.attributeGroupIds,
       };
 
@@ -453,6 +456,7 @@ export const CategoriesCreate: React.FC = () => {
     form.attributeGroupIds,
     form.defaultItemTypeId,
     form.descriptions,
+    form.allowItemCreation,
     form.isSystemCategory,
     form.key,
     form.linkedFamilyIds,
@@ -502,6 +506,18 @@ export const CategoriesCreate: React.FC = () => {
                       />
                       <label htmlFor="isSystemCategory" className="text-sm text-foreground">
                         {t('categories.fields.is_system') || 'Sistem Kategorisi'}
+                      </label>
+                    </div>
+                    <div className="flex items-center gap-2 mt-2 md:mt-6">
+                      <input
+                        id="allowItemCreation"
+                        type="checkbox"
+                        checked={form.allowItemCreation}
+                        onChange={(event) => updateForm({ allowItemCreation: event.target.checked })}
+                        className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                      />
+                      <label htmlFor="allowItemCreation" className="text-sm text-foreground">
+                        {t('categories.fields.allow_item_creation') || 'Öğe Oluşturmaya İzin Ver'}
                       </label>
                     </div>
                   </div>
@@ -808,6 +824,14 @@ export const CategoriesCreate: React.FC = () => {
                       </span>
                       <span className="font-medium">
                         {form.isSystemCategory ? t('common.yes') || 'Evet' : t('common.no') || 'Hayır'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">
+                        {t('categories.fields.allow_item_creation') || 'Öğe Oluşturmaya İzin Ver'}
+                      </span>
+                      <span className="font-medium">
+                        {form.allowItemCreation ? t('common.yes') || 'Evet' : t('common.no') || 'Hayır'}
                       </span>
                     </div>
                   </div>
