@@ -69,6 +69,53 @@ const getValidationFields = (type: AttributeType): ValidationField[] => {
         { key: 'minSelections', label: 'Minimum Selections', type: 'number', placeholder: '1' },
         { key: 'maxSelections', label: 'Maximum Selections', type: 'number', placeholder: '5' },
       ];
+    case AttributeType.URL:
+      return [
+        { key: 'requireHttps', label: 'Require HTTPS', type: 'boolean' },
+        {
+          key: 'allowedProtocols',
+          label: 'Allowed Protocols',
+          type: 'text',
+          placeholder: 'https,http',
+        },
+        { key: 'maxLength', label: 'Maximum Length', type: 'number', placeholder: '2048' },
+      ];
+    case AttributeType.MONEY:
+      return [
+        { key: 'minAmount', label: 'Minimum Amount', type: 'number', placeholder: '0' },
+        { key: 'maxAmount', label: 'Maximum Amount', type: 'number', placeholder: '100000' },
+        {
+          key: 'allowedCurrencies',
+          label: 'Allowed Currencies',
+          type: 'text',
+          placeholder: 'TRY,USD,EUR',
+        },
+        { key: 'requireCurrency', label: 'Require Currency Code', type: 'boolean' },
+      ];
+    case AttributeType.REFERENCE:
+      return [
+        {
+          key: 'allowedEntityTypes',
+          label: 'Allowed Entity Types',
+          type: 'text',
+          placeholder: 'item,user,category',
+        },
+        { key: 'allowMultiple', label: 'Allow Multiple References', type: 'boolean' },
+        {
+          key: 'resolveStrategy',
+          label: 'Resolve Strategy',
+          type: 'select',
+          options: ['id_only', 'id_and_label'],
+        },
+      ];
+    case AttributeType.GEOPOINT:
+      return [
+        { key: 'minLat', label: 'Minimum Latitude', type: 'number', placeholder: '-90' },
+        { key: 'maxLat', label: 'Maximum Latitude', type: 'number', placeholder: '90' },
+        { key: 'minLng', label: 'Minimum Longitude', type: 'number', placeholder: '-180' },
+        { key: 'maxLng', label: 'Maximum Longitude', type: 'number', placeholder: '180' },
+        { key: 'precision', label: 'Precision (decimal places)', type: 'number', placeholder: '6' },
+      ];
     case AttributeType.TABLE:
       return [
         { key: 'minRows', label: 'Minimum Rows', type: 'number', placeholder: '1' },
@@ -165,6 +212,113 @@ const parsePhoneDefaultValue = (raw: string): PhoneDefaultValue => {
   }
 };
 
+type MoneyDefaultValue = {
+  amount: string;
+  currency: string;
+};
+
+const createMoneyDefaultValue = (): MoneyDefaultValue => ({
+  amount: '',
+  currency: 'TRY',
+});
+
+const serializeMoneyDefaultValue = (value: MoneyDefaultValue): string =>
+  JSON.stringify({
+    amount: value.amount ?? '',
+    currency: (value.currency ?? '').trim(),
+  });
+
+const parseMoneyDefaultValue = (raw: string): MoneyDefaultValue => {
+  if (!raw) {
+    return createMoneyDefaultValue();
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    return {
+      amount:
+        typeof parsed.amount === 'number'
+          ? parsed.amount.toString()
+          : typeof parsed.amount === 'string'
+            ? parsed.amount
+            : '',
+      currency:
+        typeof parsed.currency === 'string' && parsed.currency.trim().length > 0
+          ? parsed.currency.trim()
+          : 'TRY',
+    };
+  } catch {
+    return createMoneyDefaultValue();
+  }
+};
+
+type ReferenceDefaultValue = {
+  entityType: string;
+  referenceId: string;
+  label?: string;
+};
+
+const createReferenceDefaultValue = (): ReferenceDefaultValue => ({
+  entityType: '',
+  referenceId: '',
+  label: '',
+});
+
+const serializeReferenceDefaultValue = (value: ReferenceDefaultValue): string =>
+  JSON.stringify({
+    entityType: value.entityType?.trim() ?? '',
+    referenceId: value.referenceId?.trim() ?? '',
+    label: value.label?.trim() ?? '',
+  });
+
+const parseReferenceDefaultValue = (raw: string): ReferenceDefaultValue => {
+  if (!raw) {
+    return createReferenceDefaultValue();
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    return {
+      entityType:
+        typeof parsed.entityType === 'string' ? parsed.entityType : createReferenceDefaultValue().entityType,
+      referenceId:
+        typeof parsed.referenceId === 'string' ? parsed.referenceId : createReferenceDefaultValue().referenceId,
+      label: typeof parsed.label === 'string' ? parsed.label : '',
+    };
+  } catch {
+    return createReferenceDefaultValue();
+  }
+};
+
+type GeoPointDefaultValue = {
+  lat: string;
+  lng: string;
+};
+
+const createGeoPointDefaultValue = (): GeoPointDefaultValue => ({
+  lat: '',
+  lng: '',
+});
+
+const serializeGeoPointDefaultValue = (value: GeoPointDefaultValue): string =>
+  JSON.stringify({
+    lat: value.lat ?? '',
+    lng: value.lng ?? '',
+  });
+
+const parseGeoPointDefaultValue = (raw: string): GeoPointDefaultValue => {
+  if (!raw) {
+    return createGeoPointDefaultValue();
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    return {
+      lat: typeof parsed.lat === 'number' ? parsed.lat.toString() : typeof parsed.lat === 'string' ? parsed.lat : '',
+      lng: typeof parsed.lng === 'number' ? parsed.lng.toString() : typeof parsed.lng === 'string' ? parsed.lng : '',
+    };
+  } catch {
+    return createGeoPointDefaultValue();
+  }
+};
+
 const normalizeDefaultValue = (
   value: string,
   type: AttributeType,
@@ -243,6 +397,252 @@ const normalizeDefaultValue = (
         throw new Error(PHONE_DEFAULT_INVALID_ERROR);
       }
     }
+    case AttributeType.URL: {
+      try {
+        // eslint-disable-next-line no-new
+        new URL(trimmed);
+      } catch {
+        throw new Error('Default value must be a valid URL (including protocol).');
+      }
+      return trimmed;
+    }
+    case AttributeType.MONEY: {
+      try {
+        const parsed = JSON.parse(value);
+        const rawAmount =
+          typeof parsed.amount === 'number'
+            ? parsed.amount
+            : typeof parsed.amount === 'string'
+              ? parsed.amount.trim()
+              : '';
+        const rawCurrency =
+          typeof parsed.currency === 'string' ? parsed.currency.trim().toUpperCase() : '';
+
+        if (rawAmount === '' || rawAmount === null) {
+          return undefined;
+        }
+
+        const amount =
+          typeof rawAmount === 'number'
+            ? rawAmount
+            : rawAmount !== '' && !Number.isNaN(Number(rawAmount))
+              ? Number(rawAmount)
+              : null;
+
+        if (amount === null) {
+          throw new Error('Default money value must include a numeric amount.');
+        }
+        const currency = rawCurrency || 'TRY';
+        return { amount, currency };
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('money')) {
+          throw error;
+        }
+        throw new Error('Default money value must be a valid JSON object.');
+      }
+    }
+    case AttributeType.REFERENCE: {
+      try {
+        const parsed = JSON.parse(value);
+        const entityType =
+          typeof parsed.entityType === 'string' ? parsed.entityType.trim() : '';
+        const referenceId =
+          typeof parsed.referenceId === 'string' ? parsed.referenceId.trim() : '';
+        const label =
+          typeof parsed.label === 'string' ? parsed.label.trim() : undefined;
+
+        if (!entityType && !referenceId && !label) {
+          return undefined;
+        }
+        if (!entityType) {
+          throw new Error('Default reference value must include an entity type.');
+        }
+        if (!referenceId) {
+          throw new Error('Default reference value must include a reference id.');
+        }
+        return { entityType, referenceId, label };
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('reference')) {
+          throw error;
+        }
+        throw new Error('Default reference value must be valid JSON.');
+      }
+    }
+    case AttributeType.GEOPOINT: {
+      try {
+        const parsed = JSON.parse(value);
+        const rawLat =
+          typeof parsed.lat === 'number'
+            ? parsed.lat
+            : typeof parsed.lat === 'string'
+              ? parsed.lat.trim()
+              : '';
+        const rawLng =
+          typeof parsed.lng === 'number'
+            ? parsed.lng
+            : typeof parsed.lng === 'string'
+              ? parsed.lng.trim()
+              : '';
+
+        if ((rawLat === '' || rawLat === null) && (rawLng === '' || rawLng === null)) {
+          return undefined;
+        }
+
+        const lat =
+          typeof rawLat === 'number'
+            ? rawLat
+            : rawLat !== '' && !Number.isNaN(Number(rawLat))
+              ? Number(rawLat)
+              : null;
+        const lng =
+          typeof rawLng === 'number'
+            ? rawLng
+            : rawLng !== '' && !Number.isNaN(Number(rawLng))
+              ? Number(rawLng)
+              : null;
+
+        if (lat === null || lng === null) {
+          throw new Error('Geo point default must include numeric latitude and longitude.');
+        }
+        if (lat < -90 || lat > 90) {
+          throw new Error('Latitude must be between -90 and 90 degrees.');
+        }
+        if (lng < -180 || lng > 180) {
+          throw new Error('Longitude must be between -180 and 180 degrees.');
+        }
+
+        return { lat, lng };
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('Geo point')) {
+          throw error;
+        }
+        throw new Error('Geo point default value must be valid JSON.');
+      }
+    }
+    case AttributeType.URL: {
+      try {
+        // eslint-disable-next-line no-new
+        new URL(trimmed);
+      } catch {
+        throw new Error('Default value must be a valid URL (including protocol).');
+      }
+      return trimmed;
+    }
+    case AttributeType.MONEY: {
+      try {
+        const parsed = JSON.parse(value);
+        const rawAmount =
+          typeof parsed.amount === 'number'
+            ? parsed.amount
+            : typeof parsed.amount === 'string'
+              ? parsed.amount.trim()
+              : '';
+        const rawCurrency =
+          typeof parsed.currency === 'string' ? parsed.currency.trim().toUpperCase() : '';
+
+        if ((rawAmount === '' || rawAmount === null) && !rawCurrency) {
+          return undefined;
+        }
+
+        const amount =
+          typeof rawAmount === 'number'
+            ? rawAmount
+            : rawAmount !== '' && !Number.isNaN(Number(rawAmount))
+              ? Number(rawAmount)
+              : null;
+
+        if (amount === null) {
+          throw new Error('Default money value must include a numeric amount.');
+        }
+        const currency = rawCurrency || 'TRY';
+        return { amount, currency };
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('money')) {
+          throw error;
+        }
+        throw new Error('Default money value must be a valid JSON object.');
+      }
+    }
+    case AttributeType.REFERENCE: {
+      try {
+        const parsed = JSON.parse(value);
+        const entityType =
+          typeof parsed.entityType === 'string' ? parsed.entityType.trim() : '';
+        const referenceId =
+          typeof parsed.referenceId === 'string' ? parsed.referenceId.trim() : '';
+        const label =
+          typeof parsed.label === 'string' ? parsed.label.trim() : undefined;
+
+        if (!entityType && !referenceId && !label) {
+          return undefined;
+        }
+
+        if (!entityType) {
+          throw new Error('Default reference value must include an entity type.');
+        }
+        if (!referenceId) {
+          throw new Error('Default reference value must include a reference id.');
+        }
+
+        return { entityType, referenceId, label };
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('reference')) {
+          throw error;
+        }
+        throw new Error('Default reference value must be valid JSON.');
+      }
+    }
+    case AttributeType.GEOPOINT: {
+      try {
+        const parsed = JSON.parse(value);
+        const rawLat =
+          typeof parsed.lat === 'number'
+            ? parsed.lat
+            : typeof parsed.lat === 'string'
+              ? parsed.lat.trim()
+              : '';
+        const rawLng =
+          typeof parsed.lng === 'number'
+            ? parsed.lng
+            : typeof parsed.lng === 'string'
+              ? parsed.lng.trim()
+              : '';
+
+        if ((rawLat === '' || rawLat === null) && (rawLng === '' || rawLng === null)) {
+          return undefined;
+        }
+
+        const lat =
+          typeof rawLat === 'number'
+            ? rawLat
+            : rawLat !== '' && !Number.isNaN(Number(rawLat))
+              ? Number(rawLat)
+              : null;
+        const lng =
+          typeof rawLng === 'number'
+            ? rawLng
+            : rawLng !== '' && !Number.isNaN(Number(rawLng))
+              ? Number(rawLng)
+              : null;
+
+        if (lat === null || lng === null) {
+          throw new Error('Geo point default must include numeric latitude and longitude.');
+        }
+        if (lat < -90 || lat > 90) {
+          throw new Error('Latitude must be between -90 and 90 degrees.');
+        }
+        if (lng < -180 || lng > 180) {
+          throw new Error('Longitude must be between -180 and 180 degrees.');
+        }
+
+        return { lat, lng };
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('Geo point')) {
+          throw error;
+        }
+        throw new Error('Geo point default value must be valid JSON.');
+      }
+    }
     case AttributeType.JSON:
     case AttributeType.OBJECT:
     case AttributeType.ARRAY: {
@@ -264,6 +664,21 @@ const normalizeDefaultValue = (
     }
     default:
       return trimmed;
+  }
+};
+
+const resolveDefaultValueTemplate = (type: AttributeType): string => {
+  switch (type) {
+    case AttributeType.PHONE:
+      return serializePhoneDefaultValue(createPhoneDefaultValue());
+    case AttributeType.MONEY:
+      return serializeMoneyDefaultValue(createMoneyDefaultValue());
+    case AttributeType.REFERENCE:
+      return serializeReferenceDefaultValue(createReferenceDefaultValue());
+    case AttributeType.GEOPOINT:
+      return serializeGeoPointDefaultValue(createGeoPointDefaultValue());
+    default:
+      return '';
   }
 };
 
@@ -680,8 +1095,7 @@ export const AttributesCreate: React.FC = () => {
       ...prev,
       type,
       options: OPTION_BASED_TYPES.has(type) ? prev.options : [],
-      defaultValue:
-        type === AttributeType.PHONE ? serializePhoneDefaultValue(createPhoneDefaultValue()) : '',
+      defaultValue: resolveDefaultValueTemplate(type),
     }));
     if (!OPTION_BASED_TYPES.has(type)) {
       setOptionsInput('');
@@ -831,6 +1245,20 @@ export const AttributesCreate: React.FC = () => {
             error={formErrors.defaultValue}
           />
         );
+      case AttributeType.URL:
+        return (
+          <Input
+            label={t('attributes.create.default_value')}
+            type="url"
+            value={defaultValue}
+            onChange={(e) => {
+              clearError('defaultValue');
+              setFormData((prev) => ({ ...prev, defaultValue: e.target.value }));
+            }}
+            placeholder="https://example.com"
+            error={formErrors.defaultValue}
+          />
+        );
       case AttributeType.PHONE: {
         const phoneDefault = parsePhoneDefaultValue(formData.defaultValue);
         const phoneOptions = PHONE_COUNTRY_CODES.map((option) => ({
@@ -874,6 +1302,38 @@ export const AttributesCreate: React.FC = () => {
             {formErrors.defaultValue && (
               <p className="text-xs text-error">{formErrors.defaultValue}</p>
             )}
+          </div>
+        );
+      }
+      case AttributeType.MONEY: {
+        const moneyDefault = parseMoneyDefaultValue(formData.defaultValue);
+        const updateMoneyDefault = (next: Partial<MoneyDefaultValue>) => {
+          clearError('defaultValue');
+          const merged = { ...moneyDefault, ...next };
+          setFormData((prev) => ({
+            ...prev,
+            defaultValue: serializeMoneyDefaultValue(merged),
+          }));
+        };
+        return (
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">
+              {t('attributes.create.default_value')}
+            </label>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr,140px]">
+              <Input
+                type="number"
+                value={moneyDefault.amount}
+                onChange={(e) => updateMoneyDefault({ amount: e.target.value })}
+                placeholder="0.00"
+                error={formErrors.defaultValue}
+              />
+              <Input
+                value={moneyDefault.currency}
+                onChange={(e) => updateMoneyDefault({ currency: e.target.value.toUpperCase() })}
+                placeholder="TRY"
+              />
+            </div>
           </div>
         );
       }
@@ -927,6 +1387,40 @@ export const AttributesCreate: React.FC = () => {
             )}
           </div>
         );
+      case AttributeType.REFERENCE: {
+        const referenceDefault = parseReferenceDefaultValue(formData.defaultValue);
+        const updateReferenceDefault = (next: Partial<ReferenceDefaultValue>) => {
+          clearError('defaultValue');
+          const merged = { ...referenceDefault, ...next };
+          setFormData((prev) => ({
+            ...prev,
+            defaultValue: serializeReferenceDefaultValue(merged),
+          }));
+        };
+        return (
+          <div className="space-y-3">
+            <Input
+              label={t('attributes.create.reference_entity_type') || 'Entity Type'}
+              value={referenceDefault.entityType}
+              onChange={(e) => updateReferenceDefault({ entityType: e.target.value })}
+              placeholder="item, user, category..."
+              error={formErrors.defaultValue}
+            />
+            <Input
+              label={t('attributes.create.reference_id') || 'Reference ID'}
+              value={referenceDefault.referenceId}
+              onChange={(e) => updateReferenceDefault({ referenceId: e.target.value })}
+              placeholder="ID or external key"
+            />
+            <Input
+              label={t('attributes.create.reference_label') || 'Display Label'}
+              value={referenceDefault.label}
+              onChange={(e) => updateReferenceDefault({ label: e.target.value })}
+              placeholder={t('attributes.create.reference_label_placeholder') || 'Optional label'}
+            />
+          </div>
+        );
+      }
       case AttributeType.RICH_TEXT:
         return (
           <div>
@@ -948,6 +1442,39 @@ export const AttributesCreate: React.FC = () => {
             )}
           </div>
         );
+      case AttributeType.GEOPOINT: {
+        const geoDefault = parseGeoPointDefaultValue(formData.defaultValue);
+        const updateGeoDefault = (next: Partial<GeoPointDefaultValue>) => {
+          clearError('defaultValue');
+          const merged = { ...geoDefault, ...next };
+          setFormData((prev) => ({
+            ...prev,
+            defaultValue: serializeGeoPointDefaultValue(merged),
+          }));
+        };
+        return (
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              {t('attributes.create.default_value')}
+            </label>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Input
+                type="number"
+                value={geoDefault.lat}
+                onChange={(e) => updateGeoDefault({ lat: e.target.value })}
+                placeholder="-90 to 90 (Latitude)"
+                error={formErrors.defaultValue}
+              />
+              <Input
+                type="number"
+                value={geoDefault.lng}
+                onChange={(e) => updateGeoDefault({ lng: e.target.value })}
+                placeholder="-180 to 180 (Longitude)"
+              />
+            </div>
+          </div>
+        );
+      }
       case AttributeType.JSON:
       case AttributeType.OBJECT:
       case AttributeType.ARRAY:
@@ -1352,12 +1879,29 @@ export const AttributesCreate: React.FC = () => {
       case 4: {
         const previewName = getPrimaryTranslation(formData.names);
         const previewDescription = getPrimaryTranslation(formData.descriptions);
-        const previewValue =
-          formData.type === AttributeType.PHONE
-            ? parsePhoneDefaultValue(formData.defaultValue)
-            : formData.defaultValue;
-        const previewAttributeDefault =
-          formData.type === AttributeType.PHONE ? previewValue : formData.defaultValue || undefined;
+        const previewValue = (() => {
+          switch (formData.type) {
+            case AttributeType.PHONE:
+              return parsePhoneDefaultValue(formData.defaultValue);
+            case AttributeType.MONEY:
+              return parseMoneyDefaultValue(formData.defaultValue);
+            case AttributeType.REFERENCE:
+              return parseReferenceDefaultValue(formData.defaultValue);
+            case AttributeType.GEOPOINT:
+              return parseGeoPointDefaultValue(formData.defaultValue);
+            default:
+              return formData.defaultValue;
+          }
+        })();
+        const structuredPreviewTypes = new Set<AttributeType>([
+          AttributeType.PHONE,
+          AttributeType.MONEY,
+          AttributeType.REFERENCE,
+          AttributeType.GEOPOINT,
+        ]);
+        const previewAttributeDefault = structuredPreviewTypes.has(formData.type)
+          ? previewValue
+          : formData.defaultValue || undefined;
         return (
           <Card>
             <CardHeader

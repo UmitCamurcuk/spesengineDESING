@@ -20,7 +20,7 @@ import { DetailsLayout } from '../../components/common/DetailsLayout';
 import { Card, CardHeader } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { HistoryTable } from '../../components/common/HistoryTable';
-import { NotificationSettings } from '../../components/common/NotificationSettings';
+import { EntityNotificationsTab } from '../../components/notifications/EntityNotificationsTab';
 import { Documentation } from '../../components/common/Documentation';
 import { Statistics } from '../../components/common/Statistics';
 import { APITester } from '../../components/common/APITester';
@@ -1422,8 +1422,12 @@ ${attributesList}
       id: 'notifications',
       label: t('attributeGroups.notifications_tab') || 'Bildirimler',
       icon: Activity,
-      component: NotificationSettings,
-      props: { entityType: 'attribute-group', entityId: group.id },
+      component: EntityNotificationsTab,
+      props: {
+        entityType: 'attribute-group',
+        entityId: group.id,
+        entityName: group.name,
+      },
       hidden: !canViewNotifications,
     },
   ];

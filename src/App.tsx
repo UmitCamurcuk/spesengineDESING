@@ -168,6 +168,7 @@ type CreateActionConfig = {
 type EditActionConfig = {
   basePath: string;
   permission?: string;
+  exact?: boolean;
 };
 
 const CREATE_ACTIONS: CreateActionConfig[] = [
@@ -278,6 +279,7 @@ const EDIT_ACTIONS: EditActionConfig[] = [
   { basePath: '/notifications/rules', permission: PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.UPDATE },
   { basePath: '/notifications/channels', permission: PERMISSIONS.SYSTEM.NOTIFICATIONS.CHANNELS.UPDATE },
   { basePath: '/notifications/templates', permission: PERMISSIONS.SYSTEM.NOTIFICATIONS.TEMPLATES.UPDATE },
+  { basePath: '/settings', permission: PERMISSIONS.SYSTEM.SETTINGS.UPDATE, exact: true },
 ];
 
 const isDetailPath = (basePath: string, pathname: string): boolean => {
@@ -317,7 +319,9 @@ const AppContentInner: React.FC = () => {
       );
     }
 
-    const editConfig = EDIT_ACTIONS.find((config) => isDetailPath(config.basePath, pathname));
+    const editConfig = EDIT_ACTIONS.find((config) =>
+      config.exact ? pathname === config.basePath : isDetailPath(config.basePath, pathname),
+    );
     if (
       editConfig &&
       handlers &&

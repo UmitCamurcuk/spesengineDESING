@@ -389,6 +389,26 @@
   .ui-compact-mode .ui-card .gap-4 {
     gap: 0.75rem;
   }
+
+  :root.ui-font-large {
+    font-size: 17px;
+  }
+
+  .ui-font-large body {
+    font-size: 1.05rem;
+  }
+
+  [data-avatar-placeholder="true"] {
+    display: none;
+  }
+
+  :root.ui-hide-avatars [data-avatar="true"] {
+    display: none !important;
+  }
+
+  :root.ui-hide-avatars [data-avatar-placeholder="true"] {
+    display: flex !important;
+  }
 }
 
 @layer utilities {

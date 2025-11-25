@@ -24,6 +24,10 @@ import {
   Eye,
   Mail,
   Phone,
+  Link2,
+  Coins,
+  Share2,
+  MapPin,
 } from 'lucide-react';
 import { AttributeType } from '../../types';
 import { cn } from '../../utils/cn';
@@ -52,6 +56,10 @@ export const ATTRIBUTE_TYPE_META: Record<AttributeType, AttributeTypeMeta> = {
   [AttributeType.MULTISELECT]: { icon: List, color: 'from-indigo-500 to-purple-500', translation: 'multiselect' },
   [AttributeType.EMAIL]: { icon: Mail, color: 'from-sky-500 to-sky-600', translation: 'email' },
   [AttributeType.PHONE]: { icon: Phone, color: 'from-lime-500 to-emerald-500', translation: 'phone' },
+  [AttributeType.URL]: { icon: Link2, color: 'from-sky-600 to-blue-600', translation: 'url' },
+  [AttributeType.MONEY]: { icon: Coins, color: 'from-amber-500 to-amber-600', translation: 'money' },
+  [AttributeType.REFERENCE]: { icon: Share2, color: 'from-cyan-500 to-teal-500', translation: 'reference' },
+  [AttributeType.GEOPOINT]: { icon: MapPin, color: 'from-emerald-500 to-green-600', translation: 'geopoint' },
   [AttributeType.FILE]: { icon: File, color: 'from-gray-500 to-gray-600', translation: 'file' },
   [AttributeType.IMAGE]: { icon: Image, color: 'from-pink-500 to-pink-600', translation: 'image' },
   [AttributeType.ATTACHMENT]: { icon: Paperclip, color: 'from-gray-500 to-slate-600', translation: 'attachment' },

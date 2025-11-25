@@ -508,18 +508,27 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onMenuClick, act
               onClick={() => setShowProfileMenu(!showProfileMenu)}
               className="flex items-center space-x-2 p-1.5 rounded-md hover:bg-muted transition-colors"
             >
-              {user?.avatar ? (
-                <img
-                  src={user.avatar}
-                  alt={user.name || user.email || 'User avatar'}
-                  className="w-7 h-7 rounded-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <div className="w-7 h-7 bg-primary rounded-full flex items-center justify-center">
-                  <User className="h-3.5 w-3.5 text-white" />
+              <div className="relative w-7 h-7 flex-shrink-0">
+                {user?.avatar ? (
+                  <img
+                    src={user.avatar}
+                    alt={user.name || user.email || 'User avatar'}
+                    className="w-7 h-7 rounded-full object-cover"
+                    referrerPolicy="no-referrer"
+                    data-avatar="true"
+                  />
+                ) : (
+                  <span data-avatar="true" className="hidden" />
+                )}
+                <div
+                  data-avatar-placeholder="true"
+                  className={`absolute inset-0 bg-primary rounded-full flex items-center justify-center ${user?.avatar ? 'hidden' : 'flex'}`}
+                >
+                  <span className="text-xs font-semibold text-white">
+                    {(user?.name || user?.email || 'U').charAt(0).toUpperCase()}
+                  </span>
                 </div>
-              )}
+              </div>
               <div className="text-left hidden sm:block">
                 <p className="text-sm font-medium text-foreground">
                   {user?.name || 'Admin User'}

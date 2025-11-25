@@ -10,6 +10,10 @@ export enum AttributeType {
   TIME = 'time',
   EMAIL = 'email',
   PHONE = 'phone',
+  URL = 'url',
+  MONEY = 'money',
+  REFERENCE = 'reference',
+  GEOPOINT = 'geopoint',
 
   // Enum / Seçilebilir Değerler
   SELECT = 'select',

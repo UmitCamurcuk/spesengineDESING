@@ -14,6 +14,17 @@ const formatFullName = (user: UserSummary): string => {
   return [user.firstName, user.lastName].filter(Boolean).join(' ').trim() || user.email;
 };
 
+const getInitials = (name: string): string => {
+  const parts = name.trim().split(' ').filter(Boolean);
+  if (parts.length === 0) {
+    return '?';
+  }
+  if (parts.length === 1) {
+    return parts[0].charAt(0).toUpperCase();
+  }
+  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+};
+
 const formatDate = (value: string | null | undefined): string => {
   if (!value) {
     return '—';
@@ -93,26 +104,32 @@ export const UsersList: React.FC = () => {
             ? user.profilePhotoUrl 
             : `/uploads${user.profilePhotoUrl}`
           : null;
+        const initials = getInitials(formatFullName(user));
         return (
           <div className="flex items-center space-x-3">
-            {avatarUrl ? (
-              <img
-                src={avatarUrl}
-                alt={formatFullName(user)}
-                className="w-10 h-10 rounded-full object-cover shadow-sm ring-2 ring-gray-200 dark:ring-gray-700"
-                onError={(e) => {
-                  // Fallback to icon if image fails to load
-                  const target = e.target as HTMLImageElement;
-                  target.style.display = 'none';
-                  const fallback = target.nextElementSibling as HTMLElement;
-                  if (fallback) fallback.style.display = 'flex';
-                }}
-              />
-            ) : null}
-            <div
-              className={`w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-sm ${avatarUrl ? 'hidden' : ''}`}
-            >
-              <Users className="h-5 w-5 text-white" />
+            <div className="w-10 h-10 relative">
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={formatFullName(user)}
+                  className="w-10 h-10 rounded-full object-cover shadow-sm ring-2 ring-gray-200 dark:ring-gray-700"
+                  data-avatar="true"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                    const fallback = target.nextElementSibling as HTMLElement;
+                    if (fallback) fallback.style.display = 'flex';
+                  }}
+                />
+              ) : (
+                <span data-avatar="true" className="hidden" />
+              )}
+              <div
+                data-avatar-placeholder="true"
+                className={`w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-sm absolute inset-0 ${avatarUrl ? 'hidden' : 'flex'}`}
+              >
+                <span className="text-sm font-semibold text-white">{initials}</span>
+              </div>
             </div>
             <div>
               <div className="text-sm font-semibold text-foreground">{formatFullName(user)}</div>
@@ -126,11 +143,32 @@ export const UsersList: React.FC = () => {
       },
       mobileRender: (user: UserSummary) => {
         const status = deriveStatus(user);
+        const avatarUrl = user.profilePhotoUrl 
+          ? user.profilePhotoUrl.startsWith('/uploads') 
+            ? user.profilePhotoUrl 
+            : `/uploads${user.profilePhotoUrl}`
+          : null;
+        const initials = getInitials(formatFullName(user));
         return (
           <div className="space-y-3">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-sm">
-                <Users className="h-5 w-5 text-white" />
+              <div className="w-10 h-10 relative">
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt={formatFullName(user)}
+                    className="w-10 h-10 rounded-full object-cover shadow-sm"
+                    data-avatar="true"
+                  />
+                ) : (
+                  <span data-avatar="true" className="hidden" />
+                )}
+                <div
+                  data-avatar-placeholder="true"
+                  className={`w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-sm absolute inset-0 ${avatarUrl ? 'hidden' : 'flex'}`}
+                >
+                  <span className="text-sm font-semibold text-white">{initials}</span>
+                </div>
               </div>
               <div className="flex-1">
                 <div className="flex items-center space-x-2">

@@ -30,17 +30,38 @@ interface SettingsProviderProps {
   children: ReactNode;
 }
 
+const COMPACT_CLASS = 'ui-compact-mode';
+const HIDE_AVATAR_CLASS = 'ui-hide-avatars';
+const FONT_LARGE_CLASS = 'ui-font-large';
+
+const rootElement = () =>
+  typeof document !== 'undefined' ? document.documentElement : (null as HTMLElement | null);
+
 function updateCompactClass(compact: boolean) {
   if (typeof document === 'undefined') {
     return;
   }
-  const className = 'ui-compact-mode';
-  const root = document.documentElement;
-  if (compact) {
-    root.classList.add(className);
-  } else {
-    root.classList.remove(className);
+  const root = rootElement();
+  if (!root) return;
+  root.classList.toggle(COMPACT_CLASS, compact);
+}
+
+function updateAvatarVisibility(show: boolean) {
+  if (typeof document === 'undefined') {
+    return;
   }
+  const root = rootElement();
+  if (!root) return;
+  root.classList.toggle(HIDE_AVATAR_CLASS, !show);
+}
+
+function updateFontScaleClass(scale: 'normal' | 'large' | undefined) {
+  if (typeof document === 'undefined') {
+    return;
+  }
+  const root = rootElement();
+  if (!root) return;
+  root.classList.toggle(FONT_LARGE_CLASS, scale === 'large');
 }
 
 export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) => {
@@ -67,6 +88,8 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
           setDarkVariant(data.appearance.darkVariant);
         }
         updateCompactClass(Boolean(data.appearance?.compactMode));
+        updateAvatarVisibility(Boolean(data.appearance?.showAvatars ?? true));
+        updateFontScaleClass(data.appearance?.fontScale ?? 'normal');
         savePreferences({
           dateFormat: data.general?.dateFormat,
           timeZone: data.general?.timezone,
@@ -103,6 +126,8 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
     if (!isAuthenticated) {
       setSettings(null);
       updateCompactClass(false);
+      updateAvatarVisibility(true);
+      updateFontScaleClass('normal');
       setIsLoading(false);
       setInitialized(true);
       return;
@@ -118,6 +143,18 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
       updateCompactClass(Boolean(settings.appearance?.compactMode));
     }
   }, [settings?.appearance?.compactMode]);
+
+  useEffect(() => {
+    if (settings) {
+      updateAvatarVisibility(Boolean(settings.appearance?.showAvatars ?? true));
+    }
+  }, [settings?.appearance?.showAvatars]);
+
+  useEffect(() => {
+    if (settings) {
+      updateFontScaleClass(settings.appearance?.fontScale ?? 'normal');
+    }
+  }, [settings?.appearance?.fontScale]);
 
   const refresh = useCallback(async () => {
     if (!isAuthenticated) {

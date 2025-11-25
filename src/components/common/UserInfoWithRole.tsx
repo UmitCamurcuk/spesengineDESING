@@ -21,6 +21,17 @@ interface UserInfoWithRoleProps {
   userAgent?: string | null;
 }
 
+const getInitials = (value: string) => {
+  const parts = value.trim().split(' ').filter(Boolean);
+  if (parts.length === 0) {
+    return '?';
+  }
+  if (parts.length === 1) {
+    return parts[0].charAt(0).toUpperCase();
+  }
+  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+};
+
 export const UserInfoWithRole: React.FC<UserInfoWithRoleProps> = ({
   user,
   date,
@@ -33,6 +44,8 @@ export const UserInfoWithRole: React.FC<UserInfoWithRoleProps> = ({
 
   const displayName = user?.name || fallbackName;
   const displayEmail = user?.email || fallbackEmail;
+  const initials = React.useMemo(() => getInitials(displayName), [displayName]);
+  const hasAvatar = Boolean(user?.profilePhotoUrl);
   const displayRole = (() => {
     if (!user?.role) {
       return '—';
@@ -53,17 +66,26 @@ export const UserInfoWithRole: React.FC<UserInfoWithRoleProps> = ({
     <div className="flex items-start space-x-3 text-left">
       <div className="flex flex-col items-center">
         <div className="relative">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-primary to-primary-hover overflow-hidden flex-shrink-0">
-            {user?.profilePhotoUrl ? (
+          <div className="w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-primary to-primary-hover overflow-hidden flex-shrink-0 relative">
+            {hasAvatar ? (
               <img
-                src={user.profilePhotoUrl}
+                src={user?.profilePhotoUrl}
                 alt={displayName}
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"
+                data-avatar="true"
               />
             ) : (
-              <User className="h-5 w-5 text-white" />
+              <span data-avatar="true" className="hidden" />
             )}
+            <div
+              data-avatar-placeholder="true"
+              className={`absolute inset-0 rounded-full bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center ${hasAvatar ? 'hidden' : 'flex'}`}
+            >
+              <span className="text-xs font-semibold text-white flex items-center gap-1">
+                {initials.length === 1 ? <User className="h-4 w-4 text-white" /> : initials}
+              </span>
+            </div>
           </div>
           {deviceInfo && (
             <div 

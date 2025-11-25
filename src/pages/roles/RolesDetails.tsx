@@ -547,6 +547,7 @@ export function RolesDetails() {
 
   const canReadRole = hasPermission(PERMISSIONS.SYSTEM.ROLES.VIEW);
   const canUpdateRole = hasPermission(PERMISSIONS.SYSTEM.ROLES.UPDATE);
+  const canDeleteRole = hasPermission(PERMISSIONS.SYSTEM.ROLES.DELETE);
   const canViewRoleHistory = hasPermission(PERMISSIONS.SYSTEM.ROLES.HISTORY);
 
   const supportedLanguages = useMemo<LanguageOption[]>(() => {
@@ -590,6 +591,7 @@ export function RolesDetails() {
   const [commentDialogOpen, setCommentDialogOpen] = useState(false);
   const [pendingChanges, setPendingChanges] = useState<ChangeItem[]>([]);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const baselineRef = useRef<RoleForm | null>(null);
   const translationFnRef = useRef(t);
@@ -891,6 +893,33 @@ export function RolesDetails() {
     }
   };
 
+  const handleDelete = useCallback(async () => {
+    if (!role) {
+      return;
+    }
+    try {
+      setDeleting(true);
+      const deleteComment =
+        t('roles.delete.comment_default') ??
+        t('roles.messages.delete_comment') ??
+        'Role silme işlemi';
+      await rolesService.delete(role.id, deleteComment);
+      showToast({
+        type: 'success',
+        message: t('roles.messages.delete_success') ?? 'Rol başarıyla silindi.',
+      });
+      navigate('/roles');
+    } catch (error: any) {
+      console.error('Failed to delete role', error);
+      showToast({
+        type: 'error',
+        message: error?.message || t('roles.messages.delete_failed') || 'Rol silinemedi.',
+      });
+    } finally {
+      setDeleting(false);
+    }
+  }, [navigate, role, showToast, t]);
+
   const tabs = useMemo<TabConfig[]>(() => {
     if (!formState || !role) {
       return [];
@@ -1020,6 +1049,8 @@ export function RolesDetails() {
     role.descriptionLocalizationId ||
     t('roles.details.subtitle');
 
+  const allowDelete = canDeleteRole && !role.isSystemRole;
+
   const titleNode = isEditing ? (
     <Input
       value={currentNameValue}
@@ -1057,6 +1088,22 @@ export function RolesDetails() {
         onEdit={canUpdateRole ? handleEnterEdit : undefined}
         onSave={canUpdateRole ? handleSave : undefined}
         onCancel={handleCancel}
+        onDelete={allowDelete ? handleDelete : undefined}
+        canDelete={allowDelete}
+        deleteButtonLabel={t('roles.actions.delete') ?? t('common.delete') ?? 'Sil'}
+        deleteDialogTitle={
+          t('roles.delete.title', { name: displayName }) ??
+          t('common.delete_confirmation_title') ??
+          'Rol silinsin mi?'
+        }
+        deleteDialogDescription={
+          t('roles.delete.description', { name: displayName }) ??
+          t('common.delete_confirmation_message') ??
+          'Bu kayıt kalıcı olarak silinecek. Bu işlem geri alınamaz.'
+        }
+        deleteConfirmLabel={t('roles.delete.confirm') ?? t('common.delete') ?? 'Sil'}
+        deleteCancelLabel={t('common.cancel') ?? 'İptal'}
+        deleteLoading={deleting}
         inlineActions={false}
       />
 

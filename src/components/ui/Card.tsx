@@ -60,12 +60,12 @@ export const CardHeader: React.FC<CardHeaderProps> = ({
   return (
     <div
       className={cn(
-        'flex flex-col space-y-1.5 py-2',
-        className
+        'flex flex-col gap-2 py-2 md:flex-row md:items-center md:justify-between',
+        className,
       )}
       {...props}
     >
-      <div className="flex-1 mb-2">
+      <div className="flex-1">
         {title && (
           <h3 className="text-base font-semibold text-foreground">{title}</h3>
         )}
@@ -74,7 +74,9 @@ export const CardHeader: React.FC<CardHeaderProps> = ({
         )}
         {children}
       </div>
-      {action && <div className="md:ml-3 md:self-center w-full md:w-auto">{action}</div>}
+      {action ? (
+        <div className="flex-shrink-0 w-full md:w-auto flex justify-end">{action}</div>
+      ) : null}
     </div>
   );
 };

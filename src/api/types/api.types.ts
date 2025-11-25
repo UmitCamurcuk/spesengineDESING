@@ -82,6 +82,99 @@ export interface SearchParams extends PaginationParams {
   filters?: Record<string, any>;
 }
 
+export type SearchEntityType =
+  | 'item'
+  | 'item_type'
+  | 'category'
+  | 'family'
+  | 'attribute_group'
+  | 'attribute'
+  | 'user'
+  | 'notification_rule';
+
+export interface SearchSuggestion {
+  id: string;
+  entityType: SearchEntityType;
+  title: string;
+  route: string;
+  score: number;
+}
+
+export interface SearchHit {
+  id: string;
+  entityType: SearchEntityType;
+  tenantId: string;
+  title: {
+    tr?: string;
+    en?: string;
+  };
+  description?: {
+    tr?: string;
+    en?: string;
+  };
+  route: string;
+  isActive?: boolean;
+  tags?: string[];
+  metadata?: Record<string, unknown>;
+  createdAt?: string;
+  updatedAt?: string;
+  score: number;
+  highlight?: Record<string, string[]>;
+}
+
+export interface SearchResponse {
+  items: SearchHit[];
+  total: number;
+}
+
+export interface SearchSuggestionsResponse {
+  items: SearchSuggestion[];
+}
+
+export interface SearchReindexStat {
+  entityType: SearchEntityType;
+  indexed: number;
+  deleted: number;
+  durationMs: number;
+  skipped: boolean;
+}
+
+export interface SearchConnectionSettings {
+  node: string;
+  authType: 'none' | 'basic' | 'apiKey';
+  username?: string | null;
+  password?: string | null;
+  apiKey?: string | null;
+}
+
+export interface SearchStatus {
+  enabled: boolean;
+  configuredEntities: SearchEntityType[];
+  availableEntities: SearchEntityType[];
+  elasticsearch: {
+    connected: boolean;
+    node?: string;
+    clusterName?: string;
+    status?: string;
+    version?: string;
+    message?: string;
+  };
+  lastCheckedAt: string;
+  lastReindexAt?: string | null;
+  lastReindexDurationMs?: number | null;
+  lastReindexStatus?: string | null;
+  lastReindexEntities?: SearchEntityType[] | null;
+  lastReindexStats?: SearchReindexStat[] | null;
+}
+
+export interface SearchReindexResponse {
+  status: 'completed' | 'partial';
+  stats: SearchReindexStat[];
+  startedAt: string;
+  finishedAt: string;
+  durationMs: number;
+}
+
 // Common Entity Types
 export interface BaseEntity {
   id: string;
@@ -238,6 +331,20 @@ export interface SettingsAppearance {
   darkVariant: DarkVariant;
   compactMode: boolean;
   showAvatars: boolean;
+  fontScale?: 'normal' | 'large';
+}
+
+export interface SettingsSearch {
+  enabled: boolean;
+  indexedEntities: SearchEntityType[];
+  purgeBeforeReindex: boolean;
+  reindexBatchSize: number;
+  lastReindexAt?: string | null;
+  lastReindexDurationMs?: number | null;
+  lastReindexStatus?: 'success' | 'partial' | 'failed' | null;
+  lastReindexEntities?: SearchEntityType[] | null;
+  lastReindexStats?: SearchReindexStat[] | null;
+  connection: SearchConnectionSettings;
 }
 
 export interface SettingsLocalization {
@@ -309,6 +416,7 @@ export interface AppSettings {
   localization: SettingsLocalization;
   notifications: SettingsNotifications;
   integrations: SettingsIntegrations;
+  search: SettingsSearch;
   security: SettingsSecurity;
   data: SettingsData;
   createdAt: string | null;
@@ -329,6 +437,7 @@ export type SettingsPatchPayload = Partial<{
     microsoftTeams: Partial<SettingsIntegrations['microsoftTeams']>;
     webhook: Partial<SettingsIntegrations['webhook']>;
   }>;
+  search: Partial<SettingsSearch>;
   security: Partial<SettingsSecurity>;
   data: Partial<SettingsData>;
 }>;

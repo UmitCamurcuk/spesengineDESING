@@ -20,6 +20,10 @@ import {
   QrCode,
   Star,
   Trash2,
+  Link2,
+  Coins,
+  Share2,
+  MapPin,
 } from 'lucide-react';
 import { PHONE_COUNTRY_CODES, DEFAULT_PHONE_COUNTRY_CODE } from '../../constants/phoneCodes';
 
@@ -108,6 +112,224 @@ const isPhoneValueEmpty = (phone: PhoneValue): boolean => phone.number.trim().le
 
 const formatPhoneValue = (phone: PhoneValue): string =>
   phone.number ? `${phone.countryCode} ${phone.number}`.trim() : '';
+
+type MoneyValue = {
+  amount: number | '';
+  currency: string;
+};
+
+const createDefaultMoneyValue = (): MoneyValue => ({
+  amount: '',
+  currency: 'TRY',
+});
+
+const normalizeMoneyAmount = (amount: unknown): number | '' => {
+  if (typeof amount === 'number' && !Number.isNaN(amount)) {
+    return amount;
+  }
+  if (typeof amount === 'string') {
+    const trimmed = amount.trim();
+    if (!trimmed) {
+      return '';
+    }
+    const numeric = Number(trimmed);
+    return Number.isNaN(numeric) ? '' : numeric;
+  }
+  return '';
+};
+
+const normalizeCurrency = (currency: unknown): string => {
+  if (typeof currency === 'string' && currency.trim().length > 0) {
+    return currency.trim().toUpperCase();
+  }
+  return 'TRY';
+};
+
+const parseMoneyValue = (raw: unknown): MoneyValue => {
+  if (raw === undefined || raw === null || raw === '') {
+    return createDefaultMoneyValue();
+  }
+
+  if (typeof raw === 'number') {
+    return { amount: raw, currency: 'TRY' };
+  }
+
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      return createDefaultMoneyValue();
+    }
+    if (trimmed.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed && typeof parsed === 'object') {
+          return {
+            amount: normalizeMoneyAmount((parsed as Record<string, unknown>).amount),
+            currency: normalizeCurrency((parsed as Record<string, unknown>).currency),
+          };
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
+    const [maybeAmount, maybeCurrency] = trimmed.split(/\s+/);
+    return {
+      amount: normalizeMoneyAmount(maybeAmount),
+      currency: normalizeCurrency(maybeCurrency),
+    };
+  }
+
+  if (typeof raw === 'object') {
+    const input = raw as Record<string, unknown>;
+    return {
+      amount: normalizeMoneyAmount(input.amount),
+      currency: normalizeCurrency(input.currency),
+    };
+  }
+
+  return createDefaultMoneyValue();
+};
+
+const formatMoneyValue = (money: MoneyValue): string => {
+  if (money.amount === '') {
+    return '';
+  }
+  return `${money.currency || 'TRY'} ${money.amount}`;
+};
+
+type ReferenceValue = {
+  entityType: string;
+  referenceId: string;
+  label?: string;
+};
+
+const createDefaultReferenceValue = (): ReferenceValue => ({
+  entityType: '',
+  referenceId: '',
+  label: '',
+});
+
+const parseReferenceValue = (raw: unknown): ReferenceValue => {
+  if (raw === undefined || raw === null || raw === '') {
+    return createDefaultReferenceValue();
+  }
+
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      return createDefaultReferenceValue();
+    }
+    if (trimmed.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed && typeof parsed === 'object') {
+          const input = parsed as Record<string, unknown>;
+          return {
+            entityType: typeof input.entityType === 'string' ? input.entityType : '',
+            referenceId: typeof input.referenceId === 'string' ? input.referenceId : '',
+            label: typeof input.label === 'string' ? input.label : '',
+          };
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
+    const [entityType, ...rest] = trimmed.split(':');
+    const referenceId = rest.length > 0 ? rest.join(':') : entityType;
+    return {
+      entityType: (entityType ?? '').trim(),
+      referenceId: (referenceId ?? '').trim(),
+    };
+  }
+
+  if (typeof raw === 'object') {
+    const input = raw as Record<string, unknown>;
+    return {
+      entityType: typeof input.entityType === 'string' ? input.entityType : '',
+      referenceId: typeof input.referenceId === 'string' ? input.referenceId : '',
+      label: typeof input.label === 'string' ? input.label : '',
+    };
+  }
+
+  return {
+    entityType: '',
+    referenceId: String(raw),
+  };
+};
+
+type GeoPointValue = {
+  lat: number | '';
+  lng: number | '';
+};
+
+const createDefaultGeoPointValue = (): GeoPointValue => ({
+  lat: '',
+  lng: '',
+});
+
+const normalizeCoordinate = (coordinate: unknown): number | '' => {
+  if (typeof coordinate === 'number' && !Number.isNaN(coordinate)) {
+    return coordinate;
+  }
+  if (typeof coordinate === 'string') {
+    const trimmed = coordinate.trim();
+    if (!trimmed) {
+      return '';
+    }
+    const numeric = Number(trimmed);
+    return Number.isNaN(numeric) ? '' : numeric;
+  }
+  return '';
+};
+
+const parseGeoPointValue = (raw: unknown): GeoPointValue => {
+  if (raw === undefined || raw === null || raw === '') {
+    return createDefaultGeoPointValue();
+  }
+
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      return createDefaultGeoPointValue();
+    }
+    if (trimmed.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed && typeof parsed === 'object') {
+          const input = parsed as Record<string, unknown>;
+          return {
+            lat: normalizeCoordinate(input.lat),
+            lng: normalizeCoordinate(input.lng),
+          };
+        }
+      } catch {
+        // ignore
+      }
+    }
+    const [lat, lng] = trimmed.split(/[;,]/);
+    return {
+      lat: normalizeCoordinate(lat),
+      lng: normalizeCoordinate(lng),
+    };
+  }
+
+  if (typeof raw === 'object') {
+    const input = raw as Record<string, unknown>;
+    return {
+      lat: normalizeCoordinate(input.lat),
+      lng: normalizeCoordinate(input.lng),
+    };
+  }
+
+  return createDefaultGeoPointValue();
+};
+
+const formatGeoPointValue = (point: GeoPointValue): string => {
+  if (point.lat === '' && point.lng === '') {
+    return '';
+  }
+  return `${point.lat === '' ? '—' : point.lat}, ${point.lng === '' ? '—' : point.lng}`;
+};
 
 export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
   attribute,
@@ -308,6 +530,30 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
             leftIcon={<Mail className="h-4 w-4" />}
           />
         );
+      case AttributeType.URL:
+        return isViewMode ? (
+          stringValue ? (
+            <a
+              href={stringValue}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 text-sm text-primary"
+            >
+              <Link2 className="h-4 w-4" />
+              <span className="truncate">{stringValue}</span>
+            </a>
+          ) : (
+            <span className="text-sm text-muted-foreground">—</span>
+          )
+        ) : (
+          <Input
+            type="url"
+            value={stringValue}
+            onChange={(e) => onChange?.(e.target.value)}
+            placeholder="https://example.com"
+            leftIcon={<Link2 className="h-4 w-4" />}
+          />
+        );
 
       case AttributeType.NUMBER:
         return isViewMode ? (
@@ -446,6 +692,49 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
             ))}
           </div>
         );
+      case AttributeType.REFERENCE: {
+        const referenceValue = parseReferenceValue(value);
+        if (isViewMode) {
+          if (!referenceValue.entityType && !referenceValue.referenceId && !referenceValue.label) {
+            return <span className="text-sm text-muted-foreground">—</span>;
+          }
+          return (
+            <div className="space-y-1 text-sm text-foreground">
+              <Badge variant="secondary" size="sm">
+                {referenceValue.entityType || '—'}
+              </Badge>
+              <div className="flex items-center gap-2">
+                <Share2 className="h-4 w-4 text-muted-foreground" />
+                <span>{referenceValue.label || referenceValue.referenceId || '—'}</span>
+              </div>
+            </div>
+          );
+        }
+
+        const handleReferenceChange = (next: Partial<ReferenceValue>) => {
+          onChange?.({ ...referenceValue, ...next });
+        };
+
+        return (
+          <div className="space-y-2">
+            <Input
+              value={referenceValue.entityType}
+              onChange={(e) => handleReferenceChange({ entityType: e.target.value })}
+              placeholder="Entity Type"
+            />
+            <Input
+              value={referenceValue.referenceId}
+              onChange={(e) => handleReferenceChange({ referenceId: e.target.value })}
+              placeholder="Reference ID"
+            />
+            <Input
+              value={referenceValue.label ?? ''}
+              onChange={(e) => handleReferenceChange({ label: e.target.value })}
+              placeholder="Display Label (optional)"
+            />
+          </div>
+        );
+      }
 
       case AttributeType.PHONE: {
         const phoneValue = parsePhoneValue(value);
@@ -480,6 +769,81 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
                 placeholder="5XX XXX XX XX"
               />
             </div>
+          </div>
+        );
+      }
+      case AttributeType.MONEY: {
+        const moneyValue = parseMoneyValue(value);
+        if (isViewMode) {
+          return (
+            <div className="flex items-center gap-2 text-sm text-foreground">
+              <Coins className="h-4 w-4 text-muted-foreground" />
+              <span>{formatMoneyValue(moneyValue) || '—'}</span>
+            </div>
+          );
+        }
+
+        const handleMoneyChange = (next: Partial<MoneyValue>) => {
+          onChange?.({ ...moneyValue, ...next });
+        };
+
+        return (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr,120px]">
+            <Input
+              type="number"
+              value={moneyValue.amount === '' ? '' : moneyValue.amount}
+              onChange={(e) =>
+                handleMoneyChange({
+                  amount: e.target.value === '' ? '' : Number(e.target.value),
+                })
+              }
+              placeholder="0.00"
+            />
+            <Input
+              value={moneyValue.currency}
+              onChange={(e) => handleMoneyChange({ currency: e.target.value.toUpperCase() })}
+              placeholder="TRY"
+            />
+          </div>
+        );
+      }
+      case AttributeType.GEOPOINT: {
+        const geoPointValue = parseGeoPointValue(value);
+        if (isViewMode) {
+          return (
+            <div className="flex items-center gap-2 text-sm text-foreground">
+              <MapPin className="h-4 w-4 text-muted-foreground" />
+              <span>{formatGeoPointValue(geoPointValue) || '—'}</span>
+            </div>
+          );
+        }
+
+        const handleGeoChange = (next: Partial<GeoPointValue>) => {
+          onChange?.({ ...geoPointValue, ...next });
+        };
+
+        return (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Input
+              type="number"
+              value={geoPointValue.lat === '' ? '' : geoPointValue.lat}
+              onChange={(e) =>
+                handleGeoChange({
+                  lat: e.target.value === '' ? '' : Number(e.target.value),
+                })
+              }
+              placeholder="Latitude"
+            />
+            <Input
+              type="number"
+              value={geoPointValue.lng === '' ? '' : geoPointValue.lng}
+              onChange={(e) =>
+                handleGeoChange({
+                  lng: e.target.value === '' ? '' : Number(e.target.value),
+                })
+              }
+              placeholder="Longitude"
+            />
           </div>
         );
       }

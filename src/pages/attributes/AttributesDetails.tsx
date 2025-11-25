@@ -11,26 +11,22 @@ import {
   History as HistoryIcon,
   Shield,
   Tags as TagsIcon,
-  Trash2,
-  Edit,
 } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { DetailsLayout } from '../../components/common/DetailsLayout';
 import { Card, CardHeader } from '../../components/ui/Card';
-import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
 import { Badge } from '../../components/ui/Badge';
 import { AttributeRenderer } from '../../components/attributes/AttributeRenderer';
 import { HistoryTable } from '../../components/common/HistoryTable';
-import { NotificationSettings } from '../../components/common/NotificationSettings';
+import { EntityNotificationsTab } from '../../components/notifications/EntityNotificationsTab';
 import { APITester } from '../../components/common/APITester';
 import { Documentation } from '../../components/common/Documentation';
 import { Statistics } from '../../components/common/Statistics';
 import { ChangeConfirmDialog } from '../../components/ui/ChangeConfirmDialog';
-import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { attributesService } from '../../api/services/attributes.service';
 import { localizationsService } from '../../api/services/localizations.service';
 import { useRequiredLanguages } from '../../hooks/useRequiredLanguages';
@@ -53,6 +49,90 @@ const formatDefaultValue = (value: unknown, type: AttributeType): string => {
   if (value === null || value === undefined) {
     return '';
   }
+
+  if (type === AttributeType.URL && typeof value === 'string') {
+    return value;
+  }
+
+  if (type === AttributeType.MONEY) {
+    const normalized =
+      typeof value === 'string'
+        ? (() => {
+            try {
+              return JSON.parse(value) as Record<string, unknown>;
+            } catch {
+              return value;
+            }
+          })()
+        : value;
+
+    if (typeof normalized === 'object' && normalized !== null) {
+      const amount = (normalized as Record<string, unknown>).amount;
+      const currency = (normalized as Record<string, unknown>).currency;
+      if ((amount === undefined || amount === null) && !currency) {
+        return '';
+      }
+      return `${currency ?? ''} ${amount ?? ''}`.trim();
+    }
+
+    if (typeof normalized === 'string') {
+      return normalized;
+    }
+  }
+
+  if (type === AttributeType.REFERENCE) {
+    const normalized =
+      typeof value === 'string'
+        ? (() => {
+            try {
+              return JSON.parse(value) as Record<string, unknown>;
+            } catch {
+              return value;
+            }
+          })()
+        : value;
+
+    if (typeof normalized === 'object' && normalized !== null) {
+      const entityType = (normalized as Record<string, unknown>).entityType;
+      const referenceId = (normalized as Record<string, unknown>).referenceId;
+      const label = (normalized as Record<string, unknown>).label;
+      const parts = [entityType, label || referenceId].filter(
+        (part): part is string => typeof part === 'string' && part.trim().length > 0,
+      );
+      return parts.join(' · ');
+    }
+
+    if (typeof normalized === 'string') {
+      return normalized;
+    }
+  }
+
+  if (type === AttributeType.GEOPOINT) {
+    const normalized =
+      typeof value === 'string'
+        ? (() => {
+            try {
+              return JSON.parse(value) as Record<string, unknown>;
+            } catch {
+              return value;
+            }
+          })()
+        : value;
+
+    if (typeof normalized === 'object' && normalized !== null) {
+      const lat = (normalized as Record<string, unknown>).lat;
+      const lng = (normalized as Record<string, unknown>).lng;
+      if ((lat === undefined || lat === null) && (lng === undefined || lng === null)) {
+        return '';
+      }
+      return `${lat ?? '—'}, ${lng ?? '—'}`;
+    }
+
+    if (typeof normalized === 'string') {
+      return normalized;
+    }
+  }
+
 
   if (type === AttributeType.JSON || type === AttributeType.OBJECT || type === AttributeType.ARRAY) {
     try {
@@ -126,6 +206,130 @@ const normalizeDefaultValue = (
         throw new Error('Varsayılan seçimler tanımlı seçeneklerle eşleşmelidir.');
       }
       return selections;
+    }
+    case AttributeType.URL: {
+      try {
+        // eslint-disable-next-line no-new
+        new URL(trimmed);
+      } catch {
+        throw new Error('Varsayılan değer geçerli bir URL olmalıdır.');
+      }
+      return trimmed;
+    }
+    case AttributeType.MONEY: {
+      try {
+        const parsed = JSON.parse(value);
+        const rawAmount =
+          typeof parsed.amount === 'number'
+            ? parsed.amount
+            : typeof parsed.amount === 'string'
+              ? parsed.amount.trim()
+              : '';
+        const rawCurrency =
+          typeof parsed.currency === 'string' ? parsed.currency.trim().toUpperCase() : '';
+
+        if (rawAmount === '' || rawAmount === null) {
+          return undefined;
+        }
+
+        const amount =
+          typeof rawAmount === 'number'
+            ? rawAmount
+            : rawAmount !== '' && !Number.isNaN(Number(rawAmount))
+              ? Number(rawAmount)
+              : null;
+
+        if (amount === null) {
+          throw new Error('Varsayılan para değeri sayısal bir tutar içermelidir.');
+        }
+        const currency = rawCurrency || 'TRY';
+        return { amount, currency };
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('para')) {
+          throw error;
+        }
+        throw new Error('Varsayılan para değeri geçerli bir JSON olmalıdır.');
+      }
+    }
+    case AttributeType.REFERENCE: {
+      try {
+        const parsed = JSON.parse(value);
+        const entityType =
+          typeof parsed.entityType === 'string' ? parsed.entityType.trim() : '';
+        const referenceId =
+          typeof parsed.referenceId === 'string' ? parsed.referenceId.trim() : '';
+        const label =
+          typeof parsed.label === 'string' ? parsed.label.trim() : undefined;
+
+        if (!entityType && !referenceId && !label) {
+          return undefined;
+        }
+
+        if (!entityType) {
+          throw new Error('Varsayılan referans için entity tipi gereklidir.');
+        }
+        if (!referenceId) {
+          throw new Error('Varsayılan referans için kimlik gereklidir.');
+        }
+
+        return { entityType, referenceId, label };
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('referans')) {
+          throw error;
+        }
+        throw new Error('Varsayılan referans değeri geçerli bir JSON olmalıdır.');
+      }
+    }
+    case AttributeType.GEOPOINT: {
+      try {
+        const parsed = JSON.parse(value);
+        const rawLat =
+          typeof parsed.lat === 'number'
+            ? parsed.lat
+            : typeof parsed.lat === 'string'
+              ? parsed.lat.trim()
+              : '';
+        const rawLng =
+          typeof parsed.lng === 'number'
+            ? parsed.lng
+            : typeof parsed.lng === 'string'
+              ? parsed.lng.trim()
+              : '';
+
+        if ((rawLat === '' || rawLat === null) && (rawLng === '' || rawLng === null)) {
+          return undefined;
+        }
+
+        const lat =
+          typeof rawLat === 'number'
+            ? rawLat
+            : rawLat !== '' && !Number.isNaN(Number(rawLat))
+              ? Number(rawLat)
+              : null;
+        const lng =
+          typeof rawLng === 'number'
+            ? rawLng
+            : rawLng !== '' && !Number.isNaN(Number(rawLng))
+              ? Number(rawLng)
+              : null;
+
+        if (lat === null || lng === null) {
+          throw new Error('Coğrafi nokta için enlem ve boylam sayısal olmalıdır.');
+        }
+        if (lat < -90 || lat > 90) {
+          throw new Error('Enlem -90 ile 90 arasında olmalıdır.');
+        }
+        if (lng < -180 || lng > 180) {
+          throw new Error('Boylam -180 ile 180 arasında olmalıdır.');
+        }
+
+        return { lat, lng };
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('Coğrafi')) {
+          throw error;
+        }
+        throw new Error('Varsayılan coğrafi nokta değeri geçerli bir JSON olmalıdır.');
+      }
     }
     case AttributeType.JSON:
     case AttributeType.OBJECT:
@@ -781,7 +985,6 @@ export const AttributesDetails: React.FC = () => {
   const [draftAttribute, setDraftAttribute] = useState<Attribute | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [changeDialogOpen, setChangeDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [defaultValueInput, setDefaultValueInput] = useState<string>('');
   const [defaultValueError, setDefaultValueError] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState<LocalizationState>({});
@@ -1395,8 +1598,7 @@ export const AttributesDetails: React.FC = () => {
         type: 'success',
         message: t('attributes.delete_success') || 'Attribute başarıyla silindi.',
       });
-      setDeleteDialogOpen(false);
-      navigate('/attributes');
+      navigate('/attributes', { replace: true });
     } catch (err: any) {
       console.error('Failed to delete attribute', err);
       const message =
@@ -1543,8 +1745,12 @@ export const AttributesDetails: React.FC = () => {
       id: 'notifications',
       label: t('attributes.notifications'),
       icon: Bell,
-      component: NotificationSettings,
-      props: { entityType: 'attribute', entityId: attribute.id },
+      component: EntityNotificationsTab,
+      props: {
+        entityType: 'attribute',
+        entityId: attribute.id,
+        entityName: attribute.name,
+      },
       hidden: !canViewNotifications,
     },
     {
@@ -1601,39 +1807,6 @@ export const AttributesDetails: React.FC = () => {
   ];
 
   const attributeName = attribute?.name?.trim() || attribute?.key || attribute?.id || '';
-  const headerActions = useMemo(() => {
-    if (!attribute) {
-      return null;
-    }
-
-    return (
-      <div className="flex flex-wrap gap-2">
-        {canUpdateAttribute && !editMode && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setEditMode(true)}
-            className="flex items-center gap-2"
-          >
-            <Edit className="h-4 w-4" />
-            {t('common.edit')}
-          </Button>
-        )}
-        {canDeleteAttribute && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="border-error text-error hover:bg-error/5 flex items-center gap-2"
-            onClick={() => setDeleteDialogOpen(true)}
-            disabled={deleting}
-          >
-            <Trash2 className="h-4 w-4" />
-            {t('common.delete') ?? 'Sil'}
-          </Button>
-        )}
-      </div>
-    );
-  }, [attribute, canUpdateAttribute, canDeleteAttribute, deleting, editMode, t]);
 
   return (
     <>
@@ -1641,21 +1814,31 @@ export const AttributesDetails: React.FC = () => {
         title={headerTitle}
         subtitle={headerSubtitle}
         icon={<FileText className="h-6 w-6 text-white" />}
-      tabs={tabs}
-      defaultTab="details"
-      backUrl="/attributes"
-      headerActions={headerActions}
-      editMode={editMode}
-      hasChanges={hasChanges}
-      onEdit={canUpdateAttribute ? () => setEditMode(true) : undefined}
-      onSave={canUpdateAttribute ? handleSaveRequest : undefined}
-      onCancel={() => {
+        tabs={tabs}
+        defaultTab="details"
+        backUrl="/attributes"
+        editMode={editMode}
+        hasChanges={hasChanges}
+        onEdit={canUpdateAttribute ? () => setEditMode(true) : undefined}
+        onSave={canUpdateAttribute ? handleSaveRequest : undefined}
+        onCancel={() => {
           setEditMode(false);
           setDefaultValueInput(baseDefaultValue);
           setDefaultValueError(null);
           setSelectedGroupIds(attribute.attributeGroups?.map((group) => group.id) ?? []);
           setAttributeGroupsError(null);
         }}
+        onDelete={canDeleteAttribute ? handleDelete : undefined}
+        deleteButtonLabel={t('common.delete') ?? 'Sil'}
+        deleteDialogTitle={t('attributes.delete_title', { name: attributeName }) || 'Attribute silinsin mi?'}
+        deleteDialogDescription={
+          t('attributes.delete_description', { name: attributeName }) ||
+          'Bu attribute kaydı kalıcı olarak silinecek. Bu işlem geri alınamaz.'
+        }
+        deleteConfirmLabel={t('attributes.delete_action') || 'Attribute Sil'}
+        deleteCancelLabel={t('common.cancel') || 'İptal'}
+        deleteLoading={deleting}
+        canDelete={canDeleteAttribute}
         inlineActions={false}
       />
 
@@ -1666,20 +1849,6 @@ export const AttributesDetails: React.FC = () => {
         title={t('attributes.save_changes')}
         changes={getChanges()}
         entityName={t('attributes.attribute')}
-      />
-      <ConfirmDialog
-        open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
-        onConfirm={handleDelete}
-        loading={deleting}
-        type="danger"
-        title={t('attributes.delete_title', { name: attributeName }) || 'Attribute silinsin mi?'}
-        description={
-          t('attributes.delete_description', { name: attributeName }) ||
-          'Bu attribute kaydı kalıcı olarak silinecek. Bu işlem geri alınamaz.'
-        }
-        confirmText={t('attributes.delete_action') || 'Attribute Sil'}
-        cancelText={t('common.cancel') || 'İptal'}
       />
     </>
   );

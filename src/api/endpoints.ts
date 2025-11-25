@@ -170,6 +170,8 @@ export const API_ENDPOINTS = {
     BASE: '/search',
     BY_ENTITY: (entity: string) => `/search/${entity}`,
     SUGGESTIONS: '/search/suggestions',
+    STATUS: '/search/status',
+    REINDEX: '/search/reindex',
   },
   
   // Analytics endpoints

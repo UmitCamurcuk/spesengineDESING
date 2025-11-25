@@ -1,8 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Save,
-  RotateCcw,
   Plus,
+  AlertTriangle,
   Trash2,
   Building2,
   Languages,
@@ -10,7 +9,8 @@ import {
   Plug,
   Shield,
   Database,
-  Palette,
+  Search as SearchIcon,
+  RefreshCw,
   History as HistoryIcon,
 } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -28,9 +28,21 @@ import { useSettings } from '../../contexts/SettingsContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { useEditActionContext } from '../../contexts/EditActionContext';
 import { PERMISSIONS } from '../../config/permissions';
-import type { AppSettings, UpdateSettingsPayload, SettingsPatchPayload, SettingsIntegrations, LanguageOption } from '../../api/types/api.types';
+import type {
+  AppSettings,
+  UpdateSettingsPayload,
+  SettingsPatchPayload,
+  SettingsIntegrations,
+  LanguageOption,
+  SettingsSearch,
+  SearchStatus,
+  SearchEntityType,
+  SearchReindexStat,
+} from '../../api/types/api.types';
 import { HistoryTable } from '../../components/common/HistoryTable';
+import { searchService } from '../../api/services/search.service';
 
 interface LanguageDraft {
   code: string;
@@ -64,6 +76,76 @@ const darkVariantOptions = [
   { value: 'slate', label: 'Slate' },
   { value: 'navy', label: 'Navy' },
   { value: 'true-black', label: 'True Black' },
+];
+
+const fontScaleOptions = [
+  { value: 'normal', label: 'Normal' },
+  { value: 'large', label: 'Large' },
+];
+
+const searchEntityOptions: Array<{
+  value: SearchEntityType;
+  labelKey: string;
+  descriptionKey: string;
+  fallbackLabel: string;
+  fallbackDescription: string;
+}> = [
+  {
+    value: 'item',
+    labelKey: 'settings.search.entities.item',
+    descriptionKey: 'settings.search.entities.item_desc',
+    fallbackLabel: 'Items',
+    fallbackDescription: 'Catalog items and product records.',
+  },
+  {
+    value: 'item_type',
+    labelKey: 'settings.search.entities.item_type',
+    descriptionKey: 'settings.search.entities.item_type_desc',
+    fallbackLabel: 'Item Types',
+    fallbackDescription: 'Templates and attribute sets.',
+  },
+  {
+    value: 'category',
+    labelKey: 'settings.search.entities.category',
+    descriptionKey: 'settings.search.entities.category_desc',
+    fallbackLabel: 'Categories',
+    fallbackDescription: 'Hierarchical category structure.',
+  },
+  {
+    value: 'family',
+    labelKey: 'settings.search.entities.family',
+    descriptionKey: 'settings.search.entities.family_desc',
+    fallbackLabel: 'Families',
+    fallbackDescription: 'Product families and variant groups.',
+  },
+  {
+    value: 'attribute_group',
+    labelKey: 'settings.search.entities.attribute_group',
+    descriptionKey: 'settings.search.entities.attribute_group_desc',
+    fallbackLabel: 'Attribute Groups',
+    fallbackDescription: 'Organize attributes into logical groups.',
+  },
+  {
+    value: 'attribute',
+    labelKey: 'settings.search.entities.attribute',
+    descriptionKey: 'settings.search.entities.attribute_desc',
+    fallbackLabel: 'Attributes',
+    fallbackDescription: 'Item properties and field definitions.',
+  },
+  {
+    value: 'user',
+    labelKey: 'settings.search.entities.user',
+    descriptionKey: 'settings.search.entities.user_desc',
+    fallbackLabel: 'Users',
+    fallbackDescription: 'Platform users and their roles.',
+  },
+  {
+    value: 'notification_rule',
+    labelKey: 'settings.search.entities.notification_rule',
+    descriptionKey: 'settings.search.entities.notification_rule_desc',
+    fallbackLabel: 'Notification Rules',
+    fallbackDescription: 'Event-driven alert definitions.',
+  },
 ];
 
 const clonePayload = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
@@ -123,6 +205,15 @@ const formatChangeValue = (value: unknown): string | number | boolean => {
   }
   const text = String(value).trim();
   return text.length === 0 ? '—' : text;
+};
+
+const areStringArraysEqual = (a: string[], b: string[]): boolean => {
+  if (a.length !== b.length) {
+    return false;
+  }
+  const left = [...a].sort();
+  const right = [...b].sort();
+  return left.every((value, index) => value === right[index]);
 };
 
 const computeSettingsChanges = (
@@ -397,6 +488,25 @@ const computeSettingsChanges = (
     );
   }
 
+  // Search
+  if (base.search.enabled !== current.search.enabled) {
+    pushChange('search', 'enabled', base.search.enabled, current.search.enabled);
+  }
+
+  const baseEntities = Array.isArray(base.search.indexedEntities) ? base.search.indexedEntities : [];
+  const nextEntities = Array.isArray(current.search.indexedEntities) ? current.search.indexedEntities : [];
+  if (!areStringArraysEqual(baseEntities, nextEntities)) {
+    pushChange('search', 'indexedEntities', baseEntities, nextEntities);
+  }
+
+  if (base.search.purgeBeforeReindex !== current.search.purgeBeforeReindex) {
+    pushChange('search', 'purgeBeforeReindex', base.search.purgeBeforeReindex, current.search.purgeBeforeReindex);
+  }
+
+  if (base.search.reindexBatchSize !== current.search.reindexBatchSize) {
+    pushChange('search', 'reindexBatchSize', base.search.reindexBatchSize, current.search.reindexBatchSize);
+  }
+
   // Data
   if (base.data.autoBackup !== current.data.autoBackup) {
     pushChange('data', 'autoBackup', base.data.autoBackup, current.data.autoBackup);
@@ -428,11 +538,30 @@ const formatTimestamp = (timestamp: string | null | undefined) => {
   }
 };
 
+const formatDuration = (durationMs?: number | null) => {
+  if (!durationMs || durationMs <= 0) {
+    return '—';
+  }
+  if (durationMs < 1000) {
+    return `${durationMs}ms`;
+  }
+  if (durationMs < 60_000) {
+    return `${(durationMs / 1000).toFixed(1)}s`;
+  }
+  const minutes = Math.floor(durationMs / 60_000);
+  const seconds = Math.round((durationMs % 60_000) / 1000);
+  if (seconds === 0) {
+    return `${minutes}m`;
+  }
+  return `${minutes}m ${seconds}s`;
+};
+
 export const Settings: React.FC = () => {
   const { settings, isLoading, isSaving, error: apiError, save } = useSettings();
   const { success, error } = useToast();
   const { t } = useLanguage();
   const { hasPermission } = useAuth();
+  const { register } = useEditActionContext();
   const canEditSettings = hasPermission(PERMISSIONS.SYSTEM.SETTINGS.UPDATE);
   const canViewHistory = hasPermission(PERMISSIONS.SYSTEM.SETTINGS.HISTORY);
 
@@ -443,17 +572,114 @@ export const Settings: React.FC = () => {
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [confirmOpen, setConfirmOpen] = useState<boolean>(false);
   const [confirmLoading, setConfirmLoading] = useState<boolean>(false);
+  const [secretTouched, setSecretTouched] = useState<{ slackBotToken: boolean; webhookSecret: boolean }>({
+    slackBotToken: false,
+    webhookSecret: false,
+  });
+  const [searchStatus, setSearchStatus] = useState<SearchStatus | null>(null);
+  const [searchStatusLoading, setSearchStatusLoading] = useState<boolean>(false);
+  const [searchStatusError, setSearchStatusError] = useState<string | null>(null);
+  const [hasRequestedSearchStatus, setHasRequestedSearchStatus] = useState<boolean>(false);
+  const [isReindexModalOpen, setReindexModalOpen] = useState<boolean>(false);
+  const [reindexLoading, setReindexLoading] = useState<boolean>(false);
+  const [reindexError, setReindexError] = useState<string | null>(null);
 
   useEffect(() => {
     if (settings) {
       setForm(stripMetadata(settings));
       setIsEditing(false);
+      setSecretTouched({ slackBotToken: false, webhookSecret: false });
     }
   }, [settings]);
 
+  const loadSearchStatus = useCallback(async () => {
+    setHasRequestedSearchStatus(true);
+    setSearchStatusLoading(true);
+    setSearchStatusError(null);
+    try {
+      const status = await searchService.getStatus();
+      setSearchStatus(status);
+    } catch (err) {
+      console.error('Failed to load search status', err);
+      setSearchStatusError(
+        err instanceof Error ? err.message : t('settings.search.status_error') || 'Unable to load search status',
+      );
+    } finally {
+      setSearchStatusLoading(false);
+    }
+  }, [t]);
+
+  useEffect(() => {
+    if (activeTab === 'search' && !hasRequestedSearchStatus) {
+      loadSearchStatus().catch((err) => console.error('Search status fetch failed', err));
+    }
+  }, [activeTab, hasRequestedSearchStatus, loadSearchStatus]);
+
+  useEffect(() => {
+    if (activeTab !== 'search') {
+      setHasRequestedSearchStatus(false);
+    }
+  }, [activeTab]);
+
   const baseline = useMemo(() => (settings ? stripMetadata(settings) : null), [settings]);
 
-  const { patch, changes: changeList } = useMemo(() => computeSettingsChanges(baseline, form), [baseline, form]);
+  const {
+    patch: computedPatch,
+    changes: computedChangeList,
+  } = useMemo(() => computeSettingsChanges(baseline, form), [baseline, form]);
+
+  const { patch, changeList } = useMemo(() => {
+    if (!form) {
+      return { patch: computedPatch, changeList: computedChangeList };
+    }
+
+    const nextPatch = clonePayload(computedPatch);
+    const nextChanges = [...computedChangeList];
+
+    const ensureChangeEntry = (field: string, oldValue: string | number | boolean, newValue: string | number | boolean) => {
+      if (nextChanges.some((item) => item.field === field)) {
+        return;
+      }
+      nextChanges.push({ field, oldValue, newValue });
+    };
+
+    if (
+      secretTouched.slackBotToken &&
+      form.integrations.slack?.useBotToken &&
+      form.integrations.slack?.botToken !== undefined &&
+      form.integrations.slack.botToken.trim().length > 0 &&
+      !nextPatch.integrations?.slack?.botToken
+    ) {
+      const trimmed = form.integrations.slack.botToken.trim();
+      nextPatch.integrations = nextPatch.integrations ?? {};
+      nextPatch.integrations.slack = nextPatch.integrations.slack ?? {};
+      nextPatch.integrations.slack.botToken = trimmed;
+      ensureChangeEntry(
+        t('settings.integrations.slack.bot_token') || 'Slack Bot Token',
+        '—',
+        '••••••',
+      );
+    }
+
+    if (
+      secretTouched.webhookSecret &&
+      form.integrations.webhook?.secret !== undefined &&
+      form.integrations.webhook.secret.trim().length > 0 &&
+      !nextPatch.integrations?.webhook?.secret
+    ) {
+      const trimmed = form.integrations.webhook.secret.trim();
+      nextPatch.integrations = nextPatch.integrations ?? {};
+      nextPatch.integrations.webhook = nextPatch.integrations.webhook ?? {};
+      nextPatch.integrations.webhook.secret = trimmed;
+      ensureChangeEntry(
+        t('settings.integrations.webhook.secret') || 'Webhook Secret',
+        '—',
+        '••••••',
+      );
+    }
+
+    return { patch: nextPatch, changeList: nextChanges };
+  }, [computedPatch, computedChangeList, form, secretTouched, t]);
 
   const hasChanges = changeList.length > 0;
   const isLocked = !canEditSettings || !isEditing || isSaving;
@@ -468,6 +694,19 @@ export const Settings: React.FC = () => {
       const draft = clonePayload(prev);
       return updater(draft);
     });
+  };
+
+  const ensureSearchConnection = (draft: UpdateSettingsPayload): SettingsSearch['connection'] => {
+    if (!draft.search.connection) {
+      draft.search.connection = {
+        node: '',
+        authType: 'none',
+        username: '',
+        password: '',
+        apiKey: '',
+      } as SettingsSearch['connection'];
+    }
+    return draft.search.connection;
   };
 
   const handleGeneralChange = (field: keyof UpdateSettingsPayload['general'], value: string | boolean) => {
@@ -544,6 +783,57 @@ export const Settings: React.FC = () => {
     });
   };
 
+  const handleSearchConnectionChange = (
+    field: keyof SettingsSearch['connection'],
+    value: string,
+  ) => {
+    if (!isEditing) {
+      return;
+    }
+    updateForm((draft) => {
+      const connection = ensureSearchConnection(draft);
+      (connection as Record<string, string | null>)[field as string] = value;
+      return draft;
+    });
+  };
+
+  const handleSearchChange = <K extends keyof SettingsSearch>(field: K, value: SettingsSearch[K]) => {
+    if (!isEditing) {
+      return;
+    }
+    updateForm((draft) => {
+      draft.search[field] = value;
+      return draft;
+    });
+  };
+
+  const handleSearchEntitySelection = (entity: SearchEntityType, checked: boolean) => {
+    if (!isEditing) {
+      return;
+    }
+    updateForm((draft) => {
+      const current = new Set(draft.search.indexedEntities);
+      if (checked) {
+        current.add(entity);
+      } else {
+        current.delete(entity);
+      }
+      draft.search.indexedEntities = Array.from(current).sort() as SearchEntityType[];
+      return draft;
+    });
+  };
+
+  const resolveEntityLabel = useCallback(
+    (entity: SearchEntityType) => {
+      const option = searchEntityOptions.find((opt) => opt.value === entity);
+      if (!option) {
+        return entity;
+      }
+      return t(option.labelKey) || option.fallbackLabel;
+    },
+    [t],
+  );
+
   const handleSlackChange = (field: keyof UpdateSettingsPayload['integrations']['slack'], value: string | boolean) => {
     if (!isEditing) {
       return;
@@ -556,6 +846,13 @@ export const Settings: React.FC = () => {
       }
       return draft;
     });
+    if (field === 'botToken') {
+      const trimmed = typeof value === 'string' ? value.trim() : '';
+      setSecretTouched((prev) => ({
+        ...prev,
+        slackBotToken: trimmed.length > 0,
+      }));
+    }
   };
 
   const handleTeamsChange = (field: keyof UpdateSettingsPayload['integrations']['microsoftTeams'], value: string | boolean) => {
@@ -580,6 +877,13 @@ export const Settings: React.FC = () => {
         : String(value);
       return draft;
     });
+    if (field === 'secret') {
+      const trimmed = typeof value === 'string' ? value.trim() : '';
+      setSecretTouched((prev) => ({
+        ...prev,
+        webhookSecret: trimmed.length > 0,
+      }));
+    }
   };
 
   const addLanguage = (language: LanguageDraft): boolean => {
@@ -723,11 +1027,12 @@ export const Settings: React.FC = () => {
     });
   };
 
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
     if (baseline) {
       setForm(clonePayload(baseline));
     }
-  };
+    setSecretTouched({ slackBotToken: false, webhookSecret: false });
+  }, [baseline]);
 
   const performSave = async (comment: string) => {
     if (!canEditSettings || !isEditing || !form || !baseline || !hasChanges) {
@@ -742,6 +1047,8 @@ export const Settings: React.FC = () => {
       setForm(stripMetadata(result));
       setIsEditing(false);
       setLanguageDraft({ code: '', label: '', required: false });
+      setSecretTouched({ slackBotToken: false, webhookSecret: false });
+      setHasRequestedSearchStatus(false);
       setConfirmOpen(false);
       success(t('settings.messages.save_success'));
     } catch (err: any) {
@@ -752,26 +1059,27 @@ export const Settings: React.FC = () => {
     }
   };
 
-  const handleSaveClick = () => {
+  const handleSaveClick = useCallback(() => {
     if (!canEditSettings || !hasChanges || confirmLoading) {
       return;
     }
     setConfirmOpen(true);
-  };
+  }, [canEditSettings, hasChanges, confirmLoading]);
 
   const handleConfirmSave = (comment: string) => {
     void performSave(comment);
   };
 
-  const handleCancelEdit = () => {
+  const handleCancelEdit = useCallback(() => {
     handleReset();
     setLanguageDraft({ code: '', label: '', required: false });
     setConfirmOpen(false);
     setConfirmLoading(false);
     setIsEditing(false);
-  };
+    setSecretTouched({ slackBotToken: false, webhookSecret: false });
+  }, [handleReset]);
 
-  const handleStartEdit = () => {
+  const handleStartEdit = useCallback(() => {
     if (!canEditSettings) {
       return;
     }
@@ -781,7 +1089,69 @@ export const Settings: React.FC = () => {
     setLanguageDraft({ code: '', label: '', required: false });
     setConfirmOpen(false);
     setIsEditing(true);
-  };
+    setSecretTouched({ slackBotToken: false, webhookSecret: false });
+  }, [canEditSettings, settings]);
+
+  const handleOpenReindexModal = useCallback(() => {
+    setReindexError(null);
+    setReindexModalOpen(true);
+  }, []);
+
+  const handleCloseReindexModal = useCallback(() => {
+    if (reindexLoading) {
+      return;
+    }
+    setReindexError(null);
+    setReindexModalOpen(false);
+  }, [reindexLoading]);
+
+  const handleConfirmReindex = useCallback(async () => {
+    if (!form) {
+      return;
+    }
+    try {
+      setReindexLoading(true);
+      setReindexError(null);
+      const response = await searchService.reindex({
+        entityTypes: form.search.indexedEntities,
+        purgeExisting: form.search.purgeBeforeReindex,
+        batchSize: form.search.reindexBatchSize,
+      });
+      if (response.status === 'partial') {
+        success(t('settings.search.reindex_partial'));
+      } else {
+        success(t('settings.search.reindex_success'));
+      }
+      setReindexModalOpen(false);
+      await loadSearchStatus();
+    } catch (err: any) {
+      const message = err?.message ?? t('settings.search.reindex_failed');
+      setReindexError(message);
+      error(message);
+    } finally {
+      setReindexLoading(false);
+    }
+  }, [form, error, success, t, loadSearchStatus]);
+
+  useEffect(() => {
+    if (!canEditSettings) {
+      register(null);
+      return;
+    }
+
+    register({
+      isEditing,
+      canEdit: !isEditing,
+      canSave: isEditing && hasChanges,
+      onEdit: !isEditing ? handleStartEdit : undefined,
+      onCancel: isEditing ? handleCancelEdit : undefined,
+      onSave: isEditing ? handleSaveClick : undefined,
+    });
+
+    return () => {
+      register(null);
+    };
+  }, [canEditSettings, handleCancelEdit, handleSaveClick, handleStartEdit, hasChanges, isEditing, register]);
 
   const renderSupportedLanguages = () => {
     if (!form) {
@@ -880,14 +1250,27 @@ export const Settings: React.FC = () => {
     );
   };
 
-  const tabs = [
-    { id: 'general', label: t('settings.tabs.general'), icon: <Building2 className="h-4 w-4" /> },
-    { id: 'localization', label: t('settings.tabs.localization'), icon: <Languages className="h-4 w-4" /> },
-    { id: 'notifications', label: t('settings.tabs.notifications'), icon: <Bell className="h-4 w-4" /> },
-    { id: 'integrations', label: t('settings.tabs.integrations'), icon: <Plug className="h-4 w-4" /> },
-    { id: 'security', label: t('settings.tabs.security'), icon: <Shield className="h-4 w-4" /> },
-    { id: 'data', label: t('settings.tabs.data'), icon: <Database className="h-4 w-4" /> },
-  ];
+  const tabs = useMemo(() => {
+    const list = [
+      { id: 'general', label: t('settings.tabs.general'), icon: <Building2 className="h-4 w-4" /> },
+      { id: 'localization', label: t('settings.tabs.localization'), icon: <Languages className="h-4 w-4" /> },
+      { id: 'notifications', label: t('settings.tabs.notifications'), icon: <Bell className="h-4 w-4" /> },
+      { id: 'integrations', label: t('settings.tabs.integrations'), icon: <Plug className="h-4 w-4" /> },
+      { id: 'search', label: t('settings.tabs.search'), icon: <SearchIcon className="h-4 w-4" /> },
+      { id: 'security', label: t('settings.tabs.security'), icon: <Shield className="h-4 w-4" /> },
+      { id: 'data', label: t('settings.tabs.data'), icon: <Database className="h-4 w-4" /> },
+    ];
+
+    if (canViewHistory) {
+      list.push({
+        id: 'history',
+        label: t('settings.tabs.history') ?? t('settings.history.title'),
+        icon: <HistoryIcon className="h-4 w-4" />,
+      });
+    }
+
+    return list;
+  }, [t, canViewHistory]);
 
   if ((isLoading && !form) || !form) {
     return (
@@ -902,51 +1285,40 @@ export const Settings: React.FC = () => {
   }
 
   const lastUpdated = settings ? formatTimestamp(settings.updatedAt) : '—';
+  const lastReindexAtDisplay = searchStatus?.lastReindexAt
+    ? formatTimestamp(searchStatus.lastReindexAt)
+    : t('settings.search.last_reindex_never');
+  const lastReindexDuration = formatDuration(searchStatus?.lastReindexDurationMs);
+  const lastReindexEntities = searchStatus?.lastReindexEntities ?? [];
+  const lastReindexStatus = searchStatus?.lastReindexStatus ?? null;
+  const reindexStatusLabel = lastReindexStatus
+    ? t(`settings.search.status.${lastReindexStatus}`) || lastReindexStatus
+    : t('settings.search.last_reindex_never');
+  const reindexBadgeVariant =
+    lastReindexStatus === 'failed'
+      ? 'error'
+      : lastReindexStatus === 'partial'
+      ? 'warning'
+      : lastReindexStatus === 'success'
+      ? 'success'
+      : 'secondary';
+  const lastReindexStats = searchStatus?.lastReindexStats ?? [];
+  const searchConnection = form.search.connection;
+  const configuredEntities =
+    searchStatus?.configuredEntities && searchStatus.configuredEntities.length > 0
+      ? searchStatus.configuredEntities
+      : form.search.indexedEntities;
+  const availableEntitiesList: SearchEntityType[] =
+    searchStatus?.availableEntities && searchStatus.availableEntities.length > 0
+      ? (Array.from(new Set(searchStatus.availableEntities)) as SearchEntityType[])
+      : searchEntityOptions.map((option) => option.value);
+  const connectionAuthType = searchConnection?.authType ?? 'none';
 
   return (
     <div className="space-y-6">
       <PageHeader
         title={t('settings.page_title')}
         subtitle={t('settings.page_subtitle')}
-        action={
-          canEditSettings
-            ? (!isEditing ? (
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="sm"
-                  onClick={handleStartEdit}
-                  disabled={isLoading}
-                >
-                  {t('settings.actions.edit')}
-                </Button>
-              ) : (
-                <div className="flex items-center gap-2 w-full md:w-auto">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    leftIcon={<RotateCcw className="h-4 w-4" />}
-                    onClick={handleCancelEdit}
-                    disabled={isSaving || confirmLoading}
-                  >
-                    {t('settings.actions.cancel')}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="primary"
-                    size="sm"
-                    leftIcon={<Save className="h-4 w-4" />}
-                    onClick={handleSaveClick}
-                    disabled={!hasChanges || isSaving || confirmLoading}
-                    loading={isSaving || confirmLoading}
-                  >
-                    {t('settings.actions.save')}
-                  </Button>
-                </div>
-              ))
-            : null
-        }
       >
         <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
           <span>{t('settings.meta.last_updated')}</span>
@@ -1014,7 +1386,6 @@ export const Settings: React.FC = () => {
                 title={t('settings.appearance.title')}
                 subtitle={t('settings.appearance.subtitle')}
                 className="border-none mb-2"
-                action={<Palette className="h-4 w-4 text-muted-foreground" />}
               />
               <div className="space-y-4">
                 <Select
@@ -1046,6 +1417,19 @@ export const Settings: React.FC = () => {
                   onChange={(e) => handleAppearanceChange('showAvatars', e.target.checked)}
                   disabled={isLocked}
                 />
+                <Select
+                  label={t('settings.appearance.font_scale') || 'Font Size'}
+                  value={form.appearance.fontScale ?? 'normal'}
+                  onChange={(e) => handleAppearanceChange('fontScale', e.target.value)}
+                  options={fontScaleOptions.map((option) => ({
+                    value: option.value,
+                    label:
+                      option.value === 'large'
+                        ? t('settings.appearance.font_scale_large') || option.label
+                        : t('settings.appearance.font_scale_normal') || option.label,
+                  }))}
+                  disabled={isLocked}
+                />
               </div>
             </Card>
           </div>
@@ -1062,8 +1446,9 @@ export const Settings: React.FC = () => {
               action={
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="primary"
                   leftIcon={<Plus className="h-4 w-4" />}
+                  className="w-full md:w-auto"
                   onClick={handleOpenLanguageModal}
                   disabled={isLocked}
                 >
@@ -1312,6 +1697,390 @@ export const Settings: React.FC = () => {
         </TabPanel>
       )}
 
+      {activeTab === 'search' && (
+        <TabPanel>
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader
+                title={t('settings.search.status_title')}
+                subtitle={t('settings.search.status_description')}
+                action={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      void loadSearchStatus();
+                    }}
+                    disabled={searchStatusLoading}
+                  >
+                    <RefreshCw
+                      className={cn(
+                        'h-4 w-4 mr-2',
+                        searchStatusLoading && 'animate-spin',
+                      )}
+                    />
+                    {t('settings.search.status_refresh') || 'Refresh Status'}
+                  </Button>
+                }
+                className="border-none mb-2"
+              />
+              <div className="space-y-4">
+                {searchStatusLoading ? (
+                  <div className="flex justify-center py-8">
+                    <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : searchStatusError ? (
+                  <div className="rounded-md border border-error/30 bg-error/5 p-4 text-sm text-error space-y-3">
+                    <p>{searchStatusError}</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        void loadSearchStatus();
+                      }}
+                    >
+                      {t('common.retry') || 'Retry'}
+                    </Button>
+                  </div>
+                ) : searchStatus ? (
+                  <>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge
+                        variant={searchStatus.elasticsearch.connected ? 'success' : 'secondary'}
+                        size="sm"
+                      >
+                        {searchStatus.elasticsearch.connected
+                          ? t('settings.search.status_connected') || 'Connected'
+                          : t('settings.search.status_disconnected') || 'Disconnected'}
+                      </Badge>
+                      <Badge variant={searchStatus.enabled ? 'primary' : 'secondary'} size="sm">
+                        {searchStatus.enabled
+                          ? t('common.active') || 'Active'
+                          : t('common.inactive') || 'Inactive'}
+                      </Badge>
+                    </div>
+                    {searchStatus.elasticsearch.message && (
+                      <p className="text-xs text-muted-foreground">
+                        {searchStatus.elasticsearch.message}
+                      </p>
+                    )}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p className="text-xs text-muted-foreground">
+                          {t('settings.search.status_last_checked') || 'Last Checked'}
+                        </p>
+                        <p className="font-medium text-foreground">
+                          {searchStatus.lastCheckedAt ? formatTimestamp(searchStatus.lastCheckedAt) : '—'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">
+                          {t('settings.search.status_node') || 'Node'}
+                        </p>
+                        <p className="font-medium text-foreground">
+                          {searchStatus.elasticsearch.node || '—'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">
+                          {t('settings.search.status_cluster') || 'Cluster'}
+                        </p>
+                        <p className="font-medium text-foreground">
+                          {searchStatus.elasticsearch.clusterName || '—'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">
+                          {t('settings.search.status_version') || 'Version'}
+                        </p>
+                        <p className="font-medium text-foreground">
+                          {searchStatus.elasticsearch.version || '—'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">
+                          {t('settings.search.status_health') || 'Cluster Health'}
+                        </p>
+                        <p className="font-medium text-foreground">
+                          {searchStatus.elasticsearch.status || '—'}
+                        </p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">
+                        {t('settings.search.configured_entities') || 'Enabled Entities'}
+                      </p>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {configuredEntities.length === 0 ? (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        ) : (
+                          configuredEntities.map((entity) => (
+                            <Badge key={entity} variant="primary" size="sm">
+                              {resolveEntityLabel(entity)}
+                            </Badge>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">
+                        {t('settings.search.available_entities') || 'Available Entities'}
+                      </p>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {availableEntitiesList.map((entity) => (
+                          <Badge key={`available-${entity}`} variant="secondary" size="sm">
+                            {resolveEntityLabel(entity)}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    {t('settings.search.status_error') || 'Search status will load when available.'}
+                  </p>
+                )}
+              </div>
+              <div className="border-t border-border/60 mt-4 pt-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium text-foreground">
+                    {t('settings.search.last_reindex')}
+                  </p>
+                  <Badge variant={reindexBadgeVariant as any} size="sm">
+                    {reindexStatusLabel}
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-muted-foreground">
+                  <div>
+                    <p className="uppercase tracking-wide text-[10px]">
+                      {t('settings.search.status_last_checked') || 'Last Checked'}
+                    </p>
+                    <p className="text-foreground font-medium">{lastReindexAtDisplay}</p>
+                  </div>
+                  <div>
+                    <p className="uppercase tracking-wide text-[10px]">
+                      {t('settings.search.last_reindex_duration')}
+                    </p>
+                    <p className="text-foreground font-medium">{lastReindexDuration}</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="uppercase tracking-wide text-[10px] text-muted-foreground">
+                    {t('settings.search.last_reindex_entities')}
+                  </p>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {lastReindexEntities.length === 0 ? (
+                      <span className="text-xs text-muted-foreground">
+                        {t('settings.search.last_reindex_never')}
+                      </span>
+                    ) : (
+                      lastReindexEntities.map((entity) => (
+                        <Badge key={`last-reindex-${entity}`} variant="secondary" size="sm">
+                          {resolveEntityLabel(entity)}
+                        </Badge>
+                      ))
+                    )}
+                  </div>
+                </div>
+                {lastReindexStats.length > 0 && (
+                  <div className="border-t border-border/50 pt-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-2">
+                      {t('settings.search.last_reindex_stats')}
+                    </p>
+                    <div className="divide-y divide-border/60 rounded-md border border-border/60">
+                      {lastReindexStats.map((stat) => (
+                        <div
+                          key={`stat-${stat.entityType}`}
+                          className="grid grid-cols-2 md:grid-cols-5 gap-2 px-3 py-2 text-xs"
+                        >
+                          <div>
+                            <p className="text-muted-foreground">
+                              {t('settings.search.entities_label')}
+                            </p>
+                            <p className="font-medium text-foreground">{resolveEntityLabel(stat.entityType)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">{t('settings.search.stat_indexed')}</p>
+                            <p className="font-medium text-foreground">{stat.indexed}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">{t('settings.search.stat_deleted')}</p>
+                            <p className="font-medium text-foreground">{stat.deleted}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">{t('settings.search.stat_duration')}</p>
+                            <p className="font-medium text-foreground">{formatDuration(stat.durationMs)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">{t('settings.search.stat_skipped')}</p>
+                            <Badge variant={stat.skipped ? 'warning' : 'success'} size="sm">
+                              {stat.skipped ? t('common.yes') : t('common.no')}
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            <Card>
+              <CardHeader
+                title={t('settings.search.config_title')}
+                subtitle={t('settings.search.config_description')}
+                className="border-none mb-2"
+              />
+              <div className="space-y-4">
+                <Checkbox
+                  label={t('settings.search.enabled_label')}
+                  checked={form.search.enabled}
+                  onChange={(e) => handleSearchChange('enabled', e.target.checked)}
+                  disabled={isLocked}
+                />
+                <div>
+                  <p className="text-sm font-medium text-foreground">
+                    {t('settings.search.entities_label') || 'Entities to index'}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {t('settings.search.entities_help') ||
+                      'Choose which entities should appear in search results.'}
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {searchEntityOptions.map((option) => (
+                    <Checkbox
+                      key={option.value}
+                      label={t(option.labelKey) || option.fallbackLabel}
+                      helperText={t(option.descriptionKey) || option.fallbackDescription}
+                      checked={form.search.indexedEntities.includes(option.value)}
+                      onChange={(e) => handleSearchEntitySelection(option.value, e.target.checked)}
+                      disabled={isLocked || !form.search.enabled}
+                    />
+                  ))}
+                </div>
+                <Checkbox
+                  label={t('settings.search.purge_label')}
+                  helperText={t('settings.search.purge_help')}
+                  checked={form.search.purgeBeforeReindex}
+                  onChange={(e) => handleSearchChange('purgeBeforeReindex', e.target.checked)}
+                  disabled={isLocked}
+                />
+                <Input
+                  type="number"
+                  min={50}
+                  max={5000}
+                  label={t('settings.search.batch_size_label')}
+                  helperText={t('settings.search.batch_size_help')}
+                  value={form.search.reindexBatchSize}
+                  onChange={(e) => handleSearchChange('reindexBatchSize', Number(e.target.value))}
+                  disabled={isLocked}
+                />
+                <div className="border-t border-border/60 pt-4 space-y-4">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">
+                      {t('settings.search.connection_title')}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {t('settings.search.connection_description')}
+                    </p>
+                  </div>
+                  <Input
+                    label={t('settings.search.connection.node')}
+                    value={searchConnection?.node ?? ''}
+                    onChange={(e) => handleSearchConnectionChange('node', e.target.value)}
+                    placeholder="http://localhost:9200"
+                    disabled={isLocked}
+                  />
+                  <Select
+                    label={t('settings.search.connection.auth_type')}
+                    value={connectionAuthType}
+                    onChange={(e) => handleSearchConnectionChange('authType', e.target.value)}
+                    options={[
+                      { value: 'none', label: t('settings.search.connection.auth_none') || 'None' },
+                      { value: 'basic', label: t('settings.search.connection.auth_basic') || 'Username / Password' },
+                      { value: 'apiKey', label: t('settings.search.connection.auth_apiKey') || 'API Key' },
+                    ]}
+                    disabled={isLocked}
+                  />
+                  {connectionAuthType === 'basic' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Input
+                        label={t('settings.search.connection.username')}
+                        value={searchConnection?.username ?? ''}
+                        onChange={(e) => handleSearchConnectionChange('username', e.target.value)}
+                        disabled={isLocked}
+                      />
+                      <Input
+                        type="password"
+                        label={t('settings.search.connection.password')}
+                        value={searchConnection?.password ?? ''}
+                        onChange={(e) => handleSearchConnectionChange('password', e.target.value)}
+                        disabled={isLocked}
+                      />
+                    </div>
+                  )}
+                  {connectionAuthType === 'apiKey' && (
+                    <Input
+                      type="password"
+                      label={t('settings.search.connection.api_key')}
+                      value={searchConnection?.apiKey ?? ''}
+                      onChange={(e) => handleSearchConnectionChange('apiKey', e.target.value)}
+                      disabled={isLocked}
+                    />
+                  )}
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          <Card className="mt-6">
+            <CardHeader
+              title={t('settings.search.reindex_title')}
+              subtitle={t('settings.search.reindex_description')}
+              className="border-none mb-2"
+            />
+            <div className="space-y-4">
+              <div>
+                <p className="text-xs font-medium uppercase text-muted-foreground tracking-wide">
+                  {t('settings.search.entities_label')}
+                </p>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {form.search.indexedEntities.length === 0 ? (
+                    <Badge variant="secondary" size="sm">
+                      {t('common.none')}
+                    </Badge>
+                  ) : (
+                    form.search.indexedEntities.map((entity) => (
+                      <Badge key={`reindex-entity-${entity}`} variant="primary" size="sm">
+                        {resolveEntityLabel(entity)}
+                      </Badge>
+                    ))
+                  )}
+                </div>
+              </div>
+              <div className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 p-3 text-xs text-warning">
+                <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <span>{t('settings.search.reindex_modal_warning')}</span>
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  onClick={handleOpenReindexModal}
+                  disabled={
+                    !form.search.enabled ||
+                    form.search.indexedEntities.length === 0 ||
+                    !canEditSettings ||
+                    reindexLoading
+                  }
+                >
+                  {t('settings.search.reindex_button')}
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </TabPanel>
+      )}
+
       {activeTab === 'security' && (
         <TabPanel>
           <Card>
@@ -1405,25 +2174,27 @@ export const Settings: React.FC = () => {
     </TabPanel>
   )}
 
-      {canViewHistory && (
-        <Card padding="lg">
-          <CardHeader
-            title={t('settings.history.title')}
-            subtitle={t('settings.history.subtitle')}
-          >
-            <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
-              <HistoryIcon className="h-3.5 w-3.5" />
-              <span>{t('settings.history.hint')}</span>
-            </div>
-          </CardHeader>
+      {activeTab === 'history' && canViewHistory && (
+        <TabPanel>
+          <Card padding="lg">
+            <CardHeader
+              title={t('settings.history.title')}
+              subtitle={t('settings.history.subtitle')}
+            >
+              <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
+                <HistoryIcon className="h-3.5 w-3.5" />
+                <span>{t('settings.history.hint')}</span>
+              </div>
+            </CardHeader>
 
-          <HistoryTable
-            entityType="Settings"
-            entityId={settings?.id ?? 'default'}
-            title={t('settings.history.title')}
-            description={t('settings.history.subtitle')}
-          />
-        </Card>
+            <HistoryTable
+              entityType="Settings"
+              entityId={settings?.id ?? 'default'}
+              title={t('settings.history.title')}
+              description={t('settings.history.subtitle')}
+            />
+          </Card>
+        </TabPanel>
       )}
 
       <ChangeConfirmDialog
@@ -1483,6 +2254,50 @@ export const Settings: React.FC = () => {
               leftIcon={<Plus className="h-4 w-4" />}
             >
               {t('settings.localization.modal_submit')}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isReindexModalOpen}
+        onClose={handleCloseReindexModal}
+        size="md"
+        title={t('settings.search.reindex_modal_title')}
+      >
+        <div className="space-y-5">
+          <p className="text-sm text-muted-foreground">
+            {t('settings.search.reindex_modal_subtitle')}
+          </p>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              {t('settings.search.reindex_modal_entities')}
+            </p>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {form?.search.indexedEntities.length ? (
+                form?.search.indexedEntities.map((entity) => (
+                  <Badge key={`modal-entity-${entity}`} variant="primary" size="sm">
+                    {resolveEntityLabel(entity)}
+                  </Badge>
+                ))
+              ) : (
+                <Badge variant="secondary" size="sm">
+                  {t('common.none')}
+                </Badge>
+              )}
+            </div>
+          </div>
+          <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-xs text-warning">
+            <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+            <span>{t('settings.search.reindex_modal_warning')}</span>
+          </div>
+          {reindexError && <p className="text-sm text-error">{reindexError}</p>}
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={handleCloseReindexModal} disabled={reindexLoading}>
+              {t('settings.search.reindex_modal_cancel')}
+            </Button>
+            <Button onClick={handleConfirmReindex} disabled={reindexLoading}>
+              {reindexLoading ? t('common.loading') || 'Loading…' : t('settings.search.reindex_modal_confirm')}
             </Button>
           </div>
         </div>
