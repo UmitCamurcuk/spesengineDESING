@@ -136,6 +136,9 @@ export const API_ENDPOINTS = {
       BASE: '/notifications/templates',
       BY_ID: (id: string) => `/notifications/templates/${id}`,
     },
+    EVENTS: {
+      CATALOG: '/notifications/events/catalog',
+    },
   },
   
   // Localizations management

@@ -16,6 +16,7 @@ import {
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { ChangeConfirmDialog } from '../../components/ui/ChangeConfirmDialog';
 import { DetailsLayout } from '../../components/common/DetailsLayout';
 import { Card, CardHeader } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
@@ -534,6 +535,10 @@ export const AttributeGroupsDetails: React.FC = () => {
   const [localizationsLoading, setLocalizationsLoading] = useState(false);
   const [localizationsError, setLocalizationsError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [commentDialogOpen, setCommentDialogOpen] = useState(false);
+  const [pendingChanges, setPendingChanges] = useState<
+    { field: string; oldValue: string | number | boolean; newValue: string | number | boolean }[]
+  >([]);
 
   const buildLocalizationState = useCallback(
     (translations?: Record<string, string> | null, fallback?: string): LocalizationState => {
@@ -941,7 +946,128 @@ export const AttributeGroupsDetails: React.FC = () => {
     setAvailableAttributesError(null);
   }, [group]);
 
-  const handleSave = useCallback(async () => {
+  const handleCloseCommentDialog = useCallback(() => {
+    if (saving) return;
+    setCommentDialogOpen(false);
+  }, [saving]);
+
+  const getPrimaryValue = useCallback(
+    (state: LocalizationState, fallback = '') => {
+      const primaryCode = requiredLanguages[0]?.code;
+      if (!primaryCode) return fallback;
+      return state[primaryCode] ?? fallback;
+    },
+    [requiredLanguages],
+  );
+
+  const allAttributesMap = useMemo(() => {
+    const map = new Map<string, Attribute>();
+    [...attributes, ...availableAttributes].forEach((attr) => {
+      if (attr?.id) {
+        map.set(attr.id, attr);
+      }
+    });
+    return map;
+  }, [attributes, availableAttributes]);
+
+  const formatAttributeNames = useCallback(
+    (ids: string[]) => {
+      if (!ids || ids.length === 0) {
+        return t('attributeGroups.no_attributes') ?? 'Bağlı attribute yok';
+      }
+      const names = ids.map((id) => {
+        const attr = allAttributesMap.get(id);
+        return attr?.name || attr?.key || id;
+      });
+      const filtered = names.filter(Boolean);
+      if (filtered.length === 0) {
+        return t('attributeGroups.no_attributes') ?? 'Bağlı attribute yok';
+      }
+      return filtered.join(', ');
+    },
+    [allAttributesMap, t],
+  );
+
+  const buildPendingChanges = useCallback(() => {
+    if (!group) return [];
+    const changes: {
+      field: string;
+      oldValue: string | number | boolean;
+      newValue: string | number | boolean;
+    }[] = [];
+
+    if (hasAttributeAssignmentChanges) {
+      const currentAttrNames = formatAttributeNames(selectedAttributeIds);
+      const previousAttrNames = formatAttributeNames(group.attributeIds ?? []);
+
+      changes.push({
+        field: t('attributeGroups.fields.attributes') ?? 'Attributes',
+        oldValue: previousAttrNames,
+        newValue: currentAttrNames,
+      });
+    }
+    if (hasDisplayOrderChange) {
+      changes.push({
+        field: t('attributeGroups.fields.display_order') ?? 'Display Order',
+        oldValue: initialDisplayOrder,
+        newValue: displayOrderDraft,
+      });
+    }
+    if (hasTagsChange) {
+      changes.push({
+        field: t('attributeGroups.fields.tags') ?? 'Tags',
+        oldValue: initialTags.join(', '),
+        newValue: tagsDraft.join(', '),
+      });
+    }
+    if (hasNameChanges) {
+      changes.push({
+        field: t('attributeGroups.fields.name') ?? 'Name',
+        oldValue: getPrimaryValue(initialNameState, group.name ?? ''),
+        newValue: getPrimaryValue(nameDraft, group.name ?? ''),
+      });
+    }
+    if (hasDescriptionChanges) {
+      changes.push({
+        field: t('attributeGroups.fields.description') ?? 'Description',
+        oldValue: getPrimaryValue(initialDescriptionState, group.description ?? ''),
+        newValue: getPrimaryValue(descriptionDraft, group.description ?? ''),
+      });
+    }
+    if (hasNoteChanges) {
+      changes.push({
+        field: t('attributeGroups.fields.note') ?? 'Note',
+        oldValue: getPrimaryValue(initialNoteState, group.note ?? ''),
+        newValue: getPrimaryValue(noteDraft, group.note ?? ''),
+      });
+    }
+
+    return changes;
+  }, [
+    group,
+    hasAttributeAssignmentChanges,
+    hasDescriptionChanges,
+    hasDisplayOrderChange,
+    hasNameChanges,
+    hasNoteChanges,
+    hasTagsChange,
+    initialDisplayOrder,
+    displayOrderDraft,
+    initialTags,
+    tagsDraft,
+    initialNameState,
+    nameDraft,
+    getPrimaryValue,
+    initialDescriptionState,
+    descriptionDraft,
+    initialNoteState,
+    noteDraft,
+    t,
+    selectedAttributeIds,
+    formatAttributeNames,
+  ]);
+
+  const handleSave = useCallback(() => {
     if (!group || saving) {
       return;
     }
@@ -972,168 +1098,199 @@ export const AttributeGroupsDetails: React.FC = () => {
       return;
     }
 
-    setDetailsErrors({});
-    setSaving(true);
-
-    try {
-      let nameLocalizationId = group.localization?.nameLocalizationId ?? null;
-      let descriptionLocalizationId = group.localization?.descriptionLocalizationId ?? null;
-      let noteLocalizationId = group.localization?.noteLocalizationId ?? null;
-
-      const localizationPromises: Promise<unknown>[] = [];
-
-      if (!nameLocalizationId || hasNameChanges) {
-        const translations = buildTranslationPayload(nameDraft);
-        if (nameLocalizationId) {
-          localizationPromises.push(
-            localizationsService.update(nameLocalizationId, { translations }),
-          );
-        } else {
-          const createdLocalization = await localizationsService.create({
-            namespace: 'attribute_groups',
-            key: `${group.key}.name`,
-            description: null,
-            translations,
-          });
-          nameLocalizationId = createdLocalization.id;
-        }
-      }
-
-      const descriptionTranslations = buildTranslationPayload(descriptionDraft);
-      const noteTranslations = buildTranslationPayload(noteDraft);
-      const descriptionHasContent = Object.keys(descriptionTranslations).length > 0;
-      const noteHasContent = Object.keys(noteTranslations).length > 0;
-
-      if (descriptionLocalizationId && !descriptionHasContent && hasDescriptionChanges) {
-        descriptionLocalizationId = null;
-      } else if (descriptionHasContent && (hasDescriptionChanges || !descriptionLocalizationId)) {
-        if (descriptionLocalizationId) {
-          localizationPromises.push(
-            localizationsService.update(descriptionLocalizationId, {
-              translations: descriptionTranslations,
-            }),
-          );
-        } else {
-          const createdLocalization = await localizationsService.create({
-            namespace: 'attribute_groups',
-            key: `${group.key}.description`,
-            description: null,
-            translations: descriptionTranslations,
-          });
-          descriptionLocalizationId = createdLocalization.id;
-        }
-      }
-
-      if (noteLocalizationId && !noteHasContent && hasNoteChanges) {
-        noteLocalizationId = null;
-      } else if (noteHasContent && (hasNoteChanges || !noteLocalizationId)) {
-        if (noteLocalizationId) {
-          localizationPromises.push(
-            localizationsService.update(noteLocalizationId, { translations: noteTranslations }),
-          );
-        } else {
-          const createdLocalization = await localizationsService.create({
-            namespace: 'attribute_groups',
-            key: `${group.key}.note`,
-            description: null,
-            translations: noteTranslations,
-          });
-          noteLocalizationId = createdLocalization.id;
-        }
-      }
-
-      if (localizationPromises.length > 0) {
-        await Promise.all(localizationPromises);
-      }
-
-      const updatePayload: Record<string, unknown> = {};
-
-      if (hasAttributeAssignmentChanges) {
-        updatePayload.attributeIds = selectedAttributeIds;
-      }
-      if (hasDisplayOrderChange) {
-        updatePayload.displayOrder = displayOrderDraft;
-      }
-      if (hasTagsChange) {
-        updatePayload.tags = tagsDraft;
-      }
-      if (descriptionLocalizationId !== group.localization?.descriptionLocalizationId) {
-        updatePayload.descriptionLocalizationId = descriptionLocalizationId ?? undefined;
-      }
-      if (noteLocalizationId !== group.localization?.noteLocalizationId) {
-        updatePayload.noteLocalizationId = noteLocalizationId ?? undefined;
-      }
-      if (nameLocalizationId !== group.localization?.nameLocalizationId) {
-        updatePayload.nameLocalizationId = nameLocalizationId ?? undefined;
-      }
-
-      let updatedGroup: AttributeGroup;
-      if (Object.keys(updatePayload).length > 0) {
-        updatedGroup = await attributeGroupsService.update(group.id, updatePayload);
-      } else {
-        updatedGroup = await attributeGroupsService.getById(group.id);
-      }
-
-      setGroup(updatedGroup);
-      setGroupDraft(updatedGroup);
-      setAttributes(Array.isArray(updatedGroup.attributes) ? updatedGroup.attributes : []);
-      setSelectedAttributeIds(
-        Array.isArray(updatedGroup.attributeIds) ? updatedGroup.attributeIds : [],
-      );
-
-      const refreshedOrder = updatedGroup.order ?? 0;
-      setDisplayOrderDraft(refreshedOrder);
-      setInitialDisplayOrder(refreshedOrder);
-
-      const refreshedTags = updatedGroup.tags ?? [];
-      setTagsDraft(refreshedTags);
-      setInitialTags(refreshedTags);
-      setTagsRaw(refreshedTags.join(', '));
-
-      await loadLocalizationDetails(updatedGroup, true);
-
+    const changes = buildPendingChanges();
+    if (changes.length === 0) {
       setEditMode(false);
-      setAvailableAttributesError(null);
-
-      showToast({
-        type: 'success',
-        message:
-          t('attributeGroups.updated_successfully') ?? 'Attribute grubu başarıyla güncellendi.',
-      });
-    } catch (err: any) {
-      console.error('Failed to update attribute group', err);
-      const message =
-        err?.response?.data?.error?.message ??
-        err?.message ??
-        (t('attributeGroups.failed_to_update') ?? 'Attribute grubu güncellenemedi.');
-      showToast({
-        type: 'error',
-        message,
-      });
-    } finally {
-      setSaving(false);
+      return;
     }
+
+    setPendingChanges(changes);
+    setCommentDialogOpen(true);
   }, [
     group,
     saving,
     requiredLanguages,
     nameDraft,
-    descriptionDraft,
-    noteDraft,
-    hasNameChanges,
-    hasDescriptionChanges,
-    hasNoteChanges,
-    hasAttributeAssignmentChanges,
-    hasDisplayOrderChange,
-    hasTagsChange,
     displayOrderDraft,
-    tagsDraft,
-    selectedAttributeIds,
-    loadLocalizationDetails,
-    showToast,
     t,
-    buildTranslationPayload,
+    setDetailsErrors,
+    showToast,
+    buildPendingChanges,
   ]);
+
+  const handleConfirmSave = useCallback(
+    async (comment: string) => {
+      if (!group || saving) {
+        return;
+      }
+
+      setSaving(true);
+
+      try {
+        let nameLocalizationId = group.localization?.nameLocalizationId ?? null;
+        let descriptionLocalizationId = group.localization?.descriptionLocalizationId ?? null;
+        let noteLocalizationId = group.localization?.noteLocalizationId ?? null;
+
+        const localizationPromises: Promise<unknown>[] = [];
+
+        if (!nameLocalizationId || hasNameChanges) {
+          const translations = buildTranslationPayload(nameDraft);
+          if (nameLocalizationId) {
+            localizationPromises.push(
+              localizationsService.update(nameLocalizationId, { translations }),
+            );
+          } else {
+            const createdLocalization = await localizationsService.create({
+              namespace: 'attribute_groups',
+              key: `${group.key}.name`,
+              description: null,
+              translations,
+            });
+            nameLocalizationId = createdLocalization.id;
+          }
+        }
+
+        const descriptionTranslations = buildTranslationPayload(descriptionDraft);
+        const noteTranslations = buildTranslationPayload(noteDraft);
+        const descriptionHasContent = Object.keys(descriptionTranslations).length > 0;
+        const noteHasContent = Object.keys(noteTranslations).length > 0;
+
+        if (descriptionLocalizationId && !descriptionHasContent && hasDescriptionChanges) {
+          descriptionLocalizationId = null;
+        } else if (descriptionHasContent && (hasDescriptionChanges || !descriptionLocalizationId)) {
+          if (descriptionLocalizationId) {
+            localizationPromises.push(
+              localizationsService.update(descriptionLocalizationId, {
+                translations: descriptionTranslations,
+              }),
+            );
+          } else {
+            const createdLocalization = await localizationsService.create({
+              namespace: 'attribute_groups',
+              key: `${group.key}.description`,
+              description: null,
+              translations: descriptionTranslations,
+            });
+            descriptionLocalizationId = createdLocalization.id;
+          }
+        }
+
+        if (noteLocalizationId && !noteHasContent && hasNoteChanges) {
+          noteLocalizationId = null;
+        } else if (noteHasContent && (hasNoteChanges || !noteLocalizationId)) {
+          if (noteLocalizationId) {
+            localizationPromises.push(
+              localizationsService.update(noteLocalizationId, { translations: noteTranslations }),
+            );
+          } else {
+            const createdLocalization = await localizationsService.create({
+              namespace: 'attribute_groups',
+              key: `${group.key}.note`,
+              description: null,
+              translations: noteTranslations,
+            });
+            noteLocalizationId = createdLocalization.id;
+          }
+        }
+
+        if (localizationPromises.length > 0) {
+          await Promise.all(localizationPromises);
+        }
+
+        const updatePayload: Record<string, unknown> = {};
+
+        if (hasAttributeAssignmentChanges) {
+          updatePayload.attributeIds = selectedAttributeIds;
+        }
+        if (hasDisplayOrderChange) {
+          updatePayload.displayOrder = displayOrderDraft;
+        }
+        if (hasTagsChange) {
+          updatePayload.tags = tagsDraft;
+        }
+        if (descriptionLocalizationId !== group.localization?.descriptionLocalizationId) {
+          updatePayload.descriptionLocalizationId = descriptionLocalizationId ?? undefined;
+        }
+        if (noteLocalizationId !== group.localization?.noteLocalizationId) {
+          updatePayload.noteLocalizationId = noteLocalizationId ?? undefined;
+        }
+        if (nameLocalizationId !== group.localization?.nameLocalizationId) {
+          updatePayload.nameLocalizationId = nameLocalizationId ?? undefined;
+        }
+        if (comment) {
+          updatePayload.comment = comment;
+        }
+
+        let updatedGroup: AttributeGroup;
+        if (Object.keys(updatePayload).length > 0) {
+          updatedGroup = await attributeGroupsService.update(group.id, updatePayload);
+        } else {
+          updatedGroup = await attributeGroupsService.getById(group.id);
+        }
+
+        setGroup(updatedGroup);
+        setGroupDraft(updatedGroup);
+        setAttributes(Array.isArray(updatedGroup.attributes) ? updatedGroup.attributes : []);
+        setSelectedAttributeIds(
+          Array.isArray(updatedGroup.attributeIds) ? updatedGroup.attributeIds : [],
+        );
+
+        const refreshedOrder = updatedGroup.order ?? 0;
+        setDisplayOrderDraft(refreshedOrder);
+        setInitialDisplayOrder(refreshedOrder);
+
+        const refreshedTags = updatedGroup.tags ?? [];
+        setTagsDraft(refreshedTags);
+        setInitialTags(refreshedTags);
+        setTagsRaw(refreshedTags.join(', '));
+
+        await loadLocalizationDetails(updatedGroup, true);
+
+        setEditMode(false);
+        setAvailableAttributesError(null);
+        setCommentDialogOpen(false);
+        setPendingChanges([]);
+
+        showToast({
+          type: 'success',
+          message:
+            t('attributeGroups.updated_successfully') ?? 'Attribute grubu başarıyla güncellendi.',
+        });
+      } catch (err: any) {
+        console.error('Failed to update attribute group', err);
+        const message =
+          err?.response?.data?.error?.message ??
+          err?.message ??
+          (t('attributeGroups.failed_to_update') ?? 'Attribute grubu güncellenemedi.');
+        showToast({
+          type: 'error',
+          message,
+        });
+      } finally {
+        setSaving(false);
+      }
+    },
+    [
+      group,
+      saving,
+      hasNameChanges,
+      hasDescriptionChanges,
+      hasNoteChanges,
+      hasAttributeAssignmentChanges,
+      hasDisplayOrderChange,
+      hasTagsChange,
+      selectedAttributeIds,
+      displayOrderDraft,
+      tagsDraft,
+      buildTranslationPayload,
+      nameDraft,
+      descriptionDraft,
+      noteDraft,
+      loadLocalizationDetails,
+      showToast,
+      t,
+    ],
+  );
 
 
   const handleDelete = useCallback(async () => {
@@ -1369,7 +1526,7 @@ ${attributesList}
         selectionError: availableAttributesError,
         onRetryLoad: () => loadAvailableAttributes(true),
       },
-      badge: attributes.length,
+      badge: attributes.length || group.attributeIds?.length || 0,
       hidden: !canViewAttributesTab,
     },
     {
@@ -1411,14 +1568,6 @@ ${attributesList}
       hidden: !canViewApi,
     },
     {
-      id: 'history',
-      label: t('attributeGroups.history_tab') || 'Geçmiş',
-      icon: HistoryIcon,
-      component: HistoryTable,
-      props: { entityType: 'AttributeGroup', entityId: group.id },
-      hidden: !canViewHistory,
-    },
-    {
       id: 'notifications',
       label: t('attributeGroups.notifications_tab') || 'Bildirimler',
       icon: Activity,
@@ -1430,49 +1579,69 @@ ${attributesList}
       },
       hidden: !canViewNotifications,
     },
+    {
+      id: 'history',
+      label: t('attributeGroups.history_tab') || 'Geçmiş',
+      icon: HistoryIcon,
+      component: HistoryTable,
+      props: { entityType: 'AttributeGroup', entityId: group.id },
+      hidden: !canViewHistory,
+    },
   ];
 
   return (
-    <DetailsLayout
-      title={
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-2xl font-bold text-foreground">{group.name}</span>
-            <Badge variant="secondary">
-              {group.attributeIds?.length ?? 0}{' '}
-              {t('attributeGroups.attribute_unit') || 'attribute'}
-            </Badge>
+    <>
+      <DetailsLayout
+        title={
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-2xl font-bold text-foreground">{group.name}</span>
+              <Badge variant="secondary">
+                {group.attributeIds?.length ?? 0}{' '}
+                {t('attributeGroups.attribute_unit') || 'attribute'}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+              <span>
+                <Clock className="inline h-3 w-3 mr-1" />
+                {new Date(group.updatedAt).toLocaleString()}
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-            <span>
-              <Clock className="inline h-3 w-3 mr-1" />
-              {new Date(group.updatedAt).toLocaleString()}
-            </span>
-          </div>
-        </div>
-      }
-      subtitle={group.description ?? undefined}
-      icon={<TagsIcon className="h-6 w-6 text-white" />}
-      tabs={tabs}
-      defaultTab="details"
-      backUrl="/attribute-groups"
-      editMode={editMode}
-      hasChanges={hasChanges}
-      onEdit={canUpdateGroup ? handleEnterEdit : undefined}
-      onSave={canUpdateGroup ? handleSave : undefined}
-      onCancel={canUpdateGroup ? handleCancelEdit : undefined}
-      inlineActions={false}
-      onDelete={canDeleteGroup ? handleDelete : undefined}
-      deleteLoading={deleting}
-      deleteButtonLabel={t('attributeGroups.delete_action') || 'Attribute Grubu Sil'}
-      deleteDialogTitle={
-        t('attributeGroups.delete_title', { name: groupName }) || 'Attribute grubu silinsin mi?'
-      }
-      deleteDialogDescription={
-        t('attributeGroups.delete_description', { name: groupName }) ||
-        'Bu attribute grubu kalıcı olarak silinecek. Bu işlem geri alınamaz.'
-      }
-    />
+        }
+        subtitle={group.description ?? undefined}
+        icon={<TagsIcon className="h-6 w-6 text-white" />}
+        tabs={tabs}
+        defaultTab="details"
+        backUrl="/attribute-groups"
+        editMode={editMode}
+        hasChanges={hasChanges}
+        onEdit={canUpdateGroup ? handleEnterEdit : undefined}
+        onSave={canUpdateGroup ? handleSave : undefined}
+        onCancel={canUpdateGroup ? handleCancelEdit : undefined}
+        inlineActions={false}
+        onDelete={canDeleteGroup ? handleDelete : undefined}
+        deleteLoading={deleting}
+        deleteButtonLabel={t('attributeGroups.delete_action') || 'Attribute Grubu Sil'}
+        deleteDialogTitle={
+          t('attributeGroups.delete_title', { name: groupName }) || 'Attribute grubu silinsin mi?'
+        }
+        deleteDialogDescription={
+          t('attributeGroups.delete_description', { name: groupName }) ||
+          'Bu attribute grubu kalıcı olarak silinecek. Bu işlem geri alınamaz.'
+        }
+      />
+
+      <ChangeConfirmDialog
+        open={commentDialogOpen}
+        onClose={handleCloseCommentDialog}
+        onConfirm={handleConfirmSave}
+        changes={pendingChanges}
+        loading={saving}
+        entityName={group.name}
+        title={t('attributeGroups.review_changes_title') || 'Değişiklikleri Onayla'}
+      />
+    </>
   );
 };
 

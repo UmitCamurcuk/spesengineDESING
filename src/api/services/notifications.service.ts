@@ -139,7 +139,55 @@ export interface NotificationTemplateQuery {
   language?: string;
 }
 
+export type NotificationEventSeverity = 'info' | 'warning' | 'critical';
+
+export interface NotificationEventFilterDefinition {
+  key: string;
+  label: string;
+  type: 'string' | 'number' | 'boolean';
+  description?: string;
+  example?: string;
+}
+
+export interface NotificationEventRecipientSuggestion {
+  type: NotificationRecipientType;
+  roleKey?: string;
+  description?: string;
+}
+
+export interface NotificationEventDefinition {
+  key: string;
+  name: string;
+  description: string;
+  category: string;
+  entity: string;
+  severity: NotificationEventSeverity;
+  availableFilters: NotificationEventFilterDefinition[];
+  samplePayload: Record<string, unknown>;
+  defaultRecipients?: NotificationEventRecipientSuggestion[];
+  recommendedChannels?: string[];
+  tags?: string[];
+}
+
+export interface NotificationEventCategory {
+  key: string;
+  label: string;
+  description: string;
+}
+
+export interface NotificationEventCatalog {
+  categories: NotificationEventCategory[];
+  events: NotificationEventDefinition[];
+}
+
 export const notificationsService = {
+  async getEventCatalog(): Promise<NotificationEventCatalog> {
+    const response = await apiClient.get<ApiSuccessResponse<NotificationEventCatalog>>(
+      API_ENDPOINTS.NOTIFICATIONS.EVENTS.CATALOG,
+    );
+    return response.data.data;
+  },
+
   async listRules(params: NotificationRuleQuery = {}): Promise<NotificationRule[]> {
     const response = await apiClient.get<ApiSuccessResponse<{ items: NotificationRule[] }>>(
       API_ENDPOINTS.NOTIFICATIONS.RULES.BASE,
@@ -299,4 +347,8 @@ export type {
   NotificationRuleStatistics,
   NotificationRuleStatisticsChannel,
   NotificationRuleRecentEvent,
+  NotificationEventCatalog,
+  NotificationEventDefinition,
+  NotificationEventFilterDefinition,
+  NotificationEventSeverity,
 };

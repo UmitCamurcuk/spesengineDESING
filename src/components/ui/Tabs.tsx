@@ -82,7 +82,7 @@ export const Tabs: React.FC<TabsProps> = ({
           >
             {tab.icon && <span className="shrink-0">{tab.icon}</span>}
             <span className="truncate">{tab.label}</span>
-            {tab.badge && (
+            {tab.badge !== undefined && tab.badge !== null && (
               <span className={cn(
                 'inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium rounded-full',
                 isActive 

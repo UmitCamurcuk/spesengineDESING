@@ -226,7 +226,11 @@ const parseReferenceValue = (raw: unknown): ReferenceValue => {
           const input = parsed as Record<string, unknown>;
           return {
             entityType: typeof input.entityType === 'string' ? input.entityType : '',
-            referenceId: typeof input.referenceId === 'string' ? input.referenceId : '',
+            referenceId: typeof input.itemId === 'string'
+              ? input.itemId
+              : typeof input.referenceId === 'string'
+                ? input.referenceId
+                : '',
             label: typeof input.label === 'string' ? input.label : '',
           };
         }
@@ -246,7 +250,11 @@ const parseReferenceValue = (raw: unknown): ReferenceValue => {
     const input = raw as Record<string, unknown>;
     return {
       entityType: typeof input.entityType === 'string' ? input.entityType : '',
-      referenceId: typeof input.referenceId === 'string' ? input.referenceId : '',
+      referenceId: typeof input.itemId === 'string'
+        ? input.itemId
+        : typeof input.referenceId === 'string'
+          ? input.referenceId
+          : '',
       label: typeof input.label === 'string' ? input.label : '',
     };
   }
@@ -712,7 +720,15 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
         }
 
         const handleReferenceChange = (next: Partial<ReferenceValue>) => {
-          onChange?.({ ...referenceValue, ...next });
+          const merged = {
+            ...referenceValue,
+            ...next,
+          };
+          onChange?.({
+            entityType: merged.entityType?.trim?.() ?? '',
+            itemId: merged.referenceId?.trim?.() ?? '',
+            label: merged.label?.trim?.() ?? '',
+          });
         };
 
         return (
@@ -964,9 +980,17 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
 
       case AttributeType.BARCODE:
         return isViewMode ? (
-          <div className="flex items-center space-x-2">
-            <BarChart3 className="h-4 w-4 text-muted-foreground" />
-            <span className="font-mono text-sm text-foreground">{stringValue || '—'}</span>
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2">
+              <BarChart3 className="h-4 w-4 text-muted-foreground" />
+              <span className="font-mono text-sm text-foreground">{stringValue || '—'}</span>
+            </div>
+            <div
+              data-test="barcode-preview"
+              className="flex min-h-[48px] items-center justify-center rounded-md border border-dashed border-border bg-background text-xs text-muted-foreground"
+            >
+              {stringValue || '—'}
+            </div>
           </div>
         ) : (
           <Input
@@ -979,9 +1003,17 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
 
       case AttributeType.QR:
         return isViewMode ? (
-          <div className="flex items-center space-x-2">
-            <QrCode className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm text-foreground">{stringValue || '—'}</span>
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2">
+              <QrCode className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-foreground">{stringValue || '—'}</span>
+            </div>
+            <div
+              data-test="qrcode-preview"
+              className="flex min-h-[64px] items-center justify-center rounded-md border border-dashed border-border bg-background text-xs text-muted-foreground"
+            >
+              {stringValue || '—'}
+            </div>
           </div>
         ) : (
           <Input
@@ -997,9 +1029,25 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
 
       case AttributeType.OBJECT:
       case AttributeType.ARRAY:
+        return renderJsonEditor(value, 4);
+
       case AttributeType.FORMULA:
       case AttributeType.EXPRESSION:
-        return renderJsonEditor(value, 4);
+        return isViewMode ? (
+          <Card padding="sm" variant="outlined" className="bg-muted">
+            <pre className="max-h-60 overflow-auto text-xs text-foreground font-mono">
+              {stringValue || '—'}
+            </pre>
+          </Card>
+        ) : (
+          <textarea
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-mono outline-none focus:border-primary focus:ring-1 focus:ring-primary/40"
+            rows={3}
+            value={stringValue}
+            onChange={(e) => onChange?.(e.target.value)}
+            placeholder={`${attribute.type === AttributeType.FORMULA ? 'Formül' : 'İfade'} değeri girin`}
+          />
+        );
 
       case AttributeType.READONLY:
         return (

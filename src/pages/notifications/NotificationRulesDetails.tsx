@@ -208,6 +208,7 @@ export function NotificationRulesDetails() {
   const canViewDocumentation = hasPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.DOCUMENTATION.VIEW);
   const canEditDocumentation = hasPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.DOCUMENTATION.EDIT);
   const canViewHistory = hasPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.HISTORY.VIEW);
+  const canDelete = hasPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.DELETE);
 
   const [loading, setLoading] = useState(true);
   const [rule, setRule] = useState<NotificationRule | null>(null);
@@ -219,6 +220,7 @@ export function NotificationRulesDetails() {
   const [pendingChanges, setPendingChanges] = useState<ChangeItem[]>([]);
   const [commentDialogOpen, setCommentDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const buildTranslations = useCallback(
     (value: string): Record<string, string> => {
@@ -606,6 +608,29 @@ export function NotificationRulesDetails() {
     handleUpdateDocumentation,
   ]);
 
+  const handleDeleteRule = useCallback(async () => {
+    if (!id) {
+      return;
+    }
+    try {
+      setDeleteLoading(true);
+      await notificationsService.deleteRule(id);
+      showToast({
+        type: 'success',
+        message: t('notifications.rules.deleted') ?? 'Bildirim kuralı silindi',
+      });
+      navigate('/notifications/rules');
+    } catch (error: any) {
+      console.error('Failed to delete notification rule', error);
+      showToast({
+        type: 'error',
+        message: error?.message || t('common.error'),
+      });
+    } finally {
+      setDeleteLoading(false);
+    }
+  }, [id, navigate, showToast, t]);
+
   if (loading || !rule || !generalForm) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -628,6 +653,15 @@ export function NotificationRulesDetails() {
         onSave={canUpdate ? handleGeneralSave : undefined}
         onCancel={handleCancelGeneralEdit}
         inlineActions={false}
+        onDelete={canDelete ? handleDeleteRule : undefined}
+        deleteLoading={deleteLoading}
+        canDelete={canDelete}
+        deleteButtonLabel={t('notifications.rules.delete') ?? 'Kuralı Sil'}
+        deleteDialogTitle={t('notifications.rules.delete_title') ?? 'Bu kural silinsin mi?'}
+        deleteDialogDescription={
+          t('notifications.rules.delete_description') ??
+          'Bu kuralı silmek bildirim tetiklemelerini durdurur. Devam etmek istediğinize emin misiniz?'
+        }
       />
 
       <ChangeConfirmDialog
