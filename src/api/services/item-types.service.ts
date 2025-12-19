@@ -34,6 +34,7 @@ type BackendItemType = {
   isSystemItemType: boolean;
   showInNavbar?: boolean;
   version: number;
+  logoUrl?: string | null;
   attributeGroupIds: string[];
   attributeGroupBindings: BackendAttributeGroupBinding[];
   attributeGroupCount: number;
@@ -93,6 +94,7 @@ const mapItemType = (itemType: BackendItemType): ItemType => ({
   isSystemItemType: Boolean(itemType.isSystemItemType),
   showInNavbar: Boolean(itemType.showInNavbar),
   version: itemType.version,
+  logoUrl: itemType.logoUrl ?? null,
   attributeGroupIds: itemType.attributeGroupIds ?? [],
   attributeGroupBindings: itemType.attributeGroupBindings ?? [],
   attributeGroupCount:

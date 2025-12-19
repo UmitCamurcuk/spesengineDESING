@@ -28,6 +28,7 @@ type BackendFamily = {
   isSystemFamily: boolean;
   isAbstract: boolean;
   allowItemCreation: boolean;
+  logoUrl?: string | null;
   attributeGroupIds: string[];
   attributeGroupBindings: BackendAttributeGroupBinding[];
   attributeGroupCount: number;
@@ -66,6 +67,7 @@ const mapFamily = (family: BackendFamily): Family => ({
   isSystemFamily: Boolean(family.isSystemFamily),
   isAbstract: Boolean(family.isAbstract),
   allowItemCreation: Boolean(family.allowItemCreation),
+  logoUrl: family.logoUrl ?? null,
   attributeGroupIds: family.attributeGroupIds ?? [],
   attributeGroupBindings: family.attributeGroupBindings ?? [],
   attributeGroupCount:

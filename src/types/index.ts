@@ -56,6 +56,7 @@ export interface Attribute {
   description?: string;
   helpText?: string | null;
   tags?: string[];
+  logoUrl?: string | null;
   createdAt: string;
   updatedAt: string;
   attributeGroups?: AttributeGroupSummary[];
@@ -83,6 +84,7 @@ export interface AttributeGroup {
   attributes: Attribute[];
   order: number;
   tags?: string[];
+  logoUrl?: string | null;
   createdAt: string;
   updatedAt: string;
   localization?: {
@@ -103,6 +105,7 @@ export interface AttributeGroupSummary {
   nameLocalizationId: string;
   descriptionLocalizationId?: string | null;
   name: string;
+  logoUrl?: string | null;
 }
 
 export interface UserReference {
@@ -137,6 +140,7 @@ export interface Family {
   isSystemFamily: boolean;
   isAbstract: boolean;
   allowItemCreation: boolean;
+  logoUrl?: string | null;
   attributeGroupIds: string[];
   attributeGroupBindings: AttributeGroupBinding[];
   attributeGroupCount?: number;
@@ -160,6 +164,7 @@ export interface Category {
   linkedFamilyIds: string[];
   isSystemCategory: boolean;
   allowItemCreation: boolean;
+  logoUrl?: string | null;
   attributeGroupIds: string[];
   attributeGroupBindings: AttributeGroupBinding[];
   attributeGroupCount?: number;
@@ -182,6 +187,7 @@ export interface ItemType {
   isSystemItemType: boolean;
   showInNavbar: boolean;
   version: number;
+  logoUrl?: string | null;
   attributeGroupIds: string[];
   attributeGroupBindings: AttributeGroupBinding[];
   attributeGroupCount?: number;
@@ -490,6 +496,7 @@ export interface Role {
   permissionGroups: string[];
   permissions: string[];
   isSystem: boolean;
+  logoUrl?: string | null;
   createdAt: string;
   updatedAt: string;
 }

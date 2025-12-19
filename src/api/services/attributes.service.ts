@@ -41,6 +41,7 @@ type BackendAttribute = {
   validationRules?: Record<string, unknown> | null;
   uiSettings?: Record<string, unknown> | null;
   tags?: string[];
+  logoUrl?: string | null;
   createdBy?: BackendUserSummary;
   updatedBy?: BackendUserSummary;
   createdAt: string;
@@ -108,6 +109,7 @@ const mapAttribute = (attribute: BackendAttribute): Attribute => {
     description: attribute.description?.value ?? undefined,
     helpText: attribute.helpText?.value ?? null,
     tags: attribute.tags ?? [],
+    logoUrl: attribute.logoUrl ?? null,
     createdAt: attribute.createdAt,
     updatedAt: attribute.updatedAt,
     attributeGroups: attribute.attributeGroups?.map(mapGroup),

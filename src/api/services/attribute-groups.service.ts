@@ -33,6 +33,7 @@ type BackendAttributeGroup = {
   attributeCount: number;
   displayOrder: number;
   tags?: string[];
+  logoUrl?: string | null;
   createdAt: string;
   updatedAt: string;
   createdBy?: BackendUserSummary;
@@ -108,6 +109,7 @@ const mapAttributeGroup = (group: BackendAttributeGroup): AttributeGroup => ({
   attributes: (group.attributes ?? []).map(mapAttributeSummary),
   order: group.displayOrder ?? 0,
   tags: group.tags ?? [],
+  logoUrl: group.logoUrl ?? null,
   createdAt: group.createdAt,
   updatedAt: group.updatedAt,
   localization: {

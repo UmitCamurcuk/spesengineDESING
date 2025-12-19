@@ -45,6 +45,7 @@ const steps = [
 ];
 
 const CUSTOM_FILTER_KEY = '__custom__';
+const IN_APP_CHANNEL_TYPE = 'in_app';
 const generateRowId = () => Math.random().toString(36).slice(2, 11);
 
 type FilterRow = {
@@ -162,7 +163,7 @@ export const NotificationRulesCreate: React.FC = () => {
     if (currentFirst && currentFirst.channelType) {
       return;
     }
-    const defaultChannelType = availableChannels[0]?.type;
+    const defaultChannelType = availableChannels[0]?.type ?? IN_APP_CHANNEL_TYPE;
     if (!defaultChannelType) {
       return;
     }
@@ -265,6 +266,19 @@ export const NotificationRulesCreate: React.FC = () => {
         unique.set(channel.type, channel);
       }
     });
+    if (!unique.has(IN_APP_CHANNEL_TYPE)) {
+      unique.set(IN_APP_CHANNEL_TYPE, {
+        id: IN_APP_CHANNEL_TYPE,
+        type: IN_APP_CHANNEL_TYPE,
+        name: 'In-App',
+        isEnabled: true,
+        config: {},
+        metadata: {},
+        tenantId: 'local',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    }
     return Array.from(unique.entries()).map(([type, channel]) => ({
       value: type,
       label: `${channel.name} (${type})`,
@@ -363,11 +377,12 @@ export const NotificationRulesCreate: React.FC = () => {
     const normalizedChannels: NotificationChannelTargetPayload[] = channelRows
       .filter((channel) => channel.channelType.trim().length > 0)
       .map((channel) => {
+        const isInApp = channel.channelType === IN_APP_CHANNEL_TYPE;
         const settingsOverride: Record<string, unknown> = {};
-        if (channel.targetChannel?.trim()) {
+        if (!isInApp && channel.targetChannel?.trim()) {
           settingsOverride.channel = channel.targetChannel.trim();
         }
-        if (channel.mentionAll) {
+        if (!isInApp && channel.mentionAll) {
           settingsOverride.mentionAll = true;
         }
         return {
@@ -644,6 +659,9 @@ export const NotificationRulesCreate: React.FC = () => {
             : [...channelTypeOptions, { value: row.channelType, label: row.channelType || 'Tanımlı kanal yok' }];
           const templates = availableTemplates.filter((template) => template.channelType === row.channelType);
           const templateOptions = templates.map((template) => ({ value: template.id, label: template.name }));
+          const isInApp = row.channelType === IN_APP_CHANNEL_TYPE;
+          const showTargetField = row.channelType && !isInApp;
+          const showMentionAll = row.channelType && !isInApp;
 
           return (
             <div key={row.id} className="grid grid-cols-1 md:grid-cols-12 gap-4 rounded-xl border border-gray-100 p-4">
@@ -670,14 +688,16 @@ export const NotificationRulesCreate: React.FC = () => {
                 />
               </div>
 
-              <div className="md:col-span-3">
-                <Input
-                  label="Hedef Kanal / Adres"
-                  value={row.targetChannel ?? ''}
-                  onChange={(event) => updateChannelRow(row.id, { targetChannel: event.target.value })}
-                  placeholder="Örn. #security-alerts"
-                />
-              </div>
+              {showTargetField ? (
+                <div className="md:col-span-3">
+                  <Input
+                    label="Hedef Kanal / Adres"
+                    value={row.targetChannel ?? ''}
+                    onChange={(event) => updateChannelRow(row.id, { targetChannel: event.target.value })}
+                    placeholder="Örn. #security-alerts"
+                  />
+                </div>
+              ) : null}
 
               <div className="md:col-span-2 flex flex-col justify-center space-y-2">
                 <label className="flex items-center gap-2 text-sm text-gray-600">
@@ -689,15 +709,17 @@ export const NotificationRulesCreate: React.FC = () => {
                   />
                   Aktif
                 </label>
-                <label className="flex items-center gap-2 text-sm text-gray-600">
-                  <input
-                    type="checkbox"
-                    checked={row.mentionAll ?? false}
-                    onChange={(event) => updateChannelRow(row.id, { mentionAll: event.target.checked })}
-                    className="rounded border-gray-300 text-blue-600"
-                  />
-                  Herkesi mention et
-                </label>
+                {showMentionAll ? (
+                  <label className="flex items-center gap-2 text-sm text-gray-600">
+                    <input
+                      type="checkbox"
+                      checked={row.mentionAll ?? false}
+                      onChange={(event) => updateChannelRow(row.id, { mentionAll: event.target.checked })}
+                      className="rounded border-gray-300 text-blue-600"
+                    />
+                    Herkesi mention et
+                  </label>
+                ) : null}
               </div>
 
               <div className="md:col-span-12 flex justify-end">

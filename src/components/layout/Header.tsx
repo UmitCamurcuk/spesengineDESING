@@ -5,6 +5,7 @@ import {
   Bell,
   BellRing,
   ChevronRight,
+  Clock3,
   Grid,
   Home,
   Layers,
@@ -24,6 +25,7 @@ import { Button } from '../ui/Button';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { searchService } from '../../api/services/search.service';
 import type { SearchEntityType, SearchSuggestion } from '../../api/types/api.types';
+import { notificationsService, type InAppNotification } from '../../api/services/notifications.service';
 
 interface HeaderProps {
   user?: {
@@ -148,9 +150,13 @@ const getBreadcrumbs = (pathname: string, t: (key: string) => string) => {
 
 export const Header: React.FC<HeaderProps> = ({ user, onLogout, onMenuClick, actions }) => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const [notifications, setNotifications] = useState<InAppNotification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
   const shouldHideTitle = useMemo(
     () => HIDE_TITLE_ROUTES.some((route) => location.pathname.startsWith(route)),
     [location.pathname],
@@ -183,6 +189,7 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onMenuClick, act
   const searchContainerRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const mobileSearchInputRef = useRef<HTMLInputElement | null>(null);
+  const notificationsRef = useRef<HTMLDivElement | null>(null);
   const trimmedQuery = searchQuery.trim();
   const hasQuery = trimmedQuery.length >= 2;
   const groupedSuggestions = useMemo(() => {
@@ -384,7 +391,80 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onMenuClick, act
     setShowMobileSearch(false);
     setSearchQuery('');
     setSuggestions([]);
+    setShowNotifications(false);
   }, [location.pathname]);
+
+  const loadUnreadCount = useCallback(async () => {
+    try {
+      const count = await notificationsService.unreadCount();
+      setUnreadCount(count);
+    } catch (error) {
+      console.warn('Unread notifications could not be loaded', error);
+    }
+  }, []);
+
+  const loadNotifications = useCallback(async () => {
+    try {
+      setNotificationsLoading(true);
+      const { items } = await notificationsService.listInApp({ limit: 10, skip: 0, unreadOnly: false });
+      setNotifications(items);
+    } catch (error) {
+      console.warn('Notifications could not be loaded', error);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadUnreadCount();
+    const interval = window.setInterval(loadUnreadCount, 30000);
+    return () => window.clearInterval(interval);
+  }, [loadUnreadCount]);
+
+  const handleToggleNotifications = useCallback(() => {
+    setShowNotifications((prev) => {
+      const next = !prev;
+      if (next) {
+        void loadNotifications();
+      }
+      return next;
+    });
+  }, [loadNotifications]);
+
+  const handleMarkRead = useCallback(
+    async (id: string) => {
+      try {
+        await notificationsService.markRead(id);
+        setNotifications((prev) =>
+          prev.map((item) => (item.id === id ? { ...item, readAt: new Date().toISOString() } : item)),
+        );
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+      } catch (error) {
+        console.warn('Failed to mark notification read', error);
+      }
+    },
+    [],
+  );
+
+  const handleMarkAllRead = useCallback(async () => {
+    try {
+      await notificationsService.markAllRead();
+      setNotifications((prev) => prev.map((item) => ({ ...item, readAt: new Date().toISOString() })));
+      setUnreadCount(0);
+    } catch (error) {
+      console.warn('Failed to mark all notifications read', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    const onClickOutside = (event: MouseEvent) => {
+      if (notificationsRef.current && !notificationsRef.current.contains(event.target as Node)) {
+        setShowNotifications(false);
+      }
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
 
   return (
     <header className="bg-background border-b border-border px-4 sm:px-5" style={{ paddingTop: '0.4rem', paddingBottom: '0.44rem' }}>
@@ -503,6 +583,77 @@ export const Header: React.FC<HeaderProps> = ({ user, onLogout, onMenuClick, act
           </Button>
         </div>
         <div className="flex items-center space-x-3">
+          <div className="relative" ref={notificationsRef}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-2 h-9 w-9 relative"
+              onClick={handleToggleNotifications}
+            >
+              <Bell className="h-5 w-5" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-error px-1 text-[10px] font-semibold text-white">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </Button>
+            {showNotifications && (
+              <div className="absolute right-0 mt-2 w-80 max-h-[70vh] overflow-y-auto rounded-md border border-border bg-popover shadow-xl z-30">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <BellRing className="h-4 w-4 text-primary" />
+                    {t('notifications.title') || 'Bildirimler'}
+                  </div>
+                  <button
+                    className="text-xs text-primary hover:underline disabled:text-muted-foreground"
+                    onClick={handleMarkAllRead}
+                    disabled={unreadCount === 0}
+                  >
+                    {t('notifications.mark_all_read') || 'Tümünü okundu yap'}
+                  </button>
+                </div>
+                <div className="divide-y divide-border">
+                  {notificationsLoading ? (
+                    <div className="flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {t('common.loading') || 'Yükleniyor...'}
+                    </div>
+                  ) : notifications.length === 0 ? (
+                    <div className="px-4 py-3 text-sm text-muted-foreground">
+                      {t('notifications.empty') || 'Henüz bildirim yok.'}
+                    </div>
+                  ) : (
+                    notifications.map((item) => (
+                      <button
+                        key={item.id}
+                        className={`w-full text-left px-4 py-3 flex gap-2 hover:bg-muted transition-colors ${
+                          item.readAt ? 'opacity-80' : ''
+                        }`}
+                        onClick={() => handleMarkRead(item.id)}
+                      >
+                        <div className="mt-0.5">
+                          <span
+                            className={`inline-block h-2 w-2 rounded-full ${
+                              item.readAt ? 'bg-border' : 'bg-primary'
+                            }`}
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-foreground">{item.title}</p>
+                          <p className="text-xs text-muted-foreground line-clamp-2">{item.body}</p>
+                          <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
+                            <Clock3 className="h-3 w-3" />
+                            {new Date(item.createdAt).toLocaleString()}
+                            {item.eventKey ? <span className="text-border">• {item.eventKey}</span> : null}
+                          </div>
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
           <div className="relative">
             <button
               onClick={() => setShowProfileMenu(!showProfileMenu)}

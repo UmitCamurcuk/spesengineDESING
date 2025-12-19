@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -22,6 +22,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Badge } from '../../components/ui/Badge';
 import { useRequiredLanguages } from '../../hooks/useRequiredLanguages';
+import { logosService } from '../../api/services/logos.service';
 
 type FormErrors = Record<string, string>;
 
@@ -49,6 +50,9 @@ export const AttributeGroupsCreate: React.FC = () => {
   const [attributesLoading, setAttributesLoading] = useState(true);
   const [attributesError, setAttributesError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   const requiredLanguages = useRequiredLanguages();
 
@@ -114,6 +118,16 @@ export const AttributeGroupsCreate: React.FC = () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (logoFile) {
+      const url = URL.createObjectURL(logoFile);
+      setLogoPreview(url);
+      return () => URL.revokeObjectURL(url);
+    }
+    setLogoPreview(null);
+    return;
+  }, [logoFile]);
 
   const filteredAttributes = useMemo(() => {
     if (!search.trim()) {
@@ -328,6 +342,18 @@ export const AttributeGroupsCreate: React.FC = () => {
 
       const created = await attributeGroupsService.create(payload);
 
+      if (logoFile) {
+        try {
+          await logosService.upload('attribute-groups', created.id, logoFile);
+        } catch (error) {
+          console.error('Attribute group logo upload failed', error);
+          showToast({
+            type: 'warning',
+            message: t('attribute_groups.create.logo_upload_failed') || 'Logo yüklenemedi, lütfen daha sonra tekrar deneyin.',
+          });
+        }
+      }
+
       showToast({
         type: 'success',
         message: 'Attribute grubu başarıyla oluşturuldu.',
@@ -349,29 +375,31 @@ export const AttributeGroupsCreate: React.FC = () => {
     switch (currentStep) {
       case 0:
         return (
-          <Card>
+          <div className="space-y-8">
             <CardHeader
               title="Temel Bilgiler"
-              subtitle="Attribute grubunun anahtar bilgilerini tanımlayın"
+              subtitle="Öznitelik grubunun anahtar bilgilerini tanımlayın"
             />
-            <div className="space-y-6">
-              <div className="flex items-start gap-4">
-                <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-sm">
-                  <Layers className="h-8 w-8 text-white" />
-                </div>
-                <div className="flex-1 space-y-4">
-                  <Input
-                    label="Grup Anahtarı"
-                    value={formData.key}
-                    onChange={(e) => {
-                      clearError('key');
-                      updateForm({ key: e.target.value.trim().toLowerCase() });
-                    }}
-                    placeholder="product_information"
-                    helperText="Küçük harf, sayı, nokta ve tire kullanılabilir."
-                    error={formErrors.key}
-                    required
-                  />
+
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+              <div className="space-y-4">
+                <Input
+                  label="Grup Anahtarı"
+                  value={formData.key}
+                  onChange={(e) => {
+                    clearError('key');
+                    updateForm({ key: e.target.value.trim().toLowerCase() });
+                  }}
+                  placeholder="product_information"
+                  helperText="Küçük harf, sayı, nokta ve tire kullanılabilir."
+                  error={formErrors.key}
+                  required
+                />
+
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    İsimler
+                  </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {requiredLanguages.map(({ code, label }) => (
                       <Input
@@ -392,7 +420,12 @@ export const AttributeGroupsCreate: React.FC = () => {
                       />
                     ))}
                   </div>
+                </div>
 
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Açıklamalar
+                  </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {requiredLanguages.map(({ code, label }) => (
                       <div key={`description-${code}`}>
@@ -414,7 +447,12 @@ export const AttributeGroupsCreate: React.FC = () => {
                       </div>
                     ))}
                   </div>
+                </div>
 
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Notlar
+                  </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {requiredLanguages.map(({ code, label }) => (
                       <div key={`note-${code}`}>
@@ -436,34 +474,87 @@ export const AttributeGroupsCreate: React.FC = () => {
                       </div>
                     ))}
                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-                    <Input
-                      label="Gösterim Sırası"
-                      type="number"
-                      value={formData.order}
-                      onChange={(e) => {
-                        clearError('order');
-                        const value = Number(e.target.value);
-                        updateForm({ order: Number.isNaN(value) ? 0 : value });
-                      }}
-                      min={0}
-                      error={formErrors.order}
-                      helperText="Daha düşük değerler önce gösterilir."
-                    />
-
-                    <Input
-                      label="Etiketler"
-                      value={formData.tagsRaw}
-                      onChange={(e) => handleTagChange(e.target.value)}
-                      placeholder="örn: basic, marketing, merchandising"
-                      helperText="Virgülle ayrılmış değerler kullanın."
-                    />
-                  </div>
                 </div>
               </div>
+
+              <div className="space-y-4">
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {t('attribute_groups.create.logo') || 'Logo'}
+                  </p>
+                  <div className="flex items-center gap-4">
+                    <div
+                      className="w-24 h-24 rounded-xl border border-dashed border-border flex items-center justify-center bg-muted/40 relative cursor-pointer overflow-hidden"
+                      onClick={() => logoInputRef.current?.click()}
+                    >
+                      {logoPreview ? (
+                        <img
+                          src={logoPreview}
+                          alt="Logo preview"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-amber-500 to-orange-600 text-white">
+                          <Tags className="h-6 w-6" />
+                        </div>
+                      )}
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/25 opacity-0 hover:opacity-100 transition">
+                        <span className="text-xs font-semibold text-white">
+                          {t('attribute_groups.create.logo_change') || 'Logo Seç'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-[11px] leading-snug text-muted-foreground">
+                      <p className="font-medium">
+                        {t('attribute_groups.create.logo_helper') ||
+                          'PNG, JPG, WEBP, GIF, SVG (maks 5MB)'}
+                      </p>
+                      <p className="mt-1">
+                        {t('attribute_groups.create.logo_hint') ||
+                          'Varsayılan simgeye tıklayarak logo seçebilirsiniz.'}
+                      </p>
+                    </div>
+                  </div>
+                  <input
+                    ref={logoInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setLogoFile(file);
+                      } else {
+                        setLogoFile(null);
+                      }
+                    }}
+                  />
+                </div>
+
+                <Input
+                  label="Gösterim Sırası"
+                  type="number"
+                  value={formData.order}
+                  onChange={(e) => {
+                    clearError('order');
+                    const value = Number(e.target.value);
+                    updateForm({ order: Number.isNaN(value) ? 0 : value });
+                  }}
+                  min={0}
+                  error={formErrors.order}
+                  helperText="Daha düşük değerler önce gösterilir."
+                />
+
+                <Input
+                  label="Etiketler"
+                  value={formData.tagsRaw}
+                  onChange={(e) => handleTagChange(e.target.value)}
+                  placeholder="örn: basic, marketing, merchandising"
+                  helperText="Virgülle ayrılmış değerler kullanın."
+                />
+              </div>
             </div>
-          </Card>
+          </div>
         );
 
       case 1:
@@ -576,6 +667,20 @@ export const AttributeGroupsCreate: React.FC = () => {
               <div>
                 <h3 className="text-sm font-semibold text-foreground mb-3">Temel Bilgiler</h3>
                 <div className="space-y-3 text-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="w-14 h-14 rounded-lg border border-dashed border-border overflow-hidden bg-muted/50 flex items-center justify-center">
+                      {logoPreview ? (
+                        <img src={logoPreview} alt="Logo preview" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-amber-500 to-orange-600 text-white">
+                          <Tags className="h-5 w-5" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {t('attribute_groups.create.logo_preview') || 'Logo önizlemesi'}
+                    </div>
+                  </div>
                   <div>
                     <span className="text-muted-foreground">Anahtar:</span>{' '}
                     <code>{formData.key || '—'}</code>

@@ -121,6 +121,7 @@ export const API_ENDPOINTS = {
   },
   
   NOTIFICATIONS: {
+    BASE: '/notifications',
     RULES: {
       BASE: '/notifications/rules',
       BY_ID: (id: string) => `/notifications/rules/${id}`,

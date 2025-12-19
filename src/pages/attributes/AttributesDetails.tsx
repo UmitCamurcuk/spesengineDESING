@@ -1807,6 +1807,16 @@ export const AttributesDetails: React.FC = () => {
   ];
 
   const attributeName = attribute?.name?.trim() || attribute?.key || attribute?.id || '';
+  const linkedGroupNames =
+    attribute?.attributeGroups?.map((group) => group.name || group.key || group.id) ?? [];
+  const attributeInUse = linkedGroupNames.length > 0;
+  const canDeleteAttributeSafely = canDeleteAttribute;
+  const deleteBlockedMessage = attributeInUse
+    ? t('attributes.delete_blocked_in_groups', {
+        groups: linkedGroupNames.join(', '),
+      }) ||
+      `Bu attribute şu gruplarda kullanılıyor: ${linkedGroupNames.join(', ')}`
+    : null;
 
   return (
     <>
@@ -1828,17 +1838,19 @@ export const AttributesDetails: React.FC = () => {
           setSelectedGroupIds(attribute.attributeGroups?.map((group) => group.id) ?? []);
           setAttributeGroupsError(null);
         }}
-        onDelete={canDeleteAttribute ? handleDelete : undefined}
+        onDelete={canDeleteAttributeSafely ? handleDelete : undefined}
         deleteButtonLabel={t('common.delete') ?? 'Sil'}
         deleteDialogTitle={t('attributes.delete_title', { name: attributeName }) || 'Attribute silinsin mi?'}
         deleteDialogDescription={
-          t('attributes.delete_description', { name: attributeName }) ||
-          'Bu attribute kaydı kalıcı olarak silinecek. Bu işlem geri alınamaz.'
+          attributeInUse && deleteBlockedMessage
+            ? deleteBlockedMessage
+            : t('attributes.delete_description', { name: attributeName }) ||
+              'Bu attribute kaydı kalıcı olarak silinecek. Bu işlem geri alınamaz.'
         }
         deleteConfirmLabel={t('attributes.delete_action') || 'Attribute Sil'}
         deleteCancelLabel={t('common.cancel') || 'İptal'}
         deleteLoading={deleting}
-        canDelete={canDeleteAttribute}
+        canDelete={canDeleteAttributeSafely}
         inlineActions={false}
       />
 

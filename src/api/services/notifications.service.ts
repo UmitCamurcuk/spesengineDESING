@@ -180,6 +180,20 @@ export interface NotificationEventCatalog {
   events: NotificationEventDefinition[];
 }
 
+export interface InAppNotification {
+  id: string;
+  tenantId: string;
+  userId: string;
+  title: string;
+  body: string;
+  eventKey?: string | null;
+  ruleId?: string | null;
+  severity?: 'info' | 'warning' | 'critical';
+  metadata?: Record<string, unknown> | null;
+  readAt?: string | null;
+  createdAt: string;
+}
+
 export const notificationsService = {
   async getEventCatalog(): Promise<NotificationEventCatalog> {
     const response = await apiClient.get<ApiSuccessResponse<NotificationEventCatalog>>(
@@ -304,6 +318,35 @@ export const notificationsService = {
       { params },
     );
     return response.data.data.items;
+  },
+
+  async listInApp(params: { limit?: number; skip?: number; unreadOnly?: boolean } = {}): Promise<{ items: InAppNotification[]; total: number }> {
+    const response = await apiClient.get<ApiSuccessResponse<{ items: InAppNotification[]; total: number }>>(
+      `${API_ENDPOINTS.NOTIFICATIONS.BASE}/in-app`,
+      { params },
+    );
+    return response.data.data;
+  },
+
+  async unreadCount(): Promise<number> {
+    const response = await apiClient.get<ApiSuccessResponse<{ count: number }>>(
+      `${API_ENDPOINTS.NOTIFICATIONS.BASE}/in-app/unread-count`,
+    );
+    return response.data.data.count;
+  },
+
+  async markRead(id: string): Promise<InAppNotification> {
+    const response = await apiClient.post<ApiSuccessResponse<InAppNotification>>(
+      `${API_ENDPOINTS.NOTIFICATIONS.BASE}/in-app/${id}/read`,
+    );
+    return response.data.data;
+  },
+
+  async markAllRead(): Promise<number> {
+    const response = await apiClient.post<ApiSuccessResponse<{ modified: number }>>(
+      `${API_ENDPOINTS.NOTIFICATIONS.BASE}/in-app/read-all`,
+    );
+    return response.data.data.modified;
   },
 
   async getTemplate(id: string): Promise<NotificationTemplate> {

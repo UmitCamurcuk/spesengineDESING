@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, FileText, ArrowRight, Check } from 'lucide-react';
 import { Card, CardHeader } from '../../components/ui/Card';
@@ -20,6 +20,7 @@ import { attributeGroupsService } from '../../api/services/attribute-groups.serv
 import { localizationsService } from '../../api/services/localizations.service';
 import { DEFAULT_PHONE_COUNTRY_CODE, PHONE_COUNTRY_CODES } from '../../constants/phoneCodes';
 import type { CreateLocalizationRequest } from '../../api/types/api.types';
+import { logosService } from '../../api/services/logos.service';
 
 type ValidationField =
   | { key: string; label: string; type: 'number' | 'text'; placeholder?: string }
@@ -153,6 +154,13 @@ const getValidationFields = (type: AttributeType): ValidationField[] => {
         { key: 'minRating', label: 'Minimum Rating', type: 'number', placeholder: '1' },
         { key: 'maxRating', label: 'Maximum Rating', type: 'number', placeholder: '5' },
         { key: 'allowHalfStars', label: 'Allow Half Stars', type: 'boolean' },
+      ];
+    case AttributeType.FORMULA:
+    case AttributeType.EXPRESSION:
+      return [
+        { key: 'minLength', label: 'Minimum Length', type: 'number', placeholder: '0' },
+        { key: 'maxLength', label: 'Maximum Length', type: 'number', placeholder: '4000' },
+        { key: 'pattern', label: 'Regex Pattern', type: 'text', placeholder: '^[A-Z0-9_()+\\-*\\/ ]+$' },
       ];
     case AttributeType.COLOR:
       return [
@@ -785,6 +793,9 @@ export const AttributesCreate: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [optionsInput, setOptionsInput] = useState('');
   const [tagsInput, setTagsInput] = useState('');
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState({
     key: '',
@@ -972,6 +983,16 @@ export const AttributesCreate: React.FC = () => {
       cancelled = true;
     };
   }, [t]);
+
+  useEffect(() => {
+    if (logoFile) {
+      const url = URL.createObjectURL(logoFile);
+      setLogoPreview(url);
+      return () => URL.revokeObjectURL(url);
+    }
+    setLogoPreview(null);
+    return;
+  }, [logoFile]);
 
   const getStepErrors = useCallback(
     (step: number): Record<string, string> => {
@@ -1489,12 +1510,18 @@ export const AttributesCreate: React.FC = () => {
                 clearError('defaultValue');
                 setFormData((prev) => ({ ...prev, defaultValue: e.target.value }));
               }}
-              placeholder={t('attributes.create.json_placeholder')}
+              placeholder={
+                type === AttributeType.ARRAY
+                  ? t('attributes.create.array_placeholder') || '["deger1","deger2"]'
+                  : t('attributes.create.json_placeholder')
+              }
               rows={4}
               className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary font-mono text-sm"
             />
             <p className="text-xs text-muted-foreground mt-1">
-              {t('attributes.create.json_help')}
+              {type === AttributeType.ARRAY
+                ? t('attributes.create.array_help') || 'Geçerli JSON dizi kullanın. Örnek: ["deger1","deger2"]'
+                : t('attributes.create.json_help')}
             </p>
             {formErrors.defaultValue && (
               <p className="text-xs text-error mt-1">{formErrors.defaultValue}</p>
@@ -1530,6 +1557,28 @@ export const AttributesCreate: React.FC = () => {
             </div>
           </div>
         );
+      case AttributeType.FORMULA:
+      case AttributeType.EXPRESSION:
+        return (
+          <div>
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              {t('attributes.create.default_value')}
+            </label>
+            <textarea
+              value={defaultValue}
+              onChange={(e) => {
+                clearError('defaultValue');
+                setFormData((prev) => ({ ...prev, defaultValue: e.target.value }));
+              }}
+              placeholder={t('attributes.create.formula_placeholder') || 'Formül / ifade girin'}
+              rows={4}
+              className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary font-mono text-sm"
+            />
+            {formErrors.defaultValue && (
+              <p className="text-xs text-error mt-1">{formErrors.defaultValue}</p>
+            )}
+          </div>
+        );
       default:
         return (
           <Input
@@ -1550,14 +1599,13 @@ export const AttributesCreate: React.FC = () => {
     switch (currentStep) {
       case 0:
         return (
-          <Card>
+          <div className="space-y-8">
             <CardHeader
               title={t('attributes.create.basic_information')}
               subtitle={t('attributes.create.basic_information_subtitle')}
             />
-            <div className="space-y-8">
-              <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-                <div className="space-y-4">
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+              <div className="space-y-4">
                   <Input
                     label={t('attributes.create.attribute_key')}
                     value={formData.key}
@@ -1572,16 +1620,6 @@ export const AttributesCreate: React.FC = () => {
                     required
                     error={formErrors.key}
                     helperText={t('attributes.create.attribute_key_help')}
-                  />
-
-                  <Input
-                    label={t('attributes.create.tags')}
-                    value={tagsInput}
-                    onChange={(e) => {
-                      handleTagsChange(e.target.value);
-                    }}
-                    placeholder={t('attributes.create.tags_placeholder')}
-                    helperText={t('attributes.create.tags_help')}
                   />
 
                   <div className="space-y-3">
@@ -1637,6 +1675,71 @@ export const AttributesCreate: React.FC = () => {
                       ))}
                     </div>
                   </div>
+
+                  <Input
+                    label={t('attributes.create.tags')}
+                    value={tagsInput}
+                    onChange={(e) => {
+                      handleTagsChange(e.target.value);
+                    }}
+                    placeholder={t('attributes.create.tags_placeholder')}
+                    helperText={t('attributes.create.tags_help')}
+                  />
+                </div>
+
+              <div className="space-y-4">
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {t('attributes.create.logo') || 'Logo'}
+                  </p>
+                  <div className="flex items-center gap-4">
+                    <div
+                      className="w-24 h-24 rounded-xl border border-dashed border-border flex items-center justify-center bg-muted/40 relative cursor-pointer overflow-hidden"
+                      onClick={() => logoInputRef.current?.click()}
+                    >
+                      {logoPreview ? (
+                        <img
+                          src={logoPreview}
+                          alt="Logo preview"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <div className="w-14 h-14 rounded-lg bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center text-white">
+                            <FileText className="h-6 w-6" />
+                          </div>
+                        </div>
+                      )}
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/25 opacity-0 hover:opacity-100 transition">
+                        <span className="text-xs font-semibold text-white">
+                          {t('attributes.create.logo_change') || 'Logo Seç'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-[11px] leading-snug text-muted-foreground">
+                      <p className="font-medium">
+                        {t('attributes.create.logo_helper') || 'PNG, JPG, WEBP, GIF, SVG (max 5MB)'}
+                      </p>
+                      <p className="mt-1">
+                        {t('attributes.create.logo_hint') ||
+                          'Varsayılan simgeye tıklayarak logo seçebilirsiniz.'}
+                      </p>
+                    </div>
+                  </div>
+                  <input
+                    ref={logoInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setLogoFile(file);
+                      } else {
+                        setLogoFile(null);
+                      }
+                    }}
+                  />
                 </div>
 
                 <div className="space-y-3">
@@ -1662,57 +1765,54 @@ export const AttributesCreate: React.FC = () => {
                       'Her öğe için bu değer yalnızca bir kez kullanılabilir.'
                     }
                   />
-                  <div className="rounded-xl border border-dashed border-border px-4 py-3 text-xs text-muted-foreground">
-                    {t('attributes.create.attribute_groups_subtitle')}
-                  </div>
                 </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold text-foreground">
-                      {t('attributes.create.attribute_groups')}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      {t('attributes.create.attribute_groups_subtitle')}
-                    </p>
-                  </div>
-                  <Badge variant="outline">
-                    {t('attributes.create.attribute_groups_selection_count', {
-                      count: formData.attributeGroups.length,
-                    }) ?? `${formData.attributeGroups.length} selected`}
-                  </Badge>
-                </div>
-                {attributeGroupsLoading ? (
-                  <div className="text-sm text-muted-foreground">
-                    {t('attributes.create.loading_attribute_groups') || 'Attribute grupları yükleniyor...'}
-                  </div>
-                ) : attributeGroupsError ? (
-                  <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    {attributeGroupsError}
-                  </div>
-                ) : (
-                  <AttributeGroupSelector
-                    groups={attributeGroups.map((group) => ({
-                      id: group.id,
-                      name: group.name,
-                      description: group.description,
-                      attributeCount: group.attributeCount ?? group.attributeIds?.length ?? 0,
-                    }))}
-                    selectedGroups={formData.attributeGroups}
-                    onSelectionChange={(groups) => {
-                      clearError('attributeGroups');
-                      setFormData((prev) => ({ ...prev, attributeGroups: groups }));
-                    }}
-                  />
-                )}
-                {formErrors.attributeGroups && (
-                  <p className="text-xs text-error mt-1">{formErrors.attributeGroups}</p>
-                )}
               </div>
             </div>
-          </Card>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-foreground">
+                    {t('attributes.create.attribute_groups')}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    {t('attributes.create.attribute_groups_subtitle')}
+                  </p>
+                </div>
+                <Badge variant="outline">
+                  {t('attributes.create.attribute_groups_selection_count', {
+                    count: formData.attributeGroups.length,
+                  }) ?? `${formData.attributeGroups.length} selected`}
+                </Badge>
+              </div>
+              {attributeGroupsLoading ? (
+                <div className="text-sm text-muted-foreground">
+                  {t('attributes.create.loading_attribute_groups') || 'Attribute grupları yükleniyor...'}
+                </div>
+              ) : attributeGroupsError ? (
+                <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {attributeGroupsError}
+                </div>
+              ) : (
+                <AttributeGroupSelector
+                  groups={attributeGroups.map((group) => ({
+                    id: group.id,
+                    name: group.name,
+                    description: group.description,
+                    attributeCount: group.attributeCount ?? group.attributeIds?.length ?? 0,
+                  }))}
+                  selectedGroups={formData.attributeGroups}
+                  onSelectionChange={(groups) => {
+                    clearError('attributeGroups');
+                    setFormData((prev) => ({ ...prev, attributeGroups: groups }));
+                  }}
+                />
+              )}
+              {formErrors.attributeGroups && (
+                <p className="text-xs text-error mt-1">{formErrors.attributeGroups}</p>
+              )}
+            </div>
+          </div>
         );
 
       case 1:
@@ -1914,6 +2014,22 @@ export const AttributesCreate: React.FC = () => {
                   <h4 className="text-sm font-medium text-foreground mb-2">
                     {t('attributes.create.basic_information_summary')}
                   </h4>
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-14 h-14 rounded-lg border border-dashed border-border overflow-hidden bg-muted/50 flex items-center justify-center">
+                      {logoPreview ? (
+                        <img src={logoPreview} alt="Logo preview" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-indigo-500 to-blue-600 text-white">
+                          <FileText className="h-5 w-5" />
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">
+                        {t('attributes.create.logo_preview') || 'Logo önizlemesi'}
+                      </p>
+                    </div>
+                  </div>
                   <p>
                     <span className="text-muted-foreground">
                       {t('attributes.create.attribute_key')}:
@@ -2197,6 +2313,18 @@ export const AttributesCreate: React.FC = () => {
             message:
               t('attributes.create.attribute_group_update_failed') ||
               'Attribute attribute gruplarına bağlanırken bazı hatalar oluştu.',
+          });
+        }
+      }
+
+      if (logoFile) {
+        try {
+          await logosService.upload('attribute', created.id, logoFile);
+        } catch (error) {
+          console.error('Attribute logo upload failed', error);
+          showToast({
+            type: 'warning',
+            message: t('attributes.create.logo_upload_failed') || 'Logo yüklenemedi, lütfen daha sonra tekrar deneyin.',
           });
         }
       }

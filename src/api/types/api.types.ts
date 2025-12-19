@@ -674,6 +674,7 @@ export interface RoleRecord {
   description: string;
   descriptionLanguage: string | null;
   isSystemRole: boolean;
+  logoUrl?: string | null;
   permissions: string[]; // Array of enabled permission IDs
   createdAt: string;
   updatedAt: string;

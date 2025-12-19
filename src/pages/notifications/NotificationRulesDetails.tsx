@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Zap, FileText, BarChart3, Code, BookOpen, History as HistoryIcon, Loader2 } from 'lucide-react';
+import { Zap, FileText, BarChart3, Code, BookOpen, History as HistoryIcon, Loader2, Plus, Trash2 } from 'lucide-react';
 import { DetailsLayout } from '../../components/common/DetailsLayout';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -11,6 +11,8 @@ import type { TabConfig, APIEndpoint, DocumentationSection } from '../../types/c
 import { Card, CardHeader } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
+import { Select } from '../../components/ui/Select';
+import { Button } from '../../components/ui/Button';
 import { Statistics } from '../../components/common/Statistics';
 import { APITester } from '../../components/common/APITester';
 import { Documentation } from '../../components/common/Documentation';
@@ -18,15 +20,13 @@ import { HistoryTable } from '../../components/common/HistoryTable';
 import { ChangeConfirmDialog } from '../../components/ui/ChangeConfirmDialog';
 import { PERMISSIONS } from '../../config/permissions';
 import { useRequiredLanguages } from '../../hooks/useRequiredLanguages';
+import { rolesService } from '../../api/services/roles.service';
 
 type GeneralForm = {
   name: string;
   description: string;
   eventKey: string;
   isActive: boolean;
-  filtersJson: string;
-  recipientsJson: string;
-  channelsJson: string;
 };
 
 type ChangeItem = {
@@ -35,6 +35,25 @@ type ChangeItem = {
   newValue: string | number | boolean;
 };
 
+type FilterRow = { id: string; field: string; value: string };
+
+type RecipientRow = {
+  id: string;
+  type: 'user' | 'role' | 'email' | 'webhook';
+  value: string;
+};
+
+type ChannelRow = {
+  id: string;
+  channelType: string;
+  templateId?: string | null;
+  enabled: boolean;
+  targetChannel?: string;
+  mentionAll?: boolean;
+};
+
+const generateRowId = () => Math.random().toString(36).slice(2, 11);
+
 const cloneGeneralForm = (form: GeneralForm): GeneralForm => ({ ...form });
 
 const normalizeGeneralForm = (form: GeneralForm): GeneralForm => ({
@@ -42,9 +61,6 @@ const normalizeGeneralForm = (form: GeneralForm): GeneralForm => ({
   description: form.description.trim(),
   eventKey: form.eventKey.trim(),
   isActive: form.isActive,
-  filtersJson: form.filtersJson.trim(),
-  recipientsJson: form.recipientsJson.trim(),
-  channelsJson: form.channelsJson.trim(),
 });
 
 const generalFormsEqual = (a: GeneralForm, b: GeneralForm): boolean => {
@@ -54,20 +70,82 @@ const generalFormsEqual = (a: GeneralForm, b: GeneralForm): boolean => {
     normalizedA.name === normalizedB.name &&
     normalizedA.description === normalizedB.description &&
     normalizedA.eventKey === normalizedB.eventKey &&
-    normalizedA.isActive === normalizedB.isActive &&
-    normalizedA.filtersJson === normalizedB.filtersJson &&
-    normalizedA.recipientsJson === normalizedB.recipientsJson &&
-    normalizedA.channelsJson === normalizedB.channelsJson
+    normalizedA.isActive === normalizedB.isActive
   );
 };
+
+const IN_APP_CHANNEL_TYPE = 'in_app';
+
+const filtersToPayload = (rows: FilterRow[]): Record<string, unknown> => {
+  const result: Record<string, unknown> = {};
+  rows.forEach((row) => {
+    const key = row.field.trim();
+    if (!key) {
+      return;
+    }
+    const value = row.value.trim();
+    if (value === '') {
+      return;
+    }
+    result[key] = value;
+  });
+  return result;
+};
+
+const recipientsToPayload = (rows: RecipientRow[]) =>
+  rows
+    .map((row) => ({ type: row.type, value: row.value.trim() }))
+    .filter((row) => row.value.length > 0);
+
+const channelsToPayload = (rows: ChannelRow[]) =>
+  rows
+    .filter((row) => row.channelType.trim().length > 0)
+    .map((row) => {
+      const isInApp = row.channelType === IN_APP_CHANNEL_TYPE;
+      const settingsOverride: Record<string, unknown> = {};
+      if (!isInApp && row.targetChannel?.trim()) {
+        settingsOverride.channel = row.targetChannel.trim();
+      }
+      if (!isInApp && row.mentionAll) {
+        settingsOverride.mentionAll = true;
+      }
+      return {
+        channelType: row.channelType,
+        templateId: row.templateId ?? undefined,
+        enabled: row.enabled,
+        settingsOverride: Object.keys(settingsOverride).length ? settingsOverride : undefined,
+      };
+    });
 
 interface RuleDetailsTabProps {
   form: GeneralForm;
   editMode: boolean;
+  filters: FilterRow[];
+  recipients: RecipientRow[];
+  channels: ChannelRow[];
   onChange: (updater: (prev: GeneralForm) => GeneralForm) => void;
+  onFiltersChange: (rows: FilterRow[]) => void;
+  onRecipientsChange: (rows: RecipientRow[]) => void;
+  onChannelsChange: (rows: ChannelRow[]) => void;
+  channelTypeOptions: { value: string; label: string }[];
+  templateOptionsByChannel: Map<string, { value: string; label: string }[]>;
+  roleOptions: { value: string; label: string }[];
 }
 
-const RuleDetailsTab: React.FC<RuleDetailsTabProps> = ({ form, editMode, onChange }) => {
+const RuleDetailsTab: React.FC<RuleDetailsTabProps> = ({
+  form,
+  editMode,
+  filters,
+  recipients,
+  channels,
+  onChange,
+  onFiltersChange,
+  onRecipientsChange,
+  onChannelsChange,
+  channelTypeOptions,
+  templateOptionsByChannel,
+  roleOptions,
+}) => {
   const { t } = useLanguage();
 
   const handleFieldChange = (field: keyof GeneralForm, value: string | boolean) => {
@@ -121,32 +199,287 @@ const RuleDetailsTab: React.FC<RuleDetailsTabProps> = ({ form, editMode, onChang
       </Card>
 
       <Card padding="lg">
-        <CardHeader
-          title="Filters & Recipients"
-          subtitle="Configure rule filters, recipients and channels"
-        />
-        <div className="space-y-4">
-          <Textarea
-            label={t('notifications.rules.fields.filters') ?? 'Filters (JSON)'}
-            value={form.filtersJson}
-            onChange={(event) => handleFieldChange('filtersJson', event.target.value)}
-            rows={6}
-            disabled={!editMode}
-          />
-          <Textarea
-            label={t('notifications.rules.fields.recipients') ?? 'Recipients (JSON)'}
-            value={form.recipientsJson}
-            onChange={(event) => handleFieldChange('recipientsJson', event.target.value)}
-            rows={8}
-            disabled={!editMode}
-          />
-          <Textarea
-            label={t('notifications.rules.fields.channels') ?? 'Channels (JSON)'}
-            value={form.channelsJson}
-            onChange={(event) => handleFieldChange('channelsJson', event.target.value)}
-            rows={8}
-            disabled={!editMode}
-          />
+        <CardHeader title="Filtreler" subtitle="Olay verisini süzün" />
+        <div className="space-y-3">
+          {filters.map((row, index) => (
+            <div
+              key={row.id}
+              className="flex flex-wrap gap-3 items-end rounded-lg border border-border/70 bg-muted/30 p-3"
+            >
+              <Input
+                label={`Alan ${index + 1}`}
+                value={row.field}
+                onChange={(event) =>
+                  onFiltersChange(filters.map((r) => (r.id === row.id ? { ...r, field: event.target.value } : r)))
+                }
+                disabled={!editMode}
+                className="flex-1 min-w-[220px]"
+              />
+              {['roleId', 'role_id', 'role'].includes(row.field.trim()) ? (
+                <Select
+                  label="Değer"
+                  value={row.value}
+                  onChange={(event) =>
+                    onFiltersChange(filters.map((r) => (r.id === row.id ? { ...r, value: event.target.value } : r)))
+                  }
+                  options={[{ value: '', label: 'Rol seçin' }, ...roleOptions]}
+                  disabled={!editMode}
+                  className="flex-1 min-w-[220px]"
+                />
+              ) : (
+                <Input
+                  label="Değer"
+                  value={row.value}
+                  onChange={(event) =>
+                    onFiltersChange(filters.map((r) => (r.id === row.id ? { ...r, value: event.target.value } : r)))
+                  }
+                  disabled={!editMode}
+                  className="flex-1 min-w-[220px]"
+                  placeholder="Örn. seviyesi=kritik"
+                />
+              )}
+              <div className="flex justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={<Trash2 className="h-3.5 w-3.5" />}
+                  disabled={!editMode}
+                  onClick={() => onFiltersChange(filters.filter((r) => r.id !== row.id))}
+                >
+                  Sil
+                </Button>
+              </div>
+            </div>
+          ))}
+          {editMode ? (
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={<Plus className="h-3.5 w-3.5" />}
+              onClick={() => onFiltersChange([...filters, { id: generateRowId(), field: '', value: '' }])}
+            >
+              Filtre ekle
+            </Button>
+          ) : null}
+        </div>
+      </Card>
+
+      <Card padding="lg">
+        <CardHeader title="Alıcılar" subtitle="Bildirim kime gidecek?" />
+        <div className="space-y-3">
+          {recipients.map((row) => (
+            <div
+              key={row.id}
+              className="flex flex-wrap gap-3 items-end rounded-lg border border-border/70 bg-muted/30 p-3"
+            >
+              <Select
+                label="Alıcı tipi"
+                value={row.type}
+                onChange={(event) =>
+                  onRecipientsChange(
+                    recipients.map((r) => (r.id === row.id ? { ...r, type: event.target.value as RecipientRow['type'] } : r)),
+                  )
+                }
+                options={[
+                  { value: 'user', label: 'Kullanıcı' },
+                  { value: 'role', label: 'Rol' },
+                  { value: 'email', label: 'E-posta' },
+                  { value: 'webhook', label: 'Webhook' },
+                ]}
+                disabled={!editMode}
+                className="flex-1 min-w-[180px] lg:max-w-[200px]"
+              />
+              {row.type === 'role' ? (
+                <Select
+                  label="Rol"
+                  value={row.value}
+                  onChange={(event) =>
+                    onRecipientsChange(
+                      recipients.map((r) => (r.id === row.id ? { ...r, value: event.target.value } : r)),
+                    )
+                  }
+                  options={[{ value: '', label: 'Rol seçin' }, ...roleOptions]}
+                  disabled={!editMode}
+                  className="flex-1 min-w-[220px]"
+                  placeholder="Rol seçin"
+                />
+              ) : (
+                <Input
+                  label="Değer"
+                  value={row.value}
+                  onChange={(event) =>
+                    onRecipientsChange(
+                      recipients.map((r) => (r.id === row.id ? { ...r, value: event.target.value } : r)),
+                    )
+                  }
+                  disabled={!editMode}
+                  className="flex-1 min-w-[220px]"
+                  placeholder={
+                    row.type === 'email'
+                      ? 'security@example.com'
+                      : row.type === 'webhook'
+                        ? 'https://hooks.slack.com/...'
+                        : 'ID veya email'
+                  }
+                />
+              )}
+              <div className="flex justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={<Trash2 className="h-3.5 w-3.5" />}
+                  disabled={!editMode}
+                  onClick={() => onRecipientsChange(recipients.filter((r) => r.id !== row.id))}
+                >
+                  Sil
+                </Button>
+              </div>
+            </div>
+          ))}
+          {editMode ? (
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={<Plus className="h-3.5 w-3.5" />}
+              onClick={() =>
+                onRecipientsChange([...recipients, { id: generateRowId(), type: 'role', value: '' }])
+              }
+            >
+              Alıcı ekle
+            </Button>
+          ) : null}
+        </div>
+      </Card>
+
+      <Card padding="lg">
+        <CardHeader title="Kanallar" subtitle="Hangi kanallardan gönderilecek?" />
+        <div className="space-y-3">
+          {channels.map((row) => {
+            const options = channelTypeOptions.some((opt) => opt.value === row.channelType)
+              ? channelTypeOptions
+              : [...channelTypeOptions, { value: row.channelType, label: row.channelType || 'Kanal' }];
+            const templateOptions = templateOptionsByChannel.get(row.channelType) ?? [];
+            const isInApp = row.channelType === IN_APP_CHANNEL_TYPE;
+            return (
+              <div
+                key={row.id}
+                className="flex flex-wrap gap-3 items-end border border-border rounded-md p-4 bg-muted/30"
+              >
+                <Select
+                  label="Kanal tipi"
+                  value={row.channelType}
+                  onChange={(event) =>
+                    onChannelsChange(
+                      channels.map((c) =>
+                        c.id === row.id ? { ...c, channelType: event.target.value, templateId: undefined } : c,
+                      ),
+                    )
+                  }
+                  options={[{ value: '', label: 'Seçin' }, ...options]}
+                  disabled={!editMode}
+                  className="flex-1 min-w-[200px] lg:max-w-[240px]"
+                />
+                <Select
+                  label="Şablon"
+                  value={row.templateId ?? ''}
+                  onChange={(event) =>
+                    onChannelsChange(
+                      channels.map((c) =>
+                        c.id === row.id ? { ...c, templateId: event.target.value || undefined } : c,
+                      ),
+                    )
+                  }
+                  options={[
+                    { value: '', label: templateOptions.length ? 'Varsayılan şablon' : 'Uygun şablon yok' },
+                    ...templateOptions,
+                  ]}
+                  disabled={!editMode || !row.channelType}
+                  className="flex-1 min-w-[200px]"
+                />
+                {!isInApp ? (
+                  <Input
+                    label="Hedef kanal/adres"
+                    value={row.targetChannel ?? ''}
+                    onChange={(event) =>
+                      onChannelsChange(
+                        channels.map((c) =>
+                          c.id === row.id ? { ...c, targetChannel: event.target.value } : c,
+                        ),
+                      )
+                    }
+                    disabled={!editMode}
+                    className="flex-1 min-w-[200px]"
+                    placeholder="Örn. #alerts"
+                  />
+                ) : (
+                  <div className="flex-1 min-w-[200px] text-sm text-muted-foreground">
+                    In-app: hedef kullanıcı alıcılardan çözümlenir
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-3 items-center">
+                  <label className="flex items-center gap-2 text-sm text-foreground">
+                    <input
+                      type="checkbox"
+                      checked={row.enabled}
+                      onChange={(event) =>
+                        onChannelsChange(
+                          channels.map((c) =>
+                            c.id === row.id ? { ...c, enabled: event.target.checked } : c,
+                          ),
+                        )
+                      }
+                      disabled={!editMode}
+                    />
+                    Aktif
+                  </label>
+                  {!isInApp ? (
+                    <label className="flex items-center gap-2 text-sm text-foreground">
+                      <input
+                        type="checkbox"
+                        checked={row.mentionAll ?? false}
+                        onChange={(event) =>
+                          onChannelsChange(
+                            channels.map((c) =>
+                              c.id === row.id ? { ...c, mentionAll: event.target.checked } : c,
+                            ),
+                          )
+                        }
+                        disabled={!editMode}
+                      />
+                      Herkesi mention et
+                    </label>
+                  ) : null}
+                </div>
+                {editMode ? (
+                  <div className="flex justify-end w-full">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      leftIcon={<Trash2 className="h-3.5 w-3.5" />}
+                      onClick={() => onChannelsChange(channels.filter((c) => c.id !== row.id))}
+                    >
+                      Sil
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+          {editMode ? (
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={<Plus className="h-3.5 w-3.5" />}
+              onClick={() =>
+                onChannelsChange([
+                  ...channels,
+                  { id: generateRowId(), channelType: channelTypeOptions[0]?.value ?? IN_APP_CHANNEL_TYPE, enabled: true },
+                ])
+              }
+            >
+              Kanal ekle
+            </Button>
+          ) : null}
         </div>
       </Card>
     </div>
@@ -216,11 +549,66 @@ export function NotificationRulesDetails() {
   const [isGeneralEditing, setIsGeneralEditing] = useState(false);
   const [generalHasChanges, setGeneralHasChanges] = useState(false);
   const generalBaselineRef = useRef<GeneralForm | null>(null);
+  const [filterRows, setFilterRows] = useState<FilterRow[]>([]);
+  const [recipientRows, setRecipientRows] = useState<RecipientRow[]>([]);
+  const [channelRows, setChannelRows] = useState<ChannelRow[]>([]);
+  const filtersBaselineRef = useRef<Record<string, unknown>>({});
+  const recipientsBaselineRef = useRef<RecipientRow[]>([]);
+  const channelsBaselineRef = useRef<ChannelRow[]>([]);
+  const recipientsBaselinePayloadRef = useRef<Array<{ type: string; value: string }>>([]);
+  const channelsBaselinePayloadRef = useRef<Array<Record<string, unknown>>>([]);
+  const [availableChannels, setAvailableChannels] = useState<{ type: string; name: string }[]>([]);
+  const [availableTemplates, setAvailableTemplates] = useState<
+    { id: string; name: string; channelType: string }[]
+  >([]);
+  const [roleOptions, setRoleOptions] = useState<{ value: string; label: string }[]>([]);
 
   const [pendingChanges, setPendingChanges] = useState<ChangeItem[]>([]);
   const [commentDialogOpen, setCommentDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const filtersPayload = useMemo(() => filtersToPayload(filterRows), [filterRows]);
+  const recipientsPayload = useMemo(() => recipientsToPayload(recipientRows), [recipientRows]);
+  const channelsPayload = useMemo(() => channelsToPayload(channelRows), [channelRows]);
+  const filtersChanged = useMemo(
+    () => JSON.stringify(filtersPayload) !== JSON.stringify(filtersBaselineRef.current),
+    [filtersPayload],
+  );
+  const recipientsChanged = useMemo(
+    () => JSON.stringify(recipientsPayload) !== JSON.stringify(recipientsBaselinePayloadRef.current),
+    [recipientsPayload],
+  );
+  const channelsChanged = useMemo(
+    () => JSON.stringify(channelsPayload) !== JSON.stringify(channelsBaselinePayloadRef.current),
+    [channelsPayload],
+  );
+  const hasChanges = generalHasChanges || filtersChanged || recipientsChanged || channelsChanged;
+
+  const channelTypeOptions = useMemo(() => {
+    const unique = new Map<string, { type: string; name: string }>();
+    availableChannels.forEach((channel) => {
+      if (!unique.has(channel.type)) {
+        unique.set(channel.type, channel);
+      }
+    });
+    if (!unique.has(IN_APP_CHANNEL_TYPE)) {
+      unique.set(IN_APP_CHANNEL_TYPE, { type: IN_APP_CHANNEL_TYPE, name: 'In-App' });
+    }
+    return Array.from(unique.values()).map((channel) => ({
+      value: channel.type,
+      label: `${channel.name} (${channel.type})`,
+    }));
+  }, [availableChannels]);
+
+  const templateOptionsByChannel = useMemo(() => {
+    const map = new Map<string, { value: string; label: string }[]>();
+    availableTemplates.forEach((tpl) => {
+      const list = map.get(tpl.channelType) ?? [];
+      list.push({ value: tpl.id, label: tpl.name });
+      map.set(tpl.channelType, list);
+    });
+    return map;
+  }, [availableTemplates]);
 
   const buildTranslations = useCallback(
     (value: string): Record<string, string> => {
@@ -234,7 +622,6 @@ export function NotificationRulesDetails() {
   );
   const [apiReference, setApiReference] = useState<APIEndpoint[]>([]);
   const [documentationSections, setDocumentationSections] = useState<DocumentationSection[]>([]);
-
 
   const updateGeneralForm = useCallback((updater: (prev: GeneralForm) => GeneralForm) => {
     setGeneralForm((prev) => {
@@ -257,21 +644,60 @@ export function NotificationRulesDetails() {
       setLoading(true);
       setIsGeneralEditing(false);
 
-      const ruleResponse = await notificationsService.getRule(id);
+      const [ruleResponse, channelsResponse, templatesResponse, rolesResponse] = await Promise.all([
+        notificationsService.getRule(id),
+        notificationsService.listChannels(),
+        notificationsService.listTemplates(),
+        rolesService.list(),
+      ]);
 
       const general: GeneralForm = {
         name: ruleResponse.name ?? '',
         description: ruleResponse.description ?? '',
         eventKey: ruleResponse.eventKey ?? '',
         isActive: ruleResponse.isActive,
-        filtersJson: JSON.stringify(ruleResponse.filters ?? {}, null, 2),
-        recipientsJson: JSON.stringify(ruleResponse.recipients ?? [], null, 2),
-        channelsJson: JSON.stringify(ruleResponse.channels ?? [], null, 2),
       };
 
       generalBaselineRef.current = cloneGeneralForm(general);
       setGeneralForm(cloneGeneralForm(general));
       setGeneralHasChanges(false);
+
+      const parsedFilters: FilterRow[] = Object.entries(ruleResponse.filters ?? {}).map(
+        ([key, value]) => ({
+          id: generateRowId(),
+          field: key,
+          value: typeof value === 'string' ? value : JSON.stringify(value),
+        }),
+      );
+      setFilterRows(parsedFilters.length ? parsedFilters : [{ id: generateRowId(), field: '', value: '' }]);
+      filtersBaselineRef.current = filtersToPayload(parsedFilters);
+
+      const parsedRecipients: RecipientRow[] = (ruleResponse.recipients ?? []).map((recipient) => ({
+        id: generateRowId(),
+        type: recipient.type as RecipientRow['type'],
+        value: recipient.value ?? '',
+      }));
+      setRecipientRows(parsedRecipients.length ? parsedRecipients : [{ id: generateRowId(), type: 'role', value: '' }]);
+      recipientsBaselineRef.current = parsedRecipients.map((r) => ({ ...r }));
+      recipientsBaselinePayloadRef.current = recipientsToPayload(parsedRecipients);
+
+      const parsedChannels: ChannelRow[] = (ruleResponse.channels ?? []).map((channel, index) => ({
+        id: generateRowId(),
+        channelType: channel.channelType ?? '',
+        templateId: channel.templateId ?? undefined,
+        enabled: channel.enabled ?? true,
+        targetChannel: (channel.settingsOverride as any)?.channel ?? undefined,
+        mentionAll: Boolean((channel.settingsOverride as any)?.mentionAll),
+      }));
+      setChannelRows(parsedChannels.length ? parsedChannels : [{ id: generateRowId(), channelType: IN_APP_CHANNEL_TYPE, enabled: true }]);
+      channelsBaselineRef.current = parsedChannels.map((c) => ({ ...c }));
+      channelsBaselinePayloadRef.current = channelsToPayload(parsedChannels);
+
+      setAvailableChannels(channelsResponse);
+      setAvailableTemplates(
+        templatesResponse.map((tpl) => ({ id: tpl.id, name: tpl.name, channelType: tpl.channelType })),
+      );
+      setRoleOptions((rolesResponse.items ?? []).map((role) => ({ value: role.id, label: role.name })));
 
       const fetchTasks: Promise<void>[] = [];
 
@@ -385,15 +811,26 @@ export function NotificationRulesDetails() {
     }
     setGeneralForm(cloneGeneralForm(generalBaselineRef.current));
     setGeneralHasChanges(false);
+    setFilterRows(
+      Object.entries(filtersBaselineRef.current).length
+        ? Object.entries(filtersBaselineRef.current).map(([key, value]) => ({
+            id: generateRowId(),
+            field: key,
+            value: String(value ?? ''),
+          }))
+        : [{ id: generateRowId(), field: '', value: '' }],
+    );
+    setRecipientRows(
+      recipientsBaselineRef.current.length
+        ? recipientsBaselineRef.current.map((r) => ({ ...r }))
+        : [{ id: generateRowId(), type: 'role', value: '' }],
+    );
+    setChannelRows(
+      channelsBaselineRef.current.length
+        ? channelsBaselineRef.current.map((c) => ({ ...c }))
+        : [{ id: generateRowId(), channelType: IN_APP_CHANNEL_TYPE, enabled: true }],
+    );
     setIsGeneralEditing(false);
-  };
-
-  const parseJson = (value: string, fallback: any) => {
-    try {
-      return JSON.parse(value);
-    } catch {
-      return fallback;
-    }
   };
 
   const handleGeneralSave = () => {
@@ -421,6 +858,28 @@ export function NotificationRulesDetails() {
         });
       }
     });
+
+    if (filtersChanged) {
+      changes.push({
+        field: 'filters',
+        oldValue: Object.keys(filtersBaselineRef.current ?? {}).length,
+        newValue: Object.keys(filtersPayload ?? {}).length,
+      });
+    }
+    if (recipientsChanged) {
+      changes.push({
+        field: 'recipients',
+        oldValue: recipientsBaselinePayloadRef.current.length,
+        newValue: recipientsPayload.length,
+      });
+    }
+    if (channelsChanged) {
+      changes.push({
+        field: 'channels',
+        oldValue: channelsBaselinePayloadRef.current.length,
+        newValue: channelsPayload.length,
+      });
+    }
 
     if (changes.length === 0) {
       showToast({ type: 'info', message: t('common.no_changes') ?? 'No changes detected' });
@@ -491,9 +950,9 @@ export function NotificationRulesDetails() {
         descriptionLocalizationId,
         eventKey: generalForm.eventKey.trim(),
         isActive: generalForm.isActive,
-        filters: parseJson(generalForm.filtersJson, {}),
-        recipients: parseJson(generalForm.recipientsJson, []),
-        channels: parseJson(generalForm.channelsJson, []),
+        filters: filtersPayload,
+        recipients: recipientsPayload,
+        channels: channelsPayload,
       };
 
       await notificationsService.updateRule(id, payload);
@@ -537,6 +996,15 @@ export function NotificationRulesDetails() {
           form: generalForm,
           editMode: isGeneralEditing,
           onChange: updateGeneralForm,
+          filters: filterRows,
+          recipients: recipientRows,
+          channels: channelRows,
+          onFiltersChange: setFilterRows,
+          onRecipientsChange: setRecipientRows,
+          onChannelsChange: setChannelRows,
+          channelTypeOptions,
+          templateOptionsByChannel,
+          roleOptions,
         },
         hidden: !canRead,
       },
@@ -598,6 +1066,11 @@ export function NotificationRulesDetails() {
     canViewDocumentation,
     canViewHistory,
     canViewStatistics,
+    channelRows,
+    channelTypeOptions,
+    filterRows,
+    recipientRows,
+    templateOptionsByChannel,
     documentationSections,
     generalForm,
     isGeneralEditing,
@@ -648,7 +1121,7 @@ export function NotificationRulesDetails() {
         backUrl="/notifications/rules"
         tabs={tabs}
         editMode={isGeneralEditing}
-        hasChanges={generalHasChanges}
+        hasChanges={hasChanges}
         onEdit={canUpdate ? handleEnterGeneralEdit : undefined}
         onSave={canUpdate ? handleGeneralSave : undefined}
         onCancel={handleCancelGeneralEdit}

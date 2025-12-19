@@ -8,6 +8,7 @@ import { TabConfig } from '../../types/common';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useEditActionContext } from '../../contexts/EditActionContext';
 import { Dialog } from '../ui/Dialog';
+import { cn } from '../../utils/cn';
 
 interface DetailsLayoutProps {
   title: React.ReactNode;
@@ -31,6 +32,7 @@ interface DetailsLayoutProps {
   deleteCancelLabel?: string;
   deleteLoading?: boolean;
   canDelete?: boolean;
+  iconContainerClassName?: string;
 }
 
 export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
@@ -55,6 +57,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
   deleteCancelLabel,
   deleteLoading = false,
   canDelete = true,
+  iconContainerClassName,
 }) => {
   const navigate = useNavigate();
   const { t } = useLanguage();
@@ -278,7 +281,12 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
           )}
           
         <div className="flex items-center space-x-3 w-full">
-          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0">
+          <div
+            className={cn(
+              'w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-sm flex-shrink-0 overflow-hidden',
+              iconContainerClassName,
+            )}
+          >
             {icon}
           </div>
           <div className="min-w-0 space-y-1">
@@ -301,7 +309,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
       </div>
 
       {tabsWithBadges.length > 0 ? (
-        <Card padding="none" className="overflow-hidden">
+        <Card padding="none" className="overflow-hidden flex flex-col min-h-[calc(100vh-240px)]">
           <div className="px-6 pt-6">
             <Tabs
               tabs={tabsWithBadges}
@@ -311,7 +319,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
             />
           </div>
 
-          <TabPanel className="px-6 pb-6">
+          <TabPanel className="px-6 pb-6 flex-1">
             {ActiveComponent && (
               <ActiveComponent
                 editMode={editMode}

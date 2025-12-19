@@ -18,7 +18,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { ChangeConfirmDialog } from '../../components/ui/ChangeConfirmDialog';
 import { DetailsLayout } from '../../components/common/DetailsLayout';
-import { Card, CardHeader } from '../../components/ui/Card';
+import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { HistoryTable } from '../../components/common/HistoryTable';
 import { EntityNotificationsTab } from '../../components/notifications/EntityNotificationsTab';
@@ -37,6 +37,7 @@ import { UserInfoWithRole } from '../../components/common/UserInfoWithRole';
 import { PERMISSIONS } from '../../config/permissions';
 import { useRequiredLanguages } from '../../hooks/useRequiredLanguages';
 import type { LocalizationRecord } from '../../api/types/api.types';
+import { logosService } from '../../api/services/logos.service';
 
 interface AttributeGroupDetailsTabProps {
   group: AttributeGroup;
@@ -105,24 +106,27 @@ const AttributeGroupDetailsTab: React.FC<AttributeGroupDetailsTabProps> = ({
 
     return (
       <div className="space-y-6">
-        <Card>
-          <CardHeader
-            title={t('attributeGroups.basic_information') || 'Temel Bilgiler'}
-            subtitle={
-              t('attributeGroups.basic_information_edit_help') ||
-              'Grubun temel bilgilerini ve çevirilerini güncelleyin.'
-            }
-          />
-          <div className="px-6 pb-6 space-y-4">
-            {localizationsLoading ? (
-              <div className="text-sm text-muted-foreground">
-                {t('attributeGroups.loading_localizations') ?? 'Çeviri kayıtları yükleniyor...'}
-              </div>
-            ) : null}
-            {localizationsError ? (
-              <div className="text-sm text-error">{localizationsError}</div>
-            ) : null}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-3">
+          <div>
+            <h3 className="text-base font-semibold text-foreground">
+              {t('attributeGroups.basic_information') || 'Temel Bilgiler'}
+            </h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {t('attributeGroups.basic_information_edit_help') ||
+                'Grubun temel bilgilerini ve çevirilerini güncelleyin.'}
+            </p>
+          </div>
+
+          {localizationsLoading ? (
+            <div className="text-sm text-muted-foreground">
+              {t('attributeGroups.loading_localizations') ?? 'Çeviri kayıtları yükleniyor...'}
+            </div>
+          ) : null}
+          {localizationsError ? (
+            <div className="text-sm text-error">{localizationsError}</div>
+          ) : null}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Input
               label={t('attributeGroups.key') || 'Anahtar'}
               value={group.key ?? ''}
@@ -192,69 +196,72 @@ const AttributeGroupDetailsTab: React.FC<AttributeGroupDetailsTabProps> = ({
                 error={tagError}
               />
             </div>
-            </div>
           </div>
-        </Card>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader
-          title={t('attributeGroups.basic_information') || 'Temel Bilgiler'}
-          subtitle={t('attributeGroups.basic_information_subtitle') || 'Attribute grubuna ait meta veriler'}
-        />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 px-6 pb-6">
-          <div className="space-y-2 text-sm">
+      <div className="space-y-2">
+        <div>
+          <h3 className="text-base font-semibold text-foreground">
+            {t('attributeGroups.basic_information') || 'Temel Bilgiler'}
+          </h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {t('attributeGroups.basic_information_subtitle') ||
+              'Öznitelik grubuna ait temel meta verileri görüntüleyin.'}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-1 text-sm">
             <span className="text-muted-foreground">{t('attributeGroups.key') || 'Anahtar'}</span>
-            <p className="font-mono bg-muted px-2 py-1 rounded">{group.key ?? group.id}</p>
+            <p className="font-mono bg-muted px-2 py-1 rounded inline-block">{group.key ?? group.id}</p>
           </div>
 
-          <div className="space-y-2 text-sm">
+          <div className="space-y-1 text-sm">
             <span className="text-muted-foreground">
               {t('attributeGroups.display_order') || 'Gösterim Sırası'}
             </span>
             <p>{group.order ?? 0}</p>
           </div>
 
-          <div className="space-y-2 text-sm md:col-span-2">
+          <div className="space-y-1 text-sm md:col-span-2">
             <span className="text-muted-foreground">{t('attributeGroups.description') || 'Açıklama'}</span>
-            <p>{group.description || '—'}</p>
+            <p className="text-foreground">{group.description || '—'}</p>
           </div>
 
           {group.note ? (
-            <div className="space-y-2 text-sm md:col-span-2">
+            <div className="space-y-1 text-sm md:col-span-2">
               <span className="text-muted-foreground">{t('attributeGroups.note') || 'Not'}</span>
-              <p>{group.note}</p>
+              <p className="text-foreground">{group.note}</p>
             </div>
           ) : null}
 
-          <div className="space-y-2 text-sm">
+          <div className="space-y-1 text-sm">
             <span className="text-muted-foreground">{t('attributeGroups.created_at') || 'Oluşturulma'}</span>
             <p>{new Date(group.createdAt).toLocaleString()}</p>
           </div>
 
-          <div className="space-y-2 text-sm">
+          <div className="space-y-1 text-sm">
             <span className="text-muted-foreground">{t('attributeGroups.updated_at') || 'Güncellenme'}</span>
             <p>{new Date(group.updatedAt).toLocaleString()}</p>
           </div>
 
-          <div className="space-y-2 text-sm">
+          <div className="space-y-1 text-sm">
             <span className="text-muted-foreground">{t('attributeGroups.created_by') || 'Oluşturan'}</span>
             <UserInfoWithRole user={group.createdBy} />
           </div>
 
-          <div className="space-y-2 text-sm">
+          <div className="space-y-1 text-sm">
             <span className="text-muted-foreground">{t('attributeGroups.updated_by') || 'Güncelleyen'}</span>
             <UserInfoWithRole user={group.updatedBy} />
           </div>
 
-          <div className="space-y-2 text-sm md:col-span-2">
-            <span className="text-muted-foreground">
-              {t('attributeGroups.tags_label') || 'Etiketler'}
-            </span>
+          <div className="space-y-1 text-sm md:col-span-2">
+            <span className="text-muted-foreground">{t('attributeGroups.tags_label') || 'Etiketler'}</span>
             {group.tags && group.tags.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {group.tags.map((tag) => (
@@ -268,14 +275,12 @@ const AttributeGroupDetailsTab: React.FC<AttributeGroupDetailsTabProps> = ({
             )}
           </div>
 
-          <div className="space-y-2 text-sm md:col-span-2">
-            <span className="text-muted-foreground">
-              {t('attributeGroups.attribute_count')}
-            </span>
+          <div className="space-y-1 text-sm md:col-span-2">
+            <span className="text-muted-foreground">{t('attributeGroups.attribute_count')}</span>
             <Badge variant="primary">{attributeCount}</Badge>
           </div>
         </div>
-      </Card>
+      </div>
     </div>
   );
 };
@@ -516,8 +521,11 @@ export const AttributeGroupsDetails: React.FC = () => {
   const [availableAttributes, setAvailableAttributes] = useState<Attribute[]>([]);
   const [availableAttributesLoading, setAvailableAttributesLoading] = useState(false);
   const [availableAttributesError, setAvailableAttributesError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const attributesLoadedRef = useRef(false);
+	  const [saving, setSaving] = useState(false);
+	  const attributesLoadedRef = useRef(false);
+	  const headerLogoInputRef = useRef<HTMLInputElement>(null);
+	  const [logoFileDraft, setLogoFileDraft] = useState<File | null>(null);
+	  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
   const [groupDraft, setGroupDraft] = useState<AttributeGroup | null>(null);
   const [nameDraft, setNameDraft] = useState<LocalizationState>({});
   const [descriptionDraft, setDescriptionDraft] = useState<LocalizationState>({});
@@ -672,8 +680,20 @@ export const AttributeGroupsDetails: React.FC = () => {
     [buildLocalizationState, t],
   );
 
+  useEffect(() => {
+    if (!logoFileDraft) {
+      setLogoPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(logoFileDraft);
+    setLogoPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [logoFileDraft]);
+
   const canUpdateGroup = hasPermission(PERMISSIONS.CATALOG.ATTRIBUTE_GROUPS.UPDATE);
   const canDeleteGroup = hasPermission(PERMISSIONS.CATALOG.ATTRIBUTE_GROUPS.DELETE);
+  const attributeGroupLogoPermission = PERMISSIONS.CATALOG.ATTRIBUTE_GROUPS.LOGO;
+  const canEditLogo = attributeGroupLogoPermission ? hasPermission(attributeGroupLogoPermission) : false;
   const canViewAttributesTab = hasPermission(PERMISSIONS.CATALOG.ATTRIBUTES.VIEW);
   const canViewHistory = hasPermission(PERMISSIONS.CATALOG.ATTRIBUTE_GROUPS.HISTORY);
   const canViewNotifications = hasPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.VIEW);
@@ -869,8 +889,15 @@ export const AttributeGroupsDetails: React.FC = () => {
     return current.some((tag, index) => tag !== original[index]);
   }, [tagsDraft, initialTags]);
 
+  const hasLogoChange = useMemo(() => editMode && Boolean(logoFileDraft), [editMode, logoFileDraft]);
+
   const hasDetailsChanges =
-    hasNameChanges || hasDescriptionChanges || hasNoteChanges || hasDisplayOrderChange || hasTagsChange;
+    hasNameChanges ||
+    hasDescriptionChanges ||
+    hasNoteChanges ||
+    hasDisplayOrderChange ||
+    hasTagsChange ||
+    hasLogoChange;
 
   const hasChanges = (hasDetailsChanges || hasAttributeAssignmentChanges) && !saving;
 
@@ -941,6 +968,7 @@ export const AttributeGroupsDetails: React.FC = () => {
 
   const handleCancelEdit = useCallback(() => {
     setEditMode(false);
+    setLogoFileDraft(null);
     const currentIds = Array.isArray(group?.attributeIds) ? [...group.attributeIds] : [];
     setSelectedAttributeIds(currentIds);
     setAvailableAttributesError(null);
@@ -1041,6 +1069,13 @@ export const AttributeGroupsDetails: React.FC = () => {
         newValue: getPrimaryValue(noteDraft, group.note ?? ''),
       });
     }
+    if (hasLogoChange) {
+      changes.push({
+        field: t('attributeGroups.fields.logo') ?? 'Logo',
+        oldValue: group.logoUrl ? (t('common.yes') ?? 'Var') : (t('common.no') ?? 'Yok'),
+        newValue: 'Logo güncellendi',
+      });
+    }
 
     return changes;
   }, [
@@ -1051,6 +1086,7 @@ export const AttributeGroupsDetails: React.FC = () => {
     hasNameChanges,
     hasNoteChanges,
     hasTagsChange,
+    hasLogoChange,
     initialDisplayOrder,
     displayOrderDraft,
     initialTags,
@@ -1217,34 +1253,66 @@ export const AttributeGroupsDetails: React.FC = () => {
         if (nameLocalizationId !== group.localization?.nameLocalizationId) {
           updatePayload.nameLocalizationId = nameLocalizationId ?? undefined;
         }
-        if (comment) {
-          updatePayload.comment = comment;
+        const trimmedComment = comment.trim();
+        const hasNonLogoChanges =
+          hasNameChanges ||
+          hasDescriptionChanges ||
+          hasNoteChanges ||
+          hasAttributeAssignmentChanges ||
+          hasDisplayOrderChange ||
+          hasTagsChange;
+
+        const shouldUpdateGroup =
+          Object.keys(updatePayload).length > 0 || (hasNonLogoChanges && trimmedComment.length > 0);
+
+        if (shouldUpdateGroup && trimmedComment.length > 0) {
+          updatePayload.comment = trimmedComment;
         }
 
         let updatedGroup: AttributeGroup;
-        if (Object.keys(updatePayload).length > 0) {
+        if (shouldUpdateGroup) {
           updatedGroup = await attributeGroupsService.update(group.id, updatePayload);
         } else {
           updatedGroup = await attributeGroupsService.getById(group.id);
         }
 
-        setGroup(updatedGroup);
-        setGroupDraft(updatedGroup);
-        setAttributes(Array.isArray(updatedGroup.attributes) ? updatedGroup.attributes : []);
+        let refreshedGroup = updatedGroup;
+        if (logoFileDraft && canEditLogo) {
+          try {
+            await logosService.upload('attribute-groups', updatedGroup.id, logoFileDraft, trimmedComment);
+            refreshedGroup = await attributeGroupsService.getById(updatedGroup.id);
+          } catch (error) {
+            console.error('Attribute group logo upload failed', error);
+            showToast({
+              type: 'warning',
+              message:
+                t('attribute_groups.create.logo_upload_failed') ??
+                'Logo yüklenemedi, lütfen daha sonra tekrar deneyin.',
+            });
+          } finally {
+            setLogoFileDraft(null);
+          }
+        } else {
+          setLogoFileDraft(null);
+        }
+
+        setGroup(refreshedGroup);
+        setGroupDraft(refreshedGroup);
+        setAttributes(Array.isArray(refreshedGroup.attributes) ? refreshedGroup.attributes : []);
         setSelectedAttributeIds(
-          Array.isArray(updatedGroup.attributeIds) ? updatedGroup.attributeIds : [],
+          Array.isArray(refreshedGroup.attributeIds) ? refreshedGroup.attributeIds : [],
         );
 
-        const refreshedOrder = updatedGroup.order ?? 0;
+        const refreshedOrder = refreshedGroup.order ?? 0;
         setDisplayOrderDraft(refreshedOrder);
         setInitialDisplayOrder(refreshedOrder);
 
-        const refreshedTags = updatedGroup.tags ?? [];
+        const refreshedTags = refreshedGroup.tags ?? [];
         setTagsDraft(refreshedTags);
         setInitialTags(refreshedTags);
         setTagsRaw(refreshedTags.join(', '));
 
-        await loadLocalizationDetails(updatedGroup, true);
+        await loadLocalizationDetails(refreshedGroup, true);
 
         setEditMode(false);
         setAvailableAttributesError(null);
@@ -1273,6 +1341,8 @@ export const AttributeGroupsDetails: React.FC = () => {
     [
       group,
       saving,
+      logoFileDraft,
+      canEditLogo,
       hasNameChanges,
       hasDescriptionChanges,
       hasNoteChanges,
@@ -1458,6 +1528,22 @@ ${attributesList}
   }, [group]);
 
   const groupName = group?.name?.trim() || group?.key || group?.id || '';
+  const attachedAttributes = group?.attributes ?? [];
+  const hasLinkedAttributes =
+    (group?.attributeIds?.length ?? attachedAttributes.length ?? 0) > 0;
+  const linkedAttributeNames =
+    attachedAttributes.length > 0
+      ? attachedAttributes
+          .map((attribute) => attribute.name || attribute.key || attribute.id)
+          .filter(Boolean)
+      : group?.attributeIds ?? [];
+  const canDeleteGroupSafely = canDeleteGroup;
+  const deleteBlockedMessage = hasLinkedAttributes
+    ? t('attributeGroups.delete_blocked_with_attributes', {
+        attributes: linkedAttributeNames.join(', '),
+      }) ||
+      `Bu attribute grubu aşağıdaki attribute'lara bağlı olduğu için silinemez: ${linkedAttributeNames.join(', ')}`
+    : null;
 
   if (!id) {
     return null;
@@ -1589,6 +1675,8 @@ ${attributesList}
     },
   ];
 
+  const headerLogoUrl = editMode && logoPreviewUrl ? logoPreviewUrl : group.logoUrl ?? null;
+
   return (
     <>
       <DetailsLayout
@@ -1610,26 +1698,78 @@ ${attributesList}
           </div>
         }
         subtitle={group.description ?? undefined}
-        icon={<TagsIcon className="h-6 w-6 text-white" />}
+        icon={
+          <div
+            className={`w-full h-full relative flex items-center justify-center overflow-hidden rounded-xl ${
+              editMode && canEditLogo ? 'cursor-pointer' : ''
+            }`}
+            onClick={() => {
+              if (!editMode || !canEditLogo) {
+                return;
+              }
+              headerLogoInputRef.current?.click();
+            }}
+          >
+            {headerLogoUrl ? (
+              <>
+                <div className="absolute inset-0 bg-card" aria-hidden="true" />
+                <img
+                  src={headerLogoUrl}
+                  alt={group.name}
+                  className="w-full h-full object-cover relative z-10"
+                  loading="lazy"
+                />
+              </>
+            ) : (
+              <TagsIcon className="h-6 w-6 text-white" />
+            )}
+            {editMode && canEditLogo ? (
+              <>
+                <div className="absolute inset-0 bg-black/25 opacity-0 hover:opacity-100 transition flex items-center justify-center">
+                  <span className="text-[11px] font-semibold text-white">
+                    {t('attribute_groups.create.logo_change') || 'Logo Seç'}
+                  </span>
+                </div>
+                <input
+                  ref={headerLogoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] ?? null;
+                    setLogoFileDraft(file);
+                    e.target.value = '';
+                  }}
+                />
+              </>
+            ) : null}
+          </div>
+        }
         tabs={tabs}
         defaultTab="details"
         backUrl="/attribute-groups"
         editMode={editMode}
         hasChanges={hasChanges}
+        iconContainerClassName={
+          headerLogoUrl ? 'bg-transparent shadow-sm border border-border' : undefined
+        }
         onEdit={canUpdateGroup ? handleEnterEdit : undefined}
         onSave={canUpdateGroup ? handleSave : undefined}
         onCancel={canUpdateGroup ? handleCancelEdit : undefined}
         inlineActions={false}
-        onDelete={canDeleteGroup ? handleDelete : undefined}
+        onDelete={canDeleteGroupSafely ? handleDelete : undefined}
         deleteLoading={deleting}
         deleteButtonLabel={t('attributeGroups.delete_action') || 'Attribute Grubu Sil'}
         deleteDialogTitle={
           t('attributeGroups.delete_title', { name: groupName }) || 'Attribute grubu silinsin mi?'
         }
         deleteDialogDescription={
-          t('attributeGroups.delete_description', { name: groupName }) ||
-          'Bu attribute grubu kalıcı olarak silinecek. Bu işlem geri alınamaz.'
+          hasLinkedAttributes && deleteBlockedMessage
+            ? deleteBlockedMessage
+            : t('attributeGroups.delete_description', { name: groupName }) ||
+              'Bu attribute grubu kalıcı olarak silinecek. Bu işlem geri alınamaz.'
         }
+        canDelete={canDeleteGroupSafely}
       />
 
       <ChangeConfirmDialog

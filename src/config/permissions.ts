@@ -5,6 +5,7 @@ type CrudPermissionSet = {
   UPDATE: string;
   DELETE: string;
   HISTORY: string;
+  LOGO?: string;
 };
 
 const createCrudPermissionSet = (domain: string, resource: string): CrudPermissionSet => ({
@@ -24,11 +25,11 @@ const createFeaturePermissionSet = (domain: string, resource: string, feature: s
 export const PERMISSIONS = {
   CATALOG: {
     ITEMS: createCrudPermissionSet('items', 'item'),
-    ITEM_TYPES: createCrudPermissionSet('itemTypes', 'itemType'),
-    CATEGORIES: createCrudPermissionSet('categories', 'category'),
-    FAMILIES: createCrudPermissionSet('families', 'family'),
-    ATTRIBUTE_GROUPS: createCrudPermissionSet('attributeGroups', 'attributeGroup'),
-    ATTRIBUTES: createCrudPermissionSet('attributes', 'attribute'),
+    ITEM_TYPES: { ...createCrudPermissionSet('itemTypes', 'itemType'), LOGO: 'itemTypes.itemType.logo' },
+    CATEGORIES: { ...createCrudPermissionSet('categories', 'category'), LOGO: 'categories.category.logo' },
+    FAMILIES: { ...createCrudPermissionSet('families', 'family'), LOGO: 'families.family.logo' },
+    ATTRIBUTE_GROUPS: { ...createCrudPermissionSet('attributeGroups', 'attributeGroup'), LOGO: 'attributeGroups.attributeGroup.logo' },
+    ATTRIBUTES: { ...createCrudPermissionSet('attributes', 'attribute'), LOGO: 'attributes.attribute.logo' },
   },
   SYSTEM: {
     USERS: {
@@ -37,7 +38,7 @@ export const PERMISSIONS = {
       ROLE_ASSIGN: 'users.roles.assign',
     },
     SETTINGS: createCrudPermissionSet('settings', 'setting'),
-    ROLES: createCrudPermissionSet('roles', 'role'),
+    ROLES: { ...createCrudPermissionSet('roles', 'role'), LOGO: 'roles.role.logo' },
     PERMISSIONS: createCrudPermissionSet('permissions', 'permission'),
     PERMISSION_GROUPS: createCrudPermissionSet('permissionGroups', 'permissionGroup'),
     LOCALIZATIONS: createCrudPermissionSet('settings', 'localization'),

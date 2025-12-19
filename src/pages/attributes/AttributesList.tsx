@@ -103,22 +103,22 @@ export const AttributesList: React.FC = () => {
 
           return (
             <div className="flex items-center space-x-3">
-              <div className="flex flex-col items-center">
+              <div className="flex flex-col items-center flex-shrink-0">
                 <div className={`w-10 h-10 bg-gradient-to-br ${meta.color} rounded-xl flex items-center justify-center shadow-sm`}>
                   <IconComponent className="h-5 w-5 text-white" />
                 </div>
-                <span className="text-xs text-muted-foreground mt-1">{typeLabel}</span>
+                <span className="text-xs text-muted-foreground mt-1 text-center px-1">{typeLabel}</span>
               </div>
-              <div>
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm font-semibold text-foreground">{value}</span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-foreground truncate">{value}</span>
                   {attribute.required && (
                     <Badge variant="error" size="sm">
                       {t('attributes.required')}
                     </Badge>
                   )}
                 </div>
-                <div className="text-xs text-muted-foreground">ID: {attribute.id}</div>
+                <div className="text-xs text-muted-foreground truncate">ID: {attribute.id}</div>
               </div>
             </div>
           );

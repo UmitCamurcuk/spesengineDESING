@@ -92,8 +92,23 @@ export const AttributeGroupsList: React.FC = () => {
         sortable: true,
         render: (_: string, group: AttributeGroup) => (
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-sm">
-              <Layers className="h-5 w-5 text-white" />
+            <div
+              className={
+                group.logoUrl
+                  ? 'w-10 h-10 rounded-xl bg-card shadow-sm overflow-hidden flex-shrink-0'
+                  : 'w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-sm overflow-hidden flex-shrink-0'
+              }
+            >
+              {group.logoUrl ? (
+                <img
+                  src={group.logoUrl}
+                  alt={group.name}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                />
+              ) : (
+                <Layers className="h-5 w-5 text-white" />
+              )}
             </div>
             <div className="space-y-1">
               <span className="text-sm font-semibold text-foreground">{group.name}</span>
