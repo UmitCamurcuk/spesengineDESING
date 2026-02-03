@@ -711,6 +711,7 @@ const FamilyAttributeGroupsTab: React.FC<FamilyAttributeGroupsTabProps> = ({
             <AttributeGroupSelector
               groups={attributeGroups.map((group) => ({
                 id: group.id,
+                code: group.key ?? group.id,
                 name: group.name,
                 description: group.description,
                 attributeCount: group.attributeCount ?? group.attributeIds?.length ?? group.attributes?.length ?? 0,

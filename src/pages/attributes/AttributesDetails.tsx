@@ -915,6 +915,7 @@ const AttributeGroupsTab: React.FC<{
             <AttributeGroupSelector
               groups={availableGroups.map((group) => ({
                 id: group.id,
+                code: group.key ?? group.id,
                 name: group.name,
                 description: group.description,
                 attributeCount: group.attributeIds?.length,

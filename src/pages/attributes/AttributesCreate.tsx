@@ -1797,6 +1797,7 @@ export const AttributesCreate: React.FC = () => {
                 <AttributeGroupSelector
                   groups={attributeGroups.map((group) => ({
                     id: group.id,
+                    code: group.key ?? group.id,
                     name: group.name,
                     description: group.description,
                     attributeCount: group.attributeCount ?? group.attributeIds?.length ?? 0,

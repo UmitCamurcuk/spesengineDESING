@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, ChevronDown, ChevronRight, Search, X } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
@@ -62,6 +63,37 @@ const collectSelectedNodes = (nodes: TreeNode[], selectedIds: string[]): Map<str
 
   traverse(nodes);
   return map;
+};
+
+const buildNodeMap = (nodes: TreeNode[]): Map<string, TreeNode> => {
+  const map = new Map<string, TreeNode>();
+  const traverse = (list: TreeNode[]) => {
+    list.forEach((node) => {
+      map.set(node.value, node);
+      if (node.children && node.children.length > 0) {
+        traverse(node.children);
+      }
+    });
+  };
+  traverse(nodes);
+  return map;
+};
+
+const collectDescendantValues = (node: TreeNode | undefined): string[] => {
+  if (!node?.children || node.children.length === 0) {
+    return [];
+  }
+  const values: string[] = [];
+  const traverse = (list: TreeNode[]) => {
+    list.forEach((child) => {
+      values.push(child.value);
+      if (child.children && child.children.length > 0) {
+        traverse(child.children);
+      }
+    });
+  };
+  traverse(node.children);
+  return values;
 };
 
 interface FilterResult {
@@ -130,7 +162,13 @@ export const TreeSelect: React.FC<TreeSelectProps> = ({
   const [internalSelectedIds, setInternalSelectedIds] = useState<string[]>([]);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const portalRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties | undefined>(undefined);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
 
   const resolvedValue = value ?? internalValue;
   const resolvedSelectedIds = multiple
@@ -140,6 +178,7 @@ export const TreeSelect: React.FC<TreeSelectProps> = ({
     : [];
 
   const selectedSet = useMemo(() => new Set(resolvedSelectedIds), [resolvedSelectedIds]);
+  const nodeMap = useMemo(() => buildNodeMap(options), [options]);
 
   const { nodes: filteredOptions, autoExpandIds } = useMemo(
     () => filterTree(options, searchTerm),
@@ -181,22 +220,54 @@ export const TreeSelect: React.FC<TreeSelectProps> = ({
     });
   }, [selectedAncestorIds]);
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
+  const handleClickOutside = useCallback((event: MouseEvent) => {
+    const target = event.target as Node;
+    if (dropdownRef.current?.contains(target)) return;
+    if (portalRef.current?.contains(target)) return;
+    setIsOpen(false);
+  }, []);
 
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [isOpen, handleClickOutside]);
 
   useEffect(() => {
     if (isOpen && searchable && inputRef.current) {
       inputRef.current.focus();
     }
   }, [isOpen, searchable]);
+
+  const updateDropdownPosition = useCallback(() => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const top = Math.min(rect.bottom + 8, window.innerHeight - 16);
+    const left = Math.max(8, rect.left);
+    const width = rect.width;
+    setDropdownStyle({
+      position: 'fixed',
+      top,
+      left,
+      width,
+      maxHeight: '70vh',
+      zIndex: 1000,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    updateDropdownPosition();
+    const handler = () => updateDropdownPosition();
+    window.addEventListener('resize', handler);
+    window.addEventListener('scroll', handler, true);
+    return () => {
+      window.removeEventListener('resize', handler);
+      window.removeEventListener('scroll', handler, true);
+    };
+  }, [isOpen, updateDropdownPosition]);
 
   const selectedNodesMap = useMemo(
     () => collectSelectedNodes(options, resolvedSelectedIds),
@@ -222,13 +293,19 @@ export const TreeSelect: React.FC<TreeSelectProps> = ({
     });
   };
 
-  const toggleSelection = (nodeValue: string) => {
+  const toggleSelection = (node: TreeNode) => {
+    const nodeValue = node.value;
+    const descendants = collectDescendantValues(node);
     const current = new Set(resolvedSelectedIds);
+
     if (current.has(nodeValue)) {
       current.delete(nodeValue);
+      descendants.forEach((value) => current.delete(value));
     } else {
       current.add(nodeValue);
+      descendants.forEach((value) => current.add(value));
     }
+
     const next = Array.from(current);
     if (selectedIds === undefined) {
       setInternalSelectedIds(next);
@@ -242,7 +319,7 @@ export const TreeSelect: React.FC<TreeSelectProps> = ({
     }
 
     if (multiple) {
-      toggleSelection(node.value);
+      toggleSelection(node);
       return;
     }
 
@@ -343,7 +420,7 @@ export const TreeSelect: React.FC<TreeSelectProps> = ({
               checked={isSelected}
               onChange={(event) => {
                 event.stopPropagation();
-                toggleSelection(node.value);
+                toggleSelection(node);
               }}
               className="mt-0.5 h-4 w-4 rounded border-border text-primary focus:ring-primary"
               disabled={node.disabled}
@@ -376,19 +453,20 @@ export const TreeSelect: React.FC<TreeSelectProps> = ({
   };
 
   return (
-    <div className={cn('space-y-2', className)} ref={dropdownRef}>
-      {label ? (
-        <label className="block text-sm font-medium text-foreground">
-          {label}
-          {required ? <span className="text-error ml-1">*</span> : null}
-        </label>
-      ) : null}
+      <div className={cn('space-y-2', className)} ref={dropdownRef}>
+        {label ? (
+          <label className="block text-sm font-medium text-foreground">
+            {label}
+            {required ? <span className="text-error ml-1">*</span> : null}
+          </label>
+        ) : null}
 
-      <div className="relative">
-        <button
-          type="button"
-          onClick={() => setIsOpen((prev) => !prev)}
-          className={cn(
+        <div className="relative">
+          <button
+            type="button"
+            ref={triggerRef}
+            onClick={() => setIsOpen((prev) => !prev)}
+            className={cn(
             'w-full px-3 py-2.5 flex items-center justify-between rounded-lg border text-left transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-1',
             error
               ? 'border-error focus:ring-error/30 focus:border-error'
@@ -413,44 +491,51 @@ export const TreeSelect: React.FC<TreeSelectProps> = ({
           </div>
         </button>
 
-        {isOpen ? (
-          <div className="absolute left-0 right-0 mt-2 rounded-lg border border-border bg-popover shadow-lg z-50">
-            {searchable ? (
-              <div className="p-3 border-b border-border">
-                <div className="flex items-center gap-2 rounded-lg border border-border px-2 py-1.5">
-                  <Search className="h-4 w-4 text-muted-foreground" />
-                  <input
-                    ref={inputRef}
-                    value={searchTerm}
-                    onChange={(event) => setSearchTerm(event.target.value)}
-                    placeholder="Search..."
-                    className="flex-1 text-sm bg-transparent outline-none"
-                  />
-                  {searchTerm ? (
-                    <button
-                      type="button"
-                      onClick={() => setSearchTerm('')}
-                      className="p-0.5 rounded hover:bg-muted transition-colors"
-                    >
-                      <X className="h-4 w-4 text-muted-foreground" />
-                    </button>
+          {isOpen && mounted
+            ? createPortal(
+                <div
+                  ref={portalRef}
+                  className="rounded-lg border border-border bg-popover shadow-lg"
+                  style={dropdownStyle}
+                >
+                  {searchable ? (
+                    <div className="p-3 border-b border-border">
+                      <div className="flex items-center gap-2 rounded-lg border border-border px-2 py-1.5">
+                        <Search className="h-4 w-4 text-muted-foreground" />
+                        <input
+                          ref={inputRef}
+                          value={searchTerm}
+                          onChange={(event) => setSearchTerm(event.target.value)}
+                          placeholder="Search..."
+                          className="flex-1 text-sm bg-transparent outline-none"
+                        />
+                        {searchTerm ? (
+                          <button
+                            type="button"
+                            onClick={() => setSearchTerm('')}
+                            className="p-0.5 rounded hover:bg-muted transition-colors"
+                          >
+                            <X className="h-4 w-4 text-muted-foreground" />
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
                   ) : null}
-                </div>
-              </div>
-            ) : null}
 
-            <div className="max-h-72 overflow-y-auto py-2 space-y-1">
-              {filteredOptions.length === 0 ? (
-                <div className="px-4 py-3 text-sm text-muted-foreground">
-                  {emptyState || 'No results found.'}
-                </div>
-              ) : (
-                filteredOptions.map((node) => renderNode(node))
-              )}
-            </div>
-          </div>
-        ) : null}
-      </div>
+                  <div className="max-h-72 overflow-y-auto py-2 space-y-1">
+                    {filteredOptions.length === 0 ? (
+                      <div className="px-4 py-3 text-sm text-muted-foreground">
+                        {emptyState || 'No results found.'}
+                      </div>
+                    ) : (
+                      filteredOptions.map((node) => renderNode(node))
+                    )}
+                  </div>
+                </div>,
+                document.body,
+              )
+            : null}
+        </div>
 
       {error ? (
         <p className="text-xs text-error">{error}</p>

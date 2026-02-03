@@ -204,22 +204,58 @@ const CategoryDetailsTab: React.FC<CategoryDetailsTabProps> = ({
       ) : null}
 
       <Card padding="lg">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <span className="text-xs font-medium text-muted-foreground">
-              {t('categories.fields.key') || 'Key'}
-            </span>
-            <p className="mt-1 font-mono text-sm text-foreground">{category.key}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-muted-foreground">
-              {t('categories.fields.system_flag') || 'System Type'}
-            </span>
-            <Badge variant={category.isSystemCategory ? 'error' : 'secondary'}>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <Badge variant="secondary">
+              {(t('categories.fields.key') || 'Key') + ': ' + category.key}
+            </Badge>
+            <Badge variant={category.isSystemCategory ? 'error' : 'primary'}>
               {category.isSystemCategory
                 ? t('categories.labels.system') || 'System'
                 : t('categories.labels.standard') || 'Standard'}
             </Badge>
+            <Badge variant={category.allowItemCreation ? 'primary' : 'outline'}>
+              {category.allowItemCreation
+                ? t('categories.fields.allow_item_creation') || 'Öğe oluşturma açık'
+                : t('categories.fields.allow_item_creation_off') || 'Öğe oluşturma kapalı'}
+            </Badge>
+            <Badge variant="outline">
+              {(t('categories.attribute_groups.selected_count', {
+                count: category.attributeGroupCount ?? category.attributeGroupIds.length,
+              }) as string) ||
+                `AG: ${category.attributeGroupCount ?? category.attributeGroupIds.length}`}
+            </Badge>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">
+                {t('categories.fields.default_item_type') || 'Varsayılan Item Type'}
+              </p>
+              {defaultItemTypeLabel ? (
+                <Badge variant="outline">{defaultItemTypeLabel}</Badge>
+              ) : (
+                <span className="text-sm text-muted-foreground">
+                  {t('categories.select_default_item_type') || 'Seçilmedi'}
+                </span>
+              )}
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">
+                {t('common.createdAt') || 'Oluşturulma'}
+              </p>
+              <span className="text-sm">
+                {new Date(category.createdAt).toLocaleString()}
+              </span>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">
+                {t('common.updatedAt') || 'Güncellenme'}
+              </p>
+              <span className="text-sm">
+                {new Date(category.updatedAt).toLocaleString()}
+              </span>
+            </div>
           </div>
         </div>
       </Card>
@@ -383,61 +419,83 @@ const CategoryDetailsTab: React.FC<CategoryDetailsTabProps> = ({
                 </>
               ) : (
                 <div className="space-y-4">
-                  <HierarchyTreeView
-                    nodes={categoryTree}
-                    activeId={category.id}
-                    highlightIds={categoryHighlightIds}
-                    emptyState={
-                      <span className="text-sm text-muted-foreground">
-                        {t('categories.hierarchy_empty') || 'Hiyerarşi bilgisi bulunamadı.'}
-                      </span>
-                    }
-                    className="border-none bg-transparent px-0 py-0 shadow-none"
-                  />
-
-                  <div>
-                    <span className="text-xs font-medium text-muted-foreground">
-                      {t('categories.fields.parent') || 'Parent Category'}
-                    </span>
-                    <div className="mt-1">
-                      {category.parentCategoryId ? (
-                        <div className="flex items-center gap-2 flex-wrap">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <Card className="border-border bg-muted/40 shadow-none">
+                      <div className="flex items-center gap-2 mb-2">
+                        <FolderTree className="h-4 w-4 text-primary" />
+                        <span className="text-sm font-semibold">
+                          {t('categories.hierarchy') || 'Kategori Hiyerarşisi'}
+                        </span>
+                      </div>
+                      <HierarchyTreeView
+                        nodes={categoryTree}
+                        activeId={category.id}
+                        highlightIds={categoryHighlightIds}
+                        emptyState={
+                          <span className="text-sm text-muted-foreground">
+                            {t('categories.hierarchy_empty') || 'Hiyerarşi bilgisi bulunamadı.'}
+                          </span>
+                        }
+                        className="border-none bg-transparent px-0 py-0 shadow-none"
+                      />
+                      <div className="mt-3 text-xs text-muted-foreground flex flex-wrap gap-2">
+                        <span className="font-medium">
+                          {t('categories.fields.parent') || 'Parent'}:
+                        </span>
+                        {category.parentCategoryId ? (
                           <Badge variant="outline">
                             {categoryLookup.get(category.parentCategoryId)?.name ??
                               category.parentCategoryId}
                           </Badge>
-                          <code className="text-xs text-muted-foreground">
-                            {category.parentCategoryId}
-                          </code>
-                        </div>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">
-                          {t('categories.root_label') || 'Root Category'}
+                        ) : (
+                          <span>{t('categories.root_label') || 'Root Category'}</span>
+                        )}
+                      </div>
+                    </Card>
+
+                    <Card className="border-border bg-muted/40 shadow-none">
+                      <div className="flex items-center gap-2 mb-2">
+                        <TagsIcon className="h-4 w-4 text-primary" />
+                        <span className="text-sm font-semibold">
+                          {t('categories.fields.linked_families') || 'Bağlı Aileler'}
                         </span>
-                      )}
-                    </div>
+                        <Badge variant="secondary" size="sm">{linkedFamilyBadges.length}</Badge>
+                      </div>
+                      <HierarchyTreeView
+                        nodes={familyTree}
+                        highlightIds={linkedFamilyIds}
+                        emptyState={
+                          <span className="text-sm text-muted-foreground">
+                            {t('categories.create.no_families') || 'Tanımlı family bulunamadı.'}
+                          </span>
+                        }
+                        className="border-none bg-transparent px-0 py-0 shadow-none max-h-80 overflow-y-auto"
+                      />
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {linkedFamilyBadges.length > 0 ? (
+                          linkedFamilyBadges.map((label) => (
+                            <Badge key={label} variant="secondary">
+                              {label}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            {t('categories.preview.no_families') || 'Family seçilmedi.'}
+                          </span>
+                        )}
+                      </div>
+                    </Card>
                   </div>
 
-                  <div>
-                    <span className="text-xs font-medium text-muted-foreground">
-                      {t('categories.fields.default_item_type') || 'Varsayılan Item Type'}
-                    </span>
-                    <div className="mt-1">
-                      {defaultItemTypeLabel ? (
-                        <Badge variant="outline">{defaultItemTypeLabel}</Badge>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">
-                          {t('categories.select_default_item_type') || 'Seçilmedi'}
-                        </span>
-                      )}
+                  <Card className="border-border bg-muted/40 shadow-none">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Hash className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-semibold">
+                        {t('categories.fields.linked_item_types') || 'Bağlı Item Types'}
+                      </span>
+                      <Badge variant="secondary" size="sm">{linkedItemTypeBadges.length}</Badge>
                     </div>
-                  </div>
-
-                  <div>
-                    <span className="text-xs font-medium text-muted-foreground">
-                      {t('categories.fields.linked_item_types') || 'Bağlı Item Types'}
-                    </span>
-                    <div className="mt-1 flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-2">
                       {linkedItemTypeBadges.length > 0 ? (
                         linkedItemTypeBadges.map((label) => (
                           <Badge key={label} variant="secondary">
@@ -450,26 +508,7 @@ const CategoryDetailsTab: React.FC<CategoryDetailsTabProps> = ({
                         </span>
                       )}
                     </div>
-                  </div>
-
-                  <div>
-                    <span className="text-xs font-medium text-muted-foreground">
-                      {t('categories.fields.linked_families') || 'Bağlı Families'}
-                    </span>
-                    <div className="mt-1 flex flex-wrap gap-2">
-                      {linkedFamilyBadges.length > 0 ? (
-                        linkedFamilyBadges.map((label) => (
-                          <Badge key={label} variant="secondary">
-                            {label}
-                          </Badge>
-                        ))
-                      ) : (
-                        <span className="text-sm text-muted-foreground">
-                          {t('categories.preview.no_families') || 'Family seçilmedi.'}
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                  </Card>
                 </div>
               )}
             </div>
@@ -574,6 +613,7 @@ const CategoryAttributeGroupsTab: React.FC<CategoryAttributeGroupsTabProps> = ({
       <AttributeGroupSelector
         groups={attributeGroups.map((group) => ({
           id: group.id,
+          code: group.key ?? group.id,
           name: group.name,
           description: group.description,
           attributeCount: group.attributeCount ?? group.attributeIds?.length ?? 0,

@@ -341,6 +341,7 @@ const ItemTypeAttributeGroupsTab: React.FC<ItemTypeAttributeGroupsTabProps> = ({
           <AttributeGroupSelector
             groups={availableGroups.map((group) => ({
               id: group.id,
+              code: group.key ?? group.id,
               name: group.name,
               description: group.description,
               attributeCount:

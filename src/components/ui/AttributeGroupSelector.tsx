@@ -8,6 +8,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 interface AttributeGroup {
   id: string;
   name: string;
+  code?: string;
   description?: string;
   attributeCount?: number;
   logoUrl?: string | null;
@@ -28,8 +29,21 @@ export const AttributeGroupSelector: React.FC<AttributeGroupSelectorProps> = ({
   multiple = true,
   className,
 }) => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [query, setQuery] = useState('');
+
+  const resolveAttributeLabel = (count: number): string => {
+    const translated =
+      t('attributeGroups.selector.attribute_label', { count, defaultValue: '' })?.trim() ?? '';
+    if (translated.length > 0) {
+      return translated;
+    }
+    const isTr = (language ?? 'tr').toLowerCase().startsWith('tr');
+    if (isTr) {
+      return 'öznitelik';
+    }
+    return count === 1 ? 'attribute' : 'attributes';
+  };
 
   const searchPlaceholder =
     t('attributeGroups.selector.search_placeholder') ?? 'Search attribute groups';
@@ -55,7 +69,13 @@ export const AttributeGroupSelector: React.FC<AttributeGroupSelectorProps> = ({
       return groups;
     }
     return groups.filter((group) => {
-      const haystack = [group.name, group.description, group.attributeCount?.toString()]
+      const haystack = [
+        group.name,
+        group.description,
+        group.attributeCount?.toString(),
+        group.code,
+        group.id,
+      ]
         .filter(Boolean)
         .join(' ')
         .toLowerCase();
@@ -121,9 +141,14 @@ export const AttributeGroupSelector: React.FC<AttributeGroupSelectorProps> = ({
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-sm font-semibold text-foreground truncate">{group.name}</p>
+                    {group.code ? (
+                      <span className="text-[11px] font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                        {group.code}
+                      </span>
+                    ) : null}
                     {group.attributeCount !== undefined && (
                       <Badge variant="outline" size="sm">
-                        {group.attributeCount} fields
+                        {group.attributeCount} {resolveAttributeLabel(group.attributeCount)}
                       </Badge>
                     )}
                   </div>

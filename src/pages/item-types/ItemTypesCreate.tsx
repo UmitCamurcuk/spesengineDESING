@@ -7,6 +7,7 @@ import { Input } from '../../components/ui/Input';
 import { Textarea } from '../../components/ui/Textarea';
 import { Badge } from '../../components/ui/Badge';
 import { Stepper } from '../../components/ui/Stepper';
+import { TreeSelect } from '../../components/ui/TreeSelect';
 import { useToast } from '../../contexts/ToastContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useRequiredLanguages } from '../../hooks/useRequiredLanguages';
@@ -15,6 +16,8 @@ import { attributeGroupsService } from '../../api/services/attribute-groups.serv
 import { itemTypesService } from '../../api/services/item-types.service';
 import { localizationsService } from '../../api/services/localizations.service';
 import type { AttributeGroup, Category } from '../../types';
+import { buildHierarchyTree } from '../../utils/hierarchy';
+import type { TreeNode } from '../../components/ui';
 
 type LifecycleStatus = 'draft' | 'active' | 'deprecated';
 
@@ -55,6 +58,14 @@ export const ItemTypesCreate: React.FC = () => {
   const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const categoryTreeOptions = useMemo<TreeNode[]>(() => {
+    return buildHierarchyTree(categories, {
+      getId: (item) => item.id,
+      getParentId: (item) => item.parentCategoryId ?? null,
+      getLabel: (item) => item.name,
+      getDescription: (item) => item.key,
+    });
+  }, [categories]);
 
   const steps = useMemo(
     () => [
@@ -549,30 +560,18 @@ export const ItemTypesCreate: React.FC = () => {
                     {form.categoryIds.length}
                   </Badge>
                 </div>
-                <div className="border border-border rounded-lg p-3 max-h-60 overflow-y-auto space-y-2 text-sm">
-                  {sortedCategories.length === 0 ? (
-                    <div className="text-muted-foreground">
+                <TreeSelect
+                  options={categoryTreeOptions}
+                  multiple
+                  selectedIds={form.categoryIds}
+                  onSelectionChange={(ids) => setForm((prev) => ({ ...prev, categoryIds: ids }))}
+                  placeholder={t('itemTypes.create.select_categories') || 'Kategori seçin'}
+                  emptyState={
+                    <span className="text-xs text-muted-foreground">
                       {t('itemTypes.create.no_categories') || 'Tanımlı kategori bulunamadı.'}
-                    </div>
-                  ) : (
-                    sortedCategories.map((category) => {
-                      const depth = category.hierarchyPath?.length ?? 0;
-                      const label =
-                        depth > 0 ? `${'— '.repeat(depth)}${category.name}` : category.name;
-                      return (
-                        <label key={category.id} className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={form.categoryIds.includes(category.id)}
-                            onChange={() => toggleCategory(category.id)}
-                            className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
-                          />
-                          <span>{label}</span>
-                        </label>
-                      );
-                    })
-                  )}
-                </div>
+                    </span>
+                  }
+                />
               </div>
             </div>
           </Card>
