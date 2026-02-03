@@ -10,6 +10,7 @@ interface AttributeGroup {
   name: string;
   description?: string;
   attributeCount?: number;
+  logoUrl?: string | null;
 }
 
 interface AttributeGroupSelectorProps {
@@ -101,11 +102,21 @@ export const AttributeGroupSelector: React.FC<AttributeGroupSelectorProps> = ({
               >
                 <span
                   className={cn(
-                    'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-muted',
+                    'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-muted overflow-hidden',
                     isSelected && 'bg-primary/10 text-primary',
+                    group.logoUrl && 'p-1 border border-border bg-card',
                   )}
                 >
-                  <Tags className="h-4 w-4" />
+                  {group.logoUrl ? (
+                    <img
+                      src={group.logoUrl}
+                      alt={group.name}
+                      className="w-full h-full object-contain rounded-lg"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <Tags className="h-4 w-4" />
+                  )}
                 </span>
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">

@@ -95,7 +95,7 @@ export const AttributeGroupsList: React.FC = () => {
             <div
               className={
                 group.logoUrl
-                  ? 'w-10 h-10 rounded-xl bg-card shadow-sm overflow-hidden flex-shrink-0'
+                  ? 'w-10 h-10 rounded-xl bg-card shadow-sm overflow-hidden flex-shrink-0 p-1'
                   : 'w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-sm overflow-hidden flex-shrink-0'
               }
             >
@@ -103,7 +103,7 @@ export const AttributeGroupsList: React.FC = () => {
                 <img
                   src={group.logoUrl}
                   alt={group.name}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-contain rounded-lg"
                   loading="lazy"
                 />
               ) : (

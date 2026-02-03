@@ -1713,12 +1713,14 @@ ${attributesList}
             {headerLogoUrl ? (
               <>
                 <div className="absolute inset-0 bg-card" aria-hidden="true" />
-                <img
-                  src={headerLogoUrl}
-                  alt={group.name}
-                  className="w-full h-full object-cover relative z-10"
-                  loading="lazy"
-                />
+                <div className="absolute inset-0 flex items-center justify-center p-1">
+                  <img
+                    src={headerLogoUrl}
+                    alt={group.name}
+                    className="w-full h-full object-contain rounded-lg relative z-10"
+                    loading="lazy"
+                  />
+                </div>
               </>
             ) : (
               <TagsIcon className="h-6 w-6 text-white" />

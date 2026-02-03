@@ -484,14 +484,14 @@ export const AttributeGroupsCreate: React.FC = () => {
                   </p>
                   <div className="flex items-center gap-4">
                     <div
-                      className="w-24 h-24 rounded-xl border border-dashed border-border flex items-center justify-center bg-muted/40 relative cursor-pointer overflow-hidden"
+                      className="w-24 h-24 rounded-xl border border-dashed border-border flex items-center justify-center bg-muted/40 relative cursor-pointer overflow-hidden p-1"
                       onClick={() => logoInputRef.current?.click()}
                     >
                       {logoPreview ? (
                         <img
                           src={logoPreview}
                           alt="Logo preview"
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-contain rounded-lg"
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-amber-500 to-orange-600 text-white">
@@ -666,16 +666,16 @@ export const AttributeGroupsCreate: React.FC = () => {
             <div className="space-y-8">
               <div>
                 <h3 className="text-sm font-semibold text-foreground mb-3">Temel Bilgiler</h3>
-                <div className="space-y-3 text-sm">
-                  <div className="flex items-center gap-3">
-                    <div className="w-14 h-14 rounded-lg border border-dashed border-border overflow-hidden bg-muted/50 flex items-center justify-center">
-                      {logoPreview ? (
-                        <img src={logoPreview} alt="Logo preview" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-amber-500 to-orange-600 text-white">
-                          <Tags className="h-5 w-5" />
-                        </div>
-                      )}
+                  <div className="space-y-3 text-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="w-14 h-14 rounded-lg border border-dashed border-border overflow-hidden bg-muted/50 flex items-center justify-center p-1">
+                        {logoPreview ? (
+                          <img src={logoPreview} alt="Logo preview" className="w-full h-full object-contain rounded-md" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-amber-500 to-orange-600 text-white">
+                            <Tags className="h-5 w-5" />
+                          </div>
+                        )}
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {t('attribute_groups.create.logo_preview') || 'Logo önizlemesi'}

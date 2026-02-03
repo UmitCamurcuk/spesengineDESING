@@ -1694,14 +1694,14 @@ export const AttributesCreate: React.FC = () => {
                   </p>
                   <div className="flex items-center gap-4">
                     <div
-                      className="w-24 h-24 rounded-xl border border-dashed border-border flex items-center justify-center bg-muted/40 relative cursor-pointer overflow-hidden"
+                      className="w-24 h-24 rounded-xl border border-dashed border-border flex items-center justify-center bg-muted/40 relative cursor-pointer overflow-hidden p-1"
                       onClick={() => logoInputRef.current?.click()}
                     >
                       {logoPreview ? (
                         <img
                           src={logoPreview}
                           alt="Logo preview"
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-contain rounded-lg"
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
@@ -1800,6 +1800,7 @@ export const AttributesCreate: React.FC = () => {
                     name: group.name,
                     description: group.description,
                     attributeCount: group.attributeCount ?? group.attributeIds?.length ?? 0,
+                    logoUrl: group.logoUrl ?? null,
                   }))}
                   selectedGroups={formData.attributeGroups}
                   onSelectionChange={(groups) => {
@@ -2015,9 +2016,9 @@ export const AttributesCreate: React.FC = () => {
                     {t('attributes.create.basic_information_summary')}
                   </h4>
                   <div className="flex items-center gap-3 mb-2">
-                    <div className="w-14 h-14 rounded-lg border border-dashed border-border overflow-hidden bg-muted/50 flex items-center justify-center">
+                    <div className="w-14 h-14 rounded-lg border border-dashed border-border overflow-hidden bg-muted/50 flex items-center justify-center p-1">
                       {logoPreview ? (
-                        <img src={logoPreview} alt="Logo preview" className="w-full h-full object-cover" />
+                        <img src={logoPreview} alt="Logo preview" className="w-full h-full object-contain rounded-md" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-indigo-500 to-blue-600 text-white">
                           <FileText className="h-5 w-5" />
@@ -2287,35 +2288,11 @@ export const AttributesCreate: React.FC = () => {
       if (formData.tags.length > 0) {
         payload.tags = formData.tags;
       }
+      if (formData.attributeGroups.length > 0) {
+        payload.attributeGroupIds = formData.attributeGroups;
+      }
 
       const created = await attributesService.create(payload);
-
-      if (formData.attributeGroups.length > 0) {
-        const results = await Promise.allSettled(
-          formData.attributeGroups.map(async (groupId) => {
-            const group = attributeGroups.find((item) => item.id === groupId);
-            if (!group) {
-              return;
-            }
-            const existingIds = Array.isArray(group.attributeIds) ? group.attributeIds : [];
-            if (existingIds.includes(created.id)) {
-              return;
-            }
-            const nextIds = Array.from(new Set([...existingIds, created.id]));
-            await attributeGroupsService.update(groupId, { attributeIds: nextIds });
-          }),
-        );
-
-        const failed = results.filter((result) => result.status === 'rejected');
-        if (failed.length > 0) {
-          showToast({
-            type: 'warning',
-            message:
-              t('attributes.create.attribute_group_update_failed') ||
-              'Attribute attribute gruplarına bağlanırken bazı hatalar oluştu.',
-          });
-        }
-      }
 
       if (logoFile) {
         try {
