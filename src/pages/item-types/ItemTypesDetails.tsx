@@ -92,7 +92,9 @@ interface ItemTypeAttributeGroupsTabProps {
 
 interface ItemTypeColumnConfigTabProps {
   itemType: ItemType;
-  attributeGroups: AttributeGroupMap;
+  attributeGroups: AttributeGroup[];
+  categories: Category[];
+  families: Family[];
   canEdit: boolean;
 }
 
@@ -470,6 +472,8 @@ const ItemTypeAttributeGroupsTab: React.FC<ItemTypeAttributeGroupsTabProps> = ({
 const ItemTypeColumnConfigTab: React.FC<ItemTypeColumnConfigTabProps> = ({
   itemType,
   attributeGroups,
+  categories,
+  families,
   canEdit,
 }) => {
   const { t } = useLanguage();
@@ -515,9 +519,90 @@ const ItemTypeColumnConfigTab: React.FC<ItemTypeColumnConfigTabProps> = ({
     [t],
   );
 
+  const columnAttributeGroups = useMemo(() => {
+    if (!itemType) return [];
+
+    const groupIds = new Set<string>();
+
+    const addAttributeGroupIds = (ids?: string[] | null, bindings?: AttributeGroupBinding[]) => {
+      ids?.forEach((id) => id && groupIds.add(id));
+      bindings?.forEach((binding) => binding.attributeGroupId && groupIds.add(binding.attributeGroupId));
+    };
+
+    addAttributeGroupIds(itemType.attributeGroupIds, itemType.attributeGroupBindings);
+
+    const categoryIdSet = new Set<string>();
+    itemType.categoryIds?.forEach((id) => id && categoryIdSet.add(id));
+    categories
+      .filter((category) => category.linkedItemTypeIds?.includes(itemType.id))
+      .forEach((category) => categoryIdSet.add(category.id));
+
+    const categoryByParent = new Map<string | null | undefined, string[]>();
+    categories.forEach((category) => {
+      const parent = category.parentCategoryId ?? null;
+      const list = categoryByParent.get(parent) ?? [];
+      list.push(category.id);
+      categoryByParent.set(parent, list);
+    });
+
+    const expandCategoryDescendants = (ids: Set<string>) => {
+      const queue = [...ids];
+      while (queue.length) {
+        const current = queue.shift()!;
+        const children = categoryByParent.get(current) ?? [];
+        children.forEach((childId) => {
+          if (!ids.has(childId)) {
+            ids.add(childId);
+            queue.push(childId);
+          }
+        });
+      }
+    };
+    expandCategoryDescendants(categoryIdSet);
+
+    categories
+      .filter((category) => categoryIdSet.has(category.id))
+      .forEach((category) => addAttributeGroupIds(category.attributeGroupIds, category.attributeGroupBindings));
+
+    const familyByParent = new Map<string | null | undefined, string[]>();
+    families.forEach((family) => {
+      const parent = family.parentFamilyId ?? null;
+      const list = familyByParent.get(parent) ?? [];
+      list.push(family.id);
+      familyByParent.set(parent, list);
+    });
+
+    const familyIdSet = new Set<string>();
+    itemType.linkedFamilyIds?.forEach((id) => id && familyIdSet.add(id));
+    families
+      .filter((family) => family.categoryId && categoryIdSet.has(family.categoryId))
+      .forEach((family) => familyIdSet.add(family.id));
+
+    const expandFamilyDescendants = (ids: Set<string>) => {
+      const queue = [...ids];
+      while (queue.length) {
+        const current = queue.shift()!;
+        const children = familyByParent.get(current) ?? [];
+        children.forEach((childId) => {
+          if (!ids.has(childId)) {
+            ids.add(childId);
+            queue.push(childId);
+          }
+        });
+      }
+    };
+    expandFamilyDescendants(familyIdSet);
+
+    families
+      .filter((family) => familyIdSet.has(family.id))
+      .forEach((family) => addAttributeGroupIds(family.attributeGroupIds, family.attributeGroupBindings));
+
+    return attributeGroups.filter((group) => groupIds.has(group.id));
+  }, [attributeGroups, categories, families, itemType]);
+
   const attributeColumns = useMemo(() => {
     const map = new Map<string, AvailableColumn>();
-    attributeGroups.forEach((group) => {
+    columnAttributeGroups.forEach((group) => {
       group.attributes?.forEach((attribute) => {
         if (!map.has(attribute.id)) {
           map.set(attribute.id, {
@@ -531,7 +616,7 @@ const ItemTypeColumnConfigTab: React.FC<ItemTypeColumnConfigTabProps> = ({
       });
     });
     return Array.from(map.values());
-  }, [attributeGroups]);
+  }, [columnAttributeGroups]);
 
   const allColumns: AvailableColumn[] = useMemo(() => [...metaColumns, ...attributeColumns], [metaColumns, attributeColumns]);
 
@@ -1008,7 +1093,7 @@ const ItemTypesDetails: React.FC = () => {
             itemTypesService.getById(id),
             categoriesService.list({ limit: 200 }),
             familiesService.list({ limit: 200 }),
-            attributeGroupsService.list(),
+            attributeGroupsService.resolve({ itemTypeId: id }),
           ]);
 
         if (cancelled) {
@@ -1018,7 +1103,7 @@ const ItemTypesDetails: React.FC = () => {
         setItemType(itemTypeResponse);
         setCategories(categoryResponse.items ?? []);
         setFamilies(familyResponse.items ?? []);
-        setAttributeGroups(attributeGroupResponse ?? []);
+        setAttributeGroups(attributeGroupResponse?.attributeGroups ?? attributeGroupResponse ?? []);
       } catch (err: any) {
         if (cancelled) {
           return;
@@ -1435,7 +1520,9 @@ const ItemTypesDetails: React.FC = () => {
       component: ItemTypeColumnConfigTab,
       props: {
         itemType,
-        attributeGroups: attributeGroupMap,
+        attributeGroups,
+        categories,
+        families,
         canEdit: canUpdate,
       },
     },

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Home,
@@ -28,6 +28,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useSettings } from '../../contexts/SettingsContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { PERMISSIONS } from '../../config/permissions';
+import { itemTypesService } from '../../api/services/item-types.service';
 
 type MenuItem = {
   name: string;
@@ -199,6 +200,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, isOpen, onClose }) 
   const { settings } = useSettings();
   const { hasPermission } = useAuth();
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({});
+  const [navItemTypes, setNavItemTypes] = useState<MenuItem[]>([]);
 
   const toggleMenu = (menuName: string) => {
     setExpandedMenus(prev => ({
@@ -218,7 +220,39 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, isOpen, onClose }) 
     [t],
   );
 
-  const primaryMenu = useMemo(() => filterMenuItems(menuItems, hasPermission), [hasPermission]);
+  useEffect(() => {
+    let cancelled = false;
+    const loadNavItemTypes = async () => {
+      try {
+        const response = await itemTypesService.list({ limit: 200 });
+        if (cancelled) return;
+        const visible = (response.items ?? []).filter((itemType) => itemType.showInNavbar);
+        const dynamicItems: MenuItem[] = visible.map((itemType) => ({
+          name: `itemtype.${itemType.id}`,
+          href: `/items/type/${itemType.id}`,
+          icon: Database,
+          permission: PERMISSIONS.CATALOG.ITEMS.LIST,
+          fallback: itemType.name || itemType.key || itemType.id,
+        }));
+        setNavItemTypes(dynamicItems);
+      } catch (error) {
+        console.error('Failed to load navbar item types', error);
+      }
+    };
+    void loadNavItemTypes();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const primaryMenu = useMemo(() => {
+    const base = [...menuItems];
+    if (navItemTypes.length > 0) {
+      const insertIndex = 1; // after dashboard
+      base.splice(insertIndex, 0, ...navItemTypes);
+    }
+    return filterMenuItems(base, hasPermission);
+  }, [hasPermission, navItemTypes]);
 
   const secondaryMenu = useMemo(() => filterMenuItems(systemMenuItems, hasPermission), [hasPermission]);
 
@@ -331,7 +365,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, isOpen, onClose }) 
             return null;
           }
 
-          const isActive = location.pathname.startsWith(item.href);
+          const isActive = item.href === '/items'
+            ? location.pathname === '/items' || location.pathname === '/items/'
+            : location.pathname.startsWith(item.href);
 
           return (
             <Link

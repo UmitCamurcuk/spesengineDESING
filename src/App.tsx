@@ -94,8 +94,10 @@ import { Settings } from './pages/settings/Settings';
 
 // Profile
 import { Profile } from './pages/Profile';
+import { ItemsListByType } from './pages/items/ItemsListByType';
 
 const GuardedItemsList = withPermission(PERMISSIONS.CATALOG.ITEMS.LIST)(ItemsList);
+const GuardedItemsListByType = withPermission(PERMISSIONS.CATALOG.ITEMS.LIST)(ItemsListByType);
 const GuardedItemsDetails = withPermission(PERMISSIONS.CATALOG.ITEMS.VIEW)(ItemsDetails);
 const GuardedItemsCreate = withPermission(PERMISSIONS.CATALOG.ITEMS.CREATE)(ItemsCreate);
 
@@ -404,6 +406,7 @@ const AppContentInner: React.FC = () => {
         
         {/* Items Routes */}
         <Route path="/items" element={<GuardedItemsList />} />
+        <Route path="/items/type/:itemTypeId" element={<GuardedItemsListByType />} />
         <Route path="/items/:id" element={<GuardedItemsDetails />} />
         <Route path="/items/create" element={<GuardedItemsCreate />} />
         

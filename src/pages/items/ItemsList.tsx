@@ -1,26 +1,46 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Plus, Package } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Plus, Package, Filter } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable } from '../../components/ui/DataTable';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
-import type { Category, Item, ItemType } from '../../types';
+import type { Item, ItemType } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { PERMISSIONS } from '../../config/permissions';
 import { itemsService } from '../../api/services/items.service';
 import { UserInfoWithRole } from '../../components/common/UserInfoWithRole';
+import { itemTypesService } from '../../api/services/item-types.service';
+import { attributeGroupsService } from '../../api/services/attribute-groups.service';
+import type { AttributeGroup, ItemTypeColumnConfig, ItemTypeColumnDefinition } from '../../types';
 
-export const ItemsList: React.FC = () => {
+export interface ItemsListProps {
+  forcedItemTypeId?: string;
+  titleOverride?: string;
+  subtitleOverride?: string;
+  alwaysShowFilterBadge?: boolean;
+}
+
+export const ItemsList: React.FC<ItemsListProps> = ({
+  forcedItemTypeId,
+  titleOverride,
+  subtitleOverride,
+  alwaysShowFilterBadge = false,
+}) => {
   const navigate = useNavigate();
   const { t, resolveLocalization } = useLanguage();
   const { hasPermission } = useAuth();
   const canCreateItem = hasPermission(PERMISSIONS.CATALOG.ITEMS.CREATE);
+  const [searchParams] = useSearchParams();
+  const filterItemTypeId = forcedItemTypeId ?? searchParams.get('itemTypeId')?.trim() ?? '';
 
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [filterItemType, setFilterItemType] = useState<ItemType | null>(null);
+  const [columnConfig, setColumnConfig] = useState<ItemTypeColumnConfig | null>(null);
+  const [attributeGroups, setAttributeGroups] = useState<AttributeGroup[]>([]);
 
   const toUserInfo = useCallback((user: Item['updatedBy'] | Item['createdBy']) => {
     if (!user) {
@@ -42,6 +62,90 @@ export const ItemsList: React.FC = () => {
     };
   }, []);
 
+  const formatAttributeValue = useCallback((value: unknown): string => {
+    if (value === undefined || value === null) return '—';
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      return trimmed.length ? trimmed : '—';
+    }
+    if (typeof value === 'number') return Number.isNaN(value) ? '—' : value.toString();
+    if (typeof value === 'boolean') return value ? 'true' : 'false';
+    if (Array.isArray(value)) {
+      if (value.length === 0) return '—';
+      const mapped = value.map((entry) => formatAttributeValue(entry)).filter((entry) => entry !== '—');
+      return mapped.length ? mapped.join(', ') : '—';
+    }
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }, []);
+
+  const formatPhoneValue = useCallback((value: unknown): { display: string; tel?: string } => {
+    const fallback = { display: '—', tel: undefined };
+    if (!value) return fallback;
+    const normalize = (v: any) => {
+      const cc = typeof v.countryCode === 'string' ? v.countryCode.trim() : '';
+      const num = typeof v.number === 'string' ? v.number.trim() : '';
+      return { cc, num };
+    };
+    let parsed = { cc: '', num: '' };
+    if (typeof value === 'string') {
+      try {
+        parsed = normalize(JSON.parse(value));
+      } catch {
+        if (value.includes('|')) {
+          const [cc, num] = value.split('|');
+          parsed = normalize({ countryCode: cc, number: num });
+        } else {
+          parsed = normalize({ number: value });
+        }
+      }
+    } else if (typeof value === 'object') {
+      parsed = normalize(value as Record<string, unknown>);
+    }
+    const display = `${parsed.cc || ''} ${parsed.num}`.trim() || '—';
+    const tel = parsed.num ? `tel:${(parsed.cc || '')}${parsed.num}`.replace(/\s+/g, '') : undefined;
+    return { display, tel };
+  }, []);
+
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchDependencies = async () => {
+      if (!filterItemTypeId) {
+        setFilterItemType(null);
+        setColumnConfig(null);
+        setAttributeGroups([]);
+        return;
+      }
+      try {
+        const [itemTypeResp, columnResp, groupResp] = await Promise.all([
+          itemTypesService.getById(filterItemTypeId),
+          itemTypesService.getColumnConfig(filterItemTypeId, 'list'),
+          attributeGroupsService.resolve({ itemTypeId: filterItemTypeId }),
+        ]);
+        if (cancelled) return;
+        setFilterItemType(itemTypeResp);
+        setColumnConfig(columnResp);
+        setAttributeGroups(groupResp?.attributeGroups ?? groupResp ?? []);
+      } catch (err) {
+        if (cancelled) return;
+        console.error('Failed to load item type filter data', err);
+        setFilterItemType(null);
+        setColumnConfig(null);
+        setAttributeGroups([]);
+      }
+    };
+
+    void fetchDependencies();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [filterItemTypeId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,7 +154,11 @@ export const ItemsList: React.FC = () => {
       try {
         setLoading(true);
         setError(null);
-        const itemsResponse = await itemsService.list({ limit: 200 });
+        const itemsResponse = await itemsService.list({
+          limit: 200,
+          itemTypeId: filterItemTypeId || undefined,
+          includeAttributes: Boolean(filterItemTypeId),
+        });
         if (cancelled) {
           return;
         }
@@ -75,7 +183,7 @@ export const ItemsList: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [t]);
+  }, [filterItemTypeId, t]);
 
   const handleRowClick = useCallback(
     (item: Item) => {
@@ -84,7 +192,122 @@ export const ItemsList: React.FC = () => {
     [navigate],
   );
 
-  const columns = useMemo(
+  const attrMap = useMemo(() => {
+    const map = new Map<string, { name: string; type?: string }>();
+    attributeGroups.forEach((group) =>
+      (group.attributes ?? []).forEach((attr) => {
+        map.set(attr.id, { name: attr.name || attr.key || attr.id, type: attr.type });
+      }),
+    );
+    return map;
+  }, [attributeGroups]);
+
+  const resolveColumnLabel = useCallback(
+    (column: ItemTypeColumnDefinition): string => {
+      if (column.labelLocalizationId) {
+        const localized = resolveLocalization(column.labelLocalizationId);
+        if (localized) return localized;
+      }
+      if (column.source === 'attribute') {
+        const attributeId =
+          (column.options?.attributeId as string | undefined) ||
+          (column.key.startsWith('attribute.') ? column.key.split('.')[1] : undefined);
+        const attr = attributeId ? attrMap.get(attributeId) : undefined;
+        if (attr?.name) return attr.name;
+      }
+      if (column.key === 'meta.name') return t('item_types.column_labels.name') || 'Name';
+      if (column.key === 'meta.code') return t('item_types.column_labels.code') || 'Code';
+      if (column.key === 'meta.status') return t('item_types.column_labels.status') || 'Status';
+      if (column.key === 'meta.createdAt') return t('item_types.column_labels.created_at') || 'Created At';
+      if (column.key === 'meta.updatedAt') return t('item_types.column_labels.updated_at') || 'Updated At';
+      return column.key;
+    },
+    [attrMap, resolveLocalization, t],
+  );
+
+  const dynamicColumns = useMemo(() => {
+    if (!columnConfig || !columnConfig.columns?.length) {
+      return null;
+    }
+
+    const attrMap = new Map<string, string>();
+    attributeGroups.forEach((group) =>
+      (group.attributes ?? []).forEach((attr) => {
+        attrMap.set(attr.id, attr.name || attr.key || attr.id);
+      }),
+    );
+
+    return columnConfig.columns
+      .filter((column) => column.visible !== false)
+      .map((column) => ({
+        key: column.key,
+        title: resolveColumnLabel(column),
+        render: (_: unknown, item: Item) => {
+          if (column.source === 'meta') {
+            switch (column.key) {
+              case 'meta.name': {
+                const localizedName =
+                  (item.nameLocalizationId ? resolveLocalization(item.nameLocalizationId) : null) ||
+                  (typeof item.name === 'string' && item.name.trim().length > 0
+                    ? item.name.trim()
+                    : item.id);
+                return localizedName;
+              }
+              case 'meta.code':
+                return item.id;
+              case 'meta.status':
+                return (item as any).status ?? '—';
+              case 'meta.createdAt':
+                return item.createdAt ? new Date(item.createdAt).toLocaleString() : '—';
+              case 'meta.updatedAt':
+                return item.updatedAt ? new Date(item.updatedAt).toLocaleString() : '—';
+              default:
+                return '—';
+            }
+          }
+
+          if (column.source === 'attribute') {
+            const attributeId =
+              (column.options?.attributeId as string | undefined) ??
+              (column.key.startsWith('attribute.') ? column.key.split('.')[1] : undefined);
+            if (!attributeId) return '—';
+            const value =
+              (item.attributeValueMap && item.attributeValueMap[attributeId]) ??
+              item.attributeValues?.find((val) => val.attributeId === attributeId)?.value;
+            const attrMeta = attrMap.get(attributeId);
+            const type = attrMeta?.type?.toLowerCase?.() ?? '';
+
+            // If value looks like a raw ObjectId but attribute is not reference, hide it as missing.
+            const looksLikeObjectId =
+              typeof value === 'string' && /^[a-f0-9]{24}$/i.test(value.trim());
+            let content: React.ReactNode =
+              looksLikeObjectId && type !== 'reference' ? '—' : formatAttributeValue(value);
+            if (type === 'phone') {
+              const { display, tel } = formatPhoneValue(value);
+              content = tel ? (
+                <a href={tel} className="text-primary hover:underline">
+                  {display}
+                </a>
+              ) : (
+                display
+              );
+            }
+            return (
+              <div className="space-y-0.5">
+                <div className="text-sm text-foreground">{content}</div>
+                {attrMeta?.name ? (
+                  <div className="text-[11px] text-muted-foreground">{attrMeta.name}</div>
+                ) : null}
+              </div>
+            );
+          }
+
+          return '—';
+        },
+      }));
+  }, [attributeGroups, columnConfig, formatAttributeValue, resolveColumnLabel, resolveLocalization]);
+
+  const defaultColumns = useMemo(
     () => [
       {
         key: 'name',
@@ -178,11 +401,17 @@ export const ItemsList: React.FC = () => {
     [resolveLocalization, t, toUserInfo],
   );
 
+  const columns = useMemo(() => dynamicColumns ?? defaultColumns, [defaultColumns, dynamicColumns]);
+
   return (
     <div className="h-full flex flex-col">
       <PageHeader
         title={t('items.title')}
-        subtitle={t('items.subtitle')}
+        subtitle={
+          filterItemType
+            ? `${t('items.subtitle') || 'Item listesi'} • ${filterItemType.name || filterItemType.key}`
+            : t('items.subtitle')
+        }
         actions={
           canCreateItem ? (
             <Button onClick={() => navigate('/items/create')}>
@@ -200,6 +429,15 @@ export const ItemsList: React.FC = () => {
       )}
 
       <div className="flex-1 mt-6">
+        {filterItemType ? (
+          <div className="mb-3 inline-flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground">
+            <Filter className="h-3.5 w-3.5" />
+            <span>{t('items.filter_by_type') || 'Item type filter'}:</span>
+            <Badge variant="secondary" size="sm">
+              {filterItemType.name || filterItemType.key}
+            </Badge>
+          </div>
+        ) : null}
         <DataTable<Item>
           data={items}
           columns={columns}

@@ -26,7 +26,6 @@ import { APITester } from '../../components/common/APITester';
 import { Documentation } from '../../components/common/Documentation';
 import { Statistics } from '../../components/common/Statistics';
 import { HistoryTable } from '../../components/common/HistoryTable';
-import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { itemsService } from '../../api/services/items.service';
 import type {
   Item,
@@ -67,9 +66,16 @@ const resolveItemTypeName = (
 interface ItemDetailsTabProps {
   details: ItemDetails;
   editMode?: boolean;
+  attributeDrafts?: Record<string, unknown>;
+  onAttributeChange?: (attributeId: string, value: unknown) => void;
 }
 
-const ItemDetailsTab: React.FC<ItemDetailsTabProps> = ({ details }) => {
+const ItemDetailsTab: React.FC<ItemDetailsTabProps> = ({
+  details,
+  editMode = false,
+  attributeDrafts,
+  onAttributeChange,
+}) => {
   const { formatDateTime } = useDateFormatter();
   const categoryName = useMemo(
     () =>
@@ -180,8 +186,18 @@ const ItemDetailsTab: React.FC<ItemDetailsTabProps> = ({ details }) => {
                       <AttributeRenderer
                         key={attribute.id}
                         attribute={attribute}
-                        value={attributeValues[attribute.id]?.value}
-                        mode="view"
+                        value={
+                          attributeDrafts && Object.prototype.hasOwnProperty.call(attributeDrafts, attribute.id)
+                            ? attributeDrafts[attribute.id]
+                            : attributeValues[attribute.id]?.value
+                        }
+                        mode={editMode ? 'edit' : 'view'}
+                        onChange={
+                          editMode && onAttributeChange
+                            ? (value) => onAttributeChange(attribute.id, value)
+                            : undefined
+                        }
+                        readonly={!editMode}
                       />
                     ))}
                   </div>
@@ -389,7 +405,9 @@ export const ItemsDetails: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [attributeDrafts, setAttributeDrafts] = useState<Record<string, unknown>>({});
+  const [hasChanges, setHasChanges] = useState(false);
   const canEdit = hasPermission(PERMISSIONS.CATALOG.ITEMS.UPDATE);
   const canDelete = hasPermission(PERMISSIONS.CATALOG.ITEMS.DELETE);
 
@@ -428,6 +446,137 @@ export const ItemsDetails: React.FC = () => {
     ? details.associations.source.length + details.associations.target.length
     : 0;
 
+  const itemTypeDisplayName = details
+    ? resolveItemTypeName(details.itemType, details.item.itemTypeSummary, details.item.itemTypeId)
+    : null;
+
+  const subtitle = details ? `${details.item.id} • ${itemTypeDisplayName ?? 'Unknown type'}` : '';
+  const deleteTitle =
+    t('items.details.delete_title', { name: details?.item.name ?? '' }) ??
+    (details ? `Delete ${details.item.name}?` : 'Delete Item?');
+  const deleteDescription =
+    t('items.details.delete_description') ??
+    'This will permanently remove the item and its attribute values.';
+  const deleteConfirm = t('items.details.delete_confirm') ?? 'Delete';
+
+
+  const computeHasChanges = useCallback(
+    (drafts: Record<string, unknown>, currentDetails: ItemDetails | null): boolean => {
+      if (!currentDetails) return false;
+      const seen = new Set<string>();
+      for (const group of currentDetails.attributeGroups) {
+        for (const attr of group.attributes ?? []) {
+          if (seen.has(attr.id)) continue;
+          seen.add(attr.id);
+          const draftExists = Object.prototype.hasOwnProperty.call(drafts, attr.id);
+          const draftValue = draftExists ? drafts[attr.id] : undefined;
+          const originalValue = currentDetails.attributeValues[attr.id]?.value;
+          if (draftExists) {
+            try {
+              if (JSON.stringify(draftValue) !== JSON.stringify(originalValue)) {
+                return true;
+              }
+            } catch {
+              if (draftValue !== originalValue) return true;
+            }
+          }
+        }
+      }
+      return false;
+    },
+    [],
+  );
+
+  const handleAttributeChange = useCallback(
+    (attributeId: string, value: unknown) => {
+      setAttributeDrafts((prev) => {
+        const next = { ...prev, [attributeId]: value };
+        setHasChanges(computeHasChanges(next, details));
+        return next;
+      });
+    },
+    [computeHasChanges, details],
+  );
+
+  const handleEnterEdit = useCallback(() => {
+    if (!details) return;
+    const nextDrafts: Record<string, unknown> = {};
+    Object.entries(details.attributeValues ?? {}).forEach(([attrId, value]) => {
+      nextDrafts[attrId] = value.value;
+    });
+    setAttributeDrafts(nextDrafts);
+    setHasChanges(false);
+    setEditMode(true);
+  }, [details]);
+
+  const handleCancelEdit = useCallback(() => {
+    setAttributeDrafts({});
+    setHasChanges(false);
+    setEditMode(false);
+  }, []);
+
+  const buildAttributePayload = useCallback(
+    (currentDetails: ItemDetails, drafts: Record<string, unknown>): Record<string, unknown> => {
+      const payload: Record<string, unknown> = {};
+      const seen = new Set<string>();
+
+      for (const group of currentDetails.attributeGroups) {
+        for (const attr of group.attributes ?? []) {
+          if (seen.has(attr.id)) continue;
+          seen.add(attr.id);
+          const type = (attr.type || '').toLowerCase();
+          const draftExists = Object.prototype.hasOwnProperty.call(drafts, attr.id);
+          const existingValue = currentDetails.attributeValues[attr.id]?.value;
+          let value: unknown = draftExists ? drafts[attr.id] : existingValue;
+
+          if ((type === 'formula' || type === 'expression') && !draftExists) {
+            value = typeof attr.defaultValue !== 'undefined' ? attr.defaultValue : '';
+          }
+
+          if (typeof value === 'undefined') {
+            if (typeof existingValue === 'undefined') {
+              continue;
+            }
+            value = existingValue;
+          }
+
+          payload[attr.id] = value;
+        }
+      }
+
+      return payload;
+    },
+    [],
+  );
+
+  const handleSave = useCallback(async () => {
+    if (!details) return;
+    const attributesPayload = buildAttributePayload(details, attributeDrafts);
+
+    try {
+      await itemsService.update(details.item.id, {
+        categoryId: details.item.categoryId ?? undefined,
+        familyId: details.item.familyId ?? undefined,
+        attributes: attributesPayload,
+        bumpVersion: true,
+      });
+      await fetchDetails();
+      setAttributeDrafts({});
+      setEditMode(false);
+      setHasChanges(false);
+      showToast({
+        type: 'success',
+        message: t('items.details.update_success') ?? 'Item updated successfully.',
+      });
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.error?.message ??
+        t('items.details.update_failed') ??
+        'Item could not be updated.';
+      showToast({ type: 'error', message });
+    }
+  }, [attributeDrafts, buildAttributePayload, details, fetchDetails, showToast, t]);
+
   const tabs: TabConfig[] = useMemo(() => {
     if (!details) {
       return [];
@@ -438,7 +587,12 @@ export const ItemsDetails: React.FC = () => {
         label: 'Details',
         icon: Package,
         component: ItemDetailsTab,
-        props: { details },
+        props: {
+          details,
+          editMode,
+          attributeDrafts,
+          onAttributeChange: handleAttributeChange,
+        },
       },
       {
         id: 'associations',
@@ -495,28 +649,7 @@ export const ItemsDetails: React.FC = () => {
         props: { entityType: 'Item', entityId: details.item.id },
       },
     ];
-  }, [associationCount, details]);
-
-  const itemTypeDisplayName = details
-    ? resolveItemTypeName(details.itemType, details.item.itemTypeSummary, details.item.itemTypeId)
-    : null;
-
-  const subtitle = details ? `${details.item.id} • ${itemTypeDisplayName ?? 'Unknown type'}` : '';
-  const deleteTitle =
-    t('items.details.delete_title', { name: details?.item.name ?? '' }) ??
-    (details ? `Delete ${details.item.name}?` : 'Delete Item?');
-  const deleteDescription =
-    t('items.details.delete_description') ??
-    'This will permanently remove the item and its attribute values.';
-  const deleteConfirm = t('items.details.delete_confirm') ?? 'Delete';
-
-
-  const handleEdit = useCallback(() => {
-    if (!details) {
-      return;
-    }
-    navigate('/items/create', { state: { sourceItemId: details.item.id } });
-  }, [details, navigate]);
+  }, [associationCount, attributeDrafts, details, editMode, handleAttributeChange]);
 
   const handleDelete = useCallback(async () => {
     if (!details) {
@@ -529,7 +662,6 @@ export const ItemsDetails: React.FC = () => {
         type: 'success',
         message: t('items.details.delete_success') ?? 'Item deleted successfully.',
       });
-      setDeleteDialogOpen(false);
       navigate('/items');
     } catch (error: any) {
       const message =
@@ -542,40 +674,6 @@ export const ItemsDetails: React.FC = () => {
       setDeleteLoading(false);
     }
   }, [details, navigate, showToast, t]);
-
-  const headerActions = useMemo(() => {
-    if (!details) {
-      return null;
-    }
-
-    return (
-      <div className="flex flex-wrap gap-2">
-        {canEdit && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="flex items-center gap-2"
-            onClick={handleEdit}
-          >
-            <Edit className="h-4 w-4" />
-            {t('common.edit')}
-          </Button>
-        )}
-        {canDelete && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="border-error text-error hover:bg-error/5 flex items-center gap-2"
-            onClick={() => setDeleteDialogOpen(true)}
-            disabled={deleteLoading}
-          >
-            <Trash2 className="h-4 w-4" />
-            {t('common.delete')}
-          </Button>
-        )}
-      </div>
-    );
-  }, [canDelete, canEdit, deleteLoading, details, handleEdit, t]);
 
   if (!details) {
     return (
@@ -612,19 +710,19 @@ export const ItemsDetails: React.FC = () => {
         tabs={tabs}
         defaultTab="details"
         backUrl="/items"
-        headerActions={headerActions}
+        onSave={canEdit ? handleSave : undefined}
+        onCancel={canEdit ? handleCancelEdit : undefined}
+        onEdit={canEdit ? handleEnterEdit : undefined}
+        onDelete={canDelete ? handleDelete : undefined}
+        deleteButtonLabel={t('common.delete')}
+        deleteDialogTitle={deleteTitle}
+        deleteDialogDescription={deleteDescription}
+        deleteConfirmLabel={deleteConfirm}
+        deleteLoading={deleteLoading}
+        canDelete={canDelete}
+        editMode={editMode}
+        hasChanges={hasChanges}
         inlineActions={false}
-      />
-      <ConfirmDialog
-        open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
-        onConfirm={handleDelete}
-        loading={deleteLoading}
-        type="danger"
-        title={deleteTitle}
-        description={deleteDescription}
-        confirmText={deleteConfirm}
-        cancelText={t('common.cancel') || 'Cancel'}
       />
     </>
   );

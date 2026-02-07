@@ -1112,9 +1112,14 @@ const familiesByCategory = useMemo(() => {
     return Array.from(map.values());
   }, [relevantAttributeGroups, requiredAttributeGroupIds]);
 
+  const requiredAttributeDefinitions = useMemo(
+    () => attributeDefinitions.filter((attribute) => attribute.required),
+    [attributeDefinitions],
+  );
+
   useEffect(() => {
     setForm((prev) => {
-      const validAttributeIds = new Set(attributeDefinitions.map((attribute) => attribute.id));
+      const validAttributeIds = new Set(requiredAttributeDefinitions.map((attribute) => attribute.id));
       const nextValues: Record<string, unknown> = {};
       let changed = false;
       Object.entries(prev.attributeValues).forEach(([key, value]) => {
@@ -1132,7 +1137,7 @@ const familiesByCategory = useMemo(() => {
         attributeValues: nextValues,
       };
     });
-  }, [attributeDefinitions]);
+  }, [requiredAttributeDefinitions]);
 
   const handleAttributeValueChange = useCallback((attributeId: string, value: unknown) => {
     setForm((prev) => {
@@ -1315,8 +1320,27 @@ const familiesByCategory = useMemo(() => {
         familyId: form.familyId ? form.familyId : null,
       };
 
-      if (Object.keys(form.attributeValues).length > 0) {
-        payload.attributes = form.attributeValues;
+      const attributesPayload: Record<string, unknown> = { ...form.attributeValues };
+
+      // Opsiyonel formül/expression attribute'larını backend'de defaultValue ile hesaplatmak için gönder
+      attributeDefinitions
+        .filter((attr) => {
+          const type = (attr.type || '').toLowerCase();
+          return (
+            !attr.required &&
+            (type === 'formula' || type === 'expression') &&
+            typeof attr.defaultValue === 'string' &&
+            attr.defaultValue.trim().length > 0 &&
+            attributesPayload[attr.id] === undefined
+          );
+        })
+        .forEach((attr) => {
+          // Boş string gönderiyoruz; backend defaultValue'yu kullanarak hesaplayacak
+          attributesPayload[attr.id] = '';
+        });
+
+      if (Object.keys(attributesPayload).length > 0) {
+        payload.attributes = attributesPayload;
       }
 
       const created = await itemsService.create(payload);
@@ -1587,13 +1611,13 @@ const familiesByCategory = useMemo(() => {
             </p>
           </div>
 
-          {attributeDefinitions.length === 0 ? (
+          {requiredAttributeDefinitions.length === 0 ? (
             <div className="rounded-md border border-dashed border-border p-4 text-xs text-muted-foreground">
               {t('items.create.no_attributes_available') || 'Bu seçim için öznitelik bulunmuyor.'}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {attributeDefinitions.map((attribute) => (
+              {requiredAttributeDefinitions.map((attribute) => (
                 <Card key={attribute.id} padding="md" className="space-y-2">
                   <AttributeRenderer
                     attribute={attribute}
@@ -2101,12 +2125,12 @@ const familiesByCategory = useMemo(() => {
             <h4 className="text-sm font-semibold text-foreground">
               {t('items.review.attributes') || 'Öznitelikler'}
             </h4>
-            {attributeDefinitions.length === 0 ? (
+            {requiredAttributeDefinitions.length === 0 ? (
               <div className="text-muted-foreground">
                 {t('items.review.no_attributes') || 'Bu seçim için öznitelik bulunmuyor.'}
               </div>
             ) : (
-              attributeDefinitions.map((attribute) => (
+              requiredAttributeDefinitions.map((attribute) => (
                 <div key={`review-attr-${attribute.id}`} className="flex items-center justify-between">
                   <span className="text-muted-foreground">{attribute.name}</span>
                   <span className="font-medium text-foreground">
