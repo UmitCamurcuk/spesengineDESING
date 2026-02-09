@@ -8,6 +8,7 @@ variables:
   DOCKER_HOST: tcp://docker:2375
   DOCKER_TLS_CERTDIR: ""
   DOCKER_DRIVER: overlay2
+  DOCKER_BUILDKIT: "1"
 
 stages:
   - build
@@ -15,9 +16,8 @@ stages:
 build_and_push_ui:
   stage: build
   rules:
-    - if: '$CI_COMMIT_BRANCH == "test" || $CI_COMMIT_BRANCH == "prod"'
-      when: on_success
-    - when: never
+    - if: '$CI_COMMIT_BRANCH == "test"'
+    - if: '$CI_COMMIT_BRANCH == "prod"'
   script:
     - |
       if [ "$CI_COMMIT_BRANCH" = "test" ]; then
@@ -26,25 +26,36 @@ build_and_push_ui:
         API_URL="https://testapi.spesengine.com/api"
         ASSET_URL="https://testapi.spesengine.com"
         APP_ENV="test"
-      else
+      elif [ "$CI_COMMIT_BRANCH" = "prod" ]; then
         TAG="prod"
         EXTRA_TAG="prod-$CI_COMMIT_SHORT_SHA"
         API_URL="https://api.spesengine.com/api"
         ASSET_URL="https://api.spesengine.com"
         APP_ENV="production"
+      else
+        echo "Branch not eligible"; exit 0
       fi
+      echo "Building UI tag: $TAG (extra: $EXTRA_TAG)"
+      echo "API_URL=$API_URL ASSET_URL=$ASSET_URL APP_ENV=$APP_ENV"
 
-      echo "Branch=$CI_COMMIT_BRANCH TAG=$TAG EXTRA_TAG=$EXTRA_TAG"
-      echo "VITE_API_BASE_URL=$API_URL"
-      echo "VITE_ASSET_BASE_URL=$ASSET_URL"
-      echo "VITE_APP_ENVIRONMENT=$APP_ENV"
-    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    - docker run --privileged --rm tonistiigi/binfmt --install all
+
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+
+    - docker buildx create --name multi --use || docker buildx use multi
+    - docker buildx inspect --bootstrap
+
+    # ARM64 build + push (Vite build-arg’lar image’a gömülür)
     - >
-      docker build
+      docker buildx build --platform linux/arm64 --push
       --build-arg VITE_API_BASE_URL="$API_URL"
       --build-arg VITE_ASSET_BASE_URL="$ASSET_URL"
       --build-arg VITE_APP_ENVIRONMENT="$APP_ENV"
       -t "$CI_REGISTRY_IMAGE:$TAG" .
-    - docker push "$CI_REGISTRY_IMAGE:$TAG"
-    - docker tag "$CI_REGISTRY_IMAGE:$TAG" "$CI_REGISTRY_IMAGE:$EXTRA_TAG"
-    - docker push "$CI_REGISTRY_IMAGE:$EXTRA_TAG"
+
+    - >
+      docker buildx build --platform linux/arm64 --push
+      --build-arg VITE_API_BASE_URL="$API_URL"
+      --build-arg VITE_ASSET_BASE_URL="$ASSET_URL"
+      --build-arg VITE_APP_ENVIRONMENT="$APP_ENV"
+      -t "$CI_REGISTRY_IMAGE:$EXTRA_TAG" .
