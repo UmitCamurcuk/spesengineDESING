@@ -15,6 +15,7 @@ interface TabsProps {
   onTabChange: (tabId: string) => void;
   className?: string;
   variant?: 'default' | 'pills' | 'underline';
+  wrap?: boolean; // allow horizontal scroll when false
 }
 
 export const Tabs: React.FC<TabsProps> = ({
@@ -22,9 +23,12 @@ export const Tabs: React.FC<TabsProps> = ({
   activeTab,
   onTabChange,
   className,
-  variant = 'default'
+  variant = 'default',
+  wrap = true,
 }) => {
-  const baseClasses = 'flex flex-wrap gap-2 md:gap-1 md:flex-nowrap overflow-x-auto scrollbar-none';
+  const baseClasses = wrap
+    ? 'flex flex-wrap gap-2 md:gap-1 md:flex-nowrap overflow-x-hidden md:overflow-x-auto lg:overflow-visible scrollbar-none'
+    : 'flex flex-nowrap gap-2 md:gap-1 overflow-x-auto scrollbar-none';
 
   const variantClasses = {
     default: 'border-b border-border',
@@ -33,7 +37,10 @@ export const Tabs: React.FC<TabsProps> = ({
   };
 
   const getTabClasses = (tab: Tab, isActive: boolean) => {
-    const base = 'flex items-center space-x-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 whitespace-nowrap';
+    const base = cn(
+      'flex items-center space-x-2 px-4 py-2.5 text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+      wrap ? 'whitespace-normal md:whitespace-nowrap' : 'whitespace-nowrap',
+    );
 
     if (variant === 'pills') {
       return cn(

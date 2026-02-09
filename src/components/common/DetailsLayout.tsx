@@ -316,6 +316,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({
               activeTab={activeTab}
               onTabChange={setActiveTab}
               variant="underline"
+              wrap={false}
             />
           </div>
 

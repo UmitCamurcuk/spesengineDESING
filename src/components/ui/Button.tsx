@@ -36,12 +36,17 @@ export const Button: React.FC<ButtonProps> = ({
     lg: 'px-4 py-2.5 text-sm rounded-md gap-2',
   };
 
+  // Icon-only butonlar için iç padding'i ve gap'i sıkılaştır
+  const isIconOnly = !children || (typeof children === 'string' && children.trim().length === 0);
+  const iconOnlyClasses = isIconOnly ? 'px-2 py-2 gap-0' : '';
+
   return (
     <button
       className={cn(
         baseClasses,
         variantClasses[variant],
         sizeClasses[size],
+        iconOnlyClasses,
         className
       )}
       disabled={disabled || loading}

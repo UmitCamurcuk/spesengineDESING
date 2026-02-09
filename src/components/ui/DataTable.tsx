@@ -626,28 +626,46 @@ export function DataTable<T extends Record<string, any>>({
 
       <div className="lg:hidden">
         <div className="divide-y divide-border">
-          {displayData.map((item, index) => (
-            <div key={index} className="p-4 space-y-3">
-              {columns.map((column, colIndex) => (
-                <div key={colIndex}>
-                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-                    {column.title}
-                  </div>
-                  {column.mobileRender ? (
-                    column.mobileRender(item)
-                  ) : (
-                    <div className="text-sm text-foreground">
-                      {column.render
-                        ? column.render(item[column.key as keyof T], item)
-                        : typeof item[column.key as keyof T] === 'boolean'
-                          ? t(item[column.key as keyof T] ? 'common.yes' : 'common.no')
-                          : String(item[column.key as keyof T] ?? '-')}
+          {displayData.map((item, index) => {
+            const Wrapper: React.ElementType = onRowClick ? 'button' : 'div';
+            return (
+              <Wrapper
+                key={index}
+                type={onRowClick ? 'button' : undefined}
+                onClick={onRowClick ? () => onRowClick(item) : undefined}
+                className={cn(
+                  'w-full text-left p-4 space-y-3',
+                  onRowClick && 'hover:bg-muted/60 focus:outline-none focus:ring-2 focus:ring-ring'
+                )}
+              >
+                {columns.map((column, colIndex) => (
+                  <div key={colIndex}>
+                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                      {column.title}
                     </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          ))}
+                    {column.mobileRender ? (
+                      column.mobileRender(item)
+                    ) : (
+                      <div className="text-sm text-foreground">
+                        {column.render
+                          ? column.render(item[column.key as keyof T], item)
+                          : typeof item[column.key as keyof T] === 'boolean'
+                            ? t(item[column.key as keyof T] ? 'common.yes' : 'common.no')
+                            : String(item[column.key as keyof T] ?? '-')}
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {onRowClick && (
+                  <div className="flex items-center justify-end text-sm font-semibold text-primary">
+                    {t('common.view_details') || 'Detay'}
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                  </div>
+                )}
+              </Wrapper>
+            );
+          })}
         </div>
       </div>
 
