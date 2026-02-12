@@ -230,10 +230,10 @@ export const ItemsList: React.FC<ItemsListProps> = ({
       return null;
     }
 
-    const attrMap = new Map<string, string>();
+    const attrMap = new Map<string, { name: string; type?: string }>();
     attributeGroups.forEach((group) =>
       (group.attributes ?? []).forEach((attr) => {
-        attrMap.set(attr.id, attr.name || attr.key || attr.id);
+        attrMap.set(attr.id, { name: attr.name || attr.key || attr.id, type: attr.type });
       }),
     );
 

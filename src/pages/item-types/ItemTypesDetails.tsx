@@ -1,6 +1,24 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import {
   Activity,
   ArrowDown,
   ArrowUp,
@@ -96,6 +114,13 @@ interface ItemTypeColumnConfigTabProps {
   categories: Category[];
   families: Family[];
   canEdit: boolean;
+  editMode: boolean;
+  columns: ItemTypeColumnDefinition[];
+  initialColumns: ItemTypeColumnDefinition[];
+  onColumnsChange: (columns: ItemTypeColumnDefinition[]) => void;
+  activeContext: 'list' | 'navbar';
+  onContextChange: (context: 'list' | 'navbar') => void;
+  loading: boolean;
 }
 
 const ItemTypeDetailsTab: React.FC<ItemTypeDetailsTabProps> = ({
@@ -469,22 +494,146 @@ const ItemTypeAttributeGroupsTab: React.FC<ItemTypeAttributeGroupsTabProps> = ({
   );
 };
 
+interface SortableColumnItemProps {
+  column: ItemTypeColumnDefinition;
+  index: number;
+  editMode: boolean;
+  label: string;
+  sourceLabel: string;
+  helper?: string;
+  isFirst: boolean;
+  isLast: boolean;
+  onToggleVisible: (index: number, value: boolean) => void;
+  onMove: (index: number, direction: 'up' | 'down') => void;
+  onRemove: (index: number) => void;
+}
+
+const SortableColumnItem: React.FC<SortableColumnItemProps> = ({
+  column,
+  index,
+  editMode,
+  label,
+  sourceLabel,
+  helper,
+  isFirst,
+  isLast,
+  onToggleVisible,
+  onMove,
+  onRemove,
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: column.key, disabled: !editMode });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex flex-col gap-3 rounded-lg border border-border bg-background px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+    >
+      <div className="flex items-start gap-3">
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className={`mt-1 text-muted-foreground ${editMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
+          disabled={!editMode}
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+        <div>
+          <p className="text-sm font-medium text-foreground">{label}</p>
+          <p className="text-xs text-muted-foreground">
+            {sourceLabel} • {column.key}
+          </p>
+          {helper ? (
+            <p className="text-xs text-muted-foreground mt-1">{helper}</p>
+          ) : null}
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <Checkbox
+          size="sm"
+          checked={column.visible}
+          onChange={(event) => onToggleVisible(index, event.target.checked)}
+          disabled={!editMode}
+        />
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => onMove(index, 'up')}
+          disabled={!editMode || isFirst}
+          className="px-2"
+        >
+          <ArrowUp className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => onMove(index, 'down')}
+          disabled={!editMode || isLast}
+          className="px-2"
+        >
+          <ArrowDown className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => onRemove(index)}
+          disabled={!editMode}
+          className="px-2 text-error hover:text-error"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+};
+
 const ItemTypeColumnConfigTab: React.FC<ItemTypeColumnConfigTabProps> = ({
   itemType,
   attributeGroups,
   categories,
   families,
   canEdit,
+  editMode,
+  columns,
+  initialColumns,
+  onColumnsChange,
+  activeContext,
+  onContextChange,
+  loading,
 }) => {
   const { t } = useLanguage();
-  const { showToast } = useToast();
-  const [activeContext, setActiveContext] = useState<'list' | 'navbar'>('list');
-  const [columns, setColumns] = useState<ItemTypeColumnDefinition[]>([]);
-  const [initialColumns, setInitialColumns] = useState<ItemTypeColumnDefinition[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [selectedColumnKey, setSelectedColumnKey] = useState('');
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
 
   const metaColumns = useMemo(
     () => [
@@ -633,58 +782,6 @@ const ItemTypeColumnConfigTab: React.FC<ItemTypeColumnConfigTabProps> = ({
       .map((column, index) => ({ ...column, order: index })),
   []);
 
-  const loadColumns = useCallback(
-    async (context: 'list' | 'navbar') => {
-      if (!itemType?.id) {
-        return;
-      }
-      try {
-        setLoading(true);
-        setError(null);
-        const config = await itemTypesService.getColumnConfig(itemType.id, context);
-        if (config && config.columns.length > 0) {
-          const normalized = normalizeColumns(config.columns);
-          setColumns(normalized);
-          setInitialColumns(normalized);
-        } else {
-          const defaults: ItemTypeColumnDefinition[] =
-            context === 'navbar'
-              ? [
-                  {
-                    key: 'meta.name',
-                    source: 'meta',
-                    visible: true,
-                    order: 0,
-                  },
-                ]
-              : [
-                  { key: 'meta.code', source: 'meta', visible: true, order: 0 },
-                  { key: 'meta.name', source: 'meta', visible: true, order: 1 },
-                  { key: 'meta.status', source: 'meta', visible: true, order: 2 },
-                ];
-          const normalized = normalizeColumns(defaults);
-          setColumns(normalized);
-          setInitialColumns(normalized);
-        }
-        setSelectedColumnKey('');
-      } catch (err: any) {
-        console.error('Failed to load column config', err);
-        setError(
-          err?.response?.data?.error?.message ||
-            t('item_types.column_config.load_failed') ||
-            'Kolon konfigürasyonu yüklenemedi.',
-        );
-      } finally {
-        setLoading(false);
-      }
-    },
-    [itemType?.id, normalizeColumns, t],
-  );
-
-  useEffect(() => {
-    void loadColumns(activeContext);
-  }, [activeContext, loadColumns]);
-
   const unusedColumns = useMemo(() => {
     const existingKeys = new Set(columns.map((column) => column.key));
     return allColumns.filter((column) => !existingKeys.has(column.key));
@@ -714,43 +811,31 @@ const ItemTypeColumnConfigTab: React.FC<ItemTypeColumnConfigTabProps> = ({
     [t],
   );
 
-  const isDirty = useMemo(() => {
-    const current = JSON.stringify(normalizeColumns(columns));
-    const initial = JSON.stringify(normalizeColumns(initialColumns));
-    return current !== initial;
-  }, [columns, initialColumns, normalizeColumns]);
-
-  const handleContextChange = (nextContext: 'list' | 'navbar') => {
-    if (saving || loading) {
-      return;
-    }
-    setActiveContext(nextContext);
-  };
-
   const handleToggleVisible = (index: number, value: boolean) => {
-    setColumns((prev) => {
-      const next = prev.slice();
-      next[index] = { ...next[index], visible: value };
-      return next;
-    });
+    const next = columns.slice();
+    next[index] = { ...next[index], visible: value };
+    onColumnsChange(next);
   };
+
+  const assignOrder = useCallback((list: ItemTypeColumnDefinition[]) =>
+    list.map((column, index) => ({ ...column, order: index })),
+  []);
 
   const handleMoveColumn = (index: number, direction: 'up' | 'down') => {
-    setColumns((prev) => {
-      const next = prev.slice();
-      const targetIndex = direction === 'up' ? index - 1 : index + 1;
-      if (targetIndex < 0 || targetIndex >= next.length) {
-        return prev;
-      }
-      const temp = next[index];
-      next[index] = next[targetIndex];
-      next[targetIndex] = temp;
-      return normalizeColumns(next);
-    });
+    const next = columns.slice();
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= next.length) {
+      return;
+    }
+    const temp = next[index];
+    next[index] = next[targetIndex];
+    next[targetIndex] = temp;
+    onColumnsChange(assignOrder(next));
   };
 
   const handleRemoveColumn = (index: number) => {
-    setColumns((prev) => normalizeColumns(prev.filter((_, i) => i !== index)));
+    const filtered = columns.filter((_, i) => i !== index);
+    onColumnsChange(assignOrder(filtered));
   };
 
   const handleAddColumn = () => {
@@ -761,55 +846,36 @@ const ItemTypeColumnConfigTab: React.FC<ItemTypeColumnConfigTabProps> = ({
     if (!option) {
       return;
     }
-    setColumns((prev) =>
-      normalizeColumns([
-        ...prev,
-        {
-          key: option.key,
-          source: option.source,
-          visible: true,
-          order: prev.length,
-          options: option.options,
-        },
-      ]),
-    );
+    const newColumns = [
+      ...columns,
+      {
+        key: option.key,
+        source: option.source,
+        visible: true,
+        order: columns.length,
+        options: option.options,
+      },
+    ];
+    onColumnsChange(assignOrder(newColumns));
     setSelectedColumnKey('');
   };
 
-  const handleReset = () => {
-    setColumns(normalizeColumns(initialColumns));
-    setSelectedColumnKey('');
-  };
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
 
-  const handleSave = async () => {
-    if (!canEdit || saving || !isDirty) {
+    if (!over || active.id === over.id) {
       return;
     }
-    try {
-      setSaving(true);
-      const payload = {
-        context: activeContext,
-        columns: normalizeColumns(columns),
-      };
-      const updated = await itemTypesService.updateColumnConfig(itemType.id, payload);
-      const normalized = normalizeColumns(updated.columns ?? []);
-      setColumns(normalized);
-      setInitialColumns(normalized);
-      showToast({
-        type: 'success',
-        message:
-          t('item_types.column_config.save_success') || 'Kolon konfigürasyonu kaydedildi.',
-      });
-    } catch (err: any) {
-      console.error('Failed to save column config', err);
-      const message =
-        err?.response?.data?.error?.message ||
-        t('item_types.column_config.save_failed') ||
-        'Kolon konfigürasyonu kaydedilemedi.';
-      showToast({ type: 'error', message });
-    } finally {
-      setSaving(false);
+
+    const oldIndex = columns.findIndex((col) => col.key === active.id);
+    const newIndex = columns.findIndex((col) => col.key === over.id);
+
+    if (oldIndex === -1 || newIndex === -1) {
+      return;
     }
+
+    const reorderedColumns = arrayMove(columns, oldIndex, newIndex);
+    onColumnsChange(assignOrder(reorderedColumns));
   };
 
   const contextOptions: Array<{ value: 'list' | 'navbar'; label: string }> = [
@@ -835,11 +901,12 @@ const ItemTypeColumnConfigTab: React.FC<ItemTypeColumnConfigTabProps> = ({
               <button
                 key={option.value}
                 type="button"
-                onClick={() => handleContextChange(option.value)}
+                onClick={() => onContextChange(option.value)}
+                disabled={!editMode}
                 className={
                   option.value === activeContext
-                    ? 'px-3 py-1.5 text-xs font-medium rounded-md bg-background shadow-sm'
-                    : 'px-3 py-1.5 text-xs font-medium rounded-md text-muted-foreground hover:text-foreground'
+                    ? 'px-3 py-1.5 text-xs font-medium rounded-md bg-background shadow-sm disabled:opacity-50'
+                    : 'px-3 py-1.5 text-xs font-medium rounded-md text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed'
                 }
               >
                 {option.label}
@@ -851,13 +918,7 @@ const ItemTypeColumnConfigTab: React.FC<ItemTypeColumnConfigTabProps> = ({
         {activeContext === 'navbar' && !itemType.showInNavbar ? (
           <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
             {t('item_types.column_config.navbar_inactive') ||
-              'Bu item type navbar’da gösterilmiyor. Navbar kolonları yalnızca showInNavbar etkinleştirildiğinde kullanılır.'}
-          </div>
-        ) : null}
-
-        {error ? (
-          <div className="rounded-md border border-error/40 bg-error/10 px-3 py-2 text-xs text-error">
-            {error}
+              'Bu item type navbar\'da gösterilmiyor. Navbar kolonları yalnızca showInNavbar etkinleştirildiğinde kullanılır.'}
           </div>
         ) : null}
 
@@ -876,7 +937,7 @@ const ItemTypeColumnConfigTab: React.FC<ItemTypeColumnConfigTabProps> = ({
                 value: column.key,
                 label: column.label,
               }))}
-              disabled={unusedColumns.length === 0 || !canEdit}
+              disabled={unusedColumns.length === 0 || !editMode}
             />
           </div>
           <div className="flex flex-wrap gap-2">
@@ -884,26 +945,10 @@ const ItemTypeColumnConfigTab: React.FC<ItemTypeColumnConfigTabProps> = ({
               variant="secondary"
               size="sm"
               onClick={handleAddColumn}
-              disabled={!canEdit || !selectedColumnKey}
+              disabled={!editMode || !selectedColumnKey}
               leftIcon={<Plus className="h-3.5 w-3.5" />}
             >
               {t('item_types.column_config.add_column') || 'Kolon Ekle'}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleReset}
-              disabled={!canEdit || !isDirty || saving}
-            >
-              {t('common.reset') || 'Sıfırla'}
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleSave}
-              disabled={!canEdit || !isDirty || saving}
-              loading={saving}
-            >
-              {t('common.save') || 'Kaydet'}
             </Button>
           </div>
         </div>
@@ -919,72 +964,43 @@ const ItemTypeColumnConfigTab: React.FC<ItemTypeColumnConfigTabProps> = ({
             {t('item_types.column_config.no_columns') || 'Henüz bir kolon seçilmedi.'}
           </div>
         ) : (
-          <div className="space-y-3">
-            {columns.map((column, index) => {
-              const label = resolveColumnLabel(column);
-              const sourceLabel = resolveSourceLabel(column.source);
-              const helper = columnLabelMap.get(column.key)
-                ? allColumns.find((option) => option.key === column.key)?.helper
-                : undefined;
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={columns.map((col) => col.key)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-3">
+                {columns.map((column, index) => {
+                  const label = resolveColumnLabel(column);
+                  const sourceLabel = resolveSourceLabel(column.source);
+                  const helper = columnLabelMap.get(column.key)
+                    ? allColumns.find((option) => option.key === column.key)?.helper
+                    : undefined;
 
-              return (
-                <div
-                  key={`${column.key}-${index}`}
-                  className="flex flex-col gap-3 rounded-lg border border-border bg-background px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="flex items-start gap-3">
-                    <span className="mt-1 text-muted-foreground">
-                      <GripVertical className="h-4 w-4" />
-                    </span>
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{label}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {sourceLabel} • {column.key}
-                      </p>
-                      {helper ? (
-                        <p className="text-xs text-muted-foreground mt-1">{helper}</p>
-                      ) : null}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      size="sm"
-                      checked={column.visible}
-                      onChange={(event) => handleToggleVisible(index, event.target.checked)}
-                      disabled={!canEdit}
+                  return (
+                    <SortableColumnItem
+                      key={column.key}
+                      column={column}
+                      index={index}
+                      editMode={editMode}
+                      label={label}
+                      sourceLabel={sourceLabel}
+                      helper={helper}
+                      isFirst={index === 0}
+                      isLast={index === columns.length - 1}
+                      onToggleVisible={handleToggleVisible}
+                      onMove={handleMoveColumn}
+                      onRemove={handleRemoveColumn}
                     />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleMoveColumn(index, 'up')}
-                      disabled={!canEdit || index === 0}
-                      className="px-2"
-                    >
-                      <ArrowUp className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleMoveColumn(index, 'down')}
-                      disabled={!canEdit || index === columns.length - 1}
-                      className="px-2"
-                    >
-                      <ArrowDown className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleRemoveColumn(index)}
-                      disabled={!canEdit}
-                      className="px-2 text-error hover:text-error"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                  );
+                })}
+              </div>
+            </SortableContext>
+          </DndContext>
         )}
       </Card>
     </div>
@@ -1067,6 +1083,13 @@ const ItemTypesDetails: React.FC = () => {
   const [editForm, setEditForm] = useState<ItemTypeEditFormState | null>(null);
   const [commentDialogOpen, setCommentDialogOpen] = useState(false);
   const [pendingChanges, setPendingChanges] = useState<ChangeSummary[]>([]);
+
+  const [activeColumnContext, setActiveColumnContext] = useState<'list' | 'navbar'>('list');
+  const [listColumns, setListColumns] = useState<ItemTypeColumnDefinition[]>([]);
+  const [navbarColumns, setNavbarColumns] = useState<ItemTypeColumnDefinition[]>([]);
+  const [initialListColumns, setInitialListColumns] = useState<ItemTypeColumnDefinition[]>([]);
+  const [initialNavbarColumns, setInitialNavbarColumns] = useState<ItemTypeColumnDefinition[]>([]);
+  const [columnsLoading, setColumnsLoading] = useState(false);
 
   const canDelete = hasPermission(PERMISSIONS.CATALOG.ITEM_TYPES.DELETE);
   const canUpdate = hasPermission(PERMISSIONS.CATALOG.ITEM_TYPES.UPDATE);
@@ -1254,6 +1277,107 @@ const ItemTypesDetails: React.FC = () => {
     setEditForm((prev) => (prev ? { ...prev, ...patch } : prev));
   }, []);
 
+  const normalizeColumns = useCallback((list: ItemTypeColumnDefinition[]) =>
+    list
+      .slice()
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      .map((column, index) => ({ ...column, order: index })),
+  []);
+
+  const loadColumns = useCallback(
+    async (context: 'list' | 'navbar') => {
+      if (!itemType?.id) {
+        return;
+      }
+      try {
+        setColumnsLoading(true);
+        const config = await itemTypesService.getColumnConfig(itemType.id, context);
+        if (config && config.columns.length > 0) {
+          const normalized = normalizeColumns(config.columns);
+          if (context === 'list') {
+            setListColumns(normalized);
+            setInitialListColumns(normalized);
+          } else {
+            setNavbarColumns(normalized);
+            setInitialNavbarColumns(normalized);
+          }
+        } else {
+          const defaults: ItemTypeColumnDefinition[] =
+            context === 'navbar'
+              ? [
+                  {
+                    key: 'meta.name',
+                    source: 'meta',
+                    visible: true,
+                    order: 0,
+                  },
+                ]
+              : [
+                  { key: 'meta.code', source: 'meta', visible: true, order: 0 },
+                  { key: 'meta.name', source: 'meta', visible: true, order: 1 },
+                  { key: 'meta.status', source: 'meta', visible: true, order: 2 },
+                ];
+          const normalized = normalizeColumns(defaults);
+          if (context === 'list') {
+            setListColumns(normalized);
+            setInitialListColumns(normalized);
+          } else {
+            setNavbarColumns(normalized);
+            setInitialNavbarColumns(normalized);
+          }
+        }
+      } catch (err: any) {
+        console.error('Failed to load column config', err);
+      } finally {
+        setColumnsLoading(false);
+      }
+    },
+    [itemType?.id, normalizeColumns],
+  );
+
+  useEffect(() => {
+    if (itemType?.id) {
+      void loadColumns('list');
+      void loadColumns('navbar');
+    }
+  }, [itemType?.id, loadColumns]);
+
+  const handleColumnContextChange = useCallback((context: 'list' | 'navbar') => {
+    setActiveColumnContext(context);
+  }, []);
+
+  const handleListColumnsChange = useCallback((columns: ItemTypeColumnDefinition[]) => {
+    setListColumns(columns);
+  }, []);
+
+  const handleNavbarColumnsChange = useCallback((columns: ItemTypeColumnDefinition[]) => {
+    setNavbarColumns(columns);
+  }, []);
+
+  const hasListColumnChanges = useMemo(() => {
+    if (listColumns.length !== initialListColumns.length) return true;
+
+    // Önce sıralamayı kontrol et
+    const currentOrder = listColumns.map((col) => col.key).join(',');
+    const initialOrder = initialListColumns.map((col) => col.key).join(',');
+    if (currentOrder !== initialOrder) return true;
+
+    // Sıralama aynıysa, diğer özellikleri kontrol et (visible vb.)
+    return JSON.stringify(listColumns) !== JSON.stringify(initialListColumns);
+  }, [listColumns, initialListColumns]);
+
+  const hasNavbarColumnChanges = useMemo(() => {
+    if (navbarColumns.length !== initialNavbarColumns.length) return true;
+
+    // Önce sıralamayı kontrol et
+    const currentOrder = navbarColumns.map((col) => col.key).join(',');
+    const initialOrder = initialNavbarColumns.map((col) => col.key).join(',');
+    if (currentOrder !== initialOrder) return true;
+
+    // Sıralama aynıysa, diğer özellikleri kontrol et (visible vb.)
+    return JSON.stringify(navbarColumns) !== JSON.stringify(initialNavbarColumns);
+  }, [navbarColumns, initialNavbarColumns]);
+
   const hasChanges = useMemo(() => {
     if (!itemType || !editForm) {
       return false;
@@ -1267,8 +1391,11 @@ const ItemTypesDetails: React.FC = () => {
     if (hasAttributeGroupChanges) {
       return true;
     }
+    if (hasListColumnChanges || hasNavbarColumnChanges) {
+      return true;
+    }
     return false;
-  }, [editForm, hasAttributeGroupChanges, itemType]);
+  }, [editForm, hasAttributeGroupChanges, itemType, hasListColumnChanges, hasNavbarColumnChanges]);
 
   const buildChangeSummary = useCallback((): ChangeSummary[] => {
     if (!itemType || !editForm) {
@@ -1312,13 +1439,33 @@ const ItemTypesDetails: React.FC = () => {
           : selectedAttributeGroupIds.length,
       });
     }
+    if (hasListColumnChanges) {
+      summary.push({
+        field: t('item_types.column_config.list_columns') || 'List Columns',
+        oldValue: `${initialListColumns.length} ${t('item_types.column_config.columns') || 'columns'}`,
+        newValue: `${listColumns.length} ${t('item_types.column_config.columns') || 'columns'}`,
+      });
+    }
+    if (hasNavbarColumnChanges) {
+      summary.push({
+        field: t('item_types.column_config.navbar_columns') || 'Navbar Columns',
+        oldValue: `${initialNavbarColumns.length} ${t('item_types.column_config.columns') || 'columns'}`,
+        newValue: `${navbarColumns.length} ${t('item_types.column_config.columns') || 'columns'}`,
+      });
+    }
     return summary;
   }, [
     attributeGroupMap,
     editForm,
     hasAttributeGroupChanges,
+    hasListColumnChanges,
+    hasNavbarColumnChanges,
     initialAttributeGroupIds,
+    initialListColumns,
+    initialNavbarColumns,
     itemType,
+    listColumns,
+    navbarColumns,
     selectedAttributeGroupIds,
     t,
   ]);
@@ -1339,8 +1486,10 @@ const ItemTypesDetails: React.FC = () => {
       showInNavbar: Boolean(itemType.showInNavbar),
     });
     setSelectedAttributeGroupIds(initialAttributeGroupIds);
+    setListColumns(initialListColumns);
+    setNavbarColumns(initialNavbarColumns);
     setEditMode(false);
-  }, [initialAttributeGroupIds, itemType]);
+  }, [initialAttributeGroupIds, initialListColumns, initialNavbarColumns, itemType]);
 
   const performSave = useCallback(
     async (comment: string) => {
@@ -1349,6 +1498,8 @@ const ItemTypesDetails: React.FC = () => {
       }
       try {
         setSaving(true);
+
+        // Item type güncellemesi
         const payload: Record<string, unknown> = { comment };
         if (editForm.lifecycleStatus !== itemType.lifecycleStatus) {
           payload.lifecycleStatus = editForm.lifecycleStatus;
@@ -1359,23 +1510,44 @@ const ItemTypesDetails: React.FC = () => {
         if (hasAttributeGroupChanges) {
           payload.attributeGroupIds = selectedAttributeGroupIds;
         }
-        if (Object.keys(payload).length === 1) {
-          // only comment, no actual change
-          setSaving(false);
-          showToast({
-            type: 'info',
-            message: t('item_types.no_changes') || 'Güncellenecek değişiklik yok.',
+
+        let updated = itemType;
+        if (Object.keys(payload).length > 1) {
+          updated = await itemTypesService.update(itemType.id, payload);
+          setItemType(updated);
+          setEditForm({
+            lifecycleStatus: updated.lifecycleStatus,
+            showInNavbar: Boolean(updated.showInNavbar),
           });
-          return;
+          setSelectedAttributeGroupIds(updated.attributeGroupIds ?? []);
+          setInitialAttributeGroupIds(updated.attributeGroupIds ?? []);
         }
-        const updated = await itemTypesService.update(itemType.id, payload);
-        setItemType(updated);
-        setEditForm({
-          lifecycleStatus: updated.lifecycleStatus,
-          showInNavbar: Boolean(updated.showInNavbar),
-        });
-        setSelectedAttributeGroupIds(updated.attributeGroupIds ?? []);
-        setInitialAttributeGroupIds(updated.attributeGroupIds ?? []);
+
+        // Kolon konfigürasyonlarını kaydet
+        if (hasListColumnChanges) {
+          const listPayload = {
+            context: 'list' as const,
+            columns: normalizeColumns(listColumns),
+            comment,
+          };
+          const updatedListConfig = await itemTypesService.updateColumnConfig(itemType.id, listPayload);
+          const normalized = normalizeColumns(updatedListConfig.columns ?? []);
+          setListColumns(normalized);
+          setInitialListColumns(normalized);
+        }
+
+        if (hasNavbarColumnChanges) {
+          const navbarPayload = {
+            context: 'navbar' as const,
+            columns: normalizeColumns(navbarColumns),
+            comment,
+          };
+          const updatedNavbarConfig = await itemTypesService.updateColumnConfig(itemType.id, navbarPayload);
+          const normalized = normalizeColumns(updatedNavbarConfig.columns ?? []);
+          setNavbarColumns(normalized);
+          setInitialNavbarColumns(normalized);
+        }
+
         setEditMode(false);
         showToast({
           type: 'success',
@@ -1392,7 +1564,19 @@ const ItemTypesDetails: React.FC = () => {
         setSaving(false);
       }
     },
-    [editForm, hasAttributeGroupChanges, itemType, selectedAttributeGroupIds, showToast, t],
+    [
+      editForm,
+      hasAttributeGroupChanges,
+      hasListColumnChanges,
+      hasNavbarColumnChanges,
+      itemType,
+      listColumns,
+      navbarColumns,
+      normalizeColumns,
+      selectedAttributeGroupIds,
+      showToast,
+      t,
+    ],
   );
 
   const handleSaveRequest = useCallback(() => {
@@ -1524,6 +1708,13 @@ const ItemTypesDetails: React.FC = () => {
         categories,
         families,
         canEdit: canUpdate,
+        editMode,
+        columns: activeColumnContext === 'list' ? listColumns : navbarColumns,
+        initialColumns: activeColumnContext === 'list' ? initialListColumns : initialNavbarColumns,
+        onColumnsChange: activeColumnContext === 'list' ? handleListColumnsChange : handleNavbarColumnsChange,
+        activeContext: activeColumnContext,
+        onContextChange: handleColumnContextChange,
+        loading: columnsLoading,
       },
     },
     {
