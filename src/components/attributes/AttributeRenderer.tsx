@@ -388,13 +388,196 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
     />
   );
 
+  /* ------------------------------------------------------------------ */
+  /*  Table helpers: schema-aware structured table                       */
+  /* ------------------------------------------------------------------ */
+
+  interface TableColumn {
+    key: string;
+    name: string | Record<string, string>;
+    type: string;
+    required?: boolean;
+    formula?: string;
+    min?: number;
+    max?: number;
+    maxLength?: number;
+  }
+
+  const getTableSchema = (): TableColumn[] | null => {
+    const ui = attribute.uiSettings as Record<string, unknown> | undefined | null;
+    const schema = (ui?.tableSchema as Record<string, unknown>) ?? null;
+    if (!schema) return null;
+    const cols = schema.columns;
+    if (!Array.isArray(cols) || cols.length === 0) return null;
+    return cols as TableColumn[];
+  };
+
+  const colLabel = (col: TableColumn): string => {
+    if (typeof col.name === 'string') return col.name;
+    if (col.name && typeof col.name === 'object') return (col.name as Record<string, string>).tr || (col.name as Record<string, string>).en || col.key;
+    return col.key;
+  };
+
+  const evalTableFormula = (formula: string, rowData: Record<string, unknown>): string => {
+    try {
+      const ctx: Record<string, number> = {};
+      Object.entries(rowData).forEach(([k, v]) => {
+        const n = Number(v);
+        if (Number.isFinite(n)) ctx[k] = n;
+      });
+      const fn = new Function(...Object.keys(ctx), `return (${formula});`);
+      const result = fn(...Object.values(ctx));
+      return Number.isFinite(result) ? String(result) : '';
+    } catch {
+      return '';
+    }
+  };
+
   const renderTableInput = () => {
+    const columns = getTableSchema();
+
+    /* -------- Schema-based structured table -------- */
+    if (columns) {
+      type RowData = Record<string, unknown>;
+      const rawRows: RowData[] = Array.isArray(value) ? (value as RowData[]) : [];
+      const rows: RowData[] = rawRows.length > 0 ? rawRows : [{}];
+
+      const computeRow = (row: RowData): RowData => {
+        const computed = { ...row };
+        columns.forEach((col) => {
+          if (col.type === 'formula' && col.formula) {
+            computed[col.key] = evalTableFormula(col.formula, computed);
+          }
+        });
+        return computed;
+      };
+
+      const computedRows = rows.map(computeRow);
+
+      const applyRows = (next: RowData[]) => {
+        onChange?.(next.map(computeRow));
+      };
+
+      const handleCellChange = (rowIdx: number, colKey: string, val: string) => {
+        const copy = rows.map((r, i) => (i === rowIdx ? { ...r, [colKey]: val } : { ...r }));
+        applyRows(copy);
+      };
+
+      const handleAddRow = () => applyRows([...rows, {}]);
+
+      const handleRemoveRow = (idx: number) => {
+        if (rows.length <= 1) return;
+        applyRows(rows.filter((_, i) => i !== idx));
+      };
+
+      /* View mode */
+      if (isViewMode) {
+        return (
+          <div className="overflow-auto rounded-lg border border-border">
+            <table className="min-w-full text-sm">
+              <thead className="bg-muted/50">
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">#</th>
+                  {columns.map((col) => (
+                    <th key={col.key} className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                      {colLabel(col)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {computedRows.map((row, rowIdx) => (
+                  <tr key={`sv-${rowIdx}`} className="border-t border-border/60">
+                    <td className="px-3 py-2 text-muted-foreground">{rowIdx + 1}</td>
+                    {columns.map((col) => (
+                      <td key={col.key} className="px-3 py-2 text-foreground">
+                        {String(row[col.key] ?? '') || '—'}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      }
+
+      /* Edit mode */
+      return (
+        <div className="space-y-3">
+          <Button type="button" variant="outline" size="sm" onClick={handleAddRow}>
+            <Plus className="h-4 w-4 mr-1" />
+            Satır Ekle
+          </Button>
+          <div className="overflow-auto rounded-lg border border-border">
+            <table className="min-w-full text-sm">
+              <thead className="bg-muted/50">
+                <tr>
+                  <th className="px-2 py-2 text-left text-xs font-medium text-muted-foreground">#</th>
+                  {columns.map((col) => (
+                    <th key={col.key} className="px-2 py-2 text-left text-xs font-medium text-muted-foreground">
+                      {colLabel(col)}{col.required ? ' *' : ''}
+                    </th>
+                  ))}
+                  <th className="px-2 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {computedRows.map((row, rowIdx) => (
+                  <tr key={`se-${rowIdx}`} className="border-t border-border/60">
+                    <td className="px-2 py-2 text-muted-foreground text-xs">{rowIdx + 1}</td>
+                    {columns.map((col) => {
+                      const cellVal = String(row[col.key] ?? '');
+                      const isFormula = col.type === 'formula';
+
+                      if (isFormula) {
+                        return (
+                          <td key={col.key} className="px-2 py-2">
+                            <div className="rounded-md border border-dashed border-border bg-muted/40 px-2 py-1.5 text-sm text-muted-foreground tabular-nums">
+                              {cellVal || '—'}
+                            </div>
+                          </td>
+                        );
+                      }
+
+                      return (
+                        <td key={col.key} className="px-2 py-2">
+                          <Input
+                            type={col.type === 'number' ? 'number' : 'text'}
+                            value={String(rows[rowIdx]?.[col.key] ?? '')}
+                            onChange={(e) => handleCellChange(rowIdx, col.key, e.target.value)}
+                            placeholder={colLabel(col)}
+                            min={col.min}
+                            max={col.max}
+                            maxLength={col.maxLength}
+                            required={col.required}
+                          />
+                        </td>
+                      );
+                    })}
+                    <td className="px-2 py-2">
+                      {rows.length > 1 && (
+                        <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveRow(rowIdx)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
+    /* -------- Fallback: generic string[][] grid (no schema) -------- */
     const rawRows =
-      Array.isArray(value) && value.every((row) => Array.isArray(row))
+      Array.isArray(value) && value.every((row: unknown) => Array.isArray(row))
         ? (value as unknown as string[][])
         : [['']];
-    const maxColumns = Math.max(1, ...rawRows.map((row) => row.length));
-    const normalizedRows = rawRows.map((row) => {
+    const maxColumns = Math.max(1, ...rawRows.map((row: string[]) => row.length));
+    const normalizedRows = rawRows.map((row: string[]) => {
       const next = [...row];
       while (next.length < maxColumns) {
         next.push('');
@@ -1040,13 +1223,10 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
             </pre>
           </Card>
         ) : (
-          <textarea
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-mono outline-none focus:border-primary focus:ring-1 focus:ring-primary/40"
-            rows={3}
-            value={stringValue}
-            onChange={(e) => onChange?.(e.target.value)}
-            placeholder={`${attribute.type === AttributeType.FORMULA ? 'Formül' : 'İfade'} değeri girin`}
-          />
+          <div className="flex items-center space-x-2 rounded-md border border-dashed border-border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+            <Activity className="h-4 w-4 shrink-0" />
+            <span>Bu alan otomatik hesaplanır</span>
+          </div>
         );
 
       case AttributeType.READONLY:

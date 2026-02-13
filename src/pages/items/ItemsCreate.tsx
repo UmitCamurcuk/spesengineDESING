@@ -1322,21 +1322,17 @@ const familiesByCategory = useMemo(() => {
 
       const attributesPayload: Record<string, unknown> = { ...form.attributeValues };
 
-      // Opsiyonel formül/expression attribute'larını backend'de defaultValue ile hesaplatmak için gönder
+      // Tüm formula/expression attribute'larını backend'e gönder (otomatik hesaplansın)
       attributeDefinitions
         .filter((attr) => {
           const type = (attr.type || '').toLowerCase();
           return (
-            !attr.required &&
             (type === 'formula' || type === 'expression') &&
-            typeof attr.defaultValue === 'string' &&
-            attr.defaultValue.trim().length > 0 &&
             attributesPayload[attr.id] === undefined
           );
         })
         .forEach((attr) => {
-          // Boş string gönderiyoruz; backend defaultValue'yu kullanarak hesaplayacak
-          attributesPayload[attr.id] = '';
+          attributesPayload[attr.id] = '__FORMULA__';
         });
 
       if (Object.keys(attributesPayload).length > 0) {
@@ -1372,9 +1368,10 @@ const familiesByCategory = useMemo(() => {
         let orderIndex: number | undefined;
         if ('orderIndex' in assoc && typeof assoc.orderIndex === 'string') {
           const orderIndexValue = assoc.orderIndex?.trim();
-          orderIndex = orderIndexValue ? Number(orderIndexValue) : undefined;
+          const parsed = orderIndexValue ? Number(orderIndexValue) : NaN;
+          orderIndex = Number.isFinite(parsed) ? parsed : undefined;
         } else if ('orderIndex' in assoc && typeof assoc.orderIndex === 'number') {
-          orderIndex = assoc.orderIndex;
+          orderIndex = Number.isFinite(assoc.orderIndex) ? assoc.orderIndex : undefined;
         }
 
         await associationsService.create({

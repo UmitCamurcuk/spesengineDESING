@@ -18,7 +18,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { ChangeConfirmDialog } from '../../components/ui/ChangeConfirmDialog';
 import { DetailsLayout } from '../../components/common/DetailsLayout';
-import { Card } from '../../components/ui/Card';
+import { Card, CardHeader } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { HistoryTable } from '../../components/common/HistoryTable';
 import { EntityNotificationsTab } from '../../components/notifications/EntityNotificationsTab';

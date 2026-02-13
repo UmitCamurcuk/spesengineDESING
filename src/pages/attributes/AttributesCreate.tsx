@@ -158,9 +158,12 @@ const getValidationFields = (type: AttributeType): ValidationField[] => {
     case AttributeType.FORMULA:
     case AttributeType.EXPRESSION:
       return [
-        { key: 'minLength', label: 'Minimum Length', type: 'number', placeholder: '0' },
-        { key: 'maxLength', label: 'Maximum Length', type: 'number', placeholder: '4000' },
-        { key: 'pattern', label: 'Regex Pattern', type: 'text', placeholder: '^[A-Z0-9_()+\\-*\\/ ]+$' },
+        {
+          key: 'formula',
+          label: 'Formula Expression',
+          type: 'textarea',
+          placeholder: "CONCAT(first_name, ' ', last_name)  veya  IF(qty < 10, 'Düşük', 'Yeterli')",
+        },
       ];
     case AttributeType.COLOR:
       return [
@@ -732,9 +735,27 @@ const buildValidationRules = (rawRules: Record<string, any>): Record<string, unk
 const buildUiSettings = (
   type: AttributeType,
   options: string[],
+  validation?: Record<string, any>,
 ): Record<string, unknown> | undefined => {
   if (OPTION_BASED_TYPES.has(type)) {
     return { options };
+  }
+  if (type === AttributeType.TABLE && validation?.columns) {
+    const raw = typeof validation.columns === 'string' ? validation.columns.trim() : '';
+    if (raw.length > 0) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return { tableSchema: { columns: parsed } };
+        }
+      } catch { /* ignore invalid JSON */ }
+    }
+  }
+  if (type === AttributeType.FORMULA || type === AttributeType.EXPRESSION) {
+    const formula = validation?.formula;
+    if (typeof formula === 'string' && formula.trim().length > 0) {
+      return { formula: formula.trim() };
+    }
   }
   return undefined;
 };
@@ -2264,7 +2285,7 @@ export const AttributesCreate: React.FC = () => {
       }
 
       const validationRules = buildValidationRules(formData.validation);
-      const uiSettings = buildUiSettings(formData.type, formData.options);
+      const uiSettings = buildUiSettings(formData.type, formData.options, formData.validation);
 
       const payload: Record<string, unknown> = {
         key: trimmedKey,
