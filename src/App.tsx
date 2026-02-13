@@ -92,6 +92,18 @@ import { NotificationTemplatesDetails } from './pages/notifications/Notification
 // Settings
 import { Settings } from './pages/settings/Settings';
 
+// Automation
+import { WorkflowsList } from './pages/automation/WorkflowsList';
+import { WorkflowsDetails } from './pages/automation/WorkflowsDetails';
+import { WorkflowsCreate } from './pages/automation/WorkflowsCreate';
+import { ExecutionsList } from './pages/automation/ExecutionsList';
+import { ExecutionDetails } from './pages/automation/ExecutionDetails';
+
+// Chatbot
+import { ChatbotSettings } from './pages/chatbot/ChatbotSettings';
+import { ConversationsList } from './pages/chatbot/ConversationsList';
+import { ChatbotEmbed } from './pages/chatbot/ChatbotEmbed';
+
 // Profile
 import { Profile } from './pages/Profile';
 import { ItemsListByType } from './pages/items/ItemsListByType';
@@ -159,6 +171,15 @@ const GuardedNotificationTemplatesDetails = withPermission(PERMISSIONS.SYSTEM.NO
 const GuardedNotificationTemplatesCreate = withPermission(PERMISSIONS.SYSTEM.NOTIFICATIONS.TEMPLATES.CREATE)(NotificationTemplatesCreate);
 
 const GuardedSettings = withPermission(PERMISSIONS.SYSTEM.SETTINGS.VIEW)(Settings);
+
+const GuardedWorkflowsList = withPermission(PERMISSIONS.AUTOMATION.WORKFLOWS.LIST)(WorkflowsList);
+const GuardedWorkflowsDetails = withPermission(PERMISSIONS.AUTOMATION.WORKFLOWS.VIEW)(WorkflowsDetails);
+const GuardedWorkflowsCreate = withPermission(PERMISSIONS.AUTOMATION.WORKFLOWS.CREATE)(WorkflowsCreate);
+const GuardedExecutionsList = withPermission(PERMISSIONS.AUTOMATION.WORKFLOW_EXECUTIONS.LIST)(ExecutionsList);
+const GuardedExecutionDetails = withPermission(PERMISSIONS.AUTOMATION.WORKFLOW_EXECUTIONS.VIEW)(ExecutionDetails);
+
+const GuardedChatbotSettings = withPermission(PERMISSIONS.CHATBOT.CONFIG.LIST)(ChatbotSettings);
+const GuardedConversationsList = withPermission(PERMISSIONS.CHATBOT.CONVERSATIONS.LIST)(ConversationsList);
 
 type CreateActionConfig = {
   basePath: string;
@@ -263,6 +284,12 @@ const CREATE_ACTIONS: CreateActionConfig[] = [
     labelKey: 'Create Template',
     permission: PERMISSIONS.SYSTEM.NOTIFICATIONS.TEMPLATES.CREATE,
   },
+  {
+    basePath: '/automation/workflows',
+    createPath: '/automation/workflows/create',
+    labelKey: 'Yeni İş Akışı',
+    permission: PERMISSIONS.AUTOMATION.WORKFLOWS.CREATE,
+  },
 ];
 
 const EDIT_ACTIONS: EditActionConfig[] = [
@@ -282,6 +309,7 @@ const EDIT_ACTIONS: EditActionConfig[] = [
   { basePath: '/notifications/channels', permission: PERMISSIONS.SYSTEM.NOTIFICATIONS.CHANNELS.UPDATE },
   { basePath: '/notifications/templates', permission: PERMISSIONS.SYSTEM.NOTIFICATIONS.TEMPLATES.UPDATE },
   { basePath: '/settings', permission: PERMISSIONS.SYSTEM.SETTINGS.UPDATE, exact: true },
+  { basePath: '/automation/workflows', permission: PERMISSIONS.AUTOMATION.WORKFLOWS.UPDATE },
 ];
 
 const isDetailPath = (basePath: string, pathname: string): boolean => {
@@ -479,6 +507,17 @@ const AppContentInner: React.FC = () => {
               <Route path="/notifications/templates/create" element={<GuardedNotificationTemplatesCreate />} />
               <Route path="/notifications/templates/:id" element={<GuardedNotificationTemplatesDetails />} />
         
+        {/* Automation Routes */}
+        <Route path="/automation/workflows" element={<GuardedWorkflowsList />} />
+        <Route path="/automation/workflows/create" element={<GuardedWorkflowsCreate />} />
+        <Route path="/automation/workflows/:id" element={<GuardedWorkflowsDetails />} />
+        <Route path="/automation/executions" element={<GuardedExecutionsList />} />
+        <Route path="/automation/executions/:id" element={<GuardedExecutionDetails />} />
+
+        {/* Chatbot Routes */}
+        <Route path="/chatbot/settings" element={<GuardedChatbotSettings />} />
+        <Route path="/chatbot/conversations" element={<GuardedConversationsList />} />
+
         {/* Settings Route */}
         <Route path="/settings" element={<GuardedSettings />} />
         
@@ -503,6 +542,12 @@ const AppContent: React.FC = () => (
 
 const AppRouter: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
+  const location = useLocation();
+
+  // Public routes (no auth required)
+  if (location.pathname === '/chatbot/embed') {
+    return <ChatbotEmbed />;
+  }
 
   if (isLoading) {
     return (

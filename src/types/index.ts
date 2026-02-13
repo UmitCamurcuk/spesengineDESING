@@ -511,5 +511,234 @@ export interface Localization {
   updatedAt: string;
 }
 
+/* ------------------------------------------------------------------ */
+/*  Automation / Workflow                                               */
+/* ------------------------------------------------------------------ */
+
+export type WorkflowNodeType = 'trigger' | 'condition' | 'action' | 'delay' | 'script' | 'loop' | 'switch' | 'note';
+export type TriggerType = 'event' | 'schedule' | 'manual' | 'webhook';
+export type ActionType =
+  | 'send_notification'
+  | 'update_field'
+  | 'webhook'
+  | 'create_item'
+  | 'update_item'
+  | 'delete_item'
+  | 'set_variable'
+  | 'log'
+  | 'send_email'
+  | 'http_request'
+  | 'transform_data'
+  | 'find_items'
+  | 'bulk_update_items'
+  | 'assign_attribute';
+export type WorkflowStatus = 'draft' | 'active' | 'paused' | 'archived';
+
+export interface SwitchCase {
+  label: string;
+  handleId: string;
+  value: string;
+}
+
+export interface WorkflowNodeConfig {
+  eventKey?: string;
+  cronExpression?: string;
+  webhookSecret?: string;
+  conditionExpression?: string;
+  actionType?: ActionType;
+  actionConfig?: Record<string, unknown>;
+  delayMs?: number;
+  delayExpression?: string;
+  scriptCode?: string;
+  scriptTimeout?: number;
+  loopExpression?: string;
+  loopItemVariable?: string;
+  loopIndexVariable?: string;
+  loopMaxIterations?: number;
+  switchExpression?: string;
+  switchCases?: SwitchCase[];
+  switchDefaultHandle?: string;
+  noteContent?: string;
+  noteColor?: string;
+}
+
+export interface WorkflowNode {
+  id: string;
+  type: WorkflowNodeType;
+  label: string;
+  position: { x: number; y: number };
+  config: WorkflowNodeConfig;
+  metadata?: Record<string, unknown>;
+}
+
+export interface WorkflowEdge {
+  id: string;
+  source: string;
+  target: string;
+  sourceHandle?: string | null;
+  label?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export interface Workflow {
+  id: string;
+  tenantId: string;
+  name: string;
+  description?: string;
+  nameLocalizationId?: string | null;
+  descriptionLocalizationId?: string | null;
+  status: WorkflowStatus;
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+  triggerType: TriggerType;
+  triggerConfig: Record<string, unknown>;
+  variables?: Record<string, unknown>;
+  tags?: string[];
+  version: number;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ExecutionStatus = 'running' | 'completed' | 'failed' | 'cancelled';
+export type StepStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+
+export interface ExecutionStepLog {
+  nodeId: string;
+  nodeType: string;
+  nodeLabel: string;
+  status: StepStatus;
+  startedAt: string;
+  completedAt?: string | null;
+  durationMs?: number | null;
+  input?: Record<string, unknown> | null;
+  output?: Record<string, unknown> | null;
+  error?: string | null;
+}
+
+export interface WorkflowExecution {
+  id: string;
+  tenantId: string;
+  workflowId: string;
+  workflowVersion: number;
+  status: ExecutionStatus;
+  triggerType: string;
+  triggerData?: Record<string, unknown> | null;
+  variables: Record<string, unknown>;
+  steps: ExecutionStepLog[];
+  currentNodeId?: string | null;
+  startedAt: string;
+  completedAt?: string | null;
+  durationMs?: number | null;
+  error?: string | null;
+  triggeredBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Chatbot                                                            */
+/* ------------------------------------------------------------------ */
+
+export type LLMProvider = 'openai' | 'anthropic' | 'custom';
+
+export interface LLMSettings {
+  provider: LLMProvider;
+  model: string;
+  apiKey: string;
+  temperature?: number;
+  maxTokens?: number;
+  systemPrompt?: string;
+  baseUrl?: string;
+  apiKeyHeader?: string;
+}
+
+export interface WidgetSettings {
+  position: 'bottom-right' | 'bottom-left';
+  primaryColor: string;
+  bubbleSize: number;
+  title: string;
+  subtitle: string;
+  avatarUrl: string;
+  showOnPages: 'all' | 'custom';
+  customPages: string[];
+  embedEnabled: boolean;
+  embedAllowedDomains: string[];
+}
+
+export interface KnowledgeBaseScope {
+  includeItems: boolean;
+  includeAttributes: boolean;
+  includeCategories: boolean;
+  includeFamilies: boolean;
+  includeItemTypes: boolean;
+  includeUsers: boolean;
+  includeAssociations: boolean;
+  customInstructions?: string;
+}
+
+export interface FallbackRule {
+  id: string;
+  pattern: string;
+  matchType: 'keyword' | 'regex' | 'intent';
+  response: string;
+  responseLocalizationId?: string | null;
+  priority: number;
+  isActive: boolean;
+}
+
+export interface ChatbotConfig {
+  id: string;
+  tenantId: string;
+  name: string;
+  description?: string;
+  isActive: boolean;
+  llmSettings: LLMSettings;
+  knowledgeBaseScope: KnowledgeBaseScope;
+  fallbackRules: FallbackRule[];
+  welcomeMessage?: string;
+  welcomeMessageLocalizationId?: string | null;
+  maxConversationLength: number;
+  responseLanguage?: string;
+  widgetSettings?: WidgetSettings;
+  metadata?: Record<string, unknown>;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type MessageRole = 'user' | 'assistant' | 'system';
+export type MessageSource = 'ai' | 'rule' | 'system';
+export type ConversationStatus = 'active' | 'closed' | 'archived';
+
+export interface ConversationMessage {
+  id: string;
+  role: MessageRole;
+  content: string;
+  source: MessageSource;
+  matchedRuleId?: string | null;
+  tokens?: { prompt: number; completion: number } | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface Conversation {
+  id: string;
+  tenantId: string;
+  userId: string;
+  chatbotConfigId: string;
+  title?: string;
+  status: ConversationStatus;
+  messages: ConversationMessage[];
+  context?: Record<string, unknown>;
+  totalTokens: number;
+  lastMessageAt: string;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Re-export common types
 export * from './common';

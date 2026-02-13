@@ -14,6 +14,10 @@ import {
   CheckCircle2,
   AlertTriangle,
   RefreshCw,
+  Workflow,
+  Bot,
+  MessageSquare,
+  GitBranch,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -34,7 +38,7 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { useLanguage } from '../contexts/LanguageContext';
 
-type Mode = 'overview' | 'operations' | 'search';
+type Mode = 'overview' | 'operations' | 'search' | 'automation';
 type Range = '7d' | '30d';
 
 const overviewStats = [
@@ -56,6 +60,41 @@ const searchStats = [
   { name: 'dashboard.indexed_entities', value: '8', change: 'Item, Category, User…', icon: Database },
   { name: 'dashboard.last_reindex', value: '02 Feb 2026', change: '4m 12s', icon: RefreshCw },
   { name: 'dashboard.search_latency', value: '120 ms', change: 'P95', icon: Zap },
+];
+
+const automationStats = [
+  { name: 'Aktif Workflow', value: '12', change: '+3 bu ay', icon: Workflow },
+  { name: 'Toplam Çalıştırma', value: '1,247', change: '+156 bu hafta', icon: GitBranch },
+  { name: 'Başarı Oranı', value: '94.8%', change: 'Son 30 gün', icon: CheckCircle2 },
+  { name: 'Chatbot Sohbet', value: '342', change: '+48 bu hafta', icon: MessageSquare },
+];
+
+const workflowExecutionSeries = [
+  { day: 'Pzt', success: 42, failed: 3 },
+  { day: 'Sal', success: 38, failed: 2 },
+  { day: 'Çar', success: 45, failed: 5 },
+  { day: 'Per', success: 51, failed: 1 },
+  { day: 'Cum', success: 48, failed: 4 },
+  { day: 'Cmt', success: 22, failed: 1 },
+  { day: 'Paz', success: 15, failed: 0 },
+];
+
+const chatbotUsageSeries = [
+  { day: 'Pzt', messages: 85, aiResponses: 78, ruleResponses: 7 },
+  { day: 'Sal', messages: 92, aiResponses: 84, ruleResponses: 8 },
+  { day: 'Çar', messages: 78, aiResponses: 70, ruleResponses: 8 },
+  { day: 'Per', messages: 105, aiResponses: 96, ruleResponses: 9 },
+  { day: 'Cum', messages: 98, aiResponses: 90, ruleResponses: 8 },
+  { day: 'Cmt', messages: 45, aiResponses: 42, ruleResponses: 3 },
+  { day: 'Paz', messages: 32, aiResponses: 30, ruleResponses: 2 },
+];
+
+const topWorkflows = [
+  { name: 'Yeni Ürün Bildirimi', executions: 312, successRate: '98%', status: 'active' },
+  { name: 'Stok Güncelleme Webhook', executions: 256, successRate: '95%', status: 'active' },
+  { name: 'Kategori Sync', executions: 189, successRate: '92%', status: 'active' },
+  { name: 'Günlük Rapor', executions: 145, successRate: '100%', status: 'active' },
+  { name: 'Arşiv Temizliği', executions: 90, successRate: '88%', status: 'paused' },
 ];
 
 const quickActions = [
@@ -134,6 +173,7 @@ export const Dashboard: React.FC = () => {
   const activeStats = useMemo(() => {
     if (mode === 'operations') return opsStats;
     if (mode === 'search') return searchStats;
+    if (mode === 'automation') return automationStats;
     return overviewStats;
   }, [mode]);
 
@@ -150,6 +190,7 @@ export const Dashboard: React.FC = () => {
           { id: 'overview', label: 'Genel' },
           { id: 'operations', label: 'Operasyon' },
           { id: 'search', label: 'Arama & Kapsam' },
+          { id: 'automation', label: 'Otomasyon & AI' },
         ].map((opt) => (
           <Button
             key={opt.id}
@@ -340,6 +381,134 @@ export const Dashboard: React.FC = () => {
               ))}
             </div>
           </Card>
+        </div>
+      )}
+
+      {mode === 'automation' && (
+        <div className="space-y-6">
+          {/* Workflow Executions & Chatbot Usage Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader title="Workflow Çalışmaları" subtitle="Günlük başarılı / başarısız" />
+              <div className="h-64 pr-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={workflowExecutionSeries}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#2d2d2d" />
+                    <XAxis dataKey="day" stroke="#9ca3af" />
+                    <YAxis stroke="#9ca3af" />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="success" name="Başarılı" fill="#22c55e" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="failed" name="Başarısız" fill="#ef4444" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+
+            <Card>
+              <CardHeader title="Chatbot Kullanımı" subtitle="Mesajlar ve yanıt kaynakları" />
+              <div className="h-64 pr-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chatbotUsageSeries}>
+                    <defs>
+                      <linearGradient id="aiResp" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.7} />
+                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="ruleResp" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#f97316" stopOpacity={0.6} />
+                        <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#2d2d2d" />
+                    <XAxis dataKey="day" stroke="#9ca3af" />
+                    <YAxis stroke="#9ca3af" />
+                    <Tooltip />
+                    <Legend />
+                    <Area type="monotone" dataKey="aiResponses" stroke="#8b5cf6" fill="url(#aiResp)" name="AI Yanıtları" />
+                    <Area type="monotone" dataKey="ruleResponses" stroke="#f97316" fill="url(#ruleResp)" name="Kural Yanıtları" />
+                    <Area type="monotone" dataKey="messages" stroke="#3b82f6" fill="none" name="Toplam Mesaj" strokeDasharray="5 5" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          </div>
+
+          {/* Top Workflows Table */}
+          <Card>
+            <CardHeader title="En Aktif Workflow'lar" subtitle="Çalıştırma ve başarı oranına göre" />
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-3 px-4 font-medium text-muted-foreground">Workflow Adı</th>
+                    <th className="text-right py-3 px-4 font-medium text-muted-foreground">Çalıştırma</th>
+                    <th className="text-right py-3 px-4 font-medium text-muted-foreground">Başarı Oranı</th>
+                    <th className="text-right py-3 px-4 font-medium text-muted-foreground">Durum</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {topWorkflows.map((wf) => (
+                    <tr key={wf.name} className="hover:bg-muted/50 transition-colors">
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2">
+                          <Workflow className="h-4 w-4 text-primary" />
+                          <span className="font-medium text-foreground">{wf.name}</span>
+                        </div>
+                      </td>
+                      <td className="text-right py-3 px-4 text-foreground">{wf.executions}</td>
+                      <td className="text-right py-3 px-4 text-foreground">{wf.successRate}</td>
+                      <td className="text-right py-3 px-4">
+                        <Badge variant={wf.status === 'active' ? 'success' : 'warning'} size="sm">
+                          {wf.status === 'active' ? 'Aktif' : 'Duraklatıldı'}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+          {/* Quick links */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Link
+              to="/automation/workflows"
+              className="flex items-center gap-3 p-4 rounded-lg border border-border hover:border-primary hover:bg-primary/5 transition-all"
+            >
+              <div className="p-2 rounded-lg bg-indigo-500/10">
+                <Workflow className="h-5 w-5 text-indigo-500" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">Workflow Yönetimi</p>
+                <p className="text-xs text-muted-foreground">İş akışlarını görüntüle ve düzenle</p>
+              </div>
+            </Link>
+            <Link
+              to="/automation/executions"
+              className="flex items-center gap-3 p-4 rounded-lg border border-border hover:border-primary hover:bg-primary/5 transition-all"
+            >
+              <div className="p-2 rounded-lg bg-green-500/10">
+                <GitBranch className="h-5 w-5 text-green-500" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">Çalışma Geçmişi</p>
+                <p className="text-xs text-muted-foreground">Execution loglarını incele</p>
+              </div>
+            </Link>
+            <Link
+              to="/chatbot/settings"
+              className="flex items-center gap-3 p-4 rounded-lg border border-border hover:border-primary hover:bg-primary/5 transition-all"
+            >
+              <div className="p-2 rounded-lg bg-purple-500/10">
+                <Bot className="h-5 w-5 text-purple-500" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">Chatbot Ayarları</p>
+                <p className="text-xs text-muted-foreground">LLM yapılandırma ve kurallar</p>
+              </div>
+            </Link>
+          </div>
         </div>
       )}
 

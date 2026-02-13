@@ -178,6 +178,35 @@ export const API_ENDPOINTS = {
     REINDEX: '/search/reindex',
   },
   
+  // Automation / Workflows
+  WORKFLOWS: {
+    BASE: '/workflows',
+    BY_ID: (id: string) => `/workflows/${id}`,
+    ACTIVATE: (id: string) => `/workflows/${id}/activate`,
+    PAUSE: (id: string) => `/workflows/${id}/pause`,
+    TRIGGER: (id: string) => `/workflows/${id}/trigger`,
+    DUPLICATE: (id: string) => `/workflows/${id}/duplicate`,
+    EXECUTIONS: (id: string) => `/workflows/${id}/executions`,
+  },
+  WORKFLOW_EXECUTIONS: {
+    BASE: '/workflow-executions',
+    BY_ID: (id: string) => `/workflow-executions/${id}`,
+    CANCEL: (id: string) => `/workflow-executions/${id}/cancel`,
+    RETRY: (id: string) => `/workflow-executions/${id}/retry`,
+  },
+
+  // Chatbot
+  CHATBOT: {
+    CONFIG: '/chatbot/config',
+    CONFIG_ACTIVE: '/chatbot/config/active',
+    CONFIG_BY_ID: (id: string) => `/chatbot/config/${id}`,
+    CONVERSATIONS: '/chatbot/conversations',
+    CONVERSATION_BY_ID: (id: string) => `/chatbot/conversations/${id}`,
+    MESSAGES: (id: string) => `/chatbot/conversations/${id}/messages`,
+    CLOSE: (id: string) => `/chatbot/conversations/${id}/close`,
+    EMBED: (configId: string) => `/chatbot/embed/${configId}`,
+  },
+
   // Analytics endpoints
   ANALYTICS: {
     DASHBOARD: '/analytics/dashboard',

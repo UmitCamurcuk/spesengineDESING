@@ -56,6 +56,24 @@ export const PERMISSIONS = {
       TEMPLATES: createCrudPermissionSet('notifications', 'template'),
     },
   },
+  AUTOMATION: {
+    WORKFLOWS: createCrudPermissionSet('automation', 'workflow'),
+    WORKFLOW_EXECUTIONS: {
+      LIST: 'automation.execution.list',
+      VIEW: 'automation.execution.view',
+      CANCEL: 'automation.execution.cancel',
+    },
+  },
+  CHATBOT: {
+    CONFIG: createCrudPermissionSet('chatbot', 'config'),
+    CONVERSATIONS: {
+      LIST: 'chatbot.conversation.list',
+      VIEW: 'chatbot.conversation.view',
+      CREATE: 'chatbot.conversation.create',
+      DELETE: 'chatbot.conversation.delete',
+    },
+    CHAT: 'chatbot.chat.use',
+  },
 } as const;
 
 type PermissionCategoryMap = typeof PERMISSIONS;

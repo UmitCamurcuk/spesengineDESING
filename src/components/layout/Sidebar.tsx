@@ -22,6 +22,11 @@ import {
   ChevronRight,
   FileStack,
   GitMerge,
+  Workflow,
+  GitBranch,
+  Play,
+  Bot,
+  MessageSquare,
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -126,6 +131,27 @@ const menuItems: MenuItem[] = [
       },
     ],
   },
+  {
+    name: 'navigation.automation',
+    icon: Workflow,
+    fallback: 'Otomasyon',
+    children: [
+      {
+        name: 'navigation.workflows',
+        href: '/automation/workflows',
+        icon: GitBranch,
+        permission: PERMISSIONS.AUTOMATION.WORKFLOWS.LIST,
+        fallback: 'İş Akışları',
+      },
+      {
+        name: 'navigation.executions',
+        href: '/automation/executions',
+        icon: Play,
+        permission: PERMISSIONS.AUTOMATION.WORKFLOW_EXECUTIONS.LIST,
+        fallback: 'Çalışma Geçmişi',
+      },
+    ],
+  },
 ];
 
 const systemMenuItems: MenuItem[] = [
@@ -185,6 +211,27 @@ const systemMenuItems: MenuItem[] = [
     icon: Globe,
     permission: PERMISSIONS.SYSTEM.LOCALIZATIONS.LIST,
     fallback: 'Çeviriler',
+  },
+  {
+    name: 'navigation.chatbot',
+    icon: Bot,
+    fallback: 'Chatbot',
+    children: [
+      {
+        name: 'navigation.chatbot_settings',
+        href: '/chatbot/settings',
+        icon: Settings,
+        permission: PERMISSIONS.CHATBOT.CONFIG.LIST,
+        fallback: 'Chatbot Ayarları',
+      },
+      {
+        name: 'navigation.conversations',
+        href: '/chatbot/conversations',
+        icon: MessageSquare,
+        permission: PERMISSIONS.CHATBOT.CONVERSATIONS.LIST,
+        fallback: 'Sohbetler',
+      },
+    ],
   },
 ];
 

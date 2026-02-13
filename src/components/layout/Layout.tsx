@@ -4,6 +4,9 @@ import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { Menu, X } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { ChatWidget } from '../chatbot/ChatWidget';
+import { useAuth } from '../../contexts/AuthContext';
+import { PERMISSIONS } from '../../config/permissions';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -18,6 +21,8 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, headerActions }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { hasPermission } = useAuth();
+  const canUseChat = hasPermission(PERMISSIONS.CHATBOT.CHAT as string);
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -50,6 +55,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, header
           {children}
         </main>
       </div>
+
+      {/* AI Chat Widget */}
+      {canUseChat && <ChatWidget />}
     </div>
   );
 };
