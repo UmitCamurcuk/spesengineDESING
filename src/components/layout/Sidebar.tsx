@@ -27,6 +27,7 @@ import {
   Play,
   Bot,
   MessageSquare,
+  Radio,
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -167,6 +168,13 @@ const systemMenuItems: MenuItem[] = [
         icon: Bell,
         permission: PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.LIST,
         fallback: 'Kural Tanımları',
+      },
+      {
+        name: 'notifications.channels.title',
+        href: '/notifications/channels',
+        icon: Radio,
+        permission: PERMISSIONS.SYSTEM.NOTIFICATIONS.CHANNELS.LIST,
+        fallback: 'Kanallar',
       },
       {
         name: 'notifications.templates.title',

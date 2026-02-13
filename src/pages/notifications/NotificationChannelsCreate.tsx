@@ -21,7 +21,15 @@ const channelTypeOptions = [
   { value: 'slack', label: 'Slack' },
   { value: 'email', label: 'Email' },
   { value: 'webhook', label: 'Webhook' },
+  { value: 'push', label: 'Push Notification' },
 ];
+
+const configPlaceholders: Record<string, string> = {
+  slack: '{\n  "webhookUrl": "https://hooks.slack.com/services/...",\n  "botToken": "xoxb-...",\n  "channel": "#general"\n}',
+  email: '{\n  "host": "smtp.gmail.com",\n  "port": 587,\n  "secure": false,\n  "user": "your@email.com",\n  "pass": "app-password",\n  "from": "SpesEngine <noreply@example.com>"\n}',
+  webhook: '{\n  "url": "https://your-endpoint.com/webhook",\n  "secret": "optional-secret-key"\n}',
+  push: '{\n  "fcmCredentials": {\n    "projectId": "your-firebase-project-id",\n    "clientEmail": "firebase-adminsdk@...iam.gserviceaccount.com",\n    "privateKey": "-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n"\n  }\n}',
+};
 
 export const NotificationChannelsCreate: React.FC = () => {
   const navigate = useNavigate();
@@ -164,7 +172,7 @@ export const NotificationChannelsCreate: React.FC = () => {
                     value={formData.configJson}
                     onChange={(e) => setFormData((prev) => ({ ...prev, configJson: e.target.value }))}
                     rows={8}
-                    placeholder='{\n  "webhookUrl": "https://...",\n  "token": "..."\n}'
+                    placeholder={configPlaceholders[formData.type] ?? '{\n  \n}'}
                   />
                   <Textarea
                     label={t('notifications.channels.fields.metadata') ?? 'Metadata (JSON)'}

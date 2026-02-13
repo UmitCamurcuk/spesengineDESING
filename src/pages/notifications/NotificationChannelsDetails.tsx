@@ -36,6 +36,7 @@ const channelTypeOptions = [
   { value: 'slack', label: 'Slack' },
   { value: 'email', label: 'Email' },
   { value: 'webhook', label: 'Webhook' },
+  { value: 'push', label: 'Push Notification' },
 ];
 
 const cloneGeneralForm = (form: GeneralForm): GeneralForm => ({ ...form });
