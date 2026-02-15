@@ -700,24 +700,42 @@ const familiesByCategory = useMemo(() => {
     };
 
     const matchesRule = (rule: AssociationRule) => {
-      const direction = rule.appliesTo ?? 'source';
-      const sourceCategoryConstraints =
-        direction === 'target' ? rule.targetCategoryIds ?? [] : rule.sourceCategoryIds ?? [];
-      const sourceFamilyConstraints =
-        direction === 'target' ? rule.targetFamilyIds ?? [] : rule.sourceFamilyIds ?? [];
-
-      const categoryMatch = matchesConstraint(sourceCategoryConstraints, form.categoryId);
-      const familyMatch = matchesConstraint(sourceFamilyConstraints, form.familyId);
+      // sourceCategoryIds/sourceFamilyIds always constrain the SOURCE item (the item being created).
+      // appliesTo does NOT swap the meaning of source/target constraint IDs.
+      const categoryMatch = matchesConstraint(rule.sourceCategoryIds ?? [], form.categoryId);
+      const familyMatch = matchesConstraint(rule.sourceFamilyIds ?? [], form.familyId);
       return categoryMatch && familyMatch;
     };
 
     relevantAssociationTypes.forEach((type) => {
-      const rules = associationRulesByType[type.id] ?? [];
-      rules.forEach((rule) => {
-        if (matchesRule(rule)) {
-          results.push({ type, rule });
-        }
-      });
+      const rules = associationRulesByType[type.id];
+
+      if (rules && rules.length > 0) {
+        // Has explicit rules → only include those that match current category/family
+        rules.forEach((rule) => {
+          if (matchesRule(rule)) {
+            results.push({ type, rule });
+          }
+        });
+      } else {
+        // No rules yet (still loading) or rules loaded but empty →
+        // Always show the type with a synthetic "match-all" rule so the card is visible.
+        const syntheticRule: AssociationRule = {
+          id: `__no_rule__${type.id}`,
+          associationTypeId: type.id,
+          appliesTo: 'source',
+          name: type.name || type.key,
+          sourceCategoryIds: [],
+          sourceFamilyIds: [],
+          targetCategoryIds: [],
+          targetFamilyIds: [],
+          minTargets: 0,
+          maxTargets: null,
+          createdAt: '',
+          updatedAt: '',
+        };
+        results.push({ type, rule: syntheticRule });
+      }
     });
 
     return results;
@@ -1022,11 +1040,10 @@ const familiesByCategory = useMemo(() => {
         setRuleLoadingState((prev) => ({ ...prev, [rule.id]: true }));
         setRuleErrors((prev) => ({ ...prev, [rule.id]: null }));
 
-        const direction = rule.appliesTo ?? 'source';
-        const targetCategoryConstraints =
-          direction === 'target' ? rule.sourceCategoryIds ?? [] : rule.targetCategoryIds ?? [];
-        const targetFamilyConstraints =
-          direction === 'target' ? rule.sourceFamilyIds ?? [] : rule.targetFamilyIds ?? [];
+        // targetCategoryIds/targetFamilyIds always constrain the TARGET items.
+        // appliesTo does NOT swap the meaning of source/target constraint IDs.
+        const targetCategoryConstraints = rule.targetCategoryIds ?? [];
+        const targetFamilyConstraints = rule.targetFamilyIds ?? [];
 
         const validTargetCategoryIds = targetCategoryConstraints.filter((id) =>
           id ? categoryIdSet.has(id) : false,
@@ -1835,12 +1852,12 @@ const familiesByCategory = useMemo(() => {
                       <span className="font-medium text-foreground">
                         {t('items.create.select_rule_targets') || 'Hedef öğeleri seçin'}
                       </span>
-                      {loading ? <Badge variant="outline">{t('common.loading') || 'Yükleniyor...'}</Badge> : null}
+                      {loading ? <Badge variant="secondary">{t('common.loading') || 'Yükleniyor...'}</Badge> : null}
                       {columnConfigLoading[type.id] ? (
                         <Badge variant="secondary">{t('items.create.loading_columns') || 'Sütunlar yükleniyor'}</Badge>
                       ) : null}
                       {!loading && targetItems.length === 0 ? (
-                        <Badge variant="destructive">
+                        <Badge variant="error">
                           {t('items.create.no_target_items') || 'Uygun hedef öğe bulunamadı'}
                         </Badge>
                       ) : null}
@@ -2162,7 +2179,7 @@ const familiesByCategory = useMemo(() => {
                         <div key={`${entry.rule.id}-${targetId}`} className="flex items-center justify-between">
                           <span>
                             {item
-                              ? `${item.code}${item.name ? ` - ${item.name}` : ''}`
+                              ? `${item.code || item.name || item.id}${item.code && item.name ? ` - ${item.name}` : ''}`
                               : targetId}
                           </span>
                           <span className="text-muted-foreground">{t('items.fields.order_index') || 'Sıra'}: {targetIndex + 1}</span>

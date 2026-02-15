@@ -420,7 +420,12 @@ export const AttributeRenderer: React.FC<AttributeRendererProps> = ({
 
   const evalTableFormula = (formula: string, rowData: Record<string, unknown>): string => {
     try {
-      const ctx: Record<string, number> = {};
+      const ctx: Record<string, unknown> = {
+        IF: (cond: unknown, a: unknown, b: unknown) => (cond ? a : b),
+        CONCAT: (...args: unknown[]) => args.map((x) => x ?? '').join(''),
+        LOWER: (x: unknown) => String(x ?? '').toLowerCase(),
+        UPPER: (x: unknown) => String(x ?? '').toUpperCase(),
+      };
       Object.entries(rowData).forEach(([k, v]) => {
         const n = Number(v);
         if (Number.isFinite(n)) ctx[k] = n;
