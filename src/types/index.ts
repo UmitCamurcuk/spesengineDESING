@@ -350,9 +350,15 @@ export interface ItemAssociationSummary {
   associationTypeId: string | null;
   associationTypeName: string | null;
   associationTypeKey: string | null;
+  associationTypeNameLocalizationId?: string | null;
   direction: 'source' | 'target';
   counterpartItemId: string | null;
   counterpartItemName: string | null;
+  counterpartItemCategoryId?: string | null;
+  counterpartItemCategoryName?: string | null;
+  counterpartItemFamilyId?: string | null;
+  counterpartItemFamilyName?: string | null;
+  counterpartItemAttributeValues?: Record<string, unknown> | null;
   metadata?: Record<string, unknown> | null;
   orderIndex?: number | null;
   createdAt: string;

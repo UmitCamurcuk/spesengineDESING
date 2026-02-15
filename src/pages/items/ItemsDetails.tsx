@@ -27,7 +27,9 @@ import { Documentation } from '../../components/common/Documentation';
 import { Statistics } from '../../components/common/Statistics';
 import { HistoryTable } from '../../components/common/HistoryTable';
 import { itemsService } from '../../api/services/items.service';
+import { associationColumnConfigService } from '../../api/services/association-column-config.service';
 import type {
+  AssociationColumnConfig,
   Item,
   ItemAttributeGroupSummary,
   ItemAssociationSummary,
@@ -225,54 +227,94 @@ interface AssociationsTabProps {
   editMode?: boolean;
 }
 
+interface AssociationGroup {
+  associationTypeId: string;
+  typeName: string;
+  typeNameLocalizationId?: string | null;
+  direction: 'source' | 'target';
+  items: ItemAssociationSummary[];
+}
+
 const AssociationsTab: React.FC<AssociationsTabProps> = ({ associations }) => {
   const navigate = useNavigate();
-  const { formatDateTime } = useDateFormatter();
+  const { resolveLocalization, t } = useLanguage();
+  const [columnConfigs, setColumnConfigs] = useState<Record<string, AssociationColumnConfig>>({});
 
-  const renderAssociationCard = (itemAssoc: ItemAssociationSummary, roleLabel: string) => (
-    <Card key={itemAssoc.id}>
-      <div className="px-6 py-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <p className="text-sm font-semibold text-foreground">
-            {itemAssoc.associationTypeName ?? itemAssoc.associationTypeKey ?? 'Unnamed association'}
-          </p>
-          <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-muted-foreground">
-            <Badge variant="secondary" size="sm">
-              {roleLabel}
-            </Badge>
-            {typeof itemAssoc.orderIndex === 'number' && (
-              <Badge variant="outline" size="sm">
-                #{itemAssoc.orderIndex + 1}
-              </Badge>
-            )}
-            <span>Updated {formatDateTime(itemAssoc.updatedAt)}</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" size="sm">
-            {itemAssoc.counterpartItemName ?? itemAssoc.counterpartItemId ?? 'Unlinked'}
-          </Badge>
-          {itemAssoc.counterpartItemId && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate(`/items/${itemAssoc.counterpartItemId}`)}
-            >
-              View Item
-            </Button>
-          )}
-        </div>
-      </div>
-      {itemAssoc.metadata && (
-        <div className="px-6 pb-4">
-          <p className="text-xs text-muted-foreground mb-2">Metadata</p>
-          <pre className="bg-muted rounded-lg p-3 text-xs text-foreground overflow-auto">
-            {JSON.stringify(itemAssoc.metadata, null, 2)}
-          </pre>
-        </div>
-      )}
-    </Card>
-  );
+  // Group associations by (associationTypeId + direction)
+  const groups = useMemo(() => {
+    const map = new Map<string, AssociationGroup>();
+    const addToGroup = (assocList: ItemAssociationSummary[], direction: 'source' | 'target') => {
+      assocList.forEach((assoc) => {
+        const typeId = assoc.associationTypeId ?? 'unknown';
+        const groupKey = `${typeId}__${direction}`;
+        if (!map.has(groupKey)) {
+          map.set(groupKey, {
+            associationTypeId: typeId,
+            typeName: assoc.associationTypeName ?? assoc.associationTypeKey ?? 'Unnamed',
+            typeNameLocalizationId: assoc.associationTypeNameLocalizationId,
+            direction,
+            items: [],
+          });
+        }
+        map.get(groupKey)!.items.push(assoc);
+      });
+    };
+    addToGroup(associations.source, 'source');
+    addToGroup(associations.target, 'target');
+    return Array.from(map.values());
+  }, [associations]);
+
+  // Fetch column configs for each unique association type
+  useEffect(() => {
+    const typeIds = new Set(groups.map((g) => g.associationTypeId).filter((id) => id !== 'unknown'));
+    const roles = new Set(groups.map((g) => `${g.associationTypeId}__${g.direction}`));
+
+    const fetchConfigs = async () => {
+      const results: Record<string, AssociationColumnConfig> = {};
+      const promises: Promise<void>[] = [];
+
+      roles.forEach((key) => {
+        const [typeId, direction] = key.split('__');
+        if (typeId === 'unknown') return;
+        // For the column config, the "role" is the role of the counterpart item
+        // If current item is source, counterpart is target, and vice versa
+        const counterpartRole = direction === 'source' ? 'target' : 'source';
+        promises.push(
+          associationColumnConfigService
+            .getConfig(typeId, counterpartRole as 'source' | 'target')
+            .then((config) => {
+              results[key] = config;
+            })
+            .catch(() => {
+              // No config available for this type/role
+            }),
+        );
+      });
+
+      await Promise.all(promises);
+      setColumnConfigs(results);
+    };
+
+    if (typeIds.size > 0) {
+      fetchConfigs();
+    }
+  }, [groups]);
+
+  const resolveTypeName = (group: AssociationGroup): string => {
+    if (group.typeNameLocalizationId) {
+      const resolved = resolveLocalization(group.typeNameLocalizationId);
+      if (resolved) return resolved;
+    }
+    return group.typeName;
+  };
+
+  const formatAttrValue = (value: unknown): string => {
+    if (value === null || value === undefined) return '—';
+    if (typeof value === 'boolean') return value ? t('common.yes') || 'Yes' : t('common.no') || 'No';
+    if (Array.isArray(value)) return value.map((v) => formatAttrValue(v)).join(', ');
+    if (typeof value === 'object') return JSON.stringify(value);
+    return String(value);
+  };
 
   const hasAssociations = associations.source.length || associations.target.length;
 
@@ -280,33 +322,142 @@ const AssociationsTab: React.FC<AssociationsTabProps> = ({ associations }) => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-foreground">Item Associations</h3>
-          <p className="text-sm text-muted-foreground">Relationships where this item participates.</p>
+          <h3 className="text-lg font-semibold text-foreground">
+            {t('items.details.associations_title') || 'Item Associations'}
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            {t('items.details.associations_description') || 'Relationships where this item participates.'}
+          </p>
         </div>
         <Badge variant="primary" size="sm">
-          {associations.source.length + associations.target.length} total
+          {associations.source.length + associations.target.length} {t('common.total') || 'total'}
         </Badge>
       </div>
 
       {hasAssociations ? (
         <div className="space-y-6">
-          {associations.source.length > 0 && (
-            <div className="space-y-4">
-              <h4 className="text-sm font-semibold text-foreground">As Source (outgoing)</h4>
-              {associations.source.map((assoc) => renderAssociationCard(assoc, 'Source → Target'))}
-            </div>
-          )}
-          {associations.target.length > 0 && (
-            <div className="space-y-4">
-              <h4 className="text-sm font-semibold text-foreground">As Target (incoming)</h4>
-              {associations.target.map((assoc) => renderAssociationCard(assoc, 'Target ← Source'))}
-            </div>
-          )}
+          {groups.map((group) => {
+            const configKey = `${group.associationTypeId}__${group.direction}`;
+            const config = columnConfigs[configKey];
+            const visibleColumns = config?.columns?.filter((c) => c.visible !== false) ?? [];
+
+            return (
+              <Card key={configKey}>
+                <div className="px-6 py-4 border-b border-border">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-semibold text-foreground">
+                        {resolveTypeName(group)}
+                      </h4>
+                      <Badge variant="secondary" size="sm">
+                        {group.direction === 'source' ? 'Source → Target' : 'Target ← Source'}
+                      </Badge>
+                    </div>
+                    <Badge variant="outline" size="sm">
+                      {group.items.length} {t('common.items') || 'items'}
+                    </Badge>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/50">
+                        <th className="px-4 py-2 text-left font-medium text-muted-foreground">
+                          {t('items.name') || 'Name'}
+                        </th>
+                        {visibleColumns.map((col) => (
+                          <th
+                            key={col.key}
+                            className="px-4 py-2 text-left font-medium text-muted-foreground"
+                          >
+                            {col.labelLocalizationId
+                              ? resolveLocalization(col.labelLocalizationId) || col.key
+                              : col.key.replace(/^(meta\.|attribute\.|relationship\.)/, '')}
+                          </th>
+                        ))}
+                        <th className="px-4 py-2 text-right font-medium text-muted-foreground">
+                          {t('common.actions') || 'Actions'}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {group.items.map((assoc) => (
+                        <tr key={assoc.id} className="border-b border-border last:border-0 hover:bg-muted/30">
+                          <td className="px-4 py-3">
+                            <span className="font-medium text-foreground">
+                              {assoc.counterpartItemName ?? assoc.counterpartItemId ?? '—'}
+                            </span>
+                          </td>
+                          {visibleColumns.map((col) => {
+                            let cellValue: React.ReactNode = '—';
+
+                            if (col.source === 'attribute') {
+                              const attrId =
+                                (col.options?.attributeId as string | undefined) ??
+                                (col.key.startsWith('attribute.') ? col.key.split('.')[1] : undefined);
+                              if (attrId && assoc.counterpartItemAttributeValues) {
+                                cellValue = formatAttrValue(assoc.counterpartItemAttributeValues[attrId]);
+                              }
+                            } else if (col.source === 'meta') {
+                              switch (col.key) {
+                                case 'meta.name':
+                                  cellValue = assoc.counterpartItemName ?? '—';
+                                  break;
+                                case 'meta.code':
+                                  cellValue = assoc.counterpartItemId ?? '—';
+                                  break;
+                                case 'meta.category':
+                                  cellValue = assoc.counterpartItemCategoryName ?? assoc.counterpartItemCategoryId ?? '—';
+                                  break;
+                                case 'meta.family':
+                                  cellValue = assoc.counterpartItemFamilyName ?? assoc.counterpartItemFamilyId ?? '—';
+                                  break;
+                                case 'meta.createdAt':
+                                  cellValue = assoc.createdAt ? new Date(assoc.createdAt).toLocaleString() : '—';
+                                  break;
+                                case 'meta.updatedAt':
+                                  cellValue = assoc.updatedAt ? new Date(assoc.updatedAt).toLocaleString() : '—';
+                                  break;
+                                default:
+                                  cellValue = '—';
+                              }
+                            } else if (col.source === 'relationship') {
+                              if (col.key === 'relationship.orderIndex') {
+                                cellValue = typeof assoc.orderIndex === 'number' ? `#${assoc.orderIndex + 1}` : '—';
+                              }
+                            }
+
+                            return (
+                              <td key={col.key} className="px-4 py-3 text-foreground">
+                                {cellValue}
+                              </td>
+                            );
+                          })}
+                          <td className="px-4 py-3 text-right">
+                            {assoc.counterpartItemId && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => navigate(`/items/${assoc.counterpartItemId}`)}
+                              >
+                                {t('common.view_details') || 'View'}
+                              </Button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            );
+          })}
         </div>
       ) : (
         <Card>
           <div className="px-6 py-12 text-center text-sm text-muted-foreground">
-            No associations are linked to this item yet.
+            {t('items.details.no_associations') || 'No associations are linked to this item yet.'}
           </div>
         </Card>
       )}

@@ -9,7 +9,6 @@ import {
   Tags,
   FileText,
   Database,
-  Zap,
   X,
   Users,
   Shield,
@@ -22,7 +21,6 @@ import {
   ChevronRight,
   FileStack,
   GitMerge,
-  Workflow,
   GitBranch,
   Play,
   Bot,
@@ -40,15 +38,27 @@ type MenuItem = {
   name: string;
   href?: string;
   icon: React.ComponentType<{ className?: string }>;
-  permission?: string;
+  permission?: string | string[];
   fallback?: string;
   children?: MenuItem[];
+};
+
+type MenuSection = {
+  titleKey: string;
+  fallbackTitle: string;
+  items: MenuItem[];
+};
+
+const isAllowed = (permission: string | string[] | undefined, hasPermission: (p: string) => boolean) => {
+  if (!permission) return true;
+  const permissions = Array.isArray(permission) ? permission : [permission];
+  return permissions.some((perm) => hasPermission(perm));
 };
 
 const filterMenuItems = (items: MenuItem[], hasPermission: (permission: string) => boolean): MenuItem[] =>
   items
     .map((item) => {
-      if (item.permission && !hasPermission(item.permission)) {
+      if (!isAllowed(item.permission, hasPermission)) {
         return null;
       }
       if (item.children && item.children.length > 0) {
@@ -62,26 +72,39 @@ const filterMenuItems = (items: MenuItem[], hasPermission: (permission: string) 
     })
     .filter(Boolean) as MenuItem[];
 
-const menuItems: MenuItem[] = [
+const operationsMenuBase: MenuItem[] = [
   {
     name: 'navigation.dashboard',
     href: '/dashboard',
     icon: Home,
-    fallback: 'Dashboard',
+    fallback: 'Ana Sayfa',
   },
+];
+
+const dataManagementMenu: MenuItem[] = [
   {
     name: 'navigation.items',
     href: '/items',
     icon: Package,
     permission: PERMISSIONS.CATALOG.ITEMS.LIST,
-    fallback: 'Itemlar',
+    fallback: 'Öğeler',
   },
+  {
+    name: 'navigation.associations_records',
+    href: '/associations',
+    icon: GitMerge,
+    permission: PERMISSIONS.SYSTEM.ASSOCIATIONS.LIST,
+    fallback: 'İlişkiler',
+  },
+];
+
+const schemaDesignMenu: MenuItem[] = [
   {
     name: 'navigation.item_types',
     href: '/item-types',
     icon: Database,
     permission: PERMISSIONS.CATALOG.ITEM_TYPES.LIST,
-    fallback: 'Item Tipleri',
+    fallback: 'Öğe Türleri',
   },
   {
     name: 'navigation.categories',
@@ -102,60 +125,42 @@ const menuItems: MenuItem[] = [
     href: '/attribute-groups',
     icon: Tags,
     permission: PERMISSIONS.CATALOG.ATTRIBUTE_GROUPS.LIST,
-    fallback: 'Attribute Grupları',
+    fallback: 'Öznitelik Grupları',
   },
   {
     name: 'navigation.attributes',
     href: '/attributes',
     icon: FileText,
     permission: PERMISSIONS.CATALOG.ATTRIBUTES.LIST,
-    fallback: 'Attribute\'lar',
+    fallback: 'Öznitelikler',
   },
   {
-    name: 'navigation.associations',
-    icon: Zap,
-    fallback: 'İlişkiler',
-    children: [
-      {
-        name: 'navigation.association_types',
-        href: '/association-types',
-        icon: Layers,
-        permission: PERMISSIONS.SYSTEM.ASSOCIATIONS.LIST,
-        fallback: 'Association Tipleri',
-      },
-      {
-        name: 'navigation.associations_records',
-        href: '/associations',
-        icon: GitMerge,
-        permission: PERMISSIONS.SYSTEM.ASSOCIATIONS.LIST,
-        fallback: 'Association Kayıtları',
-      },
-    ],
-  },
-  {
-    name: 'navigation.automation',
-    icon: Workflow,
-    fallback: 'Otomasyon',
-    children: [
-      {
-        name: 'navigation.workflows',
-        href: '/automation/workflows',
-        icon: GitBranch,
-        permission: PERMISSIONS.AUTOMATION.WORKFLOWS.LIST,
-        fallback: 'İş Akışları',
-      },
-      {
-        name: 'navigation.executions',
-        href: '/automation/executions',
-        icon: Play,
-        permission: PERMISSIONS.AUTOMATION.WORKFLOW_EXECUTIONS.LIST,
-        fallback: 'Çalışma Geçmişi',
-      },
-    ],
+    name: 'navigation.association_types',
+    href: '/association-types',
+    icon: Layers,
+    permission: PERMISSIONS.SYSTEM.ASSOCIATIONS.LIST,
+    fallback: 'İlişki Tipleri',
   },
 ];
 
-const systemMenuItems: MenuItem[] = [
+const automationMenu: MenuItem[] = [
+  {
+    name: 'navigation.workflows',
+    href: '/automation/workflows',
+    icon: GitBranch,
+    permission: [
+      PERMISSIONS.AUTOMATION.WORKFLOWS.LIST,
+      'automation.workflows.list', // tolerate legacy/plural code
+    ],
+    fallback: 'İş Akışları',
+  },
+  {
+    name: 'navigation.executions',
+    href: '/automation/executions',
+    icon: Play,
+    permission: PERMISSIONS.AUTOMATION.WORKFLOW_EXECUTIONS.LIST,
+    fallback: 'Çalışma Geçmişi',
+  },
   {
     name: 'navigation.notifications',
     icon: Bell,
@@ -167,7 +172,7 @@ const systemMenuItems: MenuItem[] = [
         href: '/notifications/rules',
         icon: Bell,
         permission: PERMISSIONS.SYSTEM.NOTIFICATIONS.RULES.LIST,
-        fallback: 'Kural Tanımları',
+        fallback: 'Kurallar',
       },
       {
         name: 'notifications.channels.title',
@@ -185,41 +190,9 @@ const systemMenuItems: MenuItem[] = [
       },
     ],
   },
-  {
-    name: 'navigation.users',
-    href: '/users',
-    icon: Users,
-    permission: PERMISSIONS.SYSTEM.USERS.LIST,
-    fallback: 'Kullanıcılar',
-  },
-  {
-    name: 'navigation.roles',
-    href: '/roles',
-    icon: Shield,
-    permission: PERMISSIONS.SYSTEM.ROLES.LIST,
-    fallback: 'Roller',
-  },
-  {
-    name: 'navigation.permissions',
-    href: '/permissions',
-    icon: Key,
-    permission: PERMISSIONS.SYSTEM.PERMISSIONS.LIST,
-    fallback: 'İzinler',
-  },
-  {
-    name: 'navigation.permission_groups',
-    href: '/permission-groups',
-    icon: ShieldCheck,
-    permission: PERMISSIONS.SYSTEM.PERMISSION_GROUPS.LIST,
-    fallback: 'İzin Grupları',
-  },
-  {
-    name: 'navigation.localizations',
-    href: '/localizations',
-    icon: Globe,
-    permission: PERMISSIONS.SYSTEM.LOCALIZATIONS.LIST,
-    fallback: 'Çeviriler',
-  },
+];
+
+const aiMenu: MenuItem[] = [
   {
     name: 'navigation.chatbot',
     icon: Bot,
@@ -243,6 +216,56 @@ const systemMenuItems: MenuItem[] = [
   },
 ];
 
+const managementMenuBase: MenuItem[] = [
+  {
+    name: 'navigation.users',
+    href: '/users',
+    icon: Users,
+    permission: PERMISSIONS.SYSTEM.USERS.LIST,
+    fallback: 'Kullanıcılar',
+  },
+  {
+    name: 'navigation.roles',
+    href: '/roles',
+    icon: Shield,
+    permission: PERMISSIONS.SYSTEM.ROLES.LIST,
+    fallback: 'Roller',
+  },
+  {
+    name: 'navigation.permission_groups',
+    href: '/permission-groups',
+    icon: ShieldCheck,
+    permission: PERMISSIONS.SYSTEM.PERMISSION_GROUPS.LIST,
+    fallback: 'İzin Grupları',
+  },
+  {
+    name: 'navigation.permissions',
+    href: '/permissions',
+    icon: Key,
+    permission: PERMISSIONS.SYSTEM.PERMISSIONS.LIST,
+    fallback: 'İzinler',
+  },
+];
+
+const systemMenu: MenuItem[] = [
+  {
+    name: 'navigation.settings',
+    href: '/settings',
+    icon: Settings,
+    permission: PERMISSIONS.SYSTEM.SETTINGS.VIEW,
+    fallback: 'Ayarlar',
+  },
+];
+
+const personalMenu: MenuItem[] = [
+  {
+    name: 'navigation.profile',
+    href: '/profile',
+    icon: User,
+    fallback: 'Profil',
+  },
+];
+
 interface SidebarProps {
   className?: string;
   isOpen?: boolean;
@@ -253,7 +276,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, isOpen, onClose }) 
   const location = useLocation();
   const { t } = useLanguage();
   const { settings } = useSettings();
-  const { hasPermission } = useAuth();
+  const { hasPermission, hasRole } = useAuth();
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({});
   const [navItemTypes, setNavItemTypes] = useState<MenuItem[]>([]);
 
@@ -281,7 +304,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, isOpen, onClose }) 
       try {
         const response = await itemTypesService.list({ limit: 200 });
         if (cancelled) return;
-        const visible = (response.items ?? []).filter((itemType) => itemType.showInNavbar);
+        const visible = (response.items ?? []).filter(
+          (itemType) => itemType.showInNavbar && !itemType.isSystemItemType,
+        );
         const dynamicItems: MenuItem[] = visible.map((itemType) => ({
           name: `itemtype.${itemType.id}`,
           href: `/items/type/${itemType.id}`,
@@ -300,16 +325,206 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, isOpen, onClose }) 
     };
   }, []);
 
-  const primaryMenu = useMemo(() => {
-    const base = [...menuItems];
+  const operationsMenu = useMemo(() => {
+    const base = [...operationsMenuBase];
     if (navItemTypes.length > 0) {
-      const insertIndex = 1; // after dashboard
+      const insertIndex = 1; // Dashboard'dan hemen sonra operasyonel tipler
       base.splice(insertIndex, 0, ...navItemTypes);
     }
-    return filterMenuItems(base, hasPermission);
-  }, [hasPermission, navItemTypes]);
+    return base;
+  }, [navItemTypes]);
 
-  const secondaryMenu = useMemo(() => filterMenuItems(systemMenuItems, hasPermission), [hasPermission]);
+  const isAdmin = hasRole('admin');
+
+  const managementMenu = useMemo(() => {
+    const items = [...managementMenuBase];
+    if (isAdmin) {
+      items.push({
+        name: 'navigation.localizations',
+        href: '/localizations',
+        icon: Globe,
+        permission: PERMISSIONS.SYSTEM.LOCALIZATIONS.LIST,
+        fallback: 'Yerelleştirmeler',
+      });
+    }
+    return items;
+  }, [isAdmin]);
+
+  const sections: MenuSection[] = useMemo(() => {
+    const built: MenuSection[] = [
+      {
+        titleKey: 'navigation.operation',
+        fallbackTitle: 'Operasyon',
+        items: filterMenuItems(operationsMenu, hasPermission),
+      },
+      {
+        titleKey: 'navigation.data_management',
+        fallbackTitle: 'Veri Yönetimi',
+        items: filterMenuItems(dataManagementMenu, hasPermission),
+      },
+      {
+        titleKey: 'navigation.schema_design',
+        fallbackTitle: 'Şema Tasarımı (MDM)',
+        items: filterMenuItems(schemaDesignMenu, hasPermission),
+      },
+      {
+        titleKey: 'navigation.automation',
+        fallbackTitle: 'Otomasyon',
+        items: (() => {
+          const allowed = filterMenuItems(automationMenu, hasPermission);
+          if (allowed.length === 0 && isAdmin) {
+            // Admin her durumda otomasyona erişebilsin
+            return automationMenu;
+          }
+          return allowed;
+        })(),
+      },
+      {
+        titleKey: 'navigation.ai',
+        fallbackTitle: 'Yapay Zeka',
+        items: filterMenuItems(aiMenu, hasPermission),
+      },
+      {
+        titleKey: 'navigation.management',
+        fallbackTitle: 'Yönetim',
+        items: filterMenuItems(managementMenu, hasPermission),
+      },
+      {
+        titleKey: 'navigation.platform',
+        fallbackTitle: 'Platform',
+        items: filterMenuItems(systemMenu, hasPermission),
+      },
+      {
+        titleKey: 'navigation.personal',
+        fallbackTitle: 'Kişisel',
+        items: filterMenuItems(personalMenu, hasPermission),
+      },
+    ];
+    return built.filter((section) => section.items.length > 0);
+  }, [hasPermission, operationsMenu, managementMenu, isAdmin]);
+
+  const resolveSectionTitle = useCallback(
+    (section: MenuSection) => {
+      const translated = t(section.titleKey);
+      if (!translated || translated === section.titleKey) {
+        return section.fallbackTitle;
+      }
+      return translated;
+    },
+    [t],
+  );
+
+  const renderMenuItem = useCallback(
+    (item: MenuItem) => {
+      if (item.children && item.children.length > 0) {
+        const hasActiveChild = item.children.some(
+          (child) => child.href && location.pathname.startsWith(child.href),
+        );
+        const manualState = expandedMenus[item.name];
+        const isExpanded = typeof manualState === 'boolean' ? manualState : hasActiveChild;
+
+        return (
+          <div key={item.name}>
+            <button
+              onClick={() => toggleMenu(item.name)}
+              className={cn(
+                'w-full flex items-center space-x-2.5 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 group',
+                hasActiveChild
+                  ? 'text-sidebar-active-foreground'
+                  : 'text-sidebar-foreground hover:bg-muted hover:text-foreground',
+              )}
+            >
+              <item.icon
+                className={cn(
+                  'h-4 w-4 transition-colors duration-200',
+                  hasActiveChild
+                    ? 'text-sidebar-active-foreground'
+                    : 'text-muted-foreground group-hover:text-foreground',
+                )}
+              />
+              <span className="flex-1 text-left">{resolveLabel(item)}</span>
+              {isExpanded ? (
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              )}
+            </button>
+            {isExpanded && (
+              <div className="ml-4 mt-1 space-y-0.5">
+                {item.children.map((child) => {
+                  if (!child.href) return null;
+                  const isActive = location.pathname.startsWith(child.href);
+                  return (
+                    <Link
+                      key={child.name}
+                      to={child.href}
+                      onClick={onClose}
+                      className={cn(
+                        'flex items-center space-x-2 px-3 py-1.5 rounded-md text-xs transition-colors duration-150 group',
+                        isActive
+                          ? 'bg-sidebar-active text-sidebar-active-foreground shadow-sm'
+                          : 'text-sidebar-foreground hover:bg-muted hover:text-foreground',
+                      )}
+                    >
+                      <child.icon
+                        className={cn(
+                          'h-3 w-3 transition-colors duration-200',
+                          isActive
+                            ? 'text-sidebar-active-foreground'
+                            : 'text-muted-foreground group-hover:text-foreground',
+                        )}
+                      />
+                      <span className="text-xs">{resolveLabel(child)}</span>
+                      {isActive && (
+                        <div className="ml-auto w-1.5 h-1.5 bg-sidebar-active-foreground rounded-full"></div>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      if (!item.href) {
+        return null;
+      }
+
+      const isActive =
+        item.href === '/items'
+          ? location.pathname === '/items' || location.pathname === '/items/'
+          : location.pathname.startsWith(item.href);
+
+      return (
+        <Link
+          key={item.name}
+          to={item.href}
+          onClick={onClose}
+          className={cn(
+            'flex items-center space-x-2.5 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 group',
+            isActive
+              ? 'bg-sidebar-active text-sidebar-active-foreground shadow-sm'
+              : 'text-sidebar-foreground hover:bg-muted hover:text-foreground',
+          )}
+        >
+          <item.icon
+            className={cn(
+              'h-4 w-4 transition-colors duration-150',
+              isActive
+                ? 'text-sidebar-active-foreground'
+                : 'text-muted-foreground group-hover:text-foreground',
+            )}
+          />
+          <span>{resolveLabel(item)}</span>
+          {isActive && (
+            <div className="ml-auto w-1.5 h-1.5 bg-sidebar-active-foreground rounded-full"></div>
+          )}
+        </Link>
+      );
+    },
+    [expandedMenus, location.pathname, onClose, resolveLabel, toggleMenu],
+  );
 
   return (
     <aside className={cn('bg-sidebar border-r border-sidebar-border w-52 flex flex-col', className)}>
@@ -340,256 +555,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, isOpen, onClose }) 
       
       {/* Navigation */}
       <nav className="flex-1 p-2.5 space-y-1">
-        <div className="mb-4">
-          <div className="px-2.5 mb-1.5">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t('navigation.content')}</h3>
+        {sections.map((section) => (
+          <div key={section.titleKey} className="mb-4">
+            <div className="px-2.5 mb-1.5">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                {resolveSectionTitle(section)}
+              </h3>
+            </div>
+            {section.items.map(renderMenuItem)}
           </div>
-        {primaryMenu.map((item) => {
-          if (item.children && item.children.length > 0) {
-            const hasActiveChild = item.children.some(
-              (child) => child.href && location.pathname.startsWith(child.href),
-            );
-            const manualState = expandedMenus[item.name];
-            const isExpanded = typeof manualState === 'boolean' ? manualState : hasActiveChild;
-
-            return (
-              <div key={item.name}>
-                <button
-                  onClick={() => toggleMenu(item.name)}
-                  className={cn(
-                    'w-full flex items-center space-x-2.5 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 group',
-                    hasActiveChild
-                      ? 'text-sidebar-active-foreground'
-                      : 'text-sidebar-foreground hover:bg-muted hover:text-foreground',
-                  )}
-                >
-                  <item.icon
-                    className={cn(
-                      'h-4 w-4 transition-colors duration-200',
-                      hasActiveChild
-                        ? 'text-sidebar-active-foreground'
-                        : 'text-muted-foreground group-hover:text-foreground',
-                    )}
-                  />
-                  <span className="flex-1 text-left">{resolveLabel(item)}</span>
-                  {isExpanded ? (
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  )}
-                </button>
-                {isExpanded && (
-                  <div className="ml-4 mt-1 space-y-0.5">
-                    {item.children.map((child) => {
-                      if (!child.href) return null;
-                      const isActive = location.pathname.startsWith(child.href);
-                      return (
-                        <Link
-                          key={child.name}
-                          to={child.href}
-                          onClick={onClose}
-                          className={cn(
-                            'flex items-center space-x-2 px-3 py-1.5 rounded-md text-xs transition-colors duration-150 group',
-                            isActive
-                              ? 'bg-sidebar-active text-sidebar-active-foreground shadow-sm'
-                              : 'text-sidebar-foreground hover:bg-muted hover:text-foreground',
-                          )}
-                        >
-                          <child.icon
-                            className={cn(
-                              'h-3 w-3 transition-colors duration-200',
-                              isActive
-                                ? 'text-sidebar-active-foreground'
-                                : 'text-muted-foreground group-hover:text-foreground',
-                            )}
-                          />
-                          <span className="text-xs">{resolveLabel(child)}</span>
-                          {isActive && (
-                            <div className="ml-auto w-1.5 h-1.5 bg-sidebar-active-foreground rounded-full"></div>
-                          )}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          }
-
-          if (!item.href) {
-            return null;
-          }
-
-          const isActive = item.href === '/items'
-            ? location.pathname === '/items' || location.pathname === '/items/'
-            : location.pathname.startsWith(item.href);
-
-          return (
-            <Link
-              key={item.name}
-              to={item.href}
-              onClick={onClose}
-              className={cn(
-                'flex items-center space-x-2.5 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 group',
-                isActive
-                  ? 'bg-sidebar-active text-sidebar-active-foreground shadow-sm'
-                  : 'text-sidebar-foreground hover:bg-muted hover:text-foreground',
-              )}
-            >
-              <item.icon
-                className={cn(
-                  'h-4 w-4 transition-colors duration-150',
-                  isActive
-                    ? 'text-sidebar-active-foreground'
-                    : 'text-muted-foreground group-hover:text-foreground',
-                )}
-              />
-              <span>{resolveLabel(item)}</span>
-              {isActive && (
-                <div className="ml-auto w-1.5 h-1.5 bg-sidebar-active-foreground rounded-full"></div>
-              )}
-            </Link>
-          );
-        })}
-        </div>
-
-        <div>
-          <div className="px-2.5 mb-1.5">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t('navigation.system')}</h3>
-          </div>
-          {secondaryMenu.map((item) => {
-            if (item.children) {
-              const isExpanded = expandedMenus[item.name] || false;
-              const hasActiveChild = item.children.some(child => child.href && location.pathname.startsWith(child.href));
-              
-              return (
-                <div key={item.name}>
-                  <button
-                    onClick={() => toggleMenu(item.name)}
-                    className={cn(
-                      'w-full flex items-center space-x-2.5 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 group',
-                      hasActiveChild
-                        ? 'text-sidebar-active-foreground'
-                        : 'text-sidebar-foreground hover:bg-muted hover:text-foreground'
-                    )}
-                  >
-                    <item.icon 
-                      className={cn(
-                        'h-4 w-4 transition-colors duration-200', 
-                        hasActiveChild
-                          ? 'text-sidebar-active-foreground' 
-                          : 'text-muted-foreground group-hover:text-foreground'
-                      )} 
-                    />
-                    <span className="flex-1 text-left">{resolveLabel(item)}</span>
-                    {isExpanded ? (
-                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </button>
-                  {isExpanded && (
-                    <div className="ml-4 mt-1 space-y-0.5">
-                      {item.children.map((child) => {
-                        if (!child.href) return null;
-                        const isActive = location.pathname.startsWith(child.href);
-                        
-                        return (
-                          <Link
-                            key={child.name}
-                            to={child.href}
-                            onClick={onClose}
-                            className={cn(
-                              'flex items-center space-x-2 px-3 py-1.5 rounded-md text-xs transition-colors duration-150 group',
-                              isActive
-                                ? 'bg-sidebar-active text-sidebar-active-foreground shadow-sm'
-                                : 'text-sidebar-foreground hover:bg-muted hover:text-foreground'
-                            )}
-                          >
-                            <child.icon 
-                              className={cn(
-                                'h-3 w-3 transition-colors duration-200', 
-                                isActive 
-                                  ? 'text-sidebar-active-foreground' 
-                                  : 'text-muted-foreground group-hover:text-foreground'
-                              )} 
-                            />
-                            <span className="text-xs">{resolveLabel(child)}</span>
-                            {isActive && (
-                              <div className="ml-auto w-1.5 h-1.5 bg-sidebar-active-foreground rounded-full"></div>
-                            )}
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            }
-
-            const isActive = item.href ? location.pathname.startsWith(item.href) : false;
-            
-            return (
-              <Link
-                key={item.name}
-                to={item.href!}
-                onClick={onClose}
-                className={cn(
-                  'flex items-center space-x-2.5 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 group',
-                  isActive
-                    ? 'bg-sidebar-active text-sidebar-active-foreground shadow-sm'
-                    : 'text-sidebar-foreground hover:bg-muted hover:text-foreground'
-                )}
-              >
-                <item.icon 
-                  className={cn(
-                    'h-4 w-4 transition-colors duration-200', 
-                    isActive 
-                      ? 'text-sidebar-active-foreground' 
-                      : 'text-muted-foreground group-hover:text-foreground'
-                  )} 
-                />
-                <span>{resolveLabel(item)}</span>
-                {isActive && (
-                  <div className="ml-auto w-1.5 h-1.5 bg-sidebar-active-foreground rounded-full"></div>
-                )}
-              </Link>
-            );
-          })}
-        </div>
+        ))}
       </nav>
-
-      {/* Footer */}
-      <div className="p-2.5 border-t border-sidebar-border space-y-1">
-        <Link
-          to="/profile"
-          onClick={onClose}
-          className={cn(
-            'flex items-center space-x-2.5 px-3 py-2 rounded-md transition-colors duration-150',
-            location.pathname.startsWith('/profile')
-              ? 'bg-sidebar-active text-sidebar-active-foreground'
-              : 'text-sidebar-foreground hover:bg-muted hover:text-foreground'
-          )}
-        >
-          <User className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium">Profil</span>
-        </Link>
-        {hasPermission(PERMISSIONS.SYSTEM.SETTINGS.VIEW) && (
-          <Link
-            to="/settings"
-            onClick={onClose}
-            className={cn(
-              'flex items-center space-x-2.5 px-3 py-2 rounded-md transition-colors duration-150',
-              location.pathname.startsWith('/settings')
-                ? 'bg-sidebar-active text-sidebar-active-foreground'
-                : 'text-sidebar-foreground hover:bg-muted hover:text-foreground'
-            )}
-          >
-            <Settings className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">{t('common.settings')}</span>
-          </Link>
-        )}
-      </div>
     </aside>
   );
 };

@@ -664,6 +664,18 @@ const ItemTypeColumnConfigTab: React.FC<ItemTypeColumnConfigTabProps> = ({
         label: t('item_types.column_labels.updated_at') || 'Updated At',
         source: 'meta' as const,
       },
+      {
+        key: 'meta.category',
+        label: t('item_types.column_labels.category') || 'Category',
+        source: 'meta' as const,
+        helper: t('item_types.column_descriptions.category') || 'Item category name',
+      },
+      {
+        key: 'meta.family',
+        label: t('item_types.column_labels.family') || 'Family',
+        source: 'meta' as const,
+        helper: t('item_types.column_descriptions.family') || 'Item family name',
+      },
     ],
     [t],
   );

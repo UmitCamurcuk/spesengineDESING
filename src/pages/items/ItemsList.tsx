@@ -220,6 +220,8 @@ export const ItemsList: React.FC<ItemsListProps> = ({
       if (column.key === 'meta.status') return t('item_types.column_labels.status') || 'Status';
       if (column.key === 'meta.createdAt') return t('item_types.column_labels.created_at') || 'Created At';
       if (column.key === 'meta.updatedAt') return t('item_types.column_labels.updated_at') || 'Updated At';
+      if (column.key === 'meta.category') return t('item_types.column_labels.category') || 'Category';
+      if (column.key === 'meta.family') return t('item_types.column_labels.family') || 'Family';
       return column.key;
     },
     [attrMap, resolveLocalization, t],
@@ -261,6 +263,10 @@ export const ItemsList: React.FC<ItemsListProps> = ({
                 return item.createdAt ? new Date(item.createdAt).toLocaleString() : '—';
               case 'meta.updatedAt':
                 return item.updatedAt ? new Date(item.updatedAt).toLocaleString() : '—';
+              case 'meta.category':
+                return item.categorySummary?.name ?? '—';
+              case 'meta.family':
+                return item.familySummary?.name ?? '—';
               default:
                 return '—';
             }
