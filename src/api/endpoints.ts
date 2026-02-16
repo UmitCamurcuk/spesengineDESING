@@ -195,6 +195,23 @@ export const API_ENDPOINTS = {
     RETRY: (id: string) => `/workflow-executions/${id}/retry`,
   },
 
+  // Workflow Boards
+  WORKFLOW_BOARDS: {
+    BASE: '/automation/boards',
+    BY_ID: (id: string) => `/automation/boards/${id}`,
+    COLUMNS: (id: string) => `/automation/boards/${id}/columns`,
+    COLUMN_BY_ID: (boardId: string, colId: string) => `/automation/boards/${boardId}/columns/${colId}`,
+    COLUMNS_REORDER: (id: string) => `/automation/boards/${id}/columns/reorder`,
+    MEMBERS: (id: string) => `/automation/boards/${id}/members`,
+    MEMBER_BY_ID: (boardId: string, userId: string) => `/automation/boards/${boardId}/members/${userId}`,
+    TASKS: (id: string) => `/automation/boards/${id}/tasks`,
+    TASK_BY_ID: (boardId: string, taskId: string) => `/automation/boards/${boardId}/tasks/${taskId}`,
+    TASK_MOVE: (boardId: string, taskId: string) => `/automation/boards/${boardId}/tasks/${taskId}/move`,
+    TASK_COMMENTS: (boardId: string, taskId: string) => `/automation/boards/${boardId}/tasks/${taskId}/comments`,
+    TASK_ACTIVITY: (boardId: string, taskId: string) => `/automation/boards/${boardId}/tasks/${taskId}/activity`,
+    ACTIVITY: (id: string) => `/automation/boards/${id}/activity`,
+  },
+
   // Chatbot
   CHATBOT: {
     CONFIG: '/chatbot/config',

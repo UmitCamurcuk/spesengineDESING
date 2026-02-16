@@ -63,6 +63,8 @@ export const PERMISSIONS = {
       VIEW: 'automation.execution.view',
       CANCEL: 'automation.execution.cancel',
     },
+    WORKFLOW_BOARDS: createCrudPermissionSet('automation', 'workflowBoard'),
+    BOARD_TASKS: createCrudPermissionSet('automation', 'boardTask'),
   },
   CHATBOT: {
     CONFIG: createCrudPermissionSet('chatbot', 'config'),

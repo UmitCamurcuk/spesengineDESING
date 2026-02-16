@@ -125,10 +125,14 @@ const mapAttributeGroup = (group: BackendAttributeGroup): AttributeGroup => ({
 });
 
 export const attributeGroupsService = {
-  async list(): Promise<AttributeGroup[]> {
+  async list(options?: { includeAttributes?: boolean }): Promise<AttributeGroup[]> {
+    const params: Record<string, string> = {};
+    if (options?.includeAttributes) {
+      params.includeAttributes = 'true';
+    }
     const response = await apiClient.get<
       ApiSuccessResponse<{ items: BackendAttributeGroup[]; total: number }>
-    >(API_ENDPOINTS.ATTRIBUTE_GROUPS.BASE);
+    >(API_ENDPOINTS.ATTRIBUTE_GROUPS.BASE, { params });
     const items = Array.isArray(response.data.data?.items) ? response.data.data.items : [];
     return items.map(mapAttributeGroup);
   },

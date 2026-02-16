@@ -99,6 +99,11 @@ import { WorkflowsCreate } from './pages/automation/WorkflowsCreate';
 import { ExecutionsList } from './pages/automation/ExecutionsList';
 import { ExecutionDetails } from './pages/automation/ExecutionDetails';
 
+// Workflow Boards
+import { WorkflowBoardsList } from './pages/automation/WorkflowBoardsList';
+import { WorkflowBoardsCreate } from './pages/automation/WorkflowBoardsCreate';
+import { WorkflowBoardsDetails } from './pages/automation/WorkflowBoardsDetails';
+
 // Chatbot
 import { ChatbotSettings } from './pages/chatbot/ChatbotSettings';
 import { ConversationsList } from './pages/chatbot/ConversationsList';
@@ -177,6 +182,10 @@ const GuardedWorkflowsDetails = withPermission(PERMISSIONS.AUTOMATION.WORKFLOWS.
 const GuardedWorkflowsCreate = withPermission(PERMISSIONS.AUTOMATION.WORKFLOWS.CREATE)(WorkflowsCreate);
 const GuardedExecutionsList = withPermission(PERMISSIONS.AUTOMATION.WORKFLOW_EXECUTIONS.LIST)(ExecutionsList);
 const GuardedExecutionDetails = withPermission(PERMISSIONS.AUTOMATION.WORKFLOW_EXECUTIONS.VIEW)(ExecutionDetails);
+
+const GuardedWorkflowBoardsList = withPermission(PERMISSIONS.AUTOMATION.WORKFLOW_BOARDS.LIST)(WorkflowBoardsList);
+const GuardedWorkflowBoardsCreate = withPermission(PERMISSIONS.AUTOMATION.WORKFLOW_BOARDS.CREATE)(WorkflowBoardsCreate);
+const GuardedWorkflowBoardsDetails = withPermission(PERMISSIONS.AUTOMATION.WORKFLOW_BOARDS.VIEW)(WorkflowBoardsDetails);
 
 const GuardedChatbotSettings = withPermission(PERMISSIONS.CHATBOT.CONFIG.LIST)(ChatbotSettings);
 const GuardedConversationsList = withPermission(PERMISSIONS.CHATBOT.CONVERSATIONS.LIST)(ConversationsList);
@@ -289,6 +298,12 @@ const CREATE_ACTIONS: CreateActionConfig[] = [
     createPath: '/automation/workflows/create',
     labelKey: 'Yeni İş Akışı',
     permission: PERMISSIONS.AUTOMATION.WORKFLOWS.CREATE,
+  },
+  {
+    basePath: '/automation/boards',
+    createPath: '/automation/boards/create',
+    labelKey: 'boards.new_board',
+    permission: PERMISSIONS.AUTOMATION.WORKFLOW_BOARDS.CREATE,
   },
 ];
 
@@ -511,6 +526,9 @@ const AppContentInner: React.FC = () => {
         <Route path="/automation/workflows" element={<GuardedWorkflowsList />} />
         <Route path="/automation/workflows/create" element={<GuardedWorkflowsCreate />} />
         <Route path="/automation/workflows/:id" element={<GuardedWorkflowsDetails />} />
+        <Route path="/automation/boards" element={<GuardedWorkflowBoardsList />} />
+        <Route path="/automation/boards/create" element={<GuardedWorkflowBoardsCreate />} />
+        <Route path="/automation/boards/:id" element={<GuardedWorkflowBoardsDetails />} />
         <Route path="/automation/executions" element={<GuardedExecutionsList />} />
         <Route path="/automation/executions/:id" element={<GuardedExecutionDetails />} />
 

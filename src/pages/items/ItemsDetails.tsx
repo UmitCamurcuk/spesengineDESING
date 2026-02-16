@@ -28,6 +28,7 @@ import { Statistics } from '../../components/common/Statistics';
 import { HistoryTable } from '../../components/common/HistoryTable';
 import { itemsService } from '../../api/services/items.service';
 import { associationColumnConfigService } from '../../api/services/association-column-config.service';
+import { attributesService } from '../../api/services/attributes.service';
 import type {
   AssociationColumnConfig,
   Item,
@@ -239,6 +240,7 @@ const AssociationsTab: React.FC<AssociationsTabProps> = ({ associations }) => {
   const navigate = useNavigate();
   const { resolveLocalization, t } = useLanguage();
   const [columnConfigs, setColumnConfigs] = useState<Record<string, AssociationColumnConfig>>({});
+  const [attributeNameMap, setAttributeNameMap] = useState<Map<string, string>>(new Map());
 
   // Group associations by (associationTypeId + direction)
   const groups = useMemo(() => {
@@ -264,35 +266,56 @@ const AssociationsTab: React.FC<AssociationsTabProps> = ({ associations }) => {
     return Array.from(map.values());
   }, [associations]);
 
-  // Fetch column configs for each unique association type
+  // Fetch column configs and attribute names for column headers
   useEffect(() => {
     const typeIds = new Set(groups.map((g) => g.associationTypeId).filter((id) => id !== 'unknown'));
     const roles = new Set(groups.map((g) => `${g.associationTypeId}__${g.direction}`));
 
     const fetchConfigs = async () => {
       const results: Record<string, AssociationColumnConfig> = {};
-      const promises: Promise<void>[] = [];
+      const configPromises: Promise<void>[] = [];
 
       roles.forEach((key) => {
         const [typeId, direction] = key.split('__');
         if (typeId === 'unknown') return;
-        // For the column config, the "role" is the role of the counterpart item
-        // If current item is source, counterpart is target, and vice versa
         const counterpartRole = direction === 'source' ? 'target' : 'source';
-        promises.push(
+        configPromises.push(
           associationColumnConfigService
             .getConfig(typeId, counterpartRole as 'source' | 'target')
             .then((config) => {
               results[key] = config;
             })
-            .catch(() => {
-              // No config available for this type/role
-            }),
+            .catch(() => {}),
         );
       });
 
-      await Promise.all(promises);
+      await Promise.all(configPromises);
       setColumnConfigs(results);
+
+      // Collect attribute IDs from all configs that need name resolution
+      const attrIds = new Set<string>();
+      Object.values(results).forEach((config) => {
+        (config.columns ?? []).forEach((col) => {
+          if (col.source === 'attribute' && !col.options?.attributeName) {
+            const attrId = (col.options?.attributeId as string) ?? col.key.replace('attribute.', '');
+            if (attrId) attrIds.add(attrId);
+          }
+        });
+      });
+
+      // Load attribute names if needed
+      if (attrIds.size > 0) {
+        try {
+          const allAttributes = await attributesService.list();
+          const nameMap = new Map<string, string>();
+          allAttributes.forEach((attr) => {
+            nameMap.set(attr.id, attr.name || attr.key || attr.id);
+          });
+          setAttributeNameMap(nameMap);
+        } catch {
+          // Attribute names will fall back to key or ID
+        }
+      }
     };
 
     if (typeIds.size > 0) {
@@ -316,6 +339,42 @@ const AssociationsTab: React.FC<AssociationsTabProps> = ({ associations }) => {
     return String(value);
   };
 
+  // Helper: returns fallback if translation key is not found (t returns the key itself)
+  const tr = (key: string, fallback: string) => {
+    const value = t(key);
+    return value && value !== key ? value : fallback;
+  };
+
+  const resolveColumnHeader = (col: { key: string; source: string; labelLocalizationId?: string | null; options?: Record<string, unknown> | null }): string => {
+    if (col.labelLocalizationId) {
+      const resolved = resolveLocalization(col.labelLocalizationId);
+      if (resolved) return resolved;
+    }
+    switch (col.key) {
+      case 'meta.name': return tr('items.name', 'Name');
+      case 'meta.code': return tr('items.code', 'Code');
+      case 'meta.itemType': return tr('items.item_type', 'Item Type');
+      case 'meta.category': return tr('items.category', 'Category');
+      case 'meta.family': return tr('items.family', 'Family');
+      case 'meta.createdAt': return tr('common.created_at', 'Created At');
+      case 'meta.updatedAt': return tr('common.updated_at', 'Updated At');
+      case 'meta.createdBy': return tr('common.created_by', 'Created By');
+      case 'meta.updatedBy': return tr('common.updated_by', 'Updated By');
+      case 'relationship.orderIndex': return tr('association_types.column_labels.order', 'Order');
+      default: {
+        // For attribute columns, resolve the name
+        if (col.source === 'attribute') {
+          if (col.options?.attributeName) return String(col.options.attributeName);
+          const attrId = (col.options?.attributeId as string) ?? col.key.replace('attribute.', '');
+          const resolvedName = attributeNameMap.get(attrId);
+          if (resolvedName) return resolvedName;
+          if (col.options?.attributeKey) return String(col.options.attributeKey);
+        }
+        return col.key.replace(/^(meta\.|attribute\.|relationship\.)/, '');
+      }
+    }
+  };
+
   const hasAssociations = associations.source.length || associations.target.length;
 
   return (
@@ -323,14 +382,14 @@ const AssociationsTab: React.FC<AssociationsTabProps> = ({ associations }) => {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold text-foreground">
-            {t('items.details.associations_title') || 'Item Associations'}
+            {tr('items.details.associations_title', 'Item Associations')}
           </h3>
           <p className="text-sm text-muted-foreground">
-            {t('items.details.associations_description') || 'Relationships where this item participates.'}
+            {tr('items.details.associations_description', 'Relationships where this item participates.')}
           </p>
         </div>
         <Badge variant="primary" size="sm">
-          {associations.source.length + associations.target.length} {t('common.total') || 'total'}
+          {associations.source.length + associations.target.length} {tr('common.total', 'total')}
         </Badge>
       </div>
 
@@ -354,7 +413,7 @@ const AssociationsTab: React.FC<AssociationsTabProps> = ({ associations }) => {
                       </Badge>
                     </div>
                     <Badge variant="outline" size="sm">
-                      {group.items.length} {t('common.items') || 'items'}
+                      {group.items.length} {tr('common.items', 'items')}
                     </Badge>
                   </div>
                 </div>
@@ -363,77 +422,88 @@ const AssociationsTab: React.FC<AssociationsTabProps> = ({ associations }) => {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-border bg-muted/50">
-                        <th className="px-4 py-2 text-left font-medium text-muted-foreground">
-                          {t('items.name') || 'Name'}
-                        </th>
-                        {visibleColumns.map((col) => (
-                          <th
-                            key={col.key}
-                            className="px-4 py-2 text-left font-medium text-muted-foreground"
-                          >
-                            {col.labelLocalizationId
-                              ? resolveLocalization(col.labelLocalizationId) || col.key
-                              : col.key.replace(/^(meta\.|attribute\.|relationship\.)/, '')}
+                        {visibleColumns.length === 0 ? (
+                          <th className="px-4 py-2 text-left font-medium text-muted-foreground">
+                            {tr('items.name', 'Name')}
                           </th>
-                        ))}
+                        ) : (
+                          visibleColumns.map((col) => (
+                            <th
+                              key={col.key}
+                              className="px-4 py-2 text-left font-medium text-muted-foreground"
+                            >
+                              {resolveColumnHeader(col)}
+                            </th>
+                          ))
+                        )}
                         <th className="px-4 py-2 text-right font-medium text-muted-foreground">
-                          {t('common.actions') || 'Actions'}
+                          {tr('common.actions', 'Actions')}
                         </th>
                       </tr>
                     </thead>
                     <tbody>
                       {group.items.map((assoc) => (
                         <tr key={assoc.id} className="border-b border-border last:border-0 hover:bg-muted/30">
-                          <td className="px-4 py-3">
-                            <span className="font-medium text-foreground">
-                              {assoc.counterpartItemName ?? assoc.counterpartItemId ?? '—'}
-                            </span>
-                          </td>
-                          {visibleColumns.map((col) => {
-                            let cellValue: React.ReactNode = '—';
+                          {visibleColumns.length === 0 ? (
+                            <td className="px-4 py-3">
+                              <span className="font-medium text-foreground">
+                                {assoc.counterpartItemName ?? assoc.counterpartItemId ?? '—'}
+                              </span>
+                            </td>
+                          ) : (
+                            visibleColumns.map((col) => {
+                              let cellValue: React.ReactNode = '—';
 
-                            if (col.source === 'attribute') {
-                              const attrId =
-                                (col.options?.attributeId as string | undefined) ??
-                                (col.key.startsWith('attribute.') ? col.key.split('.')[1] : undefined);
-                              if (attrId && assoc.counterpartItemAttributeValues) {
-                                cellValue = formatAttrValue(assoc.counterpartItemAttributeValues[attrId]);
+                              if (col.source === 'attribute') {
+                                const attrId =
+                                  (col.options?.attributeId as string | undefined) ??
+                                  (col.key.startsWith('attribute.') ? col.key.split('.')[1] : undefined);
+                                if (attrId && assoc.counterpartItemAttributeValues) {
+                                  cellValue = formatAttrValue(assoc.counterpartItemAttributeValues[attrId]);
+                                }
+                              } else if (col.source === 'meta') {
+                                switch (col.key) {
+                                  case 'meta.name':
+                                    cellValue = assoc.counterpartItemName ?? '—';
+                                    break;
+                                  case 'meta.code':
+                                    cellValue = assoc.counterpartItemId ?? '—';
+                                    break;
+                                  case 'meta.itemType':
+                                    cellValue = assoc.counterpartItemItemTypeName ?? '—';
+                                    break;
+                                  case 'meta.category':
+                                    cellValue = assoc.counterpartItemCategoryName ?? '—';
+                                    break;
+                                  case 'meta.family':
+                                    cellValue = assoc.counterpartItemFamilyName ?? '—';
+                                    break;
+                                  case 'meta.createdAt':
+                                    cellValue = assoc.createdAt ? new Date(assoc.createdAt).toLocaleString() : '—';
+                                    break;
+                                  case 'meta.updatedAt':
+                                    cellValue = assoc.updatedAt ? new Date(assoc.updatedAt).toLocaleString() : '—';
+                                    break;
+                                  case 'meta.createdBy':
+                                  case 'meta.updatedBy':
+                                    cellValue = '—';
+                                    break;
+                                  default:
+                                    cellValue = '—';
+                                }
+                              } else if (col.source === 'relationship') {
+                                if (col.key === 'relationship.orderIndex') {
+                                  cellValue = typeof assoc.orderIndex === 'number' ? `#${assoc.orderIndex + 1}` : '—';
+                                }
                               }
-                            } else if (col.source === 'meta') {
-                              switch (col.key) {
-                                case 'meta.name':
-                                  cellValue = assoc.counterpartItemName ?? '—';
-                                  break;
-                                case 'meta.code':
-                                  cellValue = assoc.counterpartItemId ?? '—';
-                                  break;
-                                case 'meta.category':
-                                  cellValue = assoc.counterpartItemCategoryName ?? assoc.counterpartItemCategoryId ?? '—';
-                                  break;
-                                case 'meta.family':
-                                  cellValue = assoc.counterpartItemFamilyName ?? assoc.counterpartItemFamilyId ?? '—';
-                                  break;
-                                case 'meta.createdAt':
-                                  cellValue = assoc.createdAt ? new Date(assoc.createdAt).toLocaleString() : '—';
-                                  break;
-                                case 'meta.updatedAt':
-                                  cellValue = assoc.updatedAt ? new Date(assoc.updatedAt).toLocaleString() : '—';
-                                  break;
-                                default:
-                                  cellValue = '—';
-                              }
-                            } else if (col.source === 'relationship') {
-                              if (col.key === 'relationship.orderIndex') {
-                                cellValue = typeof assoc.orderIndex === 'number' ? `#${assoc.orderIndex + 1}` : '—';
-                              }
-                            }
 
-                            return (
-                              <td key={col.key} className="px-4 py-3 text-foreground">
-                                {cellValue}
-                              </td>
-                            );
-                          })}
+                              return (
+                                <td key={col.key} className="px-4 py-3 text-foreground">
+                                  {cellValue}
+                                </td>
+                              );
+                            })
+                          )}
                           <td className="px-4 py-3 text-right">
                             {assoc.counterpartItemId && (
                               <Button
@@ -441,7 +511,7 @@ const AssociationsTab: React.FC<AssociationsTabProps> = ({ associations }) => {
                                 size="sm"
                                 onClick={() => navigate(`/items/${assoc.counterpartItemId}`)}
                               >
-                                {t('common.view_details') || 'View'}
+                                {tr('common.view_details', 'View')}
                               </Button>
                             )}
                           </td>
@@ -457,7 +527,7 @@ const AssociationsTab: React.FC<AssociationsTabProps> = ({ associations }) => {
       ) : (
         <Card>
           <div className="px-6 py-12 text-center text-sm text-muted-foreground">
-            {t('items.details.no_associations') || 'No associations are linked to this item yet.'}
+            {tr('items.details.no_associations', 'No associations are linked to this item yet.')}
           </div>
         </Card>
       )}

@@ -1,6 +1,24 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import {
   ArrowDown,
   ArrowUp,
   BarChart3,
@@ -8,8 +26,10 @@ import {
   Database,
   FileText,
   Globe,
+  GripVertical,
   History as HistoryIcon,
   Layers,
+  Plus,
   Trash2,
   Zap,
 } from 'lucide-react';
@@ -69,13 +89,17 @@ interface OverviewTabProps {
 }
 
 interface ColumnSettingsTabProps {
-  associationTypeId: string;
   associationType: AssociationType;
   rules: AssociationRule[];
   categoryMap: Map<string, Category>;
   familyMap: Map<string, Family>;
   attributeGroups: Map<string, AttributeGroup>;
-  canEdit: boolean;
+  editMode: boolean;
+  activeRole: 'source' | 'target';
+  onRoleChange: (role: 'source' | 'target') => void;
+  columns: AssociationColumnDefinition[];
+  onColumnsChange: (columns: AssociationColumnDefinition[]) => void;
+  loading: boolean;
 }
 
 type AvailableColumn = {
@@ -84,6 +108,113 @@ type AvailableColumn = {
   source: AssociationColumnDefinition['source'];
   helper?: string;
   options?: Record<string, unknown>;
+};
+
+interface SortableAssocColumnItemProps {
+  column: AssociationColumnDefinition;
+  index: number;
+  editMode: boolean;
+  label: string;
+  sourceLabel: string;
+  helper?: string;
+  isFirst: boolean;
+  isLast: boolean;
+  onToggleVisible: (index: number, value: boolean) => void;
+  onMove: (index: number, direction: 'up' | 'down') => void;
+  onRemove: (index: number) => void;
+}
+
+const SortableAssocColumnItem: React.FC<SortableAssocColumnItemProps> = ({
+  column,
+  index,
+  editMode,
+  label,
+  sourceLabel,
+  helper,
+  isFirst,
+  isLast,
+  onToggleVisible,
+  onMove,
+  onRemove,
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: column.key, disabled: !editMode });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex flex-col gap-3 rounded-lg border border-border bg-background px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+    >
+      <div className="flex items-start gap-3">
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className={`mt-1 text-muted-foreground ${editMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
+          disabled={!editMode}
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+        <div>
+          <p className="text-sm font-medium text-foreground">{label}</p>
+          <p className="text-xs text-muted-foreground">
+            {sourceLabel} • {column.key}
+          </p>
+          {helper ? (
+            <p className="text-xs text-muted-foreground mt-1">{helper}</p>
+          ) : null}
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <Checkbox
+          size="sm"
+          checked={column.visible}
+          onChange={(event) => onToggleVisible(index, event.target.checked)}
+          disabled={!editMode}
+        />
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => onMove(index, 'up')}
+          disabled={!editMode || isFirst}
+          className="px-2"
+        >
+          <ArrowUp className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => onMove(index, 'down')}
+          disabled={!editMode || isLast}
+          className="px-2"
+        >
+          <ArrowDown className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => onRemove(index)}
+          disabled={!editMode}
+          className="px-2 text-error hover:text-error"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
 };
 
 interface AssociationTypeEditFormState {
@@ -673,295 +804,113 @@ const AssociationTypeOverviewTab: React.FC<OverviewTabProps> = ({
 };
 
 const AssociationTypeColumnSettingsTab: React.FC<ColumnSettingsTabProps> = ({
-  associationTypeId,
   associationType,
   rules,
   categoryMap,
   familyMap,
   attributeGroups,
-  canEdit,
+  editMode,
+  activeRole,
+  onRoleChange,
+  columns,
+  onColumnsChange,
+  loading,
 }) => {
   const { t } = useLanguage();
-  const { showToast } = useToast();
-  const [activeRole, setActiveRole] = useState<'source' | 'target'>('source');
-  const [columns, setColumns] = useState<AssociationColumnDefinition[]>([]);
-  const [initialColumns, setInitialColumns] = useState<AssociationColumnDefinition[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [saving, setSaving] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
   const [selectedColumnKey, setSelectedColumnKey] = useState('');
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   const metaColumns = useMemo<AvailableColumn[]>(
     () => [
-      {
-        key: 'meta.itemType',
-        label: t('association_types.column_labels.item_type') || 'Item Type',
-        source: 'meta',
-      },
-      {
-        key: 'meta.code',
-        label: t('association_types.column_labels.code') || 'Item Code',
-        source: 'meta',
-      },
-      {
-        key: 'meta.name',
-        label: t('association_types.column_labels.name') || 'Item Name',
-        source: 'meta',
-      },
-      {
-        key: 'meta.category',
-        label: t('association_types.column_labels.category') || 'Category',
-        source: 'meta',
-      },
-      {
-        key: 'meta.family',
-        label: t('association_types.column_labels.family') || 'Family',
-        source: 'meta',
-      },
-      {
-        key: 'relationship.orderIndex',
-        label: t('association_types.column_labels.order') || 'Relation Order',
-        source: 'relationship',
-      },
-      {
-        key: 'meta.createdBy',
-        label: t('association_types.column_labels.created_by') || 'Created By',
-        source: 'meta',
-      },
-      {
-        key: 'meta.updatedBy',
-        label: t('association_types.column_labels.updated_by') || 'Updated By',
-        source: 'meta',
-      },
-      {
-        key: 'meta.createdAt',
-        label: t('association_types.column_labels.created_at') || 'Created At',
-        source: 'meta',
-      },
-      {
-        key: 'meta.updatedAt',
-        label: t('association_types.column_labels.updated_at') || 'Updated At',
-        source: 'meta',
-      },
+      { key: 'meta.itemType', label: t('association_types.column_labels.item_type') || 'Item Type', source: 'meta' },
+      { key: 'meta.code', label: t('association_types.column_labels.code') || 'Item Code', source: 'meta' },
+      { key: 'meta.name', label: t('association_types.column_labels.name') || 'Item Name', source: 'meta' },
+      { key: 'meta.category', label: t('association_types.column_labels.category') || 'Category', source: 'meta' },
+      { key: 'meta.family', label: t('association_types.column_labels.family') || 'Family', source: 'meta' },
+      { key: 'relationship.orderIndex', label: t('association_types.column_labels.order') || 'Relation Order', source: 'relationship' },
+      { key: 'meta.createdBy', label: t('association_types.column_labels.created_by') || 'Created By', source: 'meta' },
+      { key: 'meta.updatedBy', label: t('association_types.column_labels.updated_by') || 'Updated By', source: 'meta' },
+      { key: 'meta.createdAt', label: t('association_types.column_labels.created_at') || 'Created At', source: 'meta' },
+      { key: 'meta.updatedAt', label: t('association_types.column_labels.updated_at') || 'Updated At', source: 'meta' },
     ],
     [t],
-  );
-
-  const normalizeColumns = useCallback(
-    (list: AssociationColumnDefinition[]) =>
-      list
-        .map((column, index) => ({ ...column, order: column.order ?? index }))
-        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-        .map((column, index) => ({ ...column, order: index })),
-    [],
-  );
-
-  const defaultColumns = useMemo<AssociationColumnDefinition[]>(
-    () => [
-      { key: 'meta.itemType', source: 'meta', visible: true, order: 0 },
-      { key: 'meta.category', source: 'meta', visible: true, order: 1 },
-      { key: 'meta.family', source: 'meta', visible: true, order: 2 },
-      { key: 'meta.updatedBy', source: 'meta', visible: true, order: 3 },
-      { key: 'meta.createdBy', source: 'meta', visible: true, order: 4 },
-    ],
-    [],
   );
 
   const collectAttributeColumns = useCallback(
     (role: 'source' | 'target'): AvailableColumn[] => {
       const groupIds = new Set<string>();
-      const roleItemType =
-        role === 'source' ? associationType.sourceItemType : associationType.targetItemType;
-
+      const roleItemType = role === 'source' ? associationType.sourceItemType : associationType.targetItemType;
       if (roleItemType) {
-        roleItemType.attributeGroupIds?.forEach((groupId) => groupIds.add(groupId));
-        roleItemType.attributeGroupBindings?.forEach((binding) =>
-          groupIds.add(binding.attributeGroupId),
-        );
+        roleItemType.attributeGroupIds?.forEach((id) => groupIds.add(id));
+        roleItemType.attributeGroupBindings?.forEach((b) => groupIds.add(b.attributeGroupId));
       }
-
-      const appendFromCategories = (categoryIds: string[]) => {
-        categoryIds.forEach((categoryId) => {
-          const category = categoryMap.get(categoryId);
-          category?.attributeGroupIds?.forEach((groupId) => groupIds.add(groupId));
-          category?.attributeGroupBindings?.forEach((binding) =>
-            groupIds.add(binding.attributeGroupId),
-          );
+      const appendFromCategories = (ids: string[]) => {
+        ids.forEach((id) => {
+          const cat = categoryMap.get(id);
+          cat?.attributeGroupIds?.forEach((gid) => groupIds.add(gid));
+          cat?.attributeGroupBindings?.forEach((b) => groupIds.add(b.attributeGroupId));
         });
       };
-
-      const appendFromFamilies = (familyIds: string[]) => {
-        familyIds.forEach((familyId) => {
-          const family = familyMap.get(familyId);
-          family?.attributeGroupIds?.forEach((groupId) => groupIds.add(groupId));
-          family?.attributeGroupBindings?.forEach((binding) =>
-            groupIds.add(binding.attributeGroupId),
-          );
+      const appendFromFamilies = (ids: string[]) => {
+        ids.forEach((id) => {
+          const fam = familyMap.get(id);
+          fam?.attributeGroupIds?.forEach((gid) => groupIds.add(gid));
+          fam?.attributeGroupBindings?.forEach((b) => groupIds.add(b.attributeGroupId));
         });
       };
-
-      if (roleItemType?.categoryIds?.length) {
-        appendFromCategories(roleItemType.categoryIds);
-      }
-      if (roleItemType?.linkedFamilyIds?.length) {
-        appendFromFamilies(roleItemType.linkedFamilyIds);
-      }
-
+      if (roleItemType?.categoryIds?.length) appendFromCategories(roleItemType.categoryIds);
+      if (roleItemType?.linkedFamilyIds?.length) appendFromFamilies(roleItemType.linkedFamilyIds);
       rules.forEach((rule) => {
         appendFromCategories(role === 'source' ? rule.sourceCategoryIds : rule.targetCategoryIds);
         appendFromFamilies(role === 'source' ? rule.sourceFamilyIds : rule.targetFamilyIds);
       });
-
       const available: AvailableColumn[] = [];
       Array.from(groupIds).forEach((groupId) => {
         const group = attributeGroups.get(groupId);
-        if (!group) {
-          return;
-        }
-        (group.attributes ?? []).forEach((attribute) => {
+        if (!group) return;
+        (group.attributes ?? []).forEach((attr) => {
           available.push({
-            key: `attribute.${attribute.id}`,
-            label: attribute.name || attribute.key || attribute.id,
+            key: `attribute.${attr.id}`,
+            label: attr.name || attr.key || attr.id,
             helper: group.name,
             source: 'attribute',
-            options: { attributeId: attribute.id, attributeKey: attribute.key, groupId },
+            options: { attributeId: attr.id, attributeKey: attr.key, attributeName: attr.name, groupId },
           });
         });
       });
-
-      return available.sort((a, b) =>
-        a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }),
-      );
+      return available.sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
     },
-    [
-      associationType.sourceItemType,
-      associationType.targetItemType,
-      attributeGroups,
-      categoryMap,
-      familyMap,
-      rules,
-    ],
+    [associationType.sourceItemType, associationType.targetItemType, attributeGroups, categoryMap, familyMap, rules],
   );
 
-  const attributeColumns = useMemo(
-    () => collectAttributeColumns(activeRole),
-    [activeRole, collectAttributeColumns],
-  );
-
-  const availableColumns = useMemo<AvailableColumn[]>(
-    () => [...metaColumns, ...attributeColumns],
-    [attributeColumns, metaColumns],
-  );
+  const attributeColumns = useMemo(() => collectAttributeColumns(activeRole), [activeRole, collectAttributeColumns]);
+  const availableColumns = useMemo<AvailableColumn[]>(() => [...metaColumns, ...attributeColumns], [attributeColumns, metaColumns]);
 
   const availableColumnMap = useMemo(() => {
     const map = new Map<string, AvailableColumn>();
-    availableColumns.forEach((column) => map.set(column.key, column));
+    availableColumns.forEach((col) => map.set(col.key, col));
     return map;
   }, [availableColumns]);
 
   const unusedColumns = useMemo(() => {
-    const existingKeys = new Set(columns.map((column) => column.key));
-    return availableColumns.filter((column) => !existingKeys.has(column.key));
+    const existing = new Set(columns.map((c) => c.key));
+    return availableColumns.filter((c) => !existing.has(c.key));
   }, [availableColumns, columns]);
 
-  const loadColumns = useCallback(
-    async (role: 'source' | 'target') => {
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await associationColumnConfigService.getConfig(associationTypeId, role);
-        const normalized = normalizeColumns(
-          response.columns && response.columns.length > 0 ? response.columns : defaultColumns,
-        );
-        setColumns(normalized);
-        setInitialColumns(normalized);
-        setSelectedColumnKey('');
-      } catch (err: any) {
-        console.error('Failed to load association column config', err);
-        setError(
-          err?.response?.data?.error?.message ||
-            t('association_types.column_settings.load_failed') ||
-            'Unable to load column settings.',
-        );
-        const fallback = normalizeColumns(defaultColumns);
-        setColumns(fallback);
-        setInitialColumns(fallback);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [associationTypeId, defaultColumns, normalizeColumns, t],
+  const assignOrder = useCallback(
+    (list: AssociationColumnDefinition[]) => list.map((col, i) => ({ ...col, order: i })),
+    [],
   );
-
-  useEffect(() => {
-    void loadColumns(activeRole);
-  }, [activeRole, loadColumns]);
-
-  const isDirty = useMemo(() => {
-    const current = JSON.stringify(normalizeColumns(columns));
-    const initial = JSON.stringify(normalizeColumns(initialColumns));
-    return current !== initial;
-  }, [columns, initialColumns, normalizeColumns]);
-
-  const handleMove = (index: number, direction: 'up' | 'down') => {
-    if (!canEdit) return;
-    setColumns((prev) => {
-      const next = [...prev];
-      const targetIndex = direction === 'up' ? index - 1 : index + 1;
-      if (targetIndex < 0 || targetIndex >= next.length) {
-        return prev;
-      }
-      const temp = next[index];
-      next[index] = next[targetIndex];
-      next[targetIndex] = temp;
-      return normalizeColumns(next);
-    });
-  };
-
-  const handleToggleVisible = (index: number, value: boolean) => {
-    if (!canEdit) return;
-    setColumns((prev) => {
-      const next = [...prev];
-      next[index] = { ...next[index], visible: value };
-      return next;
-    });
-  };
-
-  const handleRemove = (index: number) => {
-    if (!canEdit) return;
-    setColumns((prev) => normalizeColumns(prev.filter((_, idx) => idx !== index)));
-  };
-
-  const handleAddColumn = () => {
-    if (!canEdit || !selectedColumnKey) {
-      return;
-    }
-    const definition = availableColumnMap.get(selectedColumnKey);
-    if (!definition) {
-      return;
-    }
-    setColumns((prev) =>
-      normalizeColumns([
-        ...prev,
-        {
-          key: definition.key,
-          source: definition.source,
-          visible: true,
-          order: prev.length,
-          options: definition.options,
-        },
-      ]),
-    );
-    setSelectedColumnKey('');
-  };
 
   const resolveColumnLabel = useCallback(
     (column: AssociationColumnDefinition) => {
       const meta = availableColumnMap.get(column.key);
-      if (!meta) {
-        return column.key;
-      }
-      return meta.helper ? `${meta.label} · ${meta.helper}` : meta.label;
+      return meta ? (meta.helper ? `${meta.label} · ${meta.helper}` : meta.label) : column.key;
     },
     [availableColumnMap],
   );
@@ -969,53 +918,54 @@ const AssociationTypeColumnSettingsTab: React.FC<ColumnSettingsTabProps> = ({
   const resolveSourceLabel = useCallback(
     (source: AssociationColumnDefinition['source']) => {
       switch (source) {
-        case 'attribute':
-          return t('association_types.column_source.attribute') || 'Attribute';
-        case 'meta':
-          return t('association_types.column_source.meta') || 'Meta';
-        case 'association':
-          return t('association_types.column_source.association') || 'Association';
-        case 'relationship':
-          return t('association_types.column_source.relationship') || 'Relationship';
-        case 'computed':
-          return t('association_types.column_source.computed') || 'Computed';
-        default:
-          return source;
+        case 'attribute': return t('association_types.column_source.attribute') || 'Attribute';
+        case 'meta': return t('association_types.column_source.meta') || 'Meta';
+        case 'relationship': return t('association_types.column_source.relationship') || 'Relationship';
+        case 'computed': return t('association_types.column_source.computed') || 'Computed';
+        default: return source;
       }
     },
     [t],
   );
 
-  const handleSave = async () => {
-    if (!canEdit || saving || !isDirty) return;
-    try {
-      setSaving(true);
-      const payload = {
-        role: activeRole,
-        columns: normalizeColumns(columns),
-      };
-      const response = await associationColumnConfigService.updateConfig(associationTypeId, payload);
-      const normalized = normalizeColumns(response.columns ?? []);
-      setColumns(normalized);
-      setInitialColumns(normalized);
-      showToast({
-        type: 'success',
-        message:
-          t('association_types.column_settings.save_success') ||
-          'Column settings saved.',
-      });
-    } catch (err: any) {
-      console.error('Failed to save association column config', err);
-      showToast({
-        type: 'error',
-        message:
-          err?.response?.data?.error?.message ||
-          t('association_types.column_settings.save_failed') ||
-          'Unable to save column settings.',
-      });
-    } finally {
-      setSaving(false);
-    }
+  const handleToggleVisible = (index: number, value: boolean) => {
+    const next = columns.slice();
+    next[index] = { ...next[index], visible: value };
+    onColumnsChange(next);
+  };
+
+  const handleMoveColumn = (index: number, direction: 'up' | 'down') => {
+    const next = columns.slice();
+    const target = direction === 'up' ? index - 1 : index + 1;
+    if (target < 0 || target >= next.length) return;
+    const temp = next[index];
+    next[index] = next[target];
+    next[target] = temp;
+    onColumnsChange(assignOrder(next));
+  };
+
+  const handleRemoveColumn = (index: number) => {
+    onColumnsChange(assignOrder(columns.filter((_, i) => i !== index)));
+  };
+
+  const handleAddColumn = () => {
+    if (!selectedColumnKey) return;
+    const option = availableColumnMap.get(selectedColumnKey);
+    if (!option) return;
+    onColumnsChange(assignOrder([
+      ...columns,
+      { key: option.key, source: option.source, visible: true, order: columns.length, options: option.options },
+    ]));
+    setSelectedColumnKey('');
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = columns.findIndex((c) => c.key === active.id);
+    const newIndex = columns.findIndex((c) => c.key === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    onColumnsChange(assignOrder(arrayMove(columns, oldIndex, newIndex)));
   };
 
   return (
@@ -1036,7 +986,7 @@ const AssociationTypeColumnSettingsTab: React.FC<ColumnSettingsTabProps> = ({
               <button
                 key={role}
                 type="button"
-                onClick={() => setActiveRole(role)}
+                onClick={() => onRoleChange(role)}
                 className={cn(
                   'px-3 py-1 text-xs font-medium rounded-full transition-colors',
                   activeRole === role
@@ -1052,126 +1002,73 @@ const AssociationTypeColumnSettingsTab: React.FC<ColumnSettingsTabProps> = ({
           </div>
         </div>
 
-        {error ? (
-          <div className="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-            {error}
-          </div>
-        ) : null}
-
-        <div className="grid gap-6 lg:grid-cols-2">
-          <div className="space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex-1 max-w-xs">
             <Select
-              label={t('association_types.column_settings.available') || 'Available Columns'}
               value={selectedColumnKey}
               onChange={(event) => setSelectedColumnKey(event.target.value)}
-              disabled={!canEdit || loading || unusedColumns.length === 0}
-              options={unusedColumns.map((column) => ({
-                value: column.key,
-                label: column.helper ? `${column.label} · ${column.helper}` : column.label,
-              }))}
               placeholder={
                 unusedColumns.length === 0
                   ? t('association_types.column_settings.empty') || 'No columns available.'
                   : t('association_types.column_settings.add') || 'Add column'
               }
+              options={unusedColumns.map((col) => ({
+                value: col.key,
+                label: col.helper ? `${col.label} · ${col.helper}` : col.label,
+              }))}
+              disabled={unusedColumns.length === 0 || !editMode}
             />
-            <Button
-              variant="secondary"
-              onClick={handleAddColumn}
-              disabled={!canEdit || !selectedColumnKey}
-            >
-              {t('association_types.column_settings.add') || 'Add Column'}
-            </Button>
           </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-muted-foreground">
-                {t('association_types.column_settings.selected') || 'Selected Columns'}
-              </p>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setColumns(normalizeColumns(initialColumns))}
-                disabled={!canEdit || !columns.length}
-              >
-                {t('association_types.column_settings.reset') || 'Reset'}
-              </Button>
-            </div>
-
-            <div className="space-y-3">
-              {loading ? (
-                <div className="rounded-lg border border-border px-4 py-4 text-sm text-muted-foreground">
-                  {t('common.loading') || 'Loading...'}
-                </div>
-              ) : columns.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-border px-4 py-4 text-sm text-muted-foreground">
-                  {t('association_types.column_settings.empty') || 'No columns selected.'}
-                </div>
-              ) : (
-                columns.map((column, index) => (
-                  <div
-                    key={`${column.key}-${column.order}`}
-                    className="rounded-lg border border-border px-4 py-3 flex flex-col gap-2"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-medium text-foreground">
-                          {resolveColumnLabel(column)}
-                        </p>
-                        <p className="text-xs text-muted-foreground capitalize">
-                          {resolveSourceLabel(column.source)}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => handleMove(index, 'up')}
-                          disabled={!canEdit || index === 0}
-                        >
-                          <ArrowUp className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => handleMove(index, 'down')}
-                          disabled={!canEdit || index === columns.length - 1}
-                        >
-                          <ArrowDown className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => handleRemove(index)}
-                          disabled={!canEdit}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                    <Checkbox
-                      label={t('association_types.column_settings.visibility') || 'Visible'}
-                      checked={column.visible}
-                      onChange={(event) => handleToggleVisible(index, event.target.checked)}
-                      disabled={!canEdit}
-                    />
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-end gap-2">
           <Button
-            onClick={handleSave}
-            disabled={!canEdit || !isDirty || saving}
-            isLoading={saving}
+            variant="secondary"
+            size="sm"
+            onClick={handleAddColumn}
+            disabled={!editMode || !selectedColumnKey}
+            leftIcon={<Plus className="h-3.5 w-3.5" />}
           >
-            {t('common.save') || 'Save'}
+            {t('association_types.column_settings.add') || 'Add Column'}
           </Button>
         </div>
+      </Card>
+
+      <Card padding="lg" className="space-y-4">
+        {loading ? (
+          <div className="text-sm text-muted-foreground">
+            {t('common.loading') || 'Loading...'}
+          </div>
+        ) : columns.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border/60 bg-muted/40 px-4 py-10 text-center text-sm text-muted-foreground">
+            {t('association_types.column_settings.empty') || 'No columns configured.'}
+          </div>
+        ) : (
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={columns.map((c) => c.key)} strategy={verticalListSortingStrategy}>
+              <div className="space-y-3">
+                {columns.map((column, index) => {
+                  const label = resolveColumnLabel(column);
+                  const sourceLabel = resolveSourceLabel(column.source);
+                  const helper = availableColumnMap.get(column.key)?.helper;
+                  return (
+                    <SortableAssocColumnItem
+                      key={column.key}
+                      column={column}
+                      index={index}
+                      editMode={editMode}
+                      label={label}
+                      sourceLabel={sourceLabel}
+                      helper={helper}
+                      isFirst={index === 0}
+                      isLast={index === columns.length - 1}
+                      onToggleVisible={handleToggleVisible}
+                      onMove={handleMoveColumn}
+                      onRemove={handleRemoveColumn}
+                    />
+                  );
+                })}
+              </div>
+            </SortableContext>
+          </DndContext>
+        )}
       </Card>
     </div>
   );
@@ -1200,6 +1097,14 @@ export const AssociationTypeDetails: React.FC = () => {
   const [savingChanges, setSavingChanges] = useState<boolean>(false);
   const [deleting, setDeleting] = useState<boolean>(false);
 
+  // Column settings page-level state
+  const [activeColumnRole, setActiveColumnRole] = useState<'source' | 'target'>('source');
+  const [sourceColumns, setSourceColumns] = useState<AssociationColumnDefinition[]>([]);
+  const [targetColumns, setTargetColumns] = useState<AssociationColumnDefinition[]>([]);
+  const [initialSourceColumns, setInitialSourceColumns] = useState<AssociationColumnDefinition[]>([]);
+  const [initialTargetColumns, setInitialTargetColumns] = useState<AssociationColumnDefinition[]>([]);
+  const [columnsLoading, setColumnsLoading] = useState<boolean>(false);
+
   const canUpdate = hasPermission(PERMISSIONS.SYSTEM.ASSOCIATIONS.UPDATE);
   const canViewHistory = hasPermission(PERMISSIONS.SYSTEM.ASSOCIATIONS.HISTORY);
   const canDelete = hasPermission(PERMISSIONS.SYSTEM.ASSOCIATIONS.DELETE);
@@ -1222,7 +1127,7 @@ export const AssociationTypeDetails: React.FC = () => {
         associationRulesService.list({ associationTypeId: id }),
         categoriesService.list({ limit: 200 }),
         familiesService.list({ limit: 200 }),
-        attributeGroupsService.list(),
+        attributeGroupsService.list({ includeAttributes: true }),
       ]);
       const categoryEntityMap = new Map(
         (categoriesResponse.items ?? []).map((category) => [category.id, category]),
@@ -1271,6 +1176,34 @@ export const AssociationTypeDetails: React.FC = () => {
     void fetchDetails();
   }, [fetchDetails]);
 
+  // Load column configs when association type is available
+  useEffect(() => {
+    if (!associationType) return;
+    let cancelled = false;
+    const loadColumnConfigs = async () => {
+      setColumnsLoading(true);
+      try {
+        const [sourceConfig, targetConfig] = await Promise.all([
+          associationColumnConfigService.getConfig(associationType.id, 'source'),
+          associationColumnConfigService.getConfig(associationType.id, 'target'),
+        ]);
+        if (cancelled) return;
+        const src = sourceConfig.columns ?? [];
+        const tgt = targetConfig.columns ?? [];
+        setSourceColumns(src);
+        setTargetColumns(tgt);
+        setInitialSourceColumns(src);
+        setInitialTargetColumns(tgt);
+      } catch (err) {
+        console.error('Failed to load column configs', err);
+      } finally {
+        if (!cancelled) setColumnsLoading(false);
+      }
+    };
+    void loadColumnConfigs();
+    return () => { cancelled = true; };
+  }, [associationType]);
+
   const getPendingChanges = useCallback(
     (form: AssociationTypeEditFormState | null): ChangeSummary[] => {
       if (!associationType || !form) {
@@ -1311,9 +1244,49 @@ export const AssociationTypeDetails: React.FC = () => {
     [associationType, t],
   );
 
+  const columnsEqual = useCallback(
+    (a: AssociationColumnDefinition[], b: AssociationColumnDefinition[]) => {
+      if (a.length !== b.length) return false;
+      return a.every((col, i) =>
+        col.key === b[i].key &&
+        col.source === b[i].source &&
+        col.visible === b[i].visible &&
+        col.order === b[i].order,
+      );
+    },
+    [],
+  );
+
+  const hasSourceColumnChanges = useMemo(
+    () => !columnsEqual(sourceColumns, initialSourceColumns),
+    [sourceColumns, initialSourceColumns, columnsEqual],
+  );
+
+  const hasTargetColumnChanges = useMemo(
+    () => !columnsEqual(targetColumns, initialTargetColumns),
+    [targetColumns, initialTargetColumns, columnsEqual],
+  );
+
   const pendingFormChanges = useMemo(
-    () => getPendingChanges(editForm),
-    [editForm, getPendingChanges],
+    () => {
+      const changes = getPendingChanges(editForm);
+      if (hasSourceColumnChanges) {
+        changes.push({
+          field: t('association_types.column_settings.role_source') || 'Source Columns',
+          oldValue: `${initialSourceColumns.length} columns`,
+          newValue: `${sourceColumns.length} columns`,
+        });
+      }
+      if (hasTargetColumnChanges) {
+        changes.push({
+          field: t('association_types.column_settings.role_target') || 'Target Columns',
+          oldValue: `${initialTargetColumns.length} columns`,
+          newValue: `${targetColumns.length} columns`,
+        });
+      }
+      return changes;
+    },
+    [editForm, getPendingChanges, hasSourceColumnChanges, hasTargetColumnChanges, initialSourceColumns.length, initialTargetColumns.length, sourceColumns.length, targetColumns.length, t],
   );
 
   const handleEnterEdit = useCallback(() => {
@@ -1326,16 +1299,22 @@ export const AssociationTypeDetails: React.FC = () => {
       isRequired: associationType.isRequired,
       metadataSchema: serializeMetadataSchema(associationType.metadataSchema),
     });
+    // Snapshot current column state
+    setInitialSourceColumns([...sourceColumns]);
+    setInitialTargetColumns([...targetColumns]);
     setIsEditing(true);
     setPendingChanges([]);
-  }, [associationType]);
+  }, [associationType, sourceColumns, targetColumns]);
 
   const handleCancelEdit = useCallback(() => {
     setIsEditing(false);
     setEditForm(null);
     setPendingChanges([]);
     setCommentDialogOpen(false);
-  }, []);
+    // Restore column state
+    setSourceColumns([...initialSourceColumns]);
+    setTargetColumns([...initialTargetColumns]);
+  }, [initialSourceColumns, initialTargetColumns]);
 
   const handleFormFieldChange = useCallback(
     <K extends keyof AssociationTypeEditFormState>(
@@ -1351,7 +1330,7 @@ export const AssociationTypeDetails: React.FC = () => {
     if (!associationType || !editForm) {
       return;
     }
-    const changes = getPendingChanges(editForm);
+    const changes = pendingFormChanges;
     if (changes.length === 0) {
       showToast(t('association_types.details.no_changes') || 'No changes to save.', 'info');
       setIsEditing(false);
@@ -1360,7 +1339,7 @@ export const AssociationTypeDetails: React.FC = () => {
     }
     setPendingChanges(changes);
     setCommentDialogOpen(true);
-  }, [associationType, editForm, getPendingChanges, showToast, t]);
+  }, [associationType, editForm, pendingFormChanges, showToast, t]);
 
   const handleCommentDialogClose = useCallback(() => {
     setCommentDialogOpen(false);
@@ -1378,13 +1357,42 @@ export const AssociationTypeDetails: React.FC = () => {
       }
       setSavingChanges(true);
       try {
-        await associationTypesService.update(associationType.id, {
-          cardinality: editForm.cardinality,
-          direction: editForm.direction,
-          isRequired: editForm.isRequired,
-          metadataSchema: parsed.data,
-          comment,
-        });
+        // Save form changes
+        const formChanges = getPendingChanges(editForm);
+        if (formChanges.length > 0) {
+          await associationTypesService.update(associationType.id, {
+            cardinality: editForm.cardinality,
+            direction: editForm.direction,
+            isRequired: editForm.isRequired,
+            metadataSchema: parsed.data,
+            comment,
+          });
+        }
+
+        // Save column config changes
+        const columnSavePromises: Promise<AssociationColumnConfig>[] = [];
+        if (hasSourceColumnChanges) {
+          columnSavePromises.push(
+            associationColumnConfigService.updateConfig(associationType.id, {
+              role: 'source',
+              columns: sourceColumns,
+              comment,
+            }),
+          );
+        }
+        if (hasTargetColumnChanges) {
+          columnSavePromises.push(
+            associationColumnConfigService.updateConfig(associationType.id, {
+              role: 'target',
+              columns: targetColumns,
+              comment,
+            }),
+          );
+        }
+        if (columnSavePromises.length > 0) {
+          await Promise.all(columnSavePromises);
+        }
+
         showToast(
           t('association_types.details.update_success') || 'Association type updated successfully.',
           'success',
@@ -1393,6 +1401,9 @@ export const AssociationTypeDetails: React.FC = () => {
         setPendingChanges([]);
         setIsEditing(false);
         setEditForm(null);
+        // Update initial columns to reflect saved state
+        setInitialSourceColumns([...sourceColumns]);
+        setInitialTargetColumns([...targetColumns]);
         await fetchDetails();
       } catch (err: any) {
         console.error('Failed to update association type', err);
@@ -1406,7 +1417,7 @@ export const AssociationTypeDetails: React.FC = () => {
         setSavingChanges(false);
       }
     },
-    [associationType, editForm, fetchDetails, showToast, t],
+    [associationType, editForm, fetchDetails, getPendingChanges, hasSourceColumnChanges, hasTargetColumnChanges, showToast, sourceColumns, t, targetColumns],
   );
 
   const handleDelete = useCallback(async () => {
@@ -1433,6 +1444,23 @@ export const AssociationTypeDetails: React.FC = () => {
       setDeleting(false);
     }
   }, [associationType, navigate, showToast, t]);
+
+  // Handler for role change from tab
+  const handleColumnRoleChange = useCallback((role: 'source' | 'target') => {
+    setActiveColumnRole(role);
+  }, []);
+
+  // Handler for column changes from tab
+  const handleColumnsChange = useCallback((cols: AssociationColumnDefinition[]) => {
+    if (activeColumnRole === 'source') {
+      setSourceColumns(cols);
+    } else {
+      setTargetColumns(cols);
+    }
+  }, [activeColumnRole]);
+
+  // Get active columns for current role
+  const activeColumns = activeColumnRole === 'source' ? sourceColumns : targetColumns;
 
   if (!id) {
     return (
@@ -1495,13 +1523,17 @@ export const AssociationTypeDetails: React.FC = () => {
       icon: Database,
       component: AssociationTypeColumnSettingsTab,
       props: {
-        associationTypeId: associationType.id,
         associationType,
         rules,
         categoryMap,
         familyMap,
         attributeGroups: attributeGroupMap,
-        canEdit: canUpdate,
+        editMode: isEditing,
+        activeRole: activeColumnRole,
+        onRoleChange: handleColumnRoleChange,
+        columns: activeColumns,
+        onColumnsChange: handleColumnsChange,
+        loading: columnsLoading,
       },
       hidden: !canUpdate,
     },

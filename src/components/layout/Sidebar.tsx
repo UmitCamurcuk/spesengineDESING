@@ -26,6 +26,7 @@ import {
   Bot,
   MessageSquare,
   Radio,
+  LayoutGrid,
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -160,6 +161,13 @@ const automationMenu: MenuItem[] = [
     icon: Play,
     permission: PERMISSIONS.AUTOMATION.WORKFLOW_EXECUTIONS.LIST,
     fallback: 'Çalışma Geçmişi',
+  },
+  {
+    name: 'navigation.workflow_boards',
+    href: '/automation/boards',
+    icon: LayoutGrid,
+    permission: PERMISSIONS.AUTOMATION.WORKFLOW_BOARDS.LIST,
+    fallback: 'Panolar',
   },
   {
     name: 'navigation.notifications',
@@ -370,14 +378,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, isOpen, onClose }) 
       {
         titleKey: 'navigation.automation',
         fallbackTitle: 'Otomasyon',
-        items: (() => {
-          const allowed = filterMenuItems(automationMenu, hasPermission);
-          if (allowed.length === 0 && isAdmin) {
-            // Admin her durumda otomasyona erişebilsin
-            return automationMenu;
-          }
-          return allowed;
-        })(),
+        items: isAdmin
+          ? automationMenu
+          : filterMenuItems(automationMenu, hasPermission),
       },
       {
         titleKey: 'navigation.ai',

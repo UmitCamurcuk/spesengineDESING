@@ -358,6 +358,7 @@ export interface ItemAssociationSummary {
   counterpartItemCategoryName?: string | null;
   counterpartItemFamilyId?: string | null;
   counterpartItemFamilyName?: string | null;
+  counterpartItemItemTypeName?: string | null;
   counterpartItemAttributeValues?: Record<string, unknown> | null;
   metadata?: Record<string, unknown> | null;
   orderIndex?: number | null;
@@ -744,6 +745,71 @@ export interface Conversation {
   metadata?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Workflow Boards                                                    */
+/* ------------------------------------------------------------------ */
+
+export interface BoardColumn {
+  id: string;
+  title: string;
+  order: number;
+  color?: string;
+  wipLimit?: number;
+}
+
+export interface WorkflowBoard {
+  id: string;
+  tenantId: string;
+  name: string;
+  description?: string;
+  prefix: string;
+  taskCounter: number;
+  columns: BoardColumn[];
+  members: string[];
+  isArchived: boolean;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type TaskPriority = 'lowest' | 'low' | 'medium' | 'high' | 'highest';
+export type TaskType = 'task' | 'bug' | 'story' | 'epic';
+
+export interface BoardTask {
+  id: string;
+  boardId: string;
+  columnId: string;
+  taskKey: string;
+  title: string;
+  description?: string;
+  priority: TaskPriority;
+  type: TaskType;
+  labels: string[];
+  assigneeId?: string | null;
+  reporterId?: string | null;
+  order: number;
+  dueDate?: string | null;
+  estimatedHours?: number | null;
+  loggedHours?: number | null;
+  parentTaskId?: string | null;
+  isArchived: boolean;
+  createdBy?: string | null;
+  updatedBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BoardActivity {
+  id: string;
+  boardId: string;
+  taskId?: string | null;
+  actorId: string;
+  action: string;
+  detail: Record<string, unknown>;
+  createdAt: string;
 }
 
 // Re-export common types

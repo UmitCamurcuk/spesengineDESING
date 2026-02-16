@@ -182,9 +182,16 @@ type BackendItemAssociationSummary = {
   associationTypeId: string | null;
   associationTypeName: string | null;
   associationTypeKey: string | null;
+  associationTypeNameLocalizationId?: string | null;
   direction: 'source' | 'target';
   counterpartItemId: string | null;
   counterpartItemName: string | null;
+  counterpartItemCategoryId?: string | null;
+  counterpartItemCategoryName?: string | null;
+  counterpartItemFamilyId?: string | null;
+  counterpartItemFamilyName?: string | null;
+  counterpartItemItemTypeName?: string | null;
+  counterpartItemAttributeValues?: Record<string, unknown> | null;
   metadata?: Record<string, unknown> | null;
   orderIndex?: number | null;
   createdAt: string;
@@ -485,9 +492,16 @@ const mapAssociationSummary = (summary: BackendItemAssociationSummary): ItemAsso
   associationTypeId: summary.associationTypeId,
   associationTypeName: summary.associationTypeName,
   associationTypeKey: summary.associationTypeKey,
+  associationTypeNameLocalizationId: summary.associationTypeNameLocalizationId ?? undefined,
   direction: summary.direction,
   counterpartItemId: summary.counterpartItemId,
   counterpartItemName: summary.counterpartItemName,
+  counterpartItemCategoryId: summary.counterpartItemCategoryId ?? undefined,
+  counterpartItemCategoryName: summary.counterpartItemCategoryName ?? undefined,
+  counterpartItemFamilyId: summary.counterpartItemFamilyId ?? undefined,
+  counterpartItemFamilyName: summary.counterpartItemFamilyName ?? undefined,
+  counterpartItemItemTypeName: summary.counterpartItemItemTypeName ?? undefined,
+  counterpartItemAttributeValues: summary.counterpartItemAttributeValues ?? undefined,
   metadata: summary.metadata ?? undefined,
   orderIndex: summary.orderIndex ?? undefined,
   createdAt: summary.createdAt,
