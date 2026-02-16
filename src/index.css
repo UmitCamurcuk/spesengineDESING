@@ -301,8 +301,12 @@
     @apply border-border;
   }
 
+  :root {
+    font-size: 13px;
+  }
+
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-background text-foreground antialiased text-[13px];
     font-feature-settings: 'kern' 1, 'liga' 1;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -310,35 +314,35 @@
   }
 
   h1 {
-    @apply text-2xl font-semibold tracking-tight;
-  }
-
-  h2 {
     @apply text-xl font-semibold tracking-tight;
   }
 
-  h3 {
-    @apply text-lg font-semibold;
+  h2 {
+    @apply text-lg font-semibold tracking-tight;
   }
 
-  h4 {
+  h3 {
     @apply text-base font-semibold;
   }
 
-  h5, h6 {
+  h4 {
     @apply text-sm font-semibold;
   }
 
+  h5, h6 {
+    @apply text-xs font-semibold;
+  }
+
   p {
-    @apply text-sm leading-relaxed;
+    @apply text-xs leading-relaxed;
   }
 
   input, textarea, select {
-    @apply text-sm;
+    @apply text-xs;
   }
 
   button {
-    @apply text-sm font-medium;
+    @apply text-xs font-medium;
   }
 
   *:focus {

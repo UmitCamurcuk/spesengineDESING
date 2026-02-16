@@ -20,7 +20,6 @@ import type {
   BoardColumn,
   BoardActivity,
   TaskPriority,
-  TaskType,
 } from '../../../types';
 import { workflowBoardsService } from '../../../api/services/workflow-boards.service';
 
@@ -28,6 +27,7 @@ interface TaskDetailModalProps {
   task: BoardTask;
   boardId: string;
   columns: BoardColumn[];
+  taskTypes?: string[];
   open: boolean;
   onClose: () => void;
   onTaskUpdated: (task: BoardTask) => void;
@@ -41,7 +41,7 @@ const priorityOptions = [
   { value: 'highest', label: 'En Yüksek' },
 ];
 
-const typeOptions = [
+const defaultTypeOptions = [
   { value: 'task', label: 'Görev' },
   { value: 'bug', label: 'Hata' },
   { value: 'story', label: 'Hikaye' },
@@ -54,15 +54,19 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
   task: initialTask,
   boardId,
   columns,
+  taskTypes: boardTaskTypes,
   open,
   onClose,
   onTaskUpdated,
 }) => {
+  const typeOptions = boardTaskTypes && boardTaskTypes.length > 0
+    ? boardTaskTypes.map((t) => ({ value: t, label: t.charAt(0).toUpperCase() + t.slice(1) }))
+    : defaultTypeOptions;
   const [task, setTask] = useState(initialTask);
   const [title, setTitle] = useState(initialTask.title);
   const [description, setDescription] = useState(initialTask.description ?? '');
   const [priority, setPriority] = useState<TaskPriority>(initialTask.priority);
-  const [taskType, setTaskType] = useState<TaskType>(initialTask.type);
+  const [taskType, setTaskType] = useState<string>(initialTask.type);
   const [columnId, setColumnId] = useState(initialTask.columnId);
   const [dueDate, setDueDate] = useState(initialTask.dueDate ?? '');
   const [saving, setSaving] = useState(false);
@@ -213,7 +217,7 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                 </label>
                 <Select
                   value={taskType}
-                  onChange={(e) => setTaskType(e.target.value as TaskType)}
+                  onChange={(e) => setTaskType(e.target.value)}
                   options={typeOptions}
                 />
               </div>

@@ -768,6 +768,7 @@ export interface WorkflowBoard {
   taskCounter: number;
   columns: BoardColumn[];
   members: string[];
+  taskTypes: string[];
   isArchived: boolean;
   createdBy?: string | null;
   updatedBy?: string | null;
@@ -776,7 +777,7 @@ export interface WorkflowBoard {
 }
 
 export type TaskPriority = 'lowest' | 'low' | 'medium' | 'high' | 'highest';
-export type TaskType = 'task' | 'bug' | 'story' | 'epic';
+export type TaskType = string;
 
 export interface BoardTask {
   id: string;

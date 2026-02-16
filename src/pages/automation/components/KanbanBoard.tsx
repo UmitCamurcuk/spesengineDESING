@@ -20,6 +20,8 @@ interface KanbanBoardProps {
   onTaskClick: (task: BoardTask) => void;
   onAddTask: (columnId: string) => void;
   onTaskMove: (taskId: string, targetColumnId: string, targetOrder: number) => void;
+  onMoveColumn?: (colId: string, direction: 'left' | 'right') => void;
+  onRemoveColumn?: (colId: string) => void;
 }
 
 export const KanbanBoard: React.FC<KanbanBoardProps> = ({
@@ -28,6 +30,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   onTaskClick,
   onAddTask,
   onTaskMove,
+  onMoveColumn,
+  onRemoveColumn,
 }) => {
   const [activeTask, setActiveTask] = React.useState<BoardTask | null>(null);
 
@@ -111,14 +115,18 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-4 overflow-x-auto pb-4 min-h-[400px]">
-        {sortedColumns.map((column) => (
+      <div className="flex gap-3 pb-4 min-h-[300px]">
+        {sortedColumns.map((column, index) => (
           <KanbanColumn
             key={column.id}
             column={column}
             tasks={tasksByColumn.get(column.id) ?? []}
             onTaskClick={onTaskClick}
             onAddTask={onAddTask}
+            isFirst={index === 0}
+            isLast={index === sortedColumns.length - 1}
+            onMoveColumn={onMoveColumn}
+            onRemoveColumn={onRemoveColumn}
           />
         ))}
       </div>

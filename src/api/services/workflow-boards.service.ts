@@ -40,7 +40,7 @@ export const workflowBoardsService = {
     return response.data.data;
   },
 
-  async update(id: string, payload: { name?: string; description?: string }): Promise<WorkflowBoard> {
+  async update(id: string, payload: { name?: string; description?: string; taskTypes?: string[] }): Promise<WorkflowBoard> {
     const response = await apiClient.put<ApiSuccessResponse<WorkflowBoard>>(
       API_ENDPOINTS.WORKFLOW_BOARDS.BY_ID(id),
       payload,

@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Settings,
   Plus,
   Users,
   Trash2,
   ArrowLeft,
+  Settings,
 } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -13,6 +13,8 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { KanbanBoard } from './components/KanbanBoard';
 import { TaskDetailModal } from './components/TaskDetailModal';
+import { BoardMembersPanel } from './components/BoardMembersPanel';
+import { BoardSettingsPanel } from './components/BoardSettingsPanel';
 import type { WorkflowBoard, BoardTask } from '../../types';
 import { workflowBoardsService } from '../../api/services/workflow-boards.service';
 
@@ -36,6 +38,12 @@ export const WorkflowBoardsDetails: React.FC = () => {
   // Column management
   const [showColumnForm, setShowColumnForm] = useState(false);
   const [newColumnTitle, setNewColumnTitle] = useState('');
+
+  // Members panel
+  const [showMembersPanel, setShowMembersPanel] = useState(false);
+
+  // Settings panel (task types management)
+  const [showSettingsPanel, setShowSettingsPanel] = useState(false);
 
   const tr = useCallback(
     (key: string, fallback: string) => {
@@ -89,7 +97,6 @@ export const WorkflowBoardsDetails: React.FC = () => {
         columnId: addingInColumn,
       });
       setTasks((prev) => [...prev, newTask]);
-      // Update board task counter
       setBoard((prev) => prev ? { ...prev, taskCounter: prev.taskCounter + 1 } : prev);
       setAddingInColumn(null);
       setQuickTitle('');
@@ -127,6 +134,47 @@ export const WorkflowBoardsDetails: React.FC = () => {
     }
   };
 
+  const handleRemoveColumn = async (colId: string) => {
+    if (!board) return;
+    const col = board.columns.find((c) => c.id === colId);
+    if (!col) return;
+    const colTasks = tasks.filter((t) => t.columnId === colId);
+    if (colTasks.length > 0) {
+      alert(tr('boards.column.has_tasks', 'Bu kolonda görevler var. Önce görevleri taşıyın.'));
+      return;
+    }
+    if (!confirm(tr('boards.column.delete_confirm', `"${col.title}" kolonunu silmek istediğinizden emin misiniz?`))) return;
+    try {
+      const updated = await workflowBoardsService.removeColumn(board.id, colId);
+      setBoard(updated);
+    } catch (err) {
+      console.error('Failed to remove column', err);
+    }
+  };
+
+  const handleMoveColumn = async (colId: string, direction: 'left' | 'right') => {
+    if (!board) return;
+    const sorted = [...board.columns].sort((a, b) => a.order - b.order);
+    const idx = sorted.findIndex((c) => c.id === colId);
+    if (idx < 0) return;
+    if (direction === 'left' && idx === 0) return;
+    if (direction === 'right' && idx === sorted.length - 1) return;
+
+    const newOrder = [...sorted];
+    const swapIdx = direction === 'left' ? idx - 1 : idx + 1;
+    [newOrder[idx], newOrder[swapIdx]] = [newOrder[swapIdx], newOrder[idx]];
+
+    try {
+      const updated = await workflowBoardsService.reorderColumns(
+        board.id,
+        newOrder.map((c) => c.id),
+      );
+      setBoard(updated);
+    } catch (err) {
+      console.error('Failed to reorder columns', err);
+    }
+  };
+
   const handleArchiveBoard = async () => {
     if (!board) return;
     if (!confirm(tr('boards.archive_confirm', 'Bu panoyu arşivlemek istediğinizden emin misiniz?'))) return;
@@ -138,14 +186,18 @@ export const WorkflowBoardsDetails: React.FC = () => {
     }
   };
 
+  const handleBoardUpdated = (updated: WorkflowBoard) => {
+    setBoard(updated);
+  };
+
   if (!id) return null;
 
   if (loading) {
     return (
-      <div className="p-6">
+      <div className="space-y-4">
         <div className="animate-pulse space-y-4">
-          <div className="h-8 w-48 bg-muted rounded" />
-          <div className="h-96 bg-muted rounded" />
+          <div className="h-6 w-48 bg-muted rounded" />
+          <div className="h-64 bg-muted rounded" />
         </div>
       </div>
     );
@@ -153,105 +205,116 @@ export const WorkflowBoardsDetails: React.FC = () => {
 
   if (error || !board) {
     return (
-      <div className="p-6">
-        <PageHeader title="Pano" />
-        <div className="mt-4 text-red-500">{error ?? 'Pano bulunamadı'}</div>
+      <div className="space-y-4">
+        <PageHeader title={tr('boards.board', 'Pano')} />
+        <div className="text-error text-sm">{error ?? 'Pano bulunamadı'}</div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="space-y-4">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-border">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate('/automation/boards')}
-              className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </button>
-            <div>
-              <h1 className="text-xl font-semibold text-foreground">{board.name}</h1>
-              {board.description && (
-                <p className="text-sm text-muted-foreground">{board.description}</p>
-              )}
-            </div>
-          </div>
+      <PageHeader
+        title={board.name}
+        subtitle={board.description}
+        action={
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 text-sm text-muted-foreground">
-              <Users className="h-4 w-4" />
-              <span>{board.members.length}</span>
-            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => navigate('/automation/boards')}
+            >
+              <ArrowLeft className="h-3.5 w-3.5 mr-1" />
+              {tr('common.back', 'Geri')}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowMembersPanel(true)}
+            >
+              <Users className="h-3.5 w-3.5 mr-1" />
+              {tr('boards.members', 'Üyeler')} ({board.members.length})
+            </Button>
             <Button
               size="sm"
               variant="outline"
               onClick={() => setShowColumnForm(!showColumnForm)}
             >
-              <Plus className="h-4 w-4 mr-1" />
+              <Plus className="h-3.5 w-3.5 mr-1" />
               {tr('boards.column.add', 'Kolon Ekle')}
             </Button>
             <Button
               size="sm"
               variant="outline"
-              onClick={handleArchiveBoard}
-              className="text-red-500 hover:text-red-600"
+              onClick={() => setShowSettingsPanel(true)}
             >
-              <Trash2 className="h-4 w-4" />
+              <Settings className="h-3.5 w-3.5 mr-1" />
+              {tr('common.settings', 'Ayarlar')}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleArchiveBoard}
+              className="text-error hover:text-error-hover"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
             </Button>
           </div>
-        </div>
+        }
+      />
 
-        {/* Add column form */}
-        {showColumnForm && (
-          <div className="mt-3 flex items-center gap-2 max-w-md">
-            <Input
-              value={newColumnTitle}
-              onChange={(e) => setNewColumnTitle(e.target.value)}
-              placeholder={tr('boards.column.title', 'Kolon Adı')}
-              onKeyDown={(e) => e.key === 'Enter' && handleAddColumn()}
-              autoFocus
-            />
-            <Button size="sm" onClick={handleAddColumn} disabled={!newColumnTitle.trim()}>
-              {tr('common.add', 'Ekle')}
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => setShowColumnForm(false)}>
-              {tr('common.cancel', 'İptal')}
-            </Button>
-          </div>
-        )}
-      </div>
+      {/* Add column form */}
+      {showColumnForm && (
+        <div className="flex items-center gap-2 max-w-md">
+          <Input
+            value={newColumnTitle}
+            onChange={(e) => setNewColumnTitle(e.target.value)}
+            placeholder={tr('boards.column.title', 'Kolon Adı')}
+            onKeyDown={(e) => e.key === 'Enter' && handleAddColumn()}
+            autoFocus
+          />
+          <Button size="sm" onClick={handleAddColumn} disabled={!newColumnTitle.trim()}>
+            {tr('common.add', 'Ekle')}
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setShowColumnForm(false)}>
+            {tr('common.cancel', 'İptal')}
+          </Button>
+        </div>
+      )}
 
       {/* Quick add task inline */}
       {addingInColumn && (
-        <div className="px-6 py-2 bg-muted/50 border-b border-border">
-          <div className="flex items-center gap-2 max-w-md">
-            <Input
-              value={quickTitle}
-              onChange={(e) => setQuickTitle(e.target.value)}
-              placeholder={tr('boards.task.title', 'Görev başlığı')}
-              onKeyDown={(e) => e.key === 'Enter' && handleQuickAdd()}
-              autoFocus
-            />
-            <Button size="sm" onClick={handleQuickAdd} disabled={!quickTitle.trim()}>
-              {tr('common.add', 'Ekle')}
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => setAddingInColumn(null)}>
-              {tr('common.cancel', 'İptal')}
-            </Button>
-          </div>
+        <div className="flex items-center gap-2 max-w-md p-3 bg-muted/50 rounded-lg border border-border">
+          <Input
+            value={quickTitle}
+            onChange={(e) => setQuickTitle(e.target.value)}
+            placeholder={tr('boards.task.title', 'Görev başlığı')}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleQuickAdd();
+              if (e.key === 'Escape') setAddingInColumn(null);
+            }}
+            autoFocus
+          />
+          <Button size="sm" onClick={handleQuickAdd} disabled={!quickTitle.trim()}>
+            {tr('common.add', 'Ekle')}
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setAddingInColumn(null)}>
+            {tr('common.cancel', 'İptal')}
+          </Button>
         </div>
       )}
 
       {/* Kanban Board */}
-      <div className="flex-1 overflow-hidden p-6">
+      <div className="overflow-x-auto pb-2">
         <KanbanBoard
           columns={board.columns}
           tasks={tasks}
           onTaskClick={handleTaskClick}
           onAddTask={handleAddTask}
           onTaskMove={handleTaskMove}
+          onMoveColumn={handleMoveColumn}
+          onRemoveColumn={handleRemoveColumn}
         />
       </div>
 
@@ -261,9 +324,28 @@ export const WorkflowBoardsDetails: React.FC = () => {
           task={selectedTask}
           boardId={board.id}
           columns={board.columns}
+          taskTypes={board.taskTypes}
           open={!!selectedTask}
           onClose={() => setSelectedTask(null)}
           onTaskUpdated={handleTaskUpdated}
+        />
+      )}
+
+      {/* Members Panel */}
+      {showMembersPanel && (
+        <BoardMembersPanel
+          board={board}
+          onClose={() => setShowMembersPanel(false)}
+          onBoardUpdated={handleBoardUpdated}
+        />
+      )}
+
+      {/* Settings Panel */}
+      {showSettingsPanel && (
+        <BoardSettingsPanel
+          board={board}
+          onClose={() => setShowSettingsPanel(false)}
+          onBoardUpdated={handleBoardUpdated}
         />
       )}
     </div>

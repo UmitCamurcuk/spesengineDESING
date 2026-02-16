@@ -40,51 +40,51 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick }) => {
       style={style}
       {...attributes}
       {...listeners}
-      className="bg-card border border-border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow space-y-2"
+      className="bg-card border border-border rounded-md p-2.5 cursor-pointer hover:shadow-md transition-shadow space-y-1.5"
       onClick={() => onClick(task)}
     >
       {/* Task key + priority */}
       <div className="flex items-center justify-between">
-        <span className="text-xs font-mono text-muted-foreground">{task.taskKey}</span>
+        <span className="text-[10px] font-mono text-muted-foreground">{task.taskKey}</span>
         <PriorityBadge priority={task.priority} />
       </div>
 
       {/* Title */}
-      <p className="text-sm font-medium text-foreground line-clamp-2">{task.title}</p>
+      <p className="text-xs font-medium text-foreground line-clamp-2">{task.title}</p>
 
       {/* Labels */}
       {task.labels.length > 0 && (
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap gap-0.5">
           {task.labels.slice(0, 3).map((label) => (
             <span
               key={label}
-              className="inline-block px-1.5 py-0.5 text-[10px] rounded bg-primary/10 text-primary"
+              className="inline-block px-1 py-0 text-[9px] rounded bg-primary/10 text-primary"
             >
               {label}
             </span>
           ))}
           {task.labels.length > 3 && (
-            <span className="text-[10px] text-muted-foreground">+{task.labels.length - 3}</span>
+            <span className="text-[9px] text-muted-foreground">+{task.labels.length - 3}</span>
           )}
         </div>
       )}
 
       {/* Footer: type, due date, assignee */}
-      <div className="flex items-center justify-between pt-1">
-        <div className="flex items-center gap-2">
-          <Badge variant={typeColors[task.type] as any} className="text-[10px] px-1.5 py-0">
+      <div className="flex items-center justify-between pt-0.5">
+        <div className="flex items-center gap-1.5">
+          <Badge variant={typeColors[task.type] as any} className="text-[9px] px-1 py-0">
             {task.type}
           </Badge>
           {task.dueDate && (
-            <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
-              <Calendar className="h-3 w-3" />
+            <span className="flex items-center gap-0.5 text-[9px] text-muted-foreground">
+              <Calendar className="h-2.5 w-2.5" />
               {new Date(task.dueDate).toLocaleDateString()}
             </span>
           )}
         </div>
         {task.assigneeId && (
-          <div className="h-5 w-5 rounded-full bg-primary/20 flex items-center justify-center">
-            <User className="h-3 w-3 text-primary" />
+          <div className="h-4 w-4 rounded-full bg-primary/20 flex items-center justify-center">
+            <User className="h-2.5 w-2.5 text-primary" />
           </div>
         )}
       </div>
