@@ -136,7 +136,7 @@ const WorkflowBuilderInner: React.FC<WorkflowBuilderInnerProps> = ({
   readOnly = false,
 }) => {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition, updateNodeInternals } = useReactFlow();
 
   const [nodes, setNodes, onNodesChange] = useNodesState(wfNodesToFlowNodes(initialNodes));
   const [edges, setEdges, onEdgesChange] = useEdgesState(wfEdgesToFlowEdges(initialEdges));
@@ -245,8 +245,12 @@ const WorkflowBuilderInner: React.FC<WorkflowBuilderInnerProps> = ({
         propagateChange(updated, edges);
         return updated;
       });
+      // Re-register dynamic handles (e.g. switch cases) in React Flow's internal store
+      if (selectedNodeId) {
+        updateNodeInternals(selectedNodeId);
+      }
     },
-    [selectedNodeId, setNodes, edges, propagateChange],
+    [selectedNodeId, setNodes, edges, propagateChange, updateNodeInternals],
   );
 
   const handleDeleteNode = useCallback(() => {

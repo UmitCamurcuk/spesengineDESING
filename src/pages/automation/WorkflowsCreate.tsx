@@ -57,6 +57,14 @@ export const WorkflowsCreate: React.FC = () => {
     setEdges(newEdges);
   }, []);
 
+  const extractTriggerConfig = useCallback(
+    (nodeList: WorkflowNode[], fallbackConfig: Record<string, unknown>) => {
+      const trigger = nodeList.find((n) => n.type === 'trigger');
+      return (trigger?.config as Record<string, unknown> | undefined) ?? fallbackConfig;
+    },
+    [],
+  );
+
   const handleTriggerTypeChange = useCallback((type: TriggerType) => {
     setForm((prev) => ({ ...prev, triggerType: type }));
   }, []);
@@ -67,11 +75,12 @@ export const WorkflowsCreate: React.FC = () => {
 
     try {
       setSaving(true);
+      const triggerConfig = extractTriggerConfig(nodes, form.triggerConfig);
       const created = await workflowsService.create({
         name: form.name.trim(),
         description: form.description.trim(),
         triggerType: form.triggerType,
-        triggerConfig: form.triggerConfig,
+        triggerConfig,
         nodes,
         edges,
       });

@@ -77,6 +77,11 @@ export const WorkflowsDetails: React.FC = () => {
     setBuilderDirty(true);
   }, []);
 
+  const extractTriggerConfig = useCallback((nodeList: WorkflowNode[], fallback?: Record<string, unknown>) => {
+    const trigger = nodeList.find((n) => n.type === 'trigger');
+    return (trigger?.config as Record<string, unknown> | undefined) ?? fallback ?? {};
+  }, []);
+
   const handleTriggerTypeChange = useCallback((type: TriggerType) => {
     setBuilderTriggerType(type);
     setBuilderDirty(true);
@@ -86,10 +91,12 @@ export const WorkflowsDetails: React.FC = () => {
     if (!id || !workflow) return;
     try {
       setSaving(true);
+      const triggerConfig = extractTriggerConfig(builderNodes, workflow.triggerConfig as Record<string, unknown>);
       const updated = await workflowsService.update(id, {
         nodes: builderNodes,
         edges: builderEdges,
         triggerType: builderTriggerType,
+        triggerConfig,
       });
       setWorkflow(updated);
       setBuilderDirty(false);
