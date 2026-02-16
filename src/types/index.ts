@@ -538,7 +538,14 @@ export type ActionType =
   | 'transform_data'
   | 'find_items'
   | 'bulk_update_items'
-  | 'assign_attribute';
+  | 'assign_attribute'
+  | 'create_board_task'
+  | 'update_board_task'
+  | 'move_board_task'
+  | 'assign_board_task'
+  | 'archive_board_task'
+  | 'clone_item'
+  | 'fire_event';
 export type WorkflowStatus = 'draft' | 'active' | 'paused' | 'archived';
 
 export interface SwitchCase {
@@ -551,6 +558,15 @@ export interface WorkflowNodeConfig {
   eventKey?: string;
   cronExpression?: string;
   webhookSecret?: string;
+  // Trigger filter config — narrow when an event trigger should run
+  itemCategoryKey?: string;
+  itemFamilyKey?: string;
+  itemTypeKey?: string;
+  attributeKey?: string;
+  attributeNewValue?: string;
+  attributePreviousValue?: string;
+  filterExpression?: string;
+  // Condition
   conditionExpression?: string;
   actionType?: ActionType;
   actionConfig?: Record<string, unknown>;
