@@ -1427,23 +1427,24 @@ const familiesByCategory = useMemo(() => {
 
     if (itemTypes.length === 0) {
       return (
-        <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-6 text-sm text-gray-500 dark:text-gray-400">
+        <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-8 text-center text-sm text-gray-500 dark:text-gray-400">
           {t('items.create.no_item_types') || 'Henüz öğe tipi oluşturulmamış.'}
         </div>
       );
     }
 
     return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-2 pb-3 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">
             {t('items.create.item_type_title') || 'Öğe Tipi Seçimi'}
-          </h3>
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            {t('items.create.item_type_subtitle') || 'Oluşturacağınız öğenin tipini seçin'}
+          </p>
         </div>
-        <p className="text-xs text-gray-600 dark:text-gray-400">
-          {t('items.create.item_type_subtitle') || 'Öğe tipini seçerek başlayın.'}
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {itemTypes.map((itemType) => {
             const isSelected = form.itemTypeId === itemType.id;
             return (
@@ -1451,29 +1452,31 @@ const familiesByCategory = useMemo(() => {
                 type="button"
                 key={itemType.id}
                 onClick={() => handleSelectItemType(itemType.id)}
-                className={`relative text-left border-2 rounded-lg p-3 transition-all duration-200 ${
+                className={`relative text-left border-2 rounded-xl p-4 transition-all duration-200 group ${
                   isSelected
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-sm'
-                    : 'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 shadow-md'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-md'
                 }`}
               >
                 {isSelected && (
-                  <div className="absolute top-2 right-2">
-                    <div className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center shadow">
-                      <Check className="h-3 w-3" />
+                  <div className="absolute top-3 right-3">
+                    <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-lg">
+                      <Check className="h-4 w-4" />
                     </div>
                   </div>
                 )}
-                <div className="pr-8">
-                  <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{itemType.name}</h4>
-                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
-                    {itemType.description || t('items.create.no_description') || '—'}
+                <div className="pr-10">
+                  <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                    {itemType.name}
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed line-clamp-2 mb-3">
+                    {itemType.description || t('items.create.no_description') || 'Açıklama yok'}
                   </p>
                   {(itemType.attributeGroupCount ?? itemType.attributeGroupIds?.length ?? 0) > 0 && (
-                    <Badge variant="secondary" size="sm" className="mt-2">
-                      {(itemType.attributeGroupCount ?? itemType.attributeGroupIds?.length ?? 0).toString()}{' '}
-                      {t('items.create.attribute_group_short') || 'groups'}
-                    </Badge>
+                    <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs text-gray-700 dark:text-gray-300">
+                      <Layers className="h-3 w-3" />
+                      <span>{(itemType.attributeGroupCount ?? itemType.attributeGroupIds?.length ?? 0)} grup</span>
+                    </div>
                   )}
                 </div>
               </button>
@@ -1532,47 +1535,58 @@ const familiesByCategory = useMemo(() => {
     );
 
     return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-2 pb-3 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">
             {t('items.create.category_title') || 'Kategori ve Aile Seçimi'}
-          </h3>
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            {t('items.create.category_subtitle') || 'Öğenin ait olacağı kategori ve aileyi seçin'}
+          </p>
         </div>
-        <p className="text-xs text-gray-600 dark:text-gray-400">
-          {t('items.create.category_subtitle') || 'Öğe için kullanılacak kategori ve aileyi seçin.'}
-        </p>
-        <div className="grid gap-4 md:gap-6 md:grid-cols-2">
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-gray-700 dark:text-gray-300">
-              {t('items.create.category_tree_title') || 'Kategori Ağacı'}
-            </label>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                {t('items.create.category_tree_title') || 'Kategori'}
+              </label>
+              {form.categoryId && (
+                <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">Seçildi</span>
+              )}
+            </div>
             <TreeView
               nodes={categoryTreeNodes}
               mode="edit"
               selectionMode="single"
               selectedIds={form.categoryId ? [form.categoryId] : []}
               onSelectionChange={handleCategoryTreeSelection}
-              className="border border-gray-200 dark:border-gray-700 rounded-lg p-2 max-h-64 md:max-h-80 overflow-y-auto bg-white dark:bg-gray-800"
+              className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 h-80 overflow-y-auto bg-white dark:bg-gray-800"
               emptyState={categoryEmptyState}
               defaultExpandAll
             />
             <p className="text-xs text-gray-500 dark:text-gray-400">
               {t('items.create.category_tree_hint') ||
-                'Seçilen kategoriler hangi ailelerin listeleneceğini belirler.'}
+                'Kategori seçimi aile listesini belirler'}
             </p>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-gray-700 dark:text-gray-300">
-              {t('items.create.family_tree_title') || 'Aile Ağacı'}
-            </label>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                {t('items.create.family_tree_title') || 'Aile'}
+              </label>
+              {form.familyId && (
+                <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">Seçildi</span>
+              )}
+            </div>
             {form.categoryId ? (
               familyLoading ? (
-                <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-4 text-xs text-gray-500 dark:text-gray-400">
+                <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-8 text-center text-sm text-gray-500 dark:text-gray-400">
                   {t('common.loading') || 'Yükleniyor...'}
                 </div>
               ) : familyError ? (
-                <div className="rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-900/10 p-4 text-xs text-red-700 dark:text-red-400">
+                <div className="rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-900/10 p-4 text-sm text-red-700 dark:text-red-400">
                   {familyError}
                 </div>
               ) : familyTreeNodes.length > 0 ? (
@@ -1582,17 +1596,17 @@ const familiesByCategory = useMemo(() => {
                   selectionMode="single"
                   selectedIds={form.familyId ? [form.familyId] : []}
                   onSelectionChange={handleFamilyTreeSelection}
-                  className="border border-gray-200 dark:border-gray-700 rounded-lg p-2 max-h-64 md:max-h-80 overflow-y-auto bg-white dark:bg-gray-800"
+                  className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 h-80 overflow-y-auto bg-white dark:bg-gray-800"
                   emptyState={familyEmptyState}
                   defaultExpandAll
                 />
               ) : (
-                <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-4 text-xs text-gray-500 dark:text-gray-400">
-                  {t('items.create.no_families_for_category') || 'Seçilen kategori için aile bulunamadı.'}
+                <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                  {t('items.create.no_families_for_category') || 'Seçilen kategori için aile bulunamadı'}
                 </div>
               )
             ) : (
-              <div className="rounded-md border border-dashed border-border p-4 text-xs text-muted-foreground">
+              <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-8 text-center text-sm text-gray-500 dark:text-gray-400">
                 {t('items.create.select_category_first') || 'Önce kategori seçmelisiniz.'}
               </div>
             )}
@@ -1608,15 +1622,15 @@ const familiesByCategory = useMemo(() => {
   const renderAttributesBody = () => {
     if (!form.itemTypeId || !form.categoryId) {
       return (
-        <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-6 text-sm text-gray-500 dark:text-gray-400">
-          {t('items.create.select_category_first') || 'Önce kategori seçmelisiniz.'}
+        <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-8 text-center text-sm text-gray-500 dark:text-gray-400">
+          {t('items.create.select_category_first') || 'Önce kategori seçmelisiniz'}
         </div>
       );
     }
 
     if (attributeGroupsLoading) {
       return (
-        <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-6 text-sm text-gray-500 dark:text-gray-400">
+        <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-8 text-center text-sm text-gray-500 dark:text-gray-400">
           {t('common.loading') || 'Yükleniyor...'}
         </div>
       );
@@ -1624,32 +1638,32 @@ const familiesByCategory = useMemo(() => {
 
     if (attributeGroupsError) {
       return (
-        <div className="rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-900/10 p-4 text-xs text-red-700 dark:text-red-400">
+        <div className="rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-900/10 p-4 text-sm text-red-700 dark:text-red-400">
           {attributeGroupsError}
         </div>
       );
     }
 
     return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-2 pb-3 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">
             {t('items.create.attribute_section_title') || 'Öznitelik Değerleri'}
-          </h3>
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            {t('items.create.attribute_section_subtitle') ||
+              'Öğeye ait öznitelik değerlerini girin'}
+          </p>
         </div>
-        <p className="text-xs text-gray-600 dark:text-gray-400">
-          {t('items.create.attribute_section_subtitle') ||
-            'Seçilen öğe tipi, kategori ve aileye bağlı öznitelik değerlerini girin.'}
-        </p>
 
         {requiredAttributeDefinitions.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-4 text-xs text-gray-500 dark:text-gray-400">
-            {t('items.create.no_attributes_available') || 'Bu seçim için öznitelik bulunmuyor.'}
+          <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-8 text-center text-sm text-gray-500 dark:text-gray-400">
+            {t('items.create.no_attributes_available') || 'Bu seçim için öznitelik bulunmuyor'}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {requiredAttributeDefinitions.map((attribute) => (
-              <div key={attribute.id} className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+              <div key={attribute.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
                 <AttributeRenderer
                   attribute={attribute}
                   value={form.attributeValues[attribute.id]}
@@ -1992,33 +2006,33 @@ const familiesByCategory = useMemo(() => {
     };
 
     return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-2 pb-3 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">
             {t('items.create.associations_title') || 'İlişkiler'}
-          </h3>
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            {t('items.create.associations_hint') ||
+              'Öğeye bağlı ilişkileri tanımlayın'}
+          </p>
         </div>
-        <p className="text-xs text-gray-600 dark:text-gray-400">
-          {t('items.create.associations_hint') ||
-            'Association kuralları doğrultusunda hedef öğe seçimlerini tamamlayın. Kurallar yoksa manuel satırlar ekleyebilirsiniz.'}
-        </p>
 
         {renderRuleCards()}
 
-        <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+          <div className="bg-gray-50 dark:bg-gray-800/50 px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
             <div>
-              <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+              <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">
                 {t('items.create.manual_associations_title') || 'Manuel Association Satırları'}
-              </h4>
+              </h3>
               <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
                 {t('items.create.manual_associations_subtitle') ||
-                  'Kurallar dışında association eklemek isterseniz bu alanı kullanabilirsiniz.'}
+                  'Kurallar dışında ilişki ekleyin'}
               </p>
             </div>
             <Button variant="outline" size="sm" onClick={addAssociationRow}>
-              <Plus className="h-4 w-4 mr-1.5" />
-              <span className="hidden sm:inline">{t('items.create.add_association') || 'Ekle'}</span>
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline ml-1.5">{t('items.create.add_association') || 'Ekle'}</span>
             </Button>
           </div>
           <div className="px-6 pb-6 space-y-4">
@@ -2132,121 +2146,129 @@ const familiesByCategory = useMemo(() => {
     );
 
     return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-2 pb-3 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">
             {t('items.create.review_title') || 'Önizleme'}
-          </h3>
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            {t('items.create.review_subtitle') || 'Oluşturmadan önce tüm bilgileri kontrol edin'}
+          </p>
         </div>
-        <p className="text-xs text-gray-600 dark:text-gray-400">
-          {t('items.create.review_subtitle') || 'Kaydetmeden önce bilgileri doğrulayın.'}
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-3 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-3 text-sm">
-            <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-              {t('items.review.summary') || 'Özet'}
-            </h4>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-gray-600 dark:text-gray-400">{t('items.fields.item_type') || 'Öğe Tipi'}</span>
-              <span className="font-medium text-gray-900 dark:text-gray-100">
-                {selectedItemType?.name || t('items.review.not_selected') || 'Seçilmedi'}
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-gray-600 dark:text-gray-400">{t('items.fields.category') || 'Kategori'}</span>
-              <span className="font-medium text-gray-900 dark:text-gray-100">
-                {selectedCategory?.name || t('items.review.not_selected') || 'Seçilmedi'}
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-gray-600 dark:text-gray-400">{t('items.fields.family') || 'Aile'}</span>
-              <span className="font-medium text-gray-900 dark:text-gray-100">
-                {selectedFamily?.name || t('items.review.not_selected') || 'Seçilmedi'}
-              </span>
-            </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-4">
+              {t('items.review.summary') || 'Temel Bilgiler'}
+            </h3>
+            <dl className="space-y-3">
+              <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700">
+                <dt className="text-sm text-gray-600 dark:text-gray-400">{t('items.fields.item_type') || 'Öğe Tipi'}</dt>
+                <dd className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  {selectedItemType?.name || t('items.review.not_selected') || 'Seçilmedi'}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700">
+                <dt className="text-sm text-gray-600 dark:text-gray-400">{t('items.fields.category') || 'Kategori'}</dt>
+                <dd className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  {selectedCategory?.name || t('items.review.not_selected') || 'Seçilmedi'}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between py-2">
+                <dt className="text-sm text-gray-600 dark:text-gray-400">{t('items.fields.family') || 'Aile'}</dt>
+                <dd className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                  {selectedFamily?.name || t('items.review.not_selected') || 'Seçilmedi'}
+                </dd>
+              </div>
+            </dl>
           </div>
 
-          <div className="space-y-3 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-3 text-sm">
-            <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-4">
               {t('items.review.attributes') || 'Öznitelikler'}
-            </h4>
+            </h3>
             {requiredAttributeDefinitions.length === 0 ? (
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                {t('items.review.no_attributes') || 'Bu seçim için öznitelik bulunmuyor.'}
-              </div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {t('items.review.no_attributes') || 'Öznitelik bulunmuyor'}
+              </p>
             ) : (
-              requiredAttributeDefinitions.map((attribute) => (
-                <div key={`review-attr-${attribute.id}`} className="flex items-center justify-between text-xs">
-                  <span className="text-gray-600 dark:text-gray-400">{attribute.name}</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100">
-                    {formatAttributeValueForDisplay(form.attributeValues[attribute.id])}
-                  </span>
-                </div>
-              ))
+              <dl className="space-y-3">
+                {requiredAttributeDefinitions.map((attribute) => (
+                  <div key={`review-attr-${attribute.id}`} className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700 last:border-0">
+                    <dt className="text-sm text-gray-600 dark:text-gray-400">{attribute.name}</dt>
+                    <dd className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                      {formatAttributeValueForDisplay(form.attributeValues[attribute.id])}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
             )}
           </div>
 
-          <div className="space-y-3 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-3 text-sm">
-            <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-              {t('items.review.rule_associations') || 'Kural Bazlı Associations'}
-            </h4>
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-4">
+              {t('items.review.rule_associations') || 'Kural Bazlı İlişkiler'}
+            </h3>
             {totalRuleSelections === 0 ? (
-              <div className="text-muted-foreground text-xs">
-                {t('items.review.no_rule_associations') || 'Kurallardan doğan association seçimi yapılmadı.'}
-              </div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {t('items.review.no_rule_associations') || 'Kural bazlı ilişki seçilmedi'}
+              </p>
             ) : (
-              ruleReviewData.map((entry, index) => (
-                <div key={`review-rule-${entry.rule.id}`} className="border-b border-border pb-3 last:border-b-0">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-foreground">
-                      {entry.type.name || entry.type.key} — {entry.rule.name || entry.rule.id}
-                    </span>
-                    <span className="text-xs text-muted-foreground">#{index + 1}</span>
-                  </div>
-                  <div className="mt-1 text-xs text-muted-foreground space-y-1">
-                    {entry.selections.map((targetId, targetIndex) => {
-                      const item = entry.items[targetIndex];
-                      return (
-                        <div key={`${entry.rule.id}-${targetId}`} className="flex items-center justify-between">
-                          <span>
-                            {item
-                              ? `${item.code || item.name || item.id}${item.code && item.name ? ` - ${item.name}` : ''}`
-                              : targetId}
-                          </span>
-                          <span className="text-muted-foreground">{t('items.fields.order_index') || 'Sıra'}: {targetIndex + 1}</span>
-                        </div>
-                      );
-                    })}
-                    <div>
-                      {t('items.create.rule_selection_summary', {
-                        selected: String(entry.selections.length),
-                        min: String(entry.rule.minTargets),
-                        max:
-                          entry.rule.maxTargets && entry.rule.maxTargets > 0
-                            ? String(entry.rule.maxTargets)
-                            : t('items.create.rule_unlimited') || 'Sınırsız',
-                      }) || `Seçilen: ${entry.selections.length} / Min: ${entry.rule.minTargets} / Max: ${entry.rule.maxTargets ?? '∞'}`}
+              <div className="space-y-3">
+                {ruleReviewData.map((entry, index) => (
+                  <div key={`review-rule-${entry.rule.id}`} className="pb-3 border-b border-gray-100 dark:border-gray-700 last:border-0">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                        {entry.type.name || entry.type.key} — {entry.rule.name || entry.rule.id}
+                      </span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">#{index + 1}</span>
+                    </div>
+                    <div className="space-y-1.5 text-xs text-gray-600 dark:text-gray-400">
+                      {entry.selections.map((targetId, targetIndex) => {
+                        const item = entry.items[targetIndex];
+                        return (
+                          <div key={`${entry.rule.id}-${targetId}`} className="flex items-center justify-between">
+                            <span>
+                              {item
+                                ? `${item.code || item.name || item.id}${item.code && item.name ? ` - ${item.name}` : ''}`
+                                : targetId}
+                            </span>
+                            <span>{t('items.fields.order_index') || 'Sıra'}: {targetIndex + 1}</span>
+                          </div>
+                        );
+                      })}
+                      <p className="pt-1 text-xs">
+                        {t('items.create.rule_selection_summary', {
+                          selected: String(entry.selections.length),
+                          min: String(entry.rule.minTargets),
+                          max:
+                            entry.rule.maxTargets && entry.rule.maxTargets > 0
+                              ? String(entry.rule.maxTargets)
+                              : t('items.create.rule_unlimited') || 'Sınırsız',
+                        }) || `Seçilen: ${entry.selections.length} / Min: ${entry.rule.minTargets} / Max: ${entry.rule.maxTargets ?? '∞'}`}
+                      </p>
                     </div>
                   </div>
-                </div>
-              ))
+                ))}
+              </div>
             )}
           </div>
 
-          <div className="space-y-3 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-3 text-sm">
-            <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-              {t('items.review.manual_associations') || 'Manuel Associations'}
-            </h4>
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-5">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-4">
+              {t('items.review.manual_associations') || 'Manuel İlişkiler'}
+            </h3>
             {manualReviewData.length === 0 ? (
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                {t('items.review.no_associations') || 'Association eklenmedi.'}
-              </div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {t('items.review.no_associations') || 'Manuel ilişki eklenmedi'}
+              </p>
             ) : (
-              manualReviewData.map((assoc, index) => {
-                const targetItem = availableItems.find((item) => item.id === assoc.targetItemId);
-                const assocType = associationTypes.find((type) => type.id === assoc.associationTypeId);
-                return (
-                  <div key={`review-assoc-${index}`} className="border-b border-gray-200 dark:border-gray-700 pb-2 last:border-b-0">
+              <div className="space-y-3">
+                {manualReviewData.map((assoc, index) => {
+                  const targetItem = availableItems.find((item) => item.id === assoc.targetItemId);
+                  const assocType = associationTypes.find((type) => type.id === assoc.associationTypeId);
+                  return (
+                    <div key={`review-assoc-${index}`} className="pb-3 border-b border-gray-100 dark:border-gray-700 last:border-0">
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-medium text-gray-900 dark:text-gray-100">{assocType?.name || assoc.associationTypeId}</span>
                       <span className="text-gray-500 dark:text-gray-400">#{index + 1}</span>
@@ -2271,7 +2293,8 @@ const familiesByCategory = useMemo(() => {
                     )}
                   </div>
                 );
-              })
+              })}
+            </div>
             )}
           </div>
         </div>
@@ -2333,76 +2356,78 @@ const familiesByCategory = useMemo(() => {
   ]);
 
   return (
-    <div className="flex flex-col h-full max-w-7xl mx-auto">
-      {/* Stepper */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 md:p-6 mb-4">
-        <Stepper steps={steps} currentStep={currentStep} />
-      </div>
-
-      {/* Main Content Card */}
-      <div className="flex-1 flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-        {/* Content Area */}
-        <div className="flex-1 overflow-y-auto">
-          {loadingLookup ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-sm text-gray-500 dark:text-gray-400">
-                {t('common.loading') || 'Yükleniyor...'}
-              </div>
-            </div>
-          ) : (
-            <div className="p-4 md:p-6 space-y-4">
-              {lookupError ? (
-                <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10 px-4 py-3 text-sm text-red-700 dark:text-red-400">
-                  {lookupError}
-                </div>
-              ) : null}
-              {renderStepContent()}
-            </div>
-          )}
-        </div>
-
-        {/* Navigation Footer */}
-        <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 p-4 flex items-center justify-between gap-3">
-          <Button
-            variant="outline"
-            onClick={handleBack}
-            disabled={currentStep === 0 || submitting}
-            leftIcon={<ArrowLeft className="h-4 w-4" />}
-            className="flex-shrink-0"
-          >
-            <span className="hidden sm:inline">{t('common.back') || 'Geri'}</span>
-            <span className="sm:hidden">{t('common.back') || 'Geri'}</span>
-          </Button>
-
-          <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-            <span className="hidden md:inline">
-              Adım {currentStep + 1} / {steps.length}
-            </span>
+    <div className="h-full flex flex-col lg:flex-row gap-6">
+      {/* Left Sidebar - Stepper (Desktop) */}
+      <aside className="lg:w-80 flex-shrink-0">
+        <div className="lg:sticky lg:top-6">
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+            <Stepper steps={steps} currentStep={currentStep} />
           </div>
+        </div>
+      </aside>
 
-          <div className="flex gap-2 flex-shrink-0">
-            {currentStep === steps.length - 1 ? (
-              <Button
-                onClick={handleSubmit}
-                loading={submitting}
-                disabled={!canProceed()}
-                leftIcon={<Check className="h-4 w-4" />}
-              >
-                {t('common.create') || 'Oluştur'}
-              </Button>
+      {/* Main Content Area */}
+      <main className="flex-1 min-w-0 flex flex-col">
+        <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden">
+          {/* Scrollable Content */}
+          <div className="flex-1 overflow-y-auto">
+            {loadingLookup ? (
+              <div className="flex items-center justify-center h-64">
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  {t('common.loading') || 'Yükleniyor...'}
+                </div>
+              </div>
             ) : (
-              <Button
-                onClick={handleNext}
-                disabled={!canProceed() || loadingLookup}
-                rightIcon={<ArrowRight className="h-4 w-4" />}
-              >
-                <span className="hidden sm:inline">{t('common.continue') || 'Devam'}</span>
-                <span className="sm:hidden">İleri</span>
-              </Button>
+              <div className="p-6">
+                {lookupError ? (
+                  <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10 px-4 py-3 text-sm text-red-700 dark:text-red-400 mb-6">
+                    {lookupError}
+                  </div>
+                ) : null}
+                {renderStepContent()}
+              </div>
             )}
           </div>
+
+          {/* Fixed Navigation Footer */}
+          <div className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-6 py-4 flex-shrink-0">
+            <div className="flex items-center justify-between gap-4">
+              <Button
+                variant="outline"
+                onClick={handleBack}
+                disabled={currentStep === 0 || submitting}
+                leftIcon={<ArrowLeft className="h-4 w-4" />}
+              >
+                {t('common.back') || 'Geri'}
+              </Button>
+
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">
+                  {currentStep + 1} / {steps.length}
+                </span>
+                {currentStep === steps.length - 1 ? (
+                  <Button
+                    onClick={handleSubmit}
+                    loading={submitting}
+                    disabled={!canProceed()}
+                    leftIcon={<Check className="h-4 w-4" />}
+                  >
+                    {t('common.create') || 'Oluştur'}
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleNext}
+                    disabled={!canProceed() || loadingLookup}
+                    rightIcon={<ArrowRight className="h-4 w-4" />}
+                  >
+                    {t('common.continue') || 'Devam'}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 };
