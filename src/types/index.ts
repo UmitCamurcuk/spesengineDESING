@@ -829,5 +829,180 @@ export interface BoardActivity {
   createdAt: string;
 }
 
+// ─── Reports ──────────────────────────────────────────────────────────────────
+
+export type AggregateFunction = 'none' | 'count' | 'sum' | 'avg' | 'min' | 'max';
+export type FilterOperator = 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains' | 'startsWith' | 'in' | 'notIn' | 'isNull' | 'isNotNull';
+export type JoinDirection = 'source' | 'target';
+export type ReportVisualization = 'table' | 'bar' | 'pie' | 'line' | 'number';
+export type ReportVisibility = 'private' | 'roles' | 'all';
+export type ExecutionStatus = 'running' | 'completed' | 'failed';
+
+export interface ReportColumn {
+  id: string;
+  alias: string;
+  attributeId: string;
+  attributeCode: string;
+  label: string;
+  aggregate: AggregateFunction;
+}
+
+export interface ReportFilter {
+  id: string;
+  alias: string;
+  attributeId: string;
+  attributeCode: string;
+  operator: FilterOperator;
+  value?: unknown;
+}
+
+export interface ReportJoin {
+  alias: string;
+  associationTypeId: string;
+  targetItemTypeId: string;
+  targetItemTypeName: string;
+  direction: JoinDirection;
+}
+
+export interface ReportSchedule {
+  isEnabled: boolean;
+  cronExpression: string;
+  recipients: { type: 'user' | 'role'; id: string }[];
+  format: 'csv' | 'excel' | 'pdf';
+  lastRunAt?: string | null;
+  nextRunAt?: string | null;
+}
+
+export interface Report {
+  id: string;
+  tenantId: string;
+  name: string;
+  description?: string;
+  primaryItemTypeId: string;
+  primaryItemTypeName: string;
+  joins: ReportJoin[];
+  columns: ReportColumn[];
+  filters: ReportFilter[];
+  groupBy: string[];
+  sortBy: { alias: string; attributeCode: string; direction: 'asc' | 'desc' } | null;
+  visualization: ReportVisualization;
+  chartConfig: { xAxis?: string; yAxis?: string; colorField?: string };
+  visibility: ReportVisibility;
+  allowedRoles: string[];
+  allowedUsers: string[];
+  isTemplate: boolean;
+  isFavorite: boolean;
+  schedule: ReportSchedule | null;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ResultColumn {
+  key: string;
+  label: string;
+}
+
+export interface ExecutionResult {
+  columns: ResultColumn[];
+  rows: Record<string, unknown>[];
+  rowCount: number;
+}
+
+export interface ReportExecution {
+  id: string;
+  tenantId: string;
+  reportId: string;
+  status: ExecutionStatus;
+  triggeredBy: 'manual' | 'scheduled';
+  runtimeFilters: ReportFilter[];
+  result: ExecutionResult | null;
+  durationMs: number;
+  exportUrl?: string | null;
+  error?: string | null;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+export interface ReportMetaItemType {
+  id: string;
+  key: string;
+  name: string;
+}
+
+export interface ReportMetaAttribute {
+  id: string;
+  code: string;
+  label: string;
+  type: string;
+}
+
+export interface ReportMetaAssociation {
+  id: string;
+  key: string;
+  name: string;
+  sourceItemTypeId: string;
+  targetItemTypeId: string;
+}
+
+// ─── Backup ───────────────────────────────────────────────────────────────────
+export type BackupStatus = 'running' | 'success' | 'failed';
+export type BackupTrigger = 'manual' | 'scheduled';
+
+export interface Backup {
+  id: string;
+  tenantId: string;
+  status: BackupStatus;
+  trigger: BackupTrigger;
+  triggeredBy?: string;
+  targets: { database: boolean; uploadedFiles: boolean };
+  destinations: { local: boolean; minio: boolean };
+  localPath?: string;
+  minioKey?: string;
+  sizeBytes?: number;
+  durationMs?: number;
+  errorMessage?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StorageLocalConfig {
+  uploadPath: string;
+  maxFileSizeMB: number;
+}
+
+export interface StorageMinioConfig {
+  endpoint: string;
+  port: number;
+  useSSL: boolean;
+  accessKey: string;
+  secretKey: string;
+  bucket: string;
+  publicUrl: string;
+}
+
+export interface StorageSettings {
+  provider: 'local' | 'minio';
+  local: StorageLocalConfig;
+  minio: StorageMinioConfig;
+}
+
+export interface BackupScheduleSettings {
+  enabled: boolean;
+  cronExpression: string;
+}
+
+export interface BackupDestinationSettings {
+  local: { enabled: boolean; path: string; keepLastN: number };
+  minio: { enabled: boolean; bucket: string; prefix: string };
+}
+
+export interface BackupSettingsData {
+  schedule: BackupScheduleSettings;
+  targets: { database: boolean; uploadedFiles: boolean };
+  destination: BackupDestinationSettings;
+}
+
 // Re-export common types
 export * from './common';

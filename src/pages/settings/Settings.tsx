@@ -12,6 +12,8 @@ import {
   Search as SearchIcon,
   RefreshCw,
   History as HistoryIcon,
+  HardDrive,
+  Archive,
 } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Card, CardHeader } from '../../components/ui/Card';
@@ -43,6 +45,9 @@ import type {
 } from '../../api/types/api.types';
 import { HistoryTable } from '../../components/common/HistoryTable';
 import { searchService } from '../../api/services/search.service';
+import { StorageSettingsCard } from './components/StorageSettingsCard';
+import { BackupSettingsCard } from './components/BackupSettingsCard';
+import type { StorageSettings, BackupSettingsData } from '../../types';
 
 interface LanguageDraft {
   code: string;
@@ -583,6 +588,29 @@ export const Settings: React.FC = () => {
   const [isReindexModalOpen, setReindexModalOpen] = useState<boolean>(false);
   const [reindexLoading, setReindexLoading] = useState<boolean>(false);
   const [reindexError, setReindexError] = useState<string | null>(null);
+
+  const defaultStorage: StorageSettings = {
+    provider: 'local',
+    local: { uploadPath: 'uploads', maxFileSizeMB: 10 },
+    minio: { endpoint: '', port: 9000, useSSL: false, accessKey: '', secretKey: '', bucket: 'spesengine', publicUrl: '' },
+  };
+
+  const defaultBackup: BackupSettingsData = {
+    schedule: { enabled: false, cronExpression: '0 3 * * *' },
+    targets: { database: true, uploadedFiles: true },
+    destination: {
+      local: { enabled: true, path: '/backups', keepLastN: 7 },
+      minio: { enabled: false, bucket: 'backups', prefix: 'spesengine/' },
+    },
+  };
+
+  const [storageSettings, setStorageSettings] = useState<StorageSettings>(settings?.storage ?? defaultStorage);
+  const [backupSettings, setBackupSettings] = useState<BackupSettingsData>(settings?.backup ?? defaultBackup);
+
+  useEffect(() => {
+    if (settings?.storage) setStorageSettings(settings.storage);
+    if (settings?.backup) setBackupSettings(settings.backup);
+  }, [settings?.storage, settings?.backup]);
 
   useEffect(() => {
     if (settings) {
@@ -1259,6 +1287,8 @@ export const Settings: React.FC = () => {
       { id: 'search', label: t('settings.tabs.search'), icon: <SearchIcon className="h-4 w-4" /> },
       { id: 'security', label: t('settings.tabs.security'), icon: <Shield className="h-4 w-4" /> },
       { id: 'data', label: t('settings.tabs.data'), icon: <Database className="h-4 w-4" /> },
+      { id: 'storage', label: t('settings.storage_title') || 'Storage', icon: <HardDrive className="h-4 w-4" /> },
+      { id: 'backup', label: t('settings.backup_title') || 'Backup', icon: <Archive className="h-4 w-4" /> },
     ];
 
     if (canViewHistory) {
@@ -2173,6 +2203,24 @@ export const Settings: React.FC = () => {
       </Card>
     </TabPanel>
   )}
+
+      {activeTab === 'storage' && (
+        <TabPanel>
+          <StorageSettingsCard
+            storage={storageSettings}
+            onSaved={setStorageSettings}
+          />
+        </TabPanel>
+      )}
+
+      {activeTab === 'backup' && (
+        <TabPanel>
+          <BackupSettingsCard
+            settings={backupSettings}
+            onSaved={setBackupSettings}
+          />
+        </TabPanel>
+      )}
 
       {activeTab === 'history' && canViewHistory && (
         <TabPanel>

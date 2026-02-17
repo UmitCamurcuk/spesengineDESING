@@ -104,6 +104,11 @@ import { WorkflowBoardsList } from './pages/automation/WorkflowBoardsList';
 import { WorkflowBoardsCreate } from './pages/automation/WorkflowBoardsCreate';
 import { WorkflowBoardsDetails } from './pages/automation/WorkflowBoardsDetails';
 
+// Reports
+import { ReportsList } from './pages/reports/ReportsList';
+import { ReportsCreate } from './pages/reports/ReportsCreate';
+import { ReportsDetails } from './pages/reports/ReportsDetails';
+
 // Chatbot
 import { ChatbotSettings } from './pages/chatbot/ChatbotSettings';
 import { ConversationsList } from './pages/chatbot/ConversationsList';
@@ -186,6 +191,10 @@ const GuardedExecutionDetails = withPermission(PERMISSIONS.AUTOMATION.WORKFLOW_E
 const GuardedWorkflowBoardsList = withPermission(PERMISSIONS.AUTOMATION.WORKFLOW_BOARDS.LIST)(WorkflowBoardsList);
 const GuardedWorkflowBoardsCreate = withPermission(PERMISSIONS.AUTOMATION.WORKFLOW_BOARDS.CREATE)(WorkflowBoardsCreate);
 const GuardedWorkflowBoardsDetails = withPermission(PERMISSIONS.AUTOMATION.WORKFLOW_BOARDS.VIEW)(WorkflowBoardsDetails);
+
+const GuardedReportsList = withPermission(PERMISSIONS.REPORTS.REPORTS.LIST)(ReportsList);
+const GuardedReportsCreate = withPermission(PERMISSIONS.REPORTS.REPORTS.CREATE)(ReportsCreate);
+const GuardedReportsDetails = withPermission(PERMISSIONS.REPORTS.REPORTS.VIEW)(ReportsDetails);
 
 const GuardedChatbotSettings = withPermission(PERMISSIONS.CHATBOT.CONFIG.LIST)(ChatbotSettings);
 const GuardedConversationsList = withPermission(PERMISSIONS.CHATBOT.CONVERSATIONS.LIST)(ConversationsList);
@@ -304,6 +313,12 @@ const CREATE_ACTIONS: CreateActionConfig[] = [
     createPath: '/automation/boards/create',
     labelKey: 'boards.new_board',
     permission: PERMISSIONS.AUTOMATION.WORKFLOW_BOARDS.CREATE,
+  },
+  {
+    basePath: '/reports',
+    createPath: '/reports/create',
+    labelKey: 'reports.create_title',
+    permission: PERMISSIONS.REPORTS.REPORTS.CREATE,
   },
 ];
 
@@ -531,6 +546,11 @@ const AppContentInner: React.FC = () => {
         <Route path="/automation/boards/:id" element={<GuardedWorkflowBoardsDetails />} />
         <Route path="/automation/executions" element={<GuardedExecutionsList />} />
         <Route path="/automation/executions/:id" element={<GuardedExecutionDetails />} />
+
+        {/* Reports Routes */}
+        <Route path="/reports" element={<GuardedReportsList />} />
+        <Route path="/reports/create" element={<GuardedReportsCreate />} />
+        <Route path="/reports/:id" element={<GuardedReportsDetails />} />
 
         {/* Chatbot Routes */}
         <Route path="/chatbot/settings" element={<GuardedChatbotSettings />} />

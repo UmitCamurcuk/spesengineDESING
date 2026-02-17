@@ -27,6 +27,7 @@ import {
   MessageSquare,
   Radio,
   LayoutGrid,
+  BarChart2,
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -197,6 +198,16 @@ const automationMenu: MenuItem[] = [
         fallback: 'Şablonlar',
       },
     ],
+  },
+];
+
+const reportsMenu: MenuItem[] = [
+  {
+    name: 'navigation.reports',
+    href: '/reports',
+    icon: BarChart2,
+    permission: PERMISSIONS.REPORTS.REPORTS.LIST,
+    fallback: 'Raporlar',
   },
 ];
 
@@ -381,6 +392,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ className, isOpen, onClose }) 
         items: isAdmin
           ? automationMenu
           : filterMenuItems(automationMenu, hasPermission),
+      },
+      {
+        titleKey: 'navigation.reports',
+        fallbackTitle: 'Raporlar',
+        items: filterMenuItems(reportsMenu, hasPermission),
       },
       {
         titleKey: 'navigation.ai',

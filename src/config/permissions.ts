@@ -66,6 +66,12 @@ export const PERMISSIONS = {
     WORKFLOW_BOARDS: createCrudPermissionSet('automation', 'workflowBoard'),
     BOARD_TASKS: createCrudPermissionSet('automation', 'boardTask'),
   },
+  REPORTS: {
+    REPORTS: createCrudPermissionSet('reports', 'report'),
+  },
+  BACKUPS: {
+    BACKUPS: createCrudPermissionSet('backups', 'backup'),
+  },
   CHATBOT: {
     CONFIG: createCrudPermissionSet('chatbot', 'config'),
     CONVERSATIONS: {

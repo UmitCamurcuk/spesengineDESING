@@ -419,6 +419,8 @@ export interface AppSettings {
   search: SettingsSearch;
   security: SettingsSecurity;
   data: SettingsData;
+  storage?: import('../../types').StorageSettings;
+  backup?: import('../../types').BackupSettingsData;
   createdAt: string | null;
   updatedAt: string | null;
 }
@@ -440,6 +442,8 @@ export type SettingsPatchPayload = Partial<{
   search: Partial<SettingsSearch>;
   security: Partial<SettingsSecurity>;
   data: Partial<SettingsData>;
+  storage: Partial<import('../../types').StorageSettings>;
+  backup: Partial<import('../../types').BackupSettingsData>;
 }>;
 
 export type SettingsPatchRequest = SettingsPatchPayload & {

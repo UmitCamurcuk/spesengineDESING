@@ -212,6 +212,21 @@ export const API_ENDPOINTS = {
     ACTIVITY: (id: string) => `/automation/boards/${id}/activity`,
   },
 
+  // Reports
+  REPORTS: {
+    BASE: '/reports',
+    BY_ID: (id: string) => `/reports/${id}`,
+    EXECUTE: (id: string) => `/reports/${id}/execute`,
+    EXECUTIONS: (id: string) => `/reports/${id}/executions`,
+    EXECUTION_BY_ID: (id: string, execId: string) => `/reports/${id}/executions/${execId}`,
+    FAVORITE: (id: string) => `/reports/${id}/favorite`,
+    CLONE: (id: string) => `/reports/${id}/clone`,
+    TEMPLATES: '/reports/templates',
+    META_ITEM_TYPES: '/reports/meta/item-types',
+    META_ATTRIBUTES: (typeId: string) => `/reports/meta/attributes/${typeId}`,
+    META_ASSOCIATIONS: (typeId: string) => `/reports/meta/associations/${typeId}`,
+  },
+
   // Chatbot
   CHATBOT: {
     CONFIG: '/chatbot/config',
@@ -222,6 +237,15 @@ export const API_ENDPOINTS = {
     MESSAGES: (id: string) => `/chatbot/conversations/${id}/messages`,
     CLOSE: (id: string) => `/chatbot/conversations/${id}/close`,
     EMBED: (configId: string) => `/chatbot/embed/${configId}`,
+  },
+
+  // Backups
+  BACKUPS: {
+    BASE: '/backups',
+    BY_ID: (id: string) => `/backups/${id}`,
+    TRIGGER: '/backups/trigger',
+    SETTINGS: '/backups/settings',
+    TEST_MINIO: '/backups/test-minio',
   },
 
   // Analytics endpoints
