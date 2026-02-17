@@ -6,43 +6,24 @@ import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { Checkbox } from '../../../components/ui/Checkbox';
 import { useLanguage } from '../../../contexts/LanguageContext';
-import { useToast } from '../../../contexts/ToastContext';
 import { backupsService } from '../../../api/services/backups.service';
 import type { StorageSettings } from '../../../types';
 
 interface StorageSettingsCardProps {
-  storage: StorageSettings;
-  onSaved: (storage: StorageSettings) => void;
+  form: StorageSettings;
+  isLocked: boolean;
+  onChange: (storage: StorageSettings) => void;
 }
 
-export const StorageSettingsCard: React.FC<StorageSettingsCardProps> = ({ storage, onSaved }) => {
+export const StorageSettingsCard: React.FC<StorageSettingsCardProps> = ({ form, isLocked, onChange }) => {
   const { t } = useLanguage();
-  const { showToast } = useToast();
-
-  const [form, setForm] = useState<StorageSettings>(storage);
-  const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; latencyMs?: number; error?: string } | null>(null);
-
-  const isDirty = JSON.stringify(form) !== JSON.stringify(storage);
 
   const providerOptions = [
     { value: 'local', label: t('settings.storage_local') || 'Local Disk' },
     { value: 'minio', label: t('settings.storage_minio') || 'MinIO' },
   ];
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const result = await backupsService.updateStorageSettings(form);
-      onSaved(result.storage);
-      showToast({ type: 'success', message: t('common.saved') || 'Saved' });
-    } catch {
-      showToast({ type: 'error', message: t('common.error') || 'Error' });
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const handleTestMinio = async () => {
     setTesting(true);
@@ -73,7 +54,8 @@ export const StorageSettingsCard: React.FC<StorageSettingsCardProps> = ({ storag
           <Select
             options={providerOptions}
             value={form.provider}
-            onChange={(e) => setForm((prev) => ({ ...prev, provider: e.target.value as 'local' | 'minio' }))}
+            onChange={(e) => onChange({ ...form, provider: e.target.value as 'local' | 'minio' })}
+            disabled={isLocked}
           />
         </div>
 
@@ -89,13 +71,9 @@ export const StorageSettingsCard: React.FC<StorageSettingsCardProps> = ({ storag
                 <label className="text-xs font-medium text-muted-foreground">Upload Path</label>
                 <Input
                   value={form.local.uploadPath}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      local: { ...prev.local, uploadPath: e.target.value },
-                    }))
-                  }
+                  onChange={(e) => onChange({ ...form, local: { ...form.local, uploadPath: e.target.value } })}
                   placeholder="uploads"
+                  disabled={isLocked}
                 />
               </div>
               <div className="space-y-1">
@@ -105,13 +83,9 @@ export const StorageSettingsCard: React.FC<StorageSettingsCardProps> = ({ storag
                 <Input
                   type="number"
                   value={form.local.maxFileSizeMB}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      local: { ...prev.local, maxFileSizeMB: Number(e.target.value) },
-                    }))
-                  }
+                  onChange={(e) => onChange({ ...form, local: { ...form.local, maxFileSizeMB: Number(e.target.value) } })}
                   min={1}
+                  disabled={isLocked}
                 />
               </div>
             </div>
@@ -132,10 +106,9 @@ export const StorageSettingsCard: React.FC<StorageSettingsCardProps> = ({ storag
                 </label>
                 <Input
                   value={form.minio.endpoint}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, minio: { ...prev.minio, endpoint: e.target.value } }))
-                  }
+                  onChange={(e) => onChange({ ...form, minio: { ...form.minio, endpoint: e.target.value } })}
                   placeholder="192.168.1.10"
+                  disabled={isLocked}
                 />
               </div>
               <div className="space-y-1">
@@ -145,9 +118,8 @@ export const StorageSettingsCard: React.FC<StorageSettingsCardProps> = ({ storag
                 <Input
                   type="number"
                   value={form.minio.port}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, minio: { ...prev.minio, port: Number(e.target.value) } }))
-                  }
+                  onChange={(e) => onChange({ ...form, minio: { ...form.minio, port: Number(e.target.value) } })}
+                  disabled={isLocked}
                 />
               </div>
               <div className="space-y-1">
@@ -156,9 +128,8 @@ export const StorageSettingsCard: React.FC<StorageSettingsCardProps> = ({ storag
                 </label>
                 <Input
                   value={form.minio.accessKey}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, minio: { ...prev.minio, accessKey: e.target.value } }))
-                  }
+                  onChange={(e) => onChange({ ...form, minio: { ...form.minio, accessKey: e.target.value } })}
+                  disabled={isLocked}
                 />
               </div>
               <div className="space-y-1">
@@ -168,9 +139,8 @@ export const StorageSettingsCard: React.FC<StorageSettingsCardProps> = ({ storag
                 <Input
                   type="password"
                   value={form.minio.secretKey}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, minio: { ...prev.minio, secretKey: e.target.value } }))
-                  }
+                  onChange={(e) => onChange({ ...form, minio: { ...form.minio, secretKey: e.target.value } })}
+                  disabled={isLocked}
                 />
               </div>
               <div className="space-y-1">
@@ -179,9 +149,8 @@ export const StorageSettingsCard: React.FC<StorageSettingsCardProps> = ({ storag
                 </label>
                 <Input
                   value={form.minio.bucket}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, minio: { ...prev.minio, bucket: e.target.value } }))
-                  }
+                  onChange={(e) => onChange({ ...form, minio: { ...form.minio, bucket: e.target.value } })}
+                  disabled={isLocked}
                 />
               </div>
               <div className="space-y-1">
@@ -190,10 +159,9 @@ export const StorageSettingsCard: React.FC<StorageSettingsCardProps> = ({ storag
                 </label>
                 <Input
                   value={form.minio.publicUrl}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, minio: { ...prev.minio, publicUrl: e.target.value } }))
-                  }
+                  onChange={(e) => onChange({ ...form, minio: { ...form.minio, publicUrl: e.target.value } })}
                   placeholder="http://minio.local:9000/spesengine"
+                  disabled={isLocked}
                 />
               </div>
             </div>
@@ -201,10 +169,9 @@ export const StorageSettingsCard: React.FC<StorageSettingsCardProps> = ({ storag
             <div className="flex items-center gap-3">
               <Checkbox
                 checked={form.minio.useSSL}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, minio: { ...prev.minio, useSSL: e.target.checked } }))
-                }
+                onChange={(e) => onChange({ ...form, minio: { ...form.minio, useSSL: e.target.checked } })}
                 label={t('settings.minio_use_ssl') || 'Use SSL'}
+                disabled={isLocked}
               />
             </div>
 
@@ -239,14 +206,6 @@ export const StorageSettingsCard: React.FC<StorageSettingsCardProps> = ({ storag
             </div>
           </div>
         )}
-
-        {/* Save */}
-        <div className="flex justify-end pt-2 border-t border-border">
-          <Button onClick={handleSave} disabled={!isDirty || saving}>
-            {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-            {t('common.save') || 'Save'}
-          </Button>
-        </div>
       </div>
     </Card>
   );

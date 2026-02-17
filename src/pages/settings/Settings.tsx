@@ -42,6 +42,7 @@ import type {
 } from '../../api/types/api.types';
 import { HistoryTable } from '../../components/common/HistoryTable';
 import { searchService } from '../../api/services/search.service';
+import { backupsService } from '../../api/services/backups.service';
 import { StorageSettingsCard } from './components/StorageSettingsCard';
 import { BackupSettingsCard } from './components/BackupSettingsCard';
 import { GeneralTab } from './components/GeneralTab';
@@ -297,6 +298,15 @@ const computeSettingsChanges = (
   if (base.search.reindexBatchSize !== current.search.reindexBatchSize)
     pushChange('search', 'reindexBatchSize', base.search.reindexBatchSize, current.search.reindexBatchSize);
 
+  // Storage
+  if (base.storage && current.storage && JSON.stringify(base.storage) !== JSON.stringify(current.storage)) {
+    patch.storage = current.storage;
+    if (base.storage.provider !== current.storage.provider)
+      changes.push({ field: 'storage.provider', oldValue: base.storage.provider, newValue: current.storage.provider });
+    else
+      changes.push({ field: 'storage', oldValue: base.storage.provider, newValue: current.storage.provider });
+  }
+
   return { patch, changes };
 };
 
@@ -343,13 +353,11 @@ export const Settings: React.FC = () => {
       minio: { enabled: false, bucket: 'backups', prefix: 'spesengine/' },
     },
   };
-  const [storageSettings, setStorageSettings] = useState<StorageSettings>(settings?.storage ?? defaultStorage);
   const [backupSettings, setBackupSettings] = useState<BackupSettingsData>(settings?.backup ?? defaultBackup);
 
   useEffect(() => {
-    if (settings?.storage) setStorageSettings(settings.storage);
     if (settings?.backup) setBackupSettings(settings.backup);
-  }, [settings?.storage, settings?.backup]);
+  }, [settings?.backup]);
 
   useEffect(() => {
     if (settings) {
@@ -485,6 +493,11 @@ export const Settings: React.FC = () => {
       }
       return draft;
     });
+  };
+
+  const handleStorageChange = (storage: StorageSettings) => {
+    if (!isEditing) return;
+    updateForm((draft) => { draft.storage = storage; return draft; });
   };
 
   const ensureSearchConnection = (draft: UpdateSettingsPayload): SettingsSearch['connection'] => {
@@ -658,6 +671,10 @@ export const Settings: React.FC = () => {
     }
     try {
       setConfirmLoading(true);
+      // Save storage separately if changed (backend main settings endpoint doesn't handle storage)
+      if (patch.storage && form.storage && JSON.stringify(baseline.storage) !== JSON.stringify(form.storage)) {
+        await backupsService.updateStorageSettings(form.storage);
+      }
       const result = await save(clonePayload(patch), comment.trim());
       setForm(stripMetadata(result));
       setIsEditing(false);
@@ -931,7 +948,11 @@ export const Settings: React.FC = () => {
 
       {activeTab === 'storage' && (
         <TabPanel>
-          <StorageSettingsCard storage={storageSettings} onSaved={setStorageSettings} />
+          <StorageSettingsCard
+            form={form.storage ?? defaultStorage}
+            isLocked={isLocked}
+            onChange={handleStorageChange}
+          />
         </TabPanel>
       )}
 
