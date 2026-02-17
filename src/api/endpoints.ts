@@ -245,6 +245,7 @@ export const API_ENDPOINTS = {
     BY_ID: (id: string) => `/backups/${id}`,
     TRIGGER: '/backups/trigger',
     SETTINGS: '/backups/settings',
+    STORAGE: '/backups/storage',
     TEST_MINIO: '/backups/test-minio',
   },
 

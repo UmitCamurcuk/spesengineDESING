@@ -7,7 +7,6 @@ import { Select } from '../../../components/ui/Select';
 import { Checkbox } from '../../../components/ui/Checkbox';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { useToast } from '../../../contexts/ToastContext';
-import { settingsService } from '../../../api/services/settings.service';
 import { backupsService } from '../../../api/services/backups.service';
 import type { StorageSettings } from '../../../types';
 
@@ -35,8 +34,8 @@ export const StorageSettingsCard: React.FC<StorageSettingsCardProps> = ({ storag
   const handleSave = async () => {
     setSaving(true);
     try {
-      await settingsService.updateSettings({ storage: form } as any);
-      onSaved(form);
+      const result = await backupsService.updateStorageSettings(form);
+      onSaved(result.storage);
       showToast({ type: 'success', message: t('common.saved') || 'Saved' });
     } catch {
       showToast({ type: 'error', message: t('common.error') || 'Error' });

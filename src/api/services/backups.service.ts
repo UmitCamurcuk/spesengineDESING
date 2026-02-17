@@ -26,6 +26,11 @@ export const backupsService = {
     return response.data.data as { backup: BackupSettingsData };
   },
 
+  updateStorageSettings: async (payload: Partial<StorageSettings>) => {
+    const response = await apiClient.patch(API_ENDPOINTS.BACKUPS.STORAGE, payload);
+    return response.data.data as { storage: StorageSettings };
+  },
+
   testMinio: async (config: StorageSettings['minio']) => {
     const response = await apiClient.post(API_ENDPOINTS.BACKUPS.TEST_MINIO, config);
     return response.data.data as { ok: boolean; latencyMs: number };
