@@ -15,16 +15,18 @@ export const resolveAssetUrl = (
     return trimmed;
   }
 
-  // Eğer URL /uploads/ ile başlıyorsa, base URL ekleme
-  if (trimmed.startsWith('/uploads/')) {
-    return trimmed;
-  }
-
   const normalizedBase = (base || '').replace(/\/$/, '');
   const normalizedPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
 
   if (!normalizedBase) {
     return normalizedPath;
+  }
+
+  // /uploads/ paths are served from the API root (not under /api prefix).
+  // Strip trailing /api so the path resolves correctly in all environments.
+  if (trimmed.startsWith('/uploads/')) {
+    const apiRoot = normalizedBase.replace(/\/api$/, '');
+    return `${apiRoot}${trimmed}`;
   }
 
   return `${normalizedBase}${normalizedPath}`;

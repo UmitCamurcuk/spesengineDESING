@@ -3,12 +3,10 @@ import { Eye, EyeOff, Database } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Card } from '../../components/ui/Card';
-import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useReduxSelector } from '../../redux/hooks';
 
 export const Login: React.FC = () => {
-  const { t } = useLanguage();
   const { login } = useAuth();
   const { status, error, fieldErrors } = useReduxSelector((state) => state.auth);
   const [email, setEmail] = useState('');
@@ -22,12 +20,12 @@ export const Login: React.FC = () => {
     setErrors({});
 
     if (!email) {
-      setErrors(prev => ({ ...prev, email: t('validation.required') }));
+      setErrors(prev => ({ ...prev, email: 'Bu alan zorunludur' }));
       return;
     }
-    
+
     if (!password) {
-      setErrors(prev => ({ ...prev, password: t('validation.required') }));
+      setErrors(prev => ({ ...prev, password: 'Bu alan zorunludur' }));
       return;
     }
 
@@ -47,29 +45,29 @@ export const Login: React.FC = () => {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-primary rounded-full mb-4">
             <Database className="h-8 w-8 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">{t('common.welcome_back')}</h1>
-          <p className="text-muted-foreground mt-2">{t('common.sign_in_to_account')}</p>
+          <h1 className="text-2xl font-bold text-foreground">Tekrar Hoş Geldiniz</h1>
+          <p className="text-muted-foreground mt-2">Hesabınıza giriş yapın</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <Input
             type="email"
-            label={t('common.email')}
+            label="E-posta"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             error={emailError}
             required
-            placeholder={t('common.email')}
+            placeholder="E-posta"
           />
 
           <Input
             type={showPassword ? 'text' : 'password'}
-            label={t('common.password')}
+            label="Şifre"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             error={passwordError}
             required
-            placeholder={t('common.password')}
+            placeholder="Şifre"
             rightIcon={
               <button
                 type="button"
@@ -81,7 +79,7 @@ export const Login: React.FC = () => {
             }
           />
 
-          <div className="flex items-center justify-between">
+          <div className="flex items-center">
             <label className="flex items-center">
               <input
                 type="checkbox"
@@ -89,11 +87,8 @@ export const Login: React.FC = () => {
                 checked={rememberMe}
                 onChange={(event) => setRememberMe(event.target.checked)}
               />
-              <span className="ml-2 text-sm text-muted-foreground">{t('common.remember_me')}</span>
+              <span className="ml-2 text-sm text-muted-foreground">Beni hatırla</span>
             </label>
-            <a href="#" className="text-sm text-primary hover:text-primary-hover">
-              {t('common.forgot_password')}
-            </a>
           </div>
 
           {error && (
@@ -108,15 +103,9 @@ export const Login: React.FC = () => {
             className="w-full"
             size="lg"
           >
-            {t('common.sign_in')}
+            Giriş Yap
           </Button>
         </form>
-
-        <div className="mt-6 text-center">
-          <p className="text-sm text-muted-foreground">
-            {t('common.demo_credentials')}
-          </p>
-        </div>
       </Card>
     </div>
   );

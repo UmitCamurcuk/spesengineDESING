@@ -12,7 +12,6 @@ import { localizationsService } from '../api/services/localizations.service';
 import type { LocalizationExportBundle, LocalizationRecord } from '../api/types/api.types';
 import { useAppDispatch, useReduxSelector } from '../redux/hooks';
 import { cacheBundle } from '../redux/slices/translationsSlice';
-import type { CachedLocalizationBundle } from '../redux/slices/translationsSlice';
 
 export type Language = string;
 
@@ -38,8 +37,6 @@ interface LanguageProviderProps {
 }
 
 const LANGUAGE_STORAGE_KEY = 'language';
-const TRANSLATION_STORAGE_PREFIX = 'translations';
-const GLOBAL_TENANT_KEY = 'global';
 
 const normalizeLanguageCode = (code: string): string => {
   const trimmed = (code || '').trim();
@@ -54,12 +51,10 @@ const normalizeLanguageCode = (code: string): string => {
 };
 
 const buildCacheKey = (tenantId: string | undefined, language: string): string => {
-  const normalizedTenant = tenantId && tenantId.trim().length > 0 ? tenantId : GLOBAL_TENANT_KEY;
+  const normalizedTenant = tenantId && tenantId.trim().length > 0 ? tenantId : 'global';
   const normalizedLanguage = normalizeLanguageCode(language);
   return `${normalizedTenant}:${normalizedLanguage}`;
 };
-
-const storageKeyForBundle = (cacheKey: string): string => `${TRANSLATION_STORAGE_PREFIX}:${cacheKey}`;
 
 const safeGetItem = (key: string): string | null => {
   if (typeof window === 'undefined') {
@@ -81,51 +76,6 @@ const safeSetItem = (key: string, value: string): void => {
     localStorage.setItem(key, value);
   } catch (error) {
     console.warn('LanguageContext: unable to access localStorage.setItem', error);
-  }
-};
-
-const safeRemoveItem = (key: string): void => {
-  if (typeof window === 'undefined') {
-    return;
-  }
-  try {
-    localStorage.removeItem(key);
-  } catch (error) {
-    console.warn('LanguageContext: unable to access localStorage.removeItem', error);
-  }
-};
-
-const safeReadBundle = (cacheKey: string): CachedLocalizationBundle | null => {
-  const raw = safeGetItem(storageKeyForBundle(cacheKey));
-  if (!raw) {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(raw) as CachedLocalizationBundle;
-    if (
-      !parsed ||
-      typeof parsed !== 'object' ||
-      typeof parsed.translations !== 'object' ||
-      typeof parsed.localizations !== 'object'
-    ) {
-      return null;
-    }
-    return parsed;
-  } catch (error) {
-    console.warn('LanguageContext: failed to parse cached translations', error);
-    return null;
-  }
-};
-
-const safeWriteBundle = (cacheKey: string, bundle: LocalizationExportBundle): void => {
-  const payload: CachedLocalizationBundle = {
-    ...bundle,
-    fetchedAt: Date.now(),
-  };
-  safeSetItem(storageKeyForBundle(cacheKey), JSON.stringify(payload));
-  const [tenantPart, languagePart] = cacheKey.split(':', 2);
-  if (tenantPart && tenantPart !== GLOBAL_TENANT_KEY && languagePart) {
-    safeRemoveItem(storageKeyForBundle(`${GLOBAL_TENANT_KEY}:${languagePart}`));
   }
 };
 
@@ -219,15 +169,6 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
 
     if (bundleFromStore) {
       applyBundle(bundleFromStore);
-      safeWriteBundle(cacheKey, bundleFromStore);
-      return;
-    }
-
-    const stored = safeReadBundle(cacheKey);
-    if (stored) {
-      const { fetchedAt: _ignored, ...plainBundle } = stored;
-      applyBundle(plainBundle);
-      dispatch(cacheBundle({ key: cacheKey, bundle: plainBundle }));
       return;
     }
 
@@ -242,7 +183,6 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
         }
         applyBundle(data);
         dispatch(cacheBundle({ key: cacheKey, bundle: data }));
-        safeWriteBundle(cacheKey, data);
       } catch (error) {
         console.error('Failed to load translations from database:', error);
         if (cancelled) {
